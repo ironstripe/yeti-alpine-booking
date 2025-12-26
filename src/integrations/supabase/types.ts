@@ -14,6 +14,78 @@ export type Database = {
   }
   public: {
     Tables: {
+      conversations: {
+        Row: {
+          ai_confidence_score: number | null
+          ai_extracted_data: Json | null
+          assigned_to: string | null
+          channel: string
+          contact_identifier: string
+          contact_name: string | null
+          content: string
+          created_at: string
+          customer_id: string | null
+          direction: string
+          id: string
+          notes: string | null
+          processed_at: string | null
+          related_ticket_id: string | null
+          status: string | null
+          subject: string | null
+        }
+        Insert: {
+          ai_confidence_score?: number | null
+          ai_extracted_data?: Json | null
+          assigned_to?: string | null
+          channel: string
+          contact_identifier: string
+          contact_name?: string | null
+          content: string
+          created_at?: string
+          customer_id?: string | null
+          direction?: string
+          id?: string
+          notes?: string | null
+          processed_at?: string | null
+          related_ticket_id?: string | null
+          status?: string | null
+          subject?: string | null
+        }
+        Update: {
+          ai_confidence_score?: number | null
+          ai_extracted_data?: Json | null
+          assigned_to?: string | null
+          channel?: string
+          contact_identifier?: string
+          contact_name?: string | null
+          content?: string
+          created_at?: string
+          customer_id?: string | null
+          direction?: string
+          id?: string
+          notes?: string | null
+          processed_at?: string | null
+          related_ticket_id?: string | null
+          status?: string | null
+          subject?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversations_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversations_related_ticket_id_fkey"
+            columns: ["related_ticket_id"]
+            isOneToOne: false
+            referencedRelation: "tickets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       customer_participants: {
         Row: {
           birth_date: string
@@ -111,6 +183,74 @@ export type Database = {
           zip?: string | null
         }
         Relationships: []
+      }
+      groups: {
+        Row: {
+          created_at: string
+          end_date: string
+          id: string
+          instructor_id: string | null
+          level: string
+          max_participants: number | null
+          meeting_point: string | null
+          min_participants: number | null
+          name: string
+          notes: string | null
+          sport: string | null
+          start_date: string
+          status: string | null
+          time_afternoon_end: string | null
+          time_afternoon_start: string | null
+          time_morning_end: string | null
+          time_morning_start: string | null
+        }
+        Insert: {
+          created_at?: string
+          end_date: string
+          id?: string
+          instructor_id?: string | null
+          level: string
+          max_participants?: number | null
+          meeting_point?: string | null
+          min_participants?: number | null
+          name: string
+          notes?: string | null
+          sport?: string | null
+          start_date: string
+          status?: string | null
+          time_afternoon_end?: string | null
+          time_afternoon_start?: string | null
+          time_morning_end?: string | null
+          time_morning_start?: string | null
+        }
+        Update: {
+          created_at?: string
+          end_date?: string
+          id?: string
+          instructor_id?: string | null
+          level?: string
+          max_participants?: number | null
+          meeting_point?: string | null
+          min_participants?: number | null
+          name?: string
+          notes?: string | null
+          sport?: string | null
+          start_date?: string
+          status?: string | null
+          time_afternoon_end?: string | null
+          time_afternoon_start?: string | null
+          time_morning_end?: string | null
+          time_morning_start?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "groups_instructor_id_fkey"
+            columns: ["instructor_id"]
+            isOneToOne: false
+            referencedRelation: "instructors"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       instructors: {
         Row: {
@@ -364,6 +504,110 @@ export type Database = {
             columns: ["customer_id"]
             isOneToOne: false
             referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      training_participants: {
+        Row: {
+          attended_at: string | null
+          confirmed_at: string | null
+          created_at: string
+          id: string
+          instructor_id: string
+          notes: string | null
+          status: string | null
+          training_id: string
+        }
+        Insert: {
+          attended_at?: string | null
+          confirmed_at?: string | null
+          created_at?: string
+          id?: string
+          instructor_id: string
+          notes?: string | null
+          status?: string | null
+          training_id: string
+        }
+        Update: {
+          attended_at?: string | null
+          confirmed_at?: string | null
+          created_at?: string
+          id?: string
+          instructor_id?: string
+          notes?: string | null
+          status?: string | null
+          training_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "training_participants_instructor_id_fkey"
+            columns: ["instructor_id"]
+            isOneToOne: false
+            referencedRelation: "instructors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_participants_training_id_fkey"
+            columns: ["training_id"]
+            isOneToOne: false
+            referencedRelation: "trainings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      trainings: {
+        Row: {
+          created_at: string
+          date: string
+          description: string | null
+          id: string
+          is_mandatory: boolean | null
+          lead_instructor_id: string | null
+          location: string | null
+          max_participants: number | null
+          name: string
+          notes: string | null
+          status: string | null
+          time_end: string
+          time_start: string
+        }
+        Insert: {
+          created_at?: string
+          date: string
+          description?: string | null
+          id?: string
+          is_mandatory?: boolean | null
+          lead_instructor_id?: string | null
+          location?: string | null
+          max_participants?: number | null
+          name: string
+          notes?: string | null
+          status?: string | null
+          time_end: string
+          time_start: string
+        }
+        Update: {
+          created_at?: string
+          date?: string
+          description?: string | null
+          id?: string
+          is_mandatory?: boolean | null
+          lead_instructor_id?: string | null
+          location?: string | null
+          max_participants?: number | null
+          name?: string
+          notes?: string | null
+          status?: string | null
+          time_end?: string
+          time_start?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trainings_lead_instructor_id_fkey"
+            columns: ["lead_instructor_id"]
+            isOneToOne: false
+            referencedRelation: "instructors"
             referencedColumns: ["id"]
           },
         ]
