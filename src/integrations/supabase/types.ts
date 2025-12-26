@@ -211,6 +211,163 @@ export type Database = {
         }
         Relationships: []
       }
+      ticket_items: {
+        Row: {
+          actual_duration_minutes: number | null
+          created_at: string
+          date: string
+          discount_percent: number | null
+          discount_reason: string | null
+          id: string
+          instructor_confirmation: string | null
+          instructor_confirmed_at: string | null
+          instructor_id: string | null
+          instructor_notes: string | null
+          internal_notes: string | null
+          line_total: number | null
+          meeting_point: string | null
+          participant_id: string | null
+          product_id: string
+          quantity: number | null
+          status: string | null
+          ticket_id: string
+          time_end: string | null
+          time_start: string | null
+          unit_price: number
+        }
+        Insert: {
+          actual_duration_minutes?: number | null
+          created_at?: string
+          date: string
+          discount_percent?: number | null
+          discount_reason?: string | null
+          id?: string
+          instructor_confirmation?: string | null
+          instructor_confirmed_at?: string | null
+          instructor_id?: string | null
+          instructor_notes?: string | null
+          internal_notes?: string | null
+          line_total?: number | null
+          meeting_point?: string | null
+          participant_id?: string | null
+          product_id: string
+          quantity?: number | null
+          status?: string | null
+          ticket_id: string
+          time_end?: string | null
+          time_start?: string | null
+          unit_price: number
+        }
+        Update: {
+          actual_duration_minutes?: number | null
+          created_at?: string
+          date?: string
+          discount_percent?: number | null
+          discount_reason?: string | null
+          id?: string
+          instructor_confirmation?: string | null
+          instructor_confirmed_at?: string | null
+          instructor_id?: string | null
+          instructor_notes?: string | null
+          internal_notes?: string | null
+          line_total?: number | null
+          meeting_point?: string | null
+          participant_id?: string | null
+          product_id?: string
+          quantity?: number | null
+          status?: string | null
+          ticket_id?: string
+          time_end?: string | null
+          time_start?: string | null
+          unit_price?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ticket_items_instructor_id_fkey"
+            columns: ["instructor_id"]
+            isOneToOne: false
+            referencedRelation: "instructors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ticket_items_participant_id_fkey"
+            columns: ["participant_id"]
+            isOneToOne: false
+            referencedRelation: "customer_participants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ticket_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ticket_items_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "tickets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tickets: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          customer_id: string
+          id: string
+          internal_notes: string | null
+          notes: string | null
+          paid_amount: number | null
+          payment_due_date: string | null
+          payment_method: string | null
+          status: string | null
+          ticket_number: string
+          total_amount: number | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          customer_id: string
+          id?: string
+          internal_notes?: string | null
+          notes?: string | null
+          paid_amount?: number | null
+          payment_due_date?: string | null
+          payment_method?: string | null
+          status?: string | null
+          ticket_number: string
+          total_amount?: number | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          customer_id?: string
+          id?: string
+          internal_notes?: string | null
+          notes?: string | null
+          paid_amount?: number | null
+          payment_due_date?: string | null
+          payment_method?: string | null
+          status?: string | null
+          ticket_number?: string
+          total_amount?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tickets_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
