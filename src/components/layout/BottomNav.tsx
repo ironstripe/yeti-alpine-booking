@@ -1,6 +1,8 @@
-import { NavLink, useLocation } from "react-router-dom";
-import { Home, Inbox, Calendar, Users, UserCheck } from "lucide-react";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
+import { Home, Inbox, Calendar, Users, UserCheck, LogOut, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/contexts/AuthContext";
+import { useState } from "react";
 
 const navItems = [
   { title: "Dashboard", url: "/", icon: Home },
@@ -12,11 +14,26 @@ const navItems = [
 
 export function BottomNav() {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { signOut } = useAuth();
+  const [loggingOut, setLoggingOut] = useState(false);
+
+  const handleLogout = async () => {
+    setLoggingOut(true);
+    try {
+      await signOut();
+      navigate("/login", { replace: true });
+    } catch (error) {
+      console.error("Logout failed:", error);
+    } finally {
+      setLoggingOut(false);
+    }
+  };
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 md:hidden bg-card border-t border-border safe-area-inset-bottom">
       <ul className="flex items-center justify-around h-16">
-        {navItems.map((item) => {
+        {navItems.slice(0, 4).map((item) => {
           const isActive = location.pathname === item.url;
           return (
             <li key={item.title} className="relative">
@@ -45,6 +62,21 @@ export function BottomNav() {
             </li>
           );
         })}
+        {/* Logout button on mobile */}
+        <li className="relative">
+          <button
+            onClick={handleLogout}
+            disabled={loggingOut}
+            className="flex flex-col items-center justify-center w-16 h-14 text-xs font-medium text-nav-inactive hover:text-foreground transition-colors"
+          >
+            {loggingOut ? (
+              <Loader2 className="h-5 w-5 mb-1 animate-spin" />
+            ) : (
+              <LogOut className="h-5 w-5 mb-1" />
+            )}
+            <span>Logout</span>
+          </button>
+        </li>
       </ul>
     </nav>
   );
