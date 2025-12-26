@@ -112,6 +112,105 @@ export type Database = {
         }
         Relationships: []
       }
+      instructors: {
+        Row: {
+          ahv_number: string | null
+          bank_name: string | null
+          birth_date: string | null
+          created_at: string
+          email: string
+          first_name: string
+          hourly_rate: number
+          iban: string | null
+          id: string
+          last_name: string
+          level: string | null
+          notes: string | null
+          phone: string
+          real_time_status: string | null
+          specialization: string | null
+          status: string | null
+        }
+        Insert: {
+          ahv_number?: string | null
+          bank_name?: string | null
+          birth_date?: string | null
+          created_at?: string
+          email: string
+          first_name: string
+          hourly_rate: number
+          iban?: string | null
+          id?: string
+          last_name: string
+          level?: string | null
+          notes?: string | null
+          phone: string
+          real_time_status?: string | null
+          specialization?: string | null
+          status?: string | null
+        }
+        Update: {
+          ahv_number?: string | null
+          bank_name?: string | null
+          birth_date?: string | null
+          created_at?: string
+          email?: string
+          first_name?: string
+          hourly_rate?: number
+          iban?: string | null
+          id?: string
+          last_name?: string
+          level?: string | null
+          notes?: string | null
+          phone?: string
+          real_time_status?: string | null
+          specialization?: string | null
+          status?: string | null
+        }
+        Relationships: []
+      }
+      products: {
+        Row: {
+          created_at: string
+          currency: string | null
+          description: string | null
+          duration_minutes: number | null
+          id: string
+          is_active: boolean | null
+          name: string
+          price: number
+          sort_order: number | null
+          type: string
+          vat_rate: number | null
+        }
+        Insert: {
+          created_at?: string
+          currency?: string | null
+          description?: string | null
+          duration_minutes?: number | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          price: number
+          sort_order?: number | null
+          type: string
+          vat_rate?: number | null
+        }
+        Update: {
+          created_at?: string
+          currency?: string | null
+          description?: string | null
+          duration_minutes?: number | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          price?: number
+          sort_order?: number | null
+          type?: string
+          vat_rate?: number | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
