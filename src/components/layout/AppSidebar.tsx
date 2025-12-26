@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { NavLink, useLocation } from "react-router-dom";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
   Home,
   Inbox,
@@ -10,9 +10,11 @@ import {
   ChevronLeft,
   ChevronRight,
   LogOut,
+  Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/contexts/AuthContext";
 
 const SIDEBAR_COLLAPSED_KEY = "yety-sidebar-collapsed";
 
@@ -30,11 +32,42 @@ export function AppSidebar() {
     const saved = localStorage.getItem(SIDEBAR_COLLAPSED_KEY);
     return saved === "true";
   });
+  const [loggingOut, setLoggingOut] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
+  const { user, signOut } = useAuth();
 
   useEffect(() => {
     localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(collapsed));
   }, [collapsed]);
+
+  const handleLogout = async () => {
+    setLoggingOut(true);
+    try {
+      await signOut();
+      navigate("/login", { replace: true });
+    } catch (error) {
+      console.error("Logout failed:", error);
+    } finally {
+      setLoggingOut(false);
+    }
+  };
+
+  // Get user initials from email
+  const getUserInitials = () => {
+    if (!user?.email) return "??";
+    const parts = user.email.split("@")[0].split(/[._-]/);
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[1][0]).toUpperCase();
+    }
+    return user.email.substring(0, 2).toUpperCase();
+  };
+
+  // Get display name from email
+  const getDisplayName = () => {
+    if (!user?.email) return "Benutzer";
+    return user.email.split("@")[0].replace(/[._-]/g, " ");
+  };
 
   return (
     <aside
@@ -107,7 +140,7 @@ export function AppSidebar() {
           ) : (
             <>
               <ChevronLeft className="h-4 w-4 mr-2" />
-              <span>Collapse</span>
+              <span>Einklappen</span>
             </>
           )}
         </Button>
@@ -116,16 +149,18 @@ export function AppSidebar() {
       {/* User Info */}
       <div className="border-t border-sidebar-border p-3">
         <div className={cn("flex items-center gap-3", collapsed && "justify-center")}>
-          <div className="w-8 h-8 rounded-full bg-sidebar-accent flex items-center justify-center">
+          <div className="w-8 h-8 rounded-full bg-sidebar-accent flex items-center justify-center shrink-0">
             <span className="text-sm font-medium text-sidebar-accent-foreground">
-              CB
+              {getUserInitials()}
             </span>
           </div>
           {!collapsed && (
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium truncate">Christoph Bühler</p>
+              <p className="text-sm font-medium truncate capitalize">
+                {getDisplayName()}
+              </p>
               <p className="text-xs text-sidebar-foreground/60 truncate">
-                Office
+                {user?.email}
               </p>
             </div>
           )}
@@ -133,12 +168,35 @@ export function AppSidebar() {
             <Button
               variant="ghost"
               size="icon"
-              className="h-8 w-8 text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent"
+              onClick={handleLogout}
+              disabled={loggingOut}
+              className="h-8 w-8 text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent shrink-0"
+              title="Abmelden"
             >
-              <LogOut className="h-4 w-4" />
+              {loggingOut ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <LogOut className="h-4 w-4" />
+              )}
             </Button>
           )}
         </div>
+        {collapsed && (
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handleLogout}
+            disabled={loggingOut}
+            className="w-full mt-2 text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent"
+            title="Abmelden"
+          >
+            {loggingOut ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <LogOut className="h-4 w-4" />
+            )}
+          </Button>
+        )}
       </div>
     </aside>
   );
