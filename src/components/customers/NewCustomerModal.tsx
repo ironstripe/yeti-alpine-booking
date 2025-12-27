@@ -91,9 +91,13 @@ export function NewCustomerModal({ open, onOpenChange }: NewCustomerModalProps) 
     setHasUnsavedChanges(isDirty);
   }, [isDirty]);
 
-  const handleClose = (shouldClose: boolean) => {
-    if (!shouldClose) return;
+  const handleOpenChange = (open: boolean) => {
+    if (open) {
+      onOpenChange(true);
+      return;
+    }
     
+    // Closing - check for unsaved changes
     if (hasUnsavedChanges) {
       const confirmed = window.confirm(
         "Du hast ungespeicherte Änderungen. Möchtest du wirklich schliessen?"
@@ -167,7 +171,7 @@ export function NewCustomerModal({ open, onOpenChange }: NewCustomerModalProps) 
   };
 
   return (
-    <Dialog open={open} onOpenChange={handleClose}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Neuer Kunde</DialogTitle>
@@ -472,7 +476,7 @@ export function NewCustomerModal({ open, onOpenChange }: NewCustomerModalProps) 
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => handleClose(true)}
+                onClick={() => handleOpenChange(false)}
               >
                 Abbrechen
               </Button>
