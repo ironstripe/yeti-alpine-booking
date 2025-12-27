@@ -9,32 +9,35 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { toast } from "sonner";
 
-const loginSchema = z.object({
+const authSchema = z.object({
   email: z
     .string()
     .trim()
     .min(1, "E-Mail ist erforderlich")
-    .email("Ungültige E-Mail-Adresse"),
+    .email("Ungültige E-Mail-Adresse")
+    .max(255, "E-Mail darf maximal 255 Zeichen haben"),
   password: z
     .string()
-    .min(6, "Passwort muss mindestens 6 Zeichen haben"),
+    .min(6, "Passwort muss mindestens 6 Zeichen haben")
+    .max(128, "Passwort darf maximal 128 Zeichen haben"),
 });
 
 const Login = () => {
   const navigate = useNavigate();
-  const { signIn } = useAuth();
+  const { signIn, signUp } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isSignUp, setIsSignUp] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
     // Validate inputs
-    const result = loginSchema.safeParse({ email, password });
+    const result = authSchema.safeParse({ email, password });
     if (!result.success) {
       setError(result.error.errors[0].message);
       return;
@@ -43,22 +46,40 @@ const Login = () => {
     setLoading(true);
 
     try {
-      const { error } = await signIn(email, password);
+      if (isSignUp) {
+        const { error } = await signUp(email, password);
 
-      if (error) {
-        // Handle specific error messages
-        if (error.message.includes("Invalid login credentials")) {
-          setError("E-Mail oder Passwort ist falsch");
-        } else if (error.message.includes("Email not confirmed")) {
-          setError("E-Mail wurde noch nicht bestätigt");
-        } else {
-          setError("Anmeldung fehlgeschlagen. Bitte versuche es erneut.");
+        if (error) {
+          if (error.message.includes("User already registered")) {
+            setError("Ein Benutzer mit dieser E-Mail existiert bereits");
+          } else if (error.message.includes("Password should be")) {
+            setError("Passwort muss mindestens 6 Zeichen haben");
+          } else {
+            setError("Registrierung fehlgeschlagen. Bitte versuche es erneut.");
+          }
+          return;
         }
-        return;
-      }
 
-      // Successful login - redirect to dashboard
-      navigate("/", { replace: true });
+        toast.success("Registrierung erfolgreich!", {
+          description: "Du bist jetzt angemeldet.",
+        });
+        navigate("/", { replace: true });
+      } else {
+        const { error } = await signIn(email, password);
+
+        if (error) {
+          if (error.message.includes("Invalid login credentials")) {
+            setError("E-Mail oder Passwort ist falsch");
+          } else if (error.message.includes("Email not confirmed")) {
+            setError("E-Mail wurde noch nicht bestätigt");
+          } else {
+            setError("Anmeldung fehlgeschlagen. Bitte versuche es erneut.");
+          }
+          return;
+        }
+
+        navigate("/", { replace: true });
+      }
     } catch (err) {
       setError("Ein unerwarteter Fehler ist aufgetreten");
     } finally {
@@ -72,6 +93,11 @@ const Login = () => {
     });
   };
 
+  const toggleMode = () => {
+    setIsSignUp(!isSignUp);
+    setError(null);
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-[400px] shadow-lg">
@@ -83,10 +109,12 @@ const Login = () => {
             </span>
           </div>
           <h1 className="text-xl font-display font-semibold text-foreground">
-            Willkommen bei YETY
+            {isSignUp ? "Konto erstellen" : "Willkommen bei YETY"}
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Melde dich an, um fortzufahren
+            {isSignUp
+              ? "Registriere dich, um loszulegen"
+              : "Melde dich an, um fortzufahren"}
           </p>
         </CardHeader>
 
@@ -125,7 +153,7 @@ const Login = () => {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   disabled={loading}
-                  autoComplete="current-password"
+                  autoComplete={isSignUp ? "new-password" : "current-password"}
                   className="pr-10"
                 />
                 <button
@@ -144,30 +172,42 @@ const Login = () => {
             </div>
 
             {/* Submit Button */}
-            <Button
-              type="submit"
-              className="w-full"
-              disabled={loading}
-            >
+            <Button type="submit" className="w-full" disabled={loading}>
               {loading ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Anmelden...
+                  {isSignUp ? "Registrieren..." : "Anmelden..."}
                 </>
+              ) : isSignUp ? (
+                "Registrieren"
               ) : (
                 "Anmelden"
               )}
             </Button>
 
-            {/* Forgot Password Link */}
-            <div className="text-center">
+            {/* Toggle Login/Register */}
+            <div className="text-center space-y-2">
               <button
                 type="button"
-                onClick={handleForgotPassword}
-                className="text-sm text-muted-foreground hover:text-primary transition-colors"
+                onClick={toggleMode}
+                className="text-sm text-primary hover:underline transition-colors"
               >
-                Passwort vergessen?
+                {isSignUp
+                  ? "Bereits ein Konto? Anmelden"
+                  : "Noch kein Konto? Registrieren"}
               </button>
+
+              {!isSignUp && (
+                <div>
+                  <button
+                    type="button"
+                    onClick={handleForgotPassword}
+                    className="text-sm text-muted-foreground hover:text-primary transition-colors"
+                  >
+                    Passwort vergessen?
+                  </button>
+                </div>
+              )}
             </div>
           </form>
         </CardContent>
