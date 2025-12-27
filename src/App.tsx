@@ -15,6 +15,7 @@ import Instructors from "./pages/Instructors";
 import Trainings from "./pages/Trainings";
 import Login from "./pages/Login";
 import NotFound from "./pages/NotFound";
+import CustomerDetail from "./pages/CustomerDetail";
 
 const queryClient = new QueryClient();
 
@@ -68,6 +69,14 @@ const AppRoutes = () => (
       element={
         <AppLayout>
           <Customers />
+        </AppLayout>
+      }
+    />
+    <Route
+      path="/customers/:id"
+      element={
+        <AppLayout>
+          <CustomerDetail />
         </AppLayout>
       }
     />
