@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { toast } from "sonner";
 import { Plus } from "lucide-react";
 import { PageHeader } from "@/components/layout";
 import { Button } from "@/components/ui/button";
@@ -13,15 +12,13 @@ import {
   CustomerTableSkeleton,
   CustomerCardSkeleton,
 } from "@/components/customers/CustomerTableSkeleton";
+import { NewCustomerModal } from "@/components/customers/NewCustomerModal";
 
 const Customers = () => {
   const [searchInput, setSearchInput] = useState("");
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const debouncedSearch = useDebounce(searchInput, 300);
   const { data: customers, isLoading, error } = useCustomers(debouncedSearch);
-
-  const handleCreateCustomer = () => {
-    toast.info("Funktion kommt bald");
-  };
 
   if (error) {
     return (
@@ -43,7 +40,7 @@ const Customers = () => {
         title="Kunden"
         description="Verwalte alle Kunden und ihre Familien"
         actions={
-          <Button size="sm" onClick={handleCreateCustomer}>
+          <Button size="sm" onClick={() => setIsModalOpen(true)}>
             <Plus className="h-4 w-4 mr-2" />
             Neuer Kunde
           </Button>
@@ -68,9 +65,11 @@ const Customers = () => {
         <CustomerEmptyState
           searchQuery={debouncedSearch}
           onClearSearch={() => setSearchInput("")}
-          onCreateCustomer={handleCreateCustomer}
+          onCreateCustomer={() => setIsModalOpen(true)}
         />
       )}
+
+      <NewCustomerModal open={isModalOpen} onOpenChange={setIsModalOpen} />
     </>
   );
 };
