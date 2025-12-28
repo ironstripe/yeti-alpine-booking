@@ -1,8 +1,9 @@
 import { useState, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { PageHeader } from "@/components/layout";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
-import { useInstructors, type Instructor } from "@/hooks/useInstructors";
+import { useInstructors, type InstructorWithBookings } from "@/hooks/useInstructors";
 import { StatusSummaryBar } from "@/components/instructors/StatusSummaryBar";
 import { InstructorFilters } from "@/components/instructors/InstructorFilters";
 import { InstructorCard } from "@/components/instructors/InstructorCard";
@@ -11,7 +12,8 @@ import { InstructorGridSkeleton } from "@/components/instructors/InstructorCardS
 import { toast } from "sonner";
 
 const Instructors = () => {
-  const { data: instructors = [], isLoading } = useInstructors();
+  const navigate = useNavigate();
+  const { data: instructors = [], isLoading, pulsingIds } = useInstructors();
 
   // Filter state
   const [searchQuery, setSearchQuery] = useState("");
@@ -113,8 +115,8 @@ const Instructors = () => {
     toast.info("Neuer Skilehrer Modal kommt bald...");
   };
 
-  const handleInstructorClick = (instructor: Instructor) => {
-    toast.info(`Detail-Seite für ${instructor.first_name} ${instructor.last_name} kommt bald...`);
+  const handleInstructorClick = (instructor: InstructorWithBookings) => {
+    navigate(`/instructors/${instructor.id}`);
   };
 
   return (
@@ -165,6 +167,7 @@ const Instructors = () => {
                 <InstructorCard
                   key={instructor.id}
                   instructor={instructor}
+                  isPulsing={pulsingIds.has(instructor.id)}
                   onClick={() => handleInstructorClick(instructor)}
                 />
               ))}
