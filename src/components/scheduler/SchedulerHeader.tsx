@@ -28,6 +28,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useSchedulerCustomerSearch, type SchedulerCustomer } from "@/hooks/useSchedulerCustomerSearch";
 import { toast } from "sonner";
+import { DayNavigator } from "./DayNavigator";
 
 export type ViewMode = "daily" | "3days" | "weekly" | "period";
 
@@ -42,6 +43,8 @@ interface SchedulerHeaderProps {
   onInstructorSelect?: (id: string) => void;
   capabilityFilter: string | null;
   onCapabilityFilterChange: (filter: string | null) => void;
+  visibleDates?: Date[];
+  onJumpToDay?: (index: number) => void;
 }
 
 export function SchedulerHeader({
@@ -55,6 +58,8 @@ export function SchedulerHeader({
   onInstructorSelect,
   capabilityFilter,
   onCapabilityFilterChange,
+  visibleDates = [],
+  onJumpToDay,
 }: SchedulerHeaderProps) {
   const navigate = useNavigate();
   const [teacherSearchOpen, setTeacherSearchOpen] = useState(false);
@@ -195,6 +200,11 @@ export function SchedulerHeader({
             1W
           </Button>
         </div>
+
+        {/* Jump to Day Navigator - only for multi-day views */}
+        {viewMode !== "daily" && visibleDates.length > 1 && onJumpToDay && (
+          <DayNavigator dates={visibleDates} onJumpToDay={onJumpToDay} />
+        )}
       </div>
 
       {/* Search & Filters */}
