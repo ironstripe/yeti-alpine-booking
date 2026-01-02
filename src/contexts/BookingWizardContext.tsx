@@ -274,13 +274,17 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
         return state.customer !== null && state.selectedParticipants.length > 0;
       case 2:
         return state.productType !== null && state.selectedDates.length > 0;
-      case 3:
+      case 3: {
+        // Meeting point and language are always required
+        const hasBasicRequirements = state.meetingPoint !== null && state.language !== "";
+        
         // For private: instructor selected OR assign later checked
-        // For group: always can proceed (no instructor needed)
         if (state.productType === "private") {
-          return state.instructor !== null || state.assignLater;
+          return hasBasicRequirements && (state.instructor !== null || state.assignLater);
         }
-        return true;
+        // For group: no instructor validation needed
+        return hasBasicRequirements;
+      }
       case 4:
         return true;
       default:
