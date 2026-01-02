@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Loader2 } from "lucide-react";
+import { Loader2, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 
@@ -38,6 +38,9 @@ import { useCreateCustomer } from "@/hooks/useCreateCustomer";
 import { normalizePhoneNumber, capitalizeName } from "@/lib/phone-utils";
 import { lookupPlz } from "@/lib/plz-lookup";
 
+const PHONE_LABELS = ["Mutter", "Vater", "Arbeit", "Notfall", "Sonstige"] as const;
+const EMAIL_LABELS = ["Mutter", "Vater", "Arbeit", "Sonstige"] as const;
+
 const customerSchema = z.object({
   salutation: z.string().optional(),
   first_name: z.string().max(100).optional(),
@@ -48,6 +51,15 @@ const customerSchema = z.object({
   zip: z.string().max(10).optional(),
   city: z.string().max(100).optional(),
   country: z.string().default("LI"),
+  holiday_address: z.string().min(1, "Ferienadresse ist erforderlich").max(200),
+  additional_phones: z.array(z.object({
+    label: z.string(),
+    number: z.string().max(50),
+  })).default([]),
+  additional_emails: z.array(z.object({
+    label: z.string(),
+    email: z.string().email("Ungültige E-Mail-Adresse").max(255),
+  })).default([]),
   preferred_channel: z.enum(["email", "whatsapp", "phone"]).default("email"),
   language: z.string().default("de"),
   marketing_consent: z.boolean().default(false),
@@ -78,11 +90,24 @@ export function NewCustomerModal({ open, onOpenChange }: NewCustomerModalProps) 
       zip: "",
       city: "",
       country: "LI",
+      holiday_address: "",
+      additional_phones: [],
+      additional_emails: [],
       preferred_channel: "email",
       language: "de",
       marketing_consent: false,
       notes: "",
     },
+  });
+
+  const { fields: phoneFields, append: appendPhone, remove: removePhone } = useFieldArray({
+    control: form.control,
+    name: "additional_phones",
+  });
+
+  const { fields: emailFields, append: appendEmail, remove: removeEmail } = useFieldArray({
+    control: form.control,
+    name: "additional_emails",
   });
 
   const { isDirty } = form.formState;
@@ -117,6 +142,13 @@ export function NewCustomerModal({ open, onOpenChange }: NewCustomerModalProps) 
     }
   };
 
+  const handleAdditionalPhoneBlur = (index: number) => (e: React.FocusEvent<HTMLInputElement>) => {
+    const normalized = normalizePhoneNumber(e.target.value);
+    if (normalized !== e.target.value) {
+      form.setValue(`additional_phones.${index}.number`, normalized);
+    }
+  };
+
   const handleNameBlur = (field: "first_name" | "last_name") => (
     e: React.FocusEvent<HTMLInputElement>
   ) => {
@@ -146,6 +178,9 @@ export function NewCustomerModal({ open, onOpenChange }: NewCustomerModalProps) 
         zip: data.zip || null,
         city: data.city || null,
         country: data.country,
+        holiday_address: data.holiday_address,
+        additional_phones: data.additional_phones.length > 0 ? data.additional_phones : null,
+        additional_emails: data.additional_emails.length > 0 ? data.additional_emails : null,
         preferred_channel: data.preferred_channel,
         language: data.language,
         marketing_consent: data.marketing_consent,
@@ -172,7 +207,7 @@ export function NewCustomerModal({ open, onOpenChange }: NewCustomerModalProps) 
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Neuer Kunde</DialogTitle>
         </DialogHeader>
@@ -288,6 +323,140 @@ export function NewCustomerModal({ open, onOpenChange }: NewCustomerModalProps) 
 
             <Separator />
 
+            {/* Weitere Kontakte Section */}
+            <div className="space-y-4">
+              <h3 className="text-sm font-medium text-muted-foreground">Weitere Kontakte</h3>
+              
+              {/* Additional Phones */}
+              <div className="space-y-3">
+                {phoneFields.map((field, index) => (
+                  <div key={field.id} className="flex items-end gap-2">
+                    <FormField
+                      control={form.control}
+                      name={`additional_phones.${index}.label`}
+                      render={({ field }) => (
+                        <FormItem className="w-[120px]">
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Label" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {PHONE_LABELS.map((label) => (
+                                <SelectItem key={label} value={label}>
+                                  {label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name={`additional_phones.${index}.number`}
+                      render={({ field }) => (
+                        <FormItem className="flex-1">
+                          <FormControl>
+                            <Input
+                              {...field}
+                              type="tel"
+                              placeholder="+41 79 xxx xx xx"
+                              onBlur={handleAdditionalPhoneBlur(index)}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => removePhone(index)}
+                    >
+                      <Trash2 className="h-4 w-4 text-muted-foreground" />
+                    </Button>
+                  </div>
+                ))}
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => appendPhone({ label: "Mutter", number: "" })}
+                >
+                  <Plus className="mr-2 h-4 w-4" />
+                  Telefon hinzufügen
+                </Button>
+              </div>
+
+              {/* Additional Emails */}
+              <div className="space-y-3">
+                {emailFields.map((field, index) => (
+                  <div key={field.id} className="flex items-end gap-2">
+                    <FormField
+                      control={form.control}
+                      name={`additional_emails.${index}.label`}
+                      render={({ field }) => (
+                        <FormItem className="w-[120px]">
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Label" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {EMAIL_LABELS.map((label) => (
+                                <SelectItem key={label} value={label}>
+                                  {label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name={`additional_emails.${index}.email`}
+                      render={({ field }) => (
+                        <FormItem className="flex-1">
+                          <FormControl>
+                            <Input
+                              {...field}
+                              type="email"
+                              placeholder="email@beispiel.ch"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => removeEmail(index)}
+                    >
+                      <Trash2 className="h-4 w-4 text-muted-foreground" />
+                    </Button>
+                  </div>
+                ))}
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => appendEmail({ label: "Mutter", email: "" })}
+                >
+                  <Plus className="mr-2 h-4 w-4" />
+                  E-Mail hinzufügen
+                </Button>
+              </div>
+            </div>
+
+            <Separator />
+
             {/* Adresse Section */}
             <div className="space-y-4">
               <h3 className="text-sm font-medium text-muted-foreground">Adresse</h3>
@@ -359,6 +528,32 @@ export function NewCustomerModal({ open, onOpenChange }: NewCustomerModalProps) 
                         <SelectItem value="DE">Deutschland</SelectItem>
                       </SelectContent>
                     </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <Separator />
+
+            {/* Ferienadresse Section */}
+            <div className="space-y-4">
+              <h3 className="text-sm font-medium text-muted-foreground">Ferienadresse</h3>
+
+              <FormField
+                control={form.control}
+                name="holiday_address"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>
+                      Unterkunft <span className="text-destructive">*</span>
+                    </FormLabel>
+                    <FormControl>
+                      <Input
+                        {...field}
+                        placeholder="z.B. Hotel Gorfion, Malbun"
+                      />
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}

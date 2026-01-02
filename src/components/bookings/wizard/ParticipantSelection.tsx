@@ -1,15 +1,22 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Check, Plus, User, AlertTriangle, Loader2 } from "lucide-react";
+import { Check, Plus, User, AlertTriangle, Loader2, ArrowRight, TrendingUp } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { differenceInYears, parseISO, format } from "date-fns";
+import { format } from "date-fns";
 import { de } from "date-fns/locale";
 
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { calculateAge, getAgeDisplay } from "@/lib/participant-utils";
+import { 
+  LEVEL_OPTIONS, 
+  getLevelLabel, 
+  getLevelBadgeColor, 
+  getNextLevel,
+  isLevelUpgrade 
+} from "@/lib/level-utils";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,6 +29,7 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  FormDescription,
 } from "@/components/ui/form";
 import {
   Select,
@@ -30,9 +38,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Calendar } from "@/components/ui/calendar";
-import { CalendarIcon } from "lucide-react";
+import { EnhancedDatePicker } from "@/components/ui/enhanced-date-picker";
 
 import type { SelectedParticipant } from "@/contexts/BookingWizardContext";
 
@@ -46,23 +52,13 @@ interface ParticipantSelectionProps {
 
 const participantSchema = z.object({
   first_name: z.string().min(1, "Vorname ist erforderlich").max(100),
-  last_name: z.string().max(100).optional(),
   birth_date: z.date({ required_error: "Geburtsdatum ist erforderlich" }),
-  level: z.string().optional(),
+  level_last_season: z.string().optional(),
+  level_current_season: z.string().optional(),
   sport: z.string().default("ski"),
 });
 
 type ParticipantFormData = z.infer<typeof participantSchema>;
-
-const levelOptions = [
-  { value: "anfaenger", label: "Anfänger" },
-  { value: "blue_prince", label: "Blue Prince" },
-  { value: "blue_king", label: "Blue King" },
-  { value: "red_prince", label: "Red Prince" },
-  { value: "red_king", label: "Red King" },
-  { value: "black_prince", label: "Black Prince" },
-  { value: "black_king", label: "Black King" },
-];
 
 const sportOptions = [
   { value: "ski", label: "Ski" },
@@ -99,11 +95,23 @@ export function ParticipantSelection({
     resolver: zodResolver(participantSchema),
     defaultValues: {
       first_name: "",
-      last_name: "",
-      level: "",
+      level_last_season: "",
+      level_current_season: "",
       sport: "ski",
     },
   });
+
+  // Watch level_last_season to auto-suggest current season level
+  const levelLastSeason = form.watch("level_last_season");
+
+  useEffect(() => {
+    if (levelLastSeason) {
+      const suggestedLevel = getNextLevel(levelLastSeason);
+      if (suggestedLevel) {
+        form.setValue("level_current_season", suggestedLevel);
+      }
+    }
+  }, [levelLastSeason, form]);
 
   const handleAddParticipant = async (data: ParticipantFormData) => {
     setIsSaving(true);
@@ -113,9 +121,10 @@ export function ParticipantSelection({
         .insert({
           customer_id: customerId,
           first_name: data.first_name,
-          last_name: data.last_name || null,
+          last_name: null,
           birth_date: format(data.birth_date, "yyyy-MM-dd"),
-          level: data.level || null,
+          level_last_season: data.level_last_season || null,
+          level_current_season: data.level_current_season || null,
           sport: data.sport,
         })
         .select()
@@ -128,7 +137,8 @@ export function ParticipantSelection({
         first_name: newParticipant.first_name,
         last_name: newParticipant.last_name,
         birth_date: newParticipant.birth_date,
-        level: newParticipant.level,
+        level_last_season: newParticipant.level_last_season,
+        level_current_season: newParticipant.level_current_season,
         sport: newParticipant.sport,
       });
 
@@ -138,7 +148,8 @@ export function ParticipantSelection({
         first_name: newParticipant.first_name,
         last_name: newParticipant.last_name,
         birth_date: newParticipant.birth_date,
-        level: newParticipant.level,
+        level_last_season: newParticipant.level_last_season,
+        level_current_season: newParticipant.level_current_season,
         sport: newParticipant.sport,
       });
 
@@ -155,9 +166,10 @@ export function ParticipantSelection({
   const handleAddGuest = (data: ParticipantFormData) => {
     onAddGuest({
       first_name: data.first_name,
-      last_name: data.last_name || null,
+      last_name: null,
       birth_date: format(data.birth_date, "yyyy-MM-dd"),
-      level: data.level || null,
+      level_last_season: data.level_last_season || null,
+      level_current_season: data.level_current_season || null,
       sport: data.sport,
     });
     form.reset();
@@ -174,6 +186,218 @@ export function ParticipantSelection({
       </div>
     );
   }
+
+  const renderLevelDisplay = (lastSeason: string | null, currentSeason: string | null) => {
+    const hasUpgrade = isLevelUpgrade(lastSeason, currentSeason);
+    
+    if (lastSeason && currentSeason) {
+      return (
+        <div className="flex items-center gap-1 flex-wrap">
+          <Badge variant="secondary" className={cn("text-xs", getLevelBadgeColor(lastSeason))}>
+            {getLevelLabel(lastSeason)}
+          </Badge>
+          <ArrowRight className="h-3 w-3 text-muted-foreground" />
+          <Badge variant="secondary" className={cn("text-xs", getLevelBadgeColor(currentSeason))}>
+            {getLevelLabel(currentSeason)}
+          </Badge>
+          {hasUpgrade && (
+            <Badge variant="outline" className="text-xs text-green-600 border-green-300 gap-1">
+              <TrendingUp className="h-3 w-3" />
+              aufgestuft
+            </Badge>
+          )}
+        </div>
+      );
+    }
+    
+    if (currentSeason) {
+      return (
+        <Badge variant="secondary" className={cn("text-xs", getLevelBadgeColor(currentSeason))}>
+          {getLevelLabel(currentSeason)}
+        </Badge>
+      );
+    }
+    
+    if (lastSeason) {
+      return (
+        <Badge variant="secondary" className={cn("text-xs", getLevelBadgeColor(lastSeason))}>
+          {getLevelLabel(lastSeason)} (letzte Saison)
+        </Badge>
+      );
+    }
+    
+    return null;
+  };
+
+  const renderParticipantForm = (isGuest: boolean) => (
+    <Card className={isGuest ? "border-dashed" : ""}>
+      <CardContent className="p-4">
+        {isGuest && (
+          <div className="mb-4 flex items-center gap-2">
+            <Badge variant="outline">Gast</Badge>
+            <span className="text-sm text-muted-foreground">
+              Wird nicht dauerhaft zum Kunden hinzugefügt
+            </span>
+          </div>
+        )}
+        <Form {...form}>
+          <form
+            onSubmit={form.handleSubmit(isGuest ? handleAddGuest : handleAddParticipant)}
+            className="space-y-4"
+          >
+            <FormField
+              control={form.control}
+              name="first_name"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>
+                    Vorname <span className="text-destructive">*</span>
+                  </FormLabel>
+                  <FormControl>
+                    <Input
+                      {...field}
+                      placeholder="Lisa"
+                      autoComplete="off"
+                      autoCorrect="off"
+                      spellCheck={false}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="birth_date"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>
+                    Geburtsdatum <span className="text-destructive">*</span>
+                  </FormLabel>
+                  <FormControl>
+                    <EnhancedDatePicker
+                      value={field.value}
+                      onChange={field.onChange}
+                      placeholder="Datum wählen"
+                      disabled={(date) =>
+                        date > new Date() || date < new Date("1900-01-01")
+                      }
+                      minYear={2000}
+                      maxYear={new Date().getFullYear()}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="sport"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Sport</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {sportOptions.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="level_last_season"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Level letzte Saison</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Auswählen..." />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {LEVEL_OPTIONS.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="level_current_season"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Level diese Saison</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Auswählen..." />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {LEVEL_OPTIONS.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {levelLastSeason && getNextLevel(levelLastSeason) && (
+                      <FormDescription className="text-xs text-muted-foreground">
+                        💡 Vorschlag basierend auf letzter Saison
+                      </FormDescription>
+                    )}
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => {
+                  form.reset();
+                  if (isGuest) {
+                    setIsAddingGuest(false);
+                  } else {
+                    setIsAddingParticipant(false);
+                  }
+                }}
+              >
+                Abbrechen
+              </Button>
+              <Button type="submit" disabled={isSaving && !isGuest}>
+                {isSaving && !isGuest && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {isGuest ? "Gast hinzufügen" : "Hinzufügen"}
+              </Button>
+            </div>
+          </form>
+        </Form>
+      </CardContent>
+    </Card>
+  );
 
   return (
     <div className="space-y-4">
@@ -208,7 +432,8 @@ export function ParticipantSelection({
                     first_name: participant.first_name,
                     last_name: participant.last_name,
                     birth_date: participant.birth_date,
-                    level: participant.level,
+                    level_last_season: participant.level_last_season,
+                    level_current_season: participant.level_current_season,
                     sport: participant.sport,
                   });
                 }}
@@ -228,17 +453,8 @@ export function ParticipantSelection({
                     <p className="font-medium">
                       {participant.first_name} {participant.last_name}
                     </p>
-                    <div className="flex flex-wrap gap-2 text-sm text-muted-foreground">
+                    <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
                       <span>{getAgeDisplay(age)}</span>
-                      {participant.level && (
-                        <>
-                          <span>·</span>
-                          <Badge variant="secondary" className="text-xs">
-                            {levelOptions.find((l) => l.value === participant.level)?.label ||
-                              participant.level}
-                          </Badge>
-                        </>
-                      )}
                       {participant.sport && (
                         <>
                           <span>·</span>
@@ -246,6 +462,11 @@ export function ParticipantSelection({
                         </>
                       )}
                     </div>
+                    {(participant.level_last_season || participant.level_current_season) && (
+                      <div className="mt-1">
+                        {renderLevelDisplay(participant.level_last_season, participant.level_current_season)}
+                      </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -265,18 +486,25 @@ export function ParticipantSelection({
               </div>
               <div className="flex-1">
                 <div className="flex items-center gap-2">
-                  <p className="font-medium">
-                    {guest.first_name} {guest.last_name}
-                  </p>
+                  <p className="font-medium">{guest.first_name}</p>
                   <Badge variant="outline" className="text-xs">
                     Gast
                   </Badge>
                 </div>
-                <p className="text-sm text-muted-foreground">
-                  {getAgeDisplay(age)}
-                  {guest.level && ` · ${levelOptions.find((l) => l.value === guest.level)?.label || guest.level}`}
-                  {guest.sport && ` · ${guest.sport}`}
-                </p>
+                <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+                  <span>{getAgeDisplay(age)}</span>
+                  {guest.sport && (
+                    <>
+                      <span>·</span>
+                      <span className="capitalize">{guest.sport}</span>
+                    </>
+                  )}
+                </div>
+                {(guest.level_last_season || guest.level_current_season) && (
+                  <div className="mt-1">
+                    {renderLevelDisplay(guest.level_last_season, guest.level_current_season)}
+                  </div>
+                )}
               </div>
               <Button
                 variant="ghost"
@@ -307,174 +535,7 @@ export function ParticipantSelection({
       )}
 
       {/* Add participant form */}
-      {isAddingParticipant && (
-        <Card>
-          <CardContent className="p-4">
-            <Form {...form}>
-              <form
-                onSubmit={form.handleSubmit(handleAddParticipant)}
-                className="space-y-4"
-              >
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="first_name"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>
-                          Vorname <span className="text-destructive">*</span>
-                        </FormLabel>
-                        <FormControl>
-                          <Input
-                            {...field}
-                            placeholder="Lisa"
-                            autoComplete="off"
-                            autoCorrect="off"
-                            spellCheck={false}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="last_name"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Nachname</FormLabel>
-                        <FormControl>
-                          <Input
-                            {...field}
-                            placeholder="Müller"
-                            autoComplete="off"
-                            autoCorrect="off"
-                            spellCheck={false}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-
-                <FormField
-                  control={form.control}
-                  name="birth_date"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>
-                        Geburtsdatum <span className="text-destructive">*</span>
-                      </FormLabel>
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <FormControl>
-                            <Button
-                              variant="outline"
-                              className={cn(
-                                "w-full justify-start text-left font-normal",
-                                !field.value && "text-muted-foreground"
-                              )}
-                            >
-                              <CalendarIcon className="mr-2 h-4 w-4" />
-                              {field.value ? (
-                                format(field.value, "dd.MM.yyyy", { locale: de })
-                              ) : (
-                                <span>Datum wählen</span>
-                              )}
-                            </Button>
-                          </FormControl>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="start">
-                          <Calendar
-                            mode="single"
-                            selected={field.value}
-                            onSelect={field.onChange}
-                            disabled={(date) =>
-                              date > new Date() || date < new Date("1900-01-01")
-                            }
-                            initialFocus
-                            className="pointer-events-auto"
-                          />
-                        </PopoverContent>
-                      </Popover>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="sport"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Sport</FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value}>
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {sportOptions.map((option) => (
-                              <SelectItem key={option.value} value={option.value}>
-                                {option.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="level"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Level</FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value}>
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Auswählen..." />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {levelOptions.map((option) => (
-                              <SelectItem key={option.value} value={option.value}>
-                                {option.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-
-                <div className="flex justify-end gap-2">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    onClick={() => {
-                      form.reset();
-                      setIsAddingParticipant(false);
-                    }}
-                  >
-                    Abbrechen
-                  </Button>
-                  <Button type="submit" disabled={isSaving}>
-                    {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    Hinzufügen
-                  </Button>
-                </div>
-              </form>
-            </Form>
-          </CardContent>
-        </Card>
-      )}
+      {isAddingParticipant && renderParticipantForm(false)}
 
       {/* Guest child section */}
       {!isAddingParticipant && !isAddingGuest && (
@@ -505,179 +566,7 @@ export function ParticipantSelection({
       )}
 
       {/* Add guest form */}
-      {isAddingGuest && (
-        <Card className="border-dashed">
-          <CardContent className="p-4">
-            <div className="mb-4 flex items-center gap-2">
-              <Badge variant="outline">Gast</Badge>
-              <span className="text-sm text-muted-foreground">
-                Wird nicht dauerhaft zum Kunden hinzugefügt
-              </span>
-            </div>
-            <Form {...form}>
-              <form
-                onSubmit={form.handleSubmit(handleAddGuest)}
-                className="space-y-4"
-              >
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="first_name"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>
-                          Vorname <span className="text-destructive">*</span>
-                        </FormLabel>
-                        <FormControl>
-                          <Input
-                            {...field}
-                            placeholder="Max"
-                            autoComplete="off"
-                            autoCorrect="off"
-                            spellCheck={false}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="last_name"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Nachname</FormLabel>
-                        <FormControl>
-                          <Input
-                            {...field}
-                            placeholder="Freund"
-                            autoComplete="off"
-                            autoCorrect="off"
-                            spellCheck={false}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-
-                <FormField
-                  control={form.control}
-                  name="birth_date"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>
-                        Geburtsdatum <span className="text-destructive">*</span>
-                      </FormLabel>
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <FormControl>
-                            <Button
-                              variant="outline"
-                              className={cn(
-                                "w-full justify-start text-left font-normal",
-                                !field.value && "text-muted-foreground"
-                              )}
-                            >
-                              <CalendarIcon className="mr-2 h-4 w-4" />
-                              {field.value ? (
-                                format(field.value, "dd.MM.yyyy", { locale: de })
-                              ) : (
-                                <span>Datum wählen</span>
-                              )}
-                            </Button>
-                          </FormControl>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="start">
-                          <Calendar
-                            mode="single"
-                            selected={field.value}
-                            onSelect={field.onChange}
-                            disabled={(date) =>
-                              date > new Date() || date < new Date("1900-01-01")
-                            }
-                            initialFocus
-                            className="pointer-events-auto"
-                          />
-                        </PopoverContent>
-                      </Popover>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="sport"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Sport</FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value}>
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {sportOptions.map((option) => (
-                              <SelectItem key={option.value} value={option.value}>
-                                {option.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="level"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Level</FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value}>
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Auswählen..." />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {levelOptions.map((option) => (
-                              <SelectItem key={option.value} value={option.value}>
-                                {option.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-
-                <div className="flex justify-end gap-2">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    onClick={() => {
-                      form.reset();
-                      setIsAddingGuest(false);
-                    }}
-                  >
-                    Abbrechen
-                  </Button>
-                  <Button type="submit">
-                    Gast hinzufügen
-                  </Button>
-                </div>
-              </form>
-            </Form>
-          </CardContent>
-        </Card>
-      )}
+      {isAddingGuest && renderParticipantForm(true)}
 
       {/* Empty state */}
       {(!participants || participants.length === 0) &&
