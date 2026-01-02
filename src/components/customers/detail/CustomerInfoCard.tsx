@@ -4,6 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
+import { toast } from "sonner";
 import {
   Mail,
   Phone,
@@ -120,13 +121,13 @@ export function CustomerInfoCard({ customer }: CustomerInfoCardProps) {
     setValue(field, capitalized);
   };
 
-  const handlePlzChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const plz = e.target.value;
-    setValue("zip", plz);
-    const plzEntry = lookupPlz(plz);
+  const handlePlzChange = (value: string) => {
+    setValue("zip", value);
+    const plzEntry = lookupPlz(value);
     if (plzEntry) {
       setValue("city", plzEntry.city);
       setValue("country", plzEntry.country);
+      toast.success(`${plzEntry.city} erkannt`, { duration: 1500 });
     }
   };
 
@@ -200,8 +201,8 @@ export function CustomerInfoCard({ customer }: CustomerInfoCardProps) {
                 <Label htmlFor="zip">PLZ</Label>
                 <Input
                   id="zip"
-                  {...register("zip")}
-                  onChange={handlePlzChange}
+                  value={watch("zip") || ""}
+                  onChange={(e) => handlePlzChange(e.target.value)}
                 />
               </div>
               <div className="space-y-2">
