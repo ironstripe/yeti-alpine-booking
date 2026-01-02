@@ -20,12 +20,21 @@ export interface DragState {
   isBlocked: boolean;
 }
 
+interface AnchorSlot {
+  instructorId: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  durationMinutes: number;
+}
+
 interface SelectionState {
   teacherId: string | null;
   selections: SlotSelection[];
   isResizing: boolean;
-  activeResizeId: string | null;
+  activeResizeId: null | string;
   drag: DragState;
+  anchorSlot: AnchorSlot | null; // For shift+click multi-day selection
 }
 
 interface SchedulerSelectionContextType {
@@ -50,6 +59,15 @@ interface SchedulerSelectionContextType {
   updateDrag: (currentTime: string, isBlocked: boolean) => void;
   endDrag: (bookings: SchedulerBooking[], absences: SchedulerAbsence[]) => void;
   cancelDrag: () => void;
+  shiftClickSelect: (
+    instructorId: string,
+    targetDate: string,
+    startTime: string,
+    endTime: string,
+    durationMinutes: number,
+    bookings: SchedulerBooking[],
+    absences: SchedulerAbsence[]
+  ) => void;
 }
 
 const SchedulerSelectionContext = createContext<SchedulerSelectionContextType | null>(null);
@@ -85,6 +103,7 @@ export function SchedulerSelectionProvider({ children }: { children: ReactNode }
     isResizing: false,
     activeResizeId: null,
     drag: initialDragState,
+    anchorSlot: null,
   });
 
   const canSelectSlot = useCallback(
@@ -216,6 +235,7 @@ export function SchedulerSelectionProvider({ children }: { children: ReactNode }
       isResizing: false,
       activeResizeId: null,
       drag: initialDragState,
+      anchorSlot: null,
     });
   }, []);
 
@@ -350,7 +370,7 @@ export function SchedulerSelectionProvider({ children }: { children: ReactNode }
         return { ...prev, drag: initialDragState };
       }
 
-      // Add the selection
+      // Add the selection and set anchor for shift+click
       const newSelection: SlotSelection = {
         id: generateSlotId(),
         instructorId,
@@ -365,6 +385,13 @@ export function SchedulerSelectionProvider({ children }: { children: ReactNode }
         teacherId: instructorId,
         selections: [...prev.selections, newSelection],
         drag: initialDragState,
+        anchorSlot: {
+          instructorId,
+          date,
+          startTime: newStartTime,
+          endTime: newEndTime,
+          durationMinutes: duration,
+        },
       };
     });
   }, []);
@@ -375,6 +402,130 @@ export function SchedulerSelectionProvider({ children }: { children: ReactNode }
       drag: initialDragState,
     }));
   }, []);
+
+  // Shift+click to select same time slot across multiple days
+  const shiftClickSelect = useCallback(
+    (
+      instructorId: string,
+      targetDate: string,
+      startTime: string,
+      endTime: string,
+      durationMinutes: number,
+      bookings: SchedulerBooking[],
+      absences: SchedulerAbsence[]
+    ) => {
+      setState((prev) => {
+        const anchor = prev.anchorSlot;
+        
+        // If no anchor or different instructor, just set this as anchor
+        if (!anchor || anchor.instructorId !== instructorId) {
+          const newSelection: SlotSelection = {
+            id: generateSlotId(),
+            instructorId,
+            date: targetDate,
+            startTime,
+            endTime,
+            durationMinutes,
+          };
+          return {
+            ...prev,
+            teacherId: instructorId,
+            selections: [...prev.selections, newSelection],
+            anchorSlot: {
+              instructorId,
+              date: targetDate,
+              startTime,
+              endTime,
+              durationMinutes,
+            },
+          };
+        }
+
+        // Use anchor's time slot for consistency
+        const anchorStart = anchor.startTime;
+        const anchorEnd = anchor.endTime;
+        const anchorDuration = anchor.durationMinutes;
+
+        // Generate all dates between anchor and target
+        const anchorDateObj = new Date(anchor.date);
+        const targetDateObj = new Date(targetDate);
+        
+        const startDateObj = anchorDateObj < targetDateObj ? anchorDateObj : targetDateObj;
+        const endDateObj = anchorDateObj < targetDateObj ? targetDateObj : anchorDateObj;
+        
+        const datesToSelect: string[] = [];
+        const currentDate = new Date(startDateObj);
+        while (currentDate <= endDateObj) {
+          datesToSelect.push(currentDate.toISOString().split('T')[0]);
+          currentDate.setDate(currentDate.getDate() + 1);
+        }
+
+        // Filter out dates that already have a selection or have conflicts
+        const newSelections: SlotSelection[] = [];
+        const startMinutes = timeToMinutes(anchorStart);
+        const endMinutes = timeToMinutes(anchorEnd);
+
+        for (const dateStr of datesToSelect) {
+          // Skip if already selected at this date/time
+          const alreadySelected = prev.selections.some(
+            (s) => s.instructorId === instructorId && s.date === dateStr && 
+                   s.startTime === anchorStart && s.endTime === anchorEnd
+          );
+          if (alreadySelected) continue;
+
+          // Check for booking conflicts
+          const hasBookingConflict = bookings.some((b) => {
+            if (b.instructorId !== instructorId || b.date !== dateStr) return false;
+            const bookingStart = timeToMinutes(b.timeStart);
+            const bookingEnd = timeToMinutes(b.timeEnd);
+            return startMinutes < bookingEnd && endMinutes > bookingStart;
+          });
+          if (hasBookingConflict) continue;
+
+          // Check for absence conflicts
+          const isAbsent = absences.some(
+            (a) =>
+              a.instructorId === instructorId &&
+              dateStr >= a.startDate &&
+              dateStr <= a.endDate
+          );
+          if (isAbsent) continue;
+
+          // Check for existing selection overlap
+          const hasSelectionOverlap = prev.selections.some((s) => {
+            if (s.instructorId !== instructorId || s.date !== dateStr) return false;
+            const selStart = timeToMinutes(s.startTime);
+            const selEnd = timeToMinutes(s.endTime);
+            return startMinutes < selEnd && endMinutes > selStart;
+          });
+          if (hasSelectionOverlap) continue;
+
+          newSelections.push({
+            id: generateSlotId(),
+            instructorId,
+            date: dateStr,
+            startTime: anchorStart,
+            endTime: anchorEnd,
+            durationMinutes: anchorDuration,
+          });
+        }
+
+        return {
+          ...prev,
+          teacherId: instructorId,
+          selections: [...prev.selections, ...newSelections],
+          anchorSlot: {
+            instructorId,
+            date: targetDate,
+            startTime: anchorStart,
+            endTime: anchorEnd,
+            durationMinutes: anchorDuration,
+          },
+        };
+      });
+    },
+    []
+  );
 
   return (
     <SchedulerSelectionContext.Provider
@@ -393,6 +544,7 @@ export function SchedulerSelectionProvider({ children }: { children: ReactNode }
         updateDrag,
         endDrag,
         cancelDrag,
+        shiftClickSelect,
       }}
     >
       {children}

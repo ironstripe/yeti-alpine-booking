@@ -38,8 +38,8 @@ export function EmptySlot({
     getSelectionAt, 
     removeSelection,
     startDrag,
-    updateDrag,
     endDrag,
+    shiftClickSelect,
   } = useSchedulerSelection();
 
   const { setNodeRef, isOver } = useDroppable({
@@ -114,6 +114,27 @@ export function EmptySlot({
 
     // Check if this teacher is valid (same as existing or none selected)
     if (state.teacherId && state.teacherId !== instructorId) {
+      return;
+    }
+
+    // Shift+click for multi-day selection
+    if (e.shiftKey && state.anchorSlot) {
+      // Calculate end time (1 hour from start by default)
+      const startMinutes = timeToMinutes(timeSlot);
+      const endMinutes = startMinutes + 60;
+      const endHour = Math.floor(endMinutes / 60);
+      const endMinute = endMinutes % 60;
+      const endTime = `${endHour.toString().padStart(2, "0")}:${endMinute.toString().padStart(2, "0")}`;
+      
+      shiftClickSelect(
+        instructorId,
+        date,
+        timeSlot,
+        endTime,
+        60,
+        bookings,
+        absences
+      );
       return;
     }
 
