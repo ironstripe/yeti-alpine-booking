@@ -2,9 +2,16 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { format, addDays, subDays } from "date-fns";
 import { de } from "date-fns/locale";
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Search, User } from "lucide-react";
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Search, User, Filter } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Popover,
   PopoverContent,
@@ -33,6 +40,8 @@ interface SchedulerHeaderProps {
   onInstructorFilterChange: (id: string | null) => void;
   instructorOptions: { id: string; name: string }[];
   onInstructorSelect?: (id: string) => void;
+  capabilityFilter: string | null;
+  onCapabilityFilterChange: (filter: string | null) => void;
 }
 
 export function SchedulerHeader({
@@ -44,6 +53,8 @@ export function SchedulerHeader({
   onInstructorFilterChange,
   instructorOptions,
   onInstructorSelect,
+  capabilityFilter,
+  onCapabilityFilterChange,
 }: SchedulerHeaderProps) {
   const navigate = useNavigate();
   const [teacherSearchOpen, setTeacherSearchOpen] = useState(false);
@@ -157,6 +168,22 @@ export function SchedulerHeader({
 
       {/* Search & Filters */}
       <div className="flex items-center gap-3 flex-wrap">
+        {/* Capability Filter */}
+        <Select 
+          value={capabilityFilter || "all"} 
+          onValueChange={(v) => onCapabilityFilterChange(v === "all" ? null : v)}
+        >
+          <SelectTrigger className="w-[150px]">
+            <Filter className="mr-2 h-4 w-4" />
+            <SelectValue placeholder="Qualifikation" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Alle zeigen</SelectItem>
+            <SelectItem value="ski">Ski hervorheben</SelectItem>
+            <SelectItem value="snowboard">Snowboard hervorheben</SelectItem>
+          </SelectContent>
+        </Select>
+
         {/* Teacher Search */}
         <Popover open={teacherSearchOpen} onOpenChange={setTeacherSearchOpen}>
           <PopoverTrigger asChild>

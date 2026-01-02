@@ -63,3 +63,50 @@ export function isLevelUpgrade(lastSeason: string | null, currentSeason: string 
   const currentIndex = LEVEL_HIERARCHY.indexOf(currentSeason as LevelValue);
   return currentIndex > lastIndex;
 }
+
+// Instructor discipline utilities
+export function formatDisciplines(specialization: string | null): string {
+  switch (specialization) {
+    case "ski": return "Ski";
+    case "snowboard": return "Snowboard";
+    case "both": return "Ski & Snowboard";
+    default: return "Nicht angegeben";
+  }
+}
+
+export function formatInstructorLevel(level: string | null): string {
+  switch (level) {
+    case "hilfslehrer": return "Hilfslehrer";
+    case "skilehrer": return "Skilehrer";
+    case "schneesportlehrer": return "Schneesportlehrer";
+    default: return level || "Nicht angegeben";
+  }
+}
+
+export function getDisciplineBadges(specialization: string | null): { label: string; title: string }[] {
+  const badges: { label: string; title: string }[] = [];
+  if (specialization === "ski" || specialization === "both") {
+    badges.push({ label: "K", title: "Ski" });
+  }
+  if (specialization === "snowboard" || specialization === "both") {
+    badges.push({ label: "S", title: "Snowboard" });
+  }
+  return badges;
+}
+
+export function matchesCapabilityFilter(
+  specialization: string | null,
+  filter: string | null
+): boolean {
+  if (!filter) return true;
+  return specialization === filter || specialization === "both";
+}
+
+export function isCrossDiscipline(
+  instructorSpecialization: string | null,
+  participantSport: string | null
+): boolean {
+  if (!participantSport) return false;
+  if (instructorSpecialization === "both") return false;
+  return instructorSpecialization !== participantSport;
+}

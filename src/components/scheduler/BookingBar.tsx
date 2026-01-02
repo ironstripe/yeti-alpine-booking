@@ -2,22 +2,31 @@ import { useState } from "react";
 import { useDraggable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import { cn } from "@/lib/utils";
-import { getBookingBarClasses, calculateBarPosition, type SchedulerBooking } from "@/lib/scheduler-utils";
+import { getBookingBarClasses, calculateBarPosition, type SchedulerBooking, type SchedulerInstructor } from "@/lib/scheduler-utils";
+import { isCrossDiscipline } from "@/lib/level-utils";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { BookingDetailDialog } from "./BookingDetailDialog";
+import { AlertTriangle } from "lucide-react";
 
 interface BookingBarProps {
   booking: SchedulerBooking;
   slotWidth: number;
+  instructorSpecialization?: string | null;
 }
 
-export function BookingBar({ booking, slotWidth }: BookingBarProps) {
+export function BookingBar({ booking, slotWidth, instructorSpecialization }: BookingBarProps) {
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const isPrivate = booking.type === "private";
+  
+  // Check for cross-discipline booking
+  const hasCrossDiscipline = isPrivate && isCrossDiscipline(
+    instructorSpecialization || null,
+    booking.participantSport || null
+  );
   
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: `booking-${booking.id}`,
@@ -70,6 +79,9 @@ export function BookingBar({ booking, slotWidth }: BookingBarProps) {
             )}
             style={style}
           >
+            {hasCrossDiscipline && (
+              <AlertTriangle className="h-3 w-3 text-yellow-300 shrink-0" />
+            )}
             <span className="truncate">
               {booking.participantName || (booking.type === "group" ? "Gruppenkurs" : "Privat")}
             </span>
@@ -89,6 +101,12 @@ export function BookingBar({ booking, slotWidth }: BookingBarProps) {
             {booking.type === "private" && (
               <p className="text-sm">
                 Status: {booking.isPaid ? "Bezahlt ✓" : "Offen"}
+              </p>
+            )}
+            {hasCrossDiscipline && (
+              <p className="text-sm text-yellow-500 flex items-center gap-1">
+                <AlertTriangle className="h-3 w-3" />
+                Cross-Disziplin: {booking.participantSport === "snowboard" ? "Snowboard" : "Ski"}-Buchung
               </p>
             )}
             <p className="text-xs text-muted-foreground italic mt-1">

@@ -55,7 +55,8 @@ export function useSchedulerData({ date, instructorId }: UseSchedulerDataOptions
           ),
           customer_participants (
             first_name,
-            last_name
+            last_name,
+            sport
           )
         `)
         .eq("date", dateStr)
@@ -123,7 +124,7 @@ export function useSchedulerData({ date, instructorId }: UseSchedulerDataOptions
     .filter((b) => !instructorId || b.instructor_id === instructorId)
     .map((b) => {
       const ticket = b.tickets as unknown as { status: string; paid_amount: number; total_amount: number };
-      const participant = b.customer_participants as unknown as { first_name: string; last_name: string } | null;
+      const participant = b.customer_participants as unknown as { first_name: string; last_name: string; sport: string | null } | null;
       
       return {
         id: b.id,
@@ -138,6 +139,7 @@ export function useSchedulerData({ date, instructorId }: UseSchedulerDataOptions
           ? `${participant.first_name} ${participant.last_name || ""}`.trim()
           : undefined,
         status: b.status || "booked",
+        participantSport: participant?.sport || null,
       };
     });
 
