@@ -64,11 +64,58 @@ function SchedulerGridContent() {
   });
 
   const updateTicketItem = useUpdateTicketItem();
-  const { clearSelection, state, endDrag, cancelDrag } = useSchedulerSelection();
+  const { clearSelection, state, endDrag, cancelDrag, updateDrag } = useSchedulerSelection();
   const { isAdminOrOffice } = useUserRole();
 
-  // Global mouseup handler for drag selection
+  // Helper to check conflicts at a slot position
+  const checkSlotConflict = useCallback((instructorId: string, date: string, slotTime: string): boolean => {
+    const slotMin = timeToMinutes(slotTime);
+    const slotEnd = slotMin + 60;
+    
+    // Check bookings
+    const hasBookingConflict = bookings.some((b) => {
+      if (b.instructorId !== instructorId || b.date !== date) return false;
+      const bookingStart = timeToMinutes(b.timeStart);
+      const bookingEnd = timeToMinutes(b.timeEnd);
+      return slotMin < bookingEnd && slotEnd > bookingStart;
+    });
+    
+    if (hasBookingConflict) return true;
+    
+    // Check absences
+    return absences.some(a => 
+      a.instructorId === instructorId && 
+      date >= a.startDate && 
+      date <= a.endDate
+    );
+  }, [bookings, absences]);
+
+  // Global mouse handlers for drag selection
   useEffect(() => {
+    const handleGlobalMouseMove = (e: MouseEvent) => {
+      if (!state.drag.isDragging) return;
+      
+      // Find which slot element the mouse is over
+      const element = document.elementFromPoint(e.clientX, e.clientY);
+      if (!element) return;
+      
+      // Check if it's an empty slot element
+      const slotElement = element.closest('[data-slot-time]') as HTMLElement | null;
+      if (slotElement) {
+        const slotTime = slotElement.getAttribute('data-slot-time');
+        const slotInstructorId = slotElement.getAttribute('data-instructor-id');
+        const slotDate = slotElement.getAttribute('data-date');
+        
+        // Only update if same instructor and date
+        if (slotInstructorId === state.drag.instructorId && 
+            slotDate === state.drag.date && 
+            slotTime) {
+          const hasConflict = checkSlotConflict(slotInstructorId, slotDate, slotTime);
+          updateDrag(slotTime, hasConflict);
+        }
+      }
+    };
+
     const handleGlobalMouseUp = () => {
       if (state.drag.isDragging) {
         endDrag(bookings, absences);
@@ -82,13 +129,21 @@ function SchedulerGridContent() {
       }
     };
 
+    window.addEventListener("mousemove", handleGlobalMouseMove);
     window.addEventListener("mouseup", handleGlobalMouseUp);
     window.addEventListener("keydown", handleGlobalKeyDown);
     return () => {
+      window.removeEventListener("mousemove", handleGlobalMouseMove);
       window.removeEventListener("mouseup", handleGlobalMouseUp);
       window.removeEventListener("keydown", handleGlobalKeyDown);
     };
-  }, [state.drag.isDragging, bookings, absences, endDrag, cancelDrag]);
+  }, [state.drag.isDragging, state.drag.instructorId, state.drag.date, bookings, absences, endDrag, cancelDrag, updateDrag, checkSlotConflict]);
+
+  // Helper function
+  function timeToMinutes(time: string): number {
+    const [hours, minutes] = time.split(":").map(Number);
+    return hours * 60 + (minutes || 0);
+  }
 
   // Filter instructors in compact mode (hide those without bookings or absences)
   const filteredInstructors = useMemo(() => {
