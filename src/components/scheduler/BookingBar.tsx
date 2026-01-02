@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useDraggable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import { cn } from "@/lib/utils";
-import { getBookingBarClasses, calculateBarPosition, type SchedulerBooking, type SchedulerInstructor } from "@/lib/scheduler-utils";
+import { getBookingBarClasses, calculateBarPosition, OPERATIONAL_START, type SchedulerBooking, type SchedulerInstructor } from "@/lib/scheduler-utils";
 import { isCrossDiscipline } from "@/lib/level-utils";
 import {
   Tooltip,
@@ -40,7 +40,7 @@ export function BookingBar({ booking, slotWidth, instructorSpecialization }: Boo
   const { left, width } = calculateBarPosition(
     booking.timeStart,
     booking.timeEnd,
-    "08:00",
+    OPERATIONAL_START,
     slotWidth
   );
 

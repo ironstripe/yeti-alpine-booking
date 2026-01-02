@@ -41,6 +41,7 @@ interface SingleDayInstructorRowProps {
   onSlotClick: (instructorId: string, date: string, timeSlot: string) => void;
   isHighlighted?: boolean;
   capabilityFilter?: string | null;
+  rowIndex?: number;
 }
 
 export const SingleDayInstructorRow = forwardRef<HTMLDivElement, SingleDayInstructorRowProps>(
@@ -54,6 +55,7 @@ export const SingleDayInstructorRow = forwardRef<HTMLDivElement, SingleDayInstru
       onSlotClick,
       isHighlighted = false,
       capabilityFilter = null,
+      rowIndex = 0,
     },
     ref
   ) {
@@ -81,18 +83,25 @@ export const SingleDayInstructorRow = forwardRef<HTMLDivElement, SingleDayInstru
       b => b.instructorId === instructor.id && b.date === dateStr
     ).length;
 
+    // Zebra striping for alternate rows
+    const isEvenRow = rowIndex % 2 === 0;
+
     return (
       <div 
         ref={ref}
         className={cn(
-          "flex border-b border-border/20 hover:bg-muted/30 transition-all duration-200",
+          "flex border-b border-slate-300 hover:bg-slate-100/70 transition-all duration-200",
           isHighlighted && "ring-2 ring-primary ring-inset bg-primary/5",
           isDimmed && "opacity-40",
-          isFullDayAbsent && "bg-muted/20"
+          isFullDayAbsent && "bg-muted/20",
+          isEvenRow && !isFullDayAbsent && !isHighlighted && "bg-slate-50"
         )}
       >
         {/* Instructor Info Column - Compact Sticky */}
-        <div className="w-40 shrink-0 border-r border-border/20 px-2 py-1 flex items-center gap-1.5 sticky left-0 bg-background z-10 shadow-[1px_0_2px_rgba(0,0,0,0.03)]">
+        <div className={cn(
+          "w-40 shrink-0 border-r border-slate-300 px-2 py-1 flex items-center gap-1.5 sticky left-0 z-10 shadow-[1px_0_2px_rgba(0,0,0,0.03)]",
+          isEvenRow && !isFullDayAbsent && !isHighlighted ? "bg-slate-50" : "bg-background"
+        )}>
           {/* Color Indicator */}
           <div
             className={cn(

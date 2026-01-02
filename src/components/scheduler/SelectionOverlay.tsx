@@ -121,10 +121,10 @@ export function SelectionOverlay({ selection, slotWidth, bookings, absences }: S
       onMouseLeave={() => setIsHovered(false)}
       className={cn(
         "absolute top-1 bottom-1 rounded-md group",
-        "bg-primary/20 border-2 border-primary",
+        "bg-[rgba(59,130,246,0.15)] border-2 border-blue-500",
         "flex items-center px-2",
         "transition-all duration-100",
-        isResizing && "ring-2 ring-primary/50"
+        isResizing && "ring-2 ring-blue-400/50"
       )}
       style={{
         left: `${left}px`,
@@ -132,10 +132,10 @@ export function SelectionOverlay({ selection, slotWidth, bookings, absences }: S
       }}
     >
       {/* Time Label */}
-      <span className="text-xs font-medium text-primary truncate flex-1">
+      <span className="text-xs font-medium text-blue-700 truncate flex-1">
         {selection.startTime} - {selection.endTime}
         {displayWidth > 80 && (
-          <span className="text-primary/70 ml-1">({durationHours}h)</span>
+          <span className="text-blue-600/70 ml-1">({durationHours}h)</span>
         )}
       </span>
 
@@ -158,11 +158,11 @@ export function SelectionOverlay({ selection, slotWidth, bookings, absences }: S
         className={cn(
           "w-4 h-full absolute right-0 top-0 bottom-0 cursor-ew-resize",
           "flex items-center justify-center",
-          "hover:bg-primary/30 transition-colors rounded-r-md",
+          "hover:bg-blue-500/30 transition-colors rounded-r-md",
           isHovered ? "opacity-100" : "opacity-0"
         )}
       >
-        <GripVertical className="h-4 w-4 text-primary/60" />
+        <GripVertical className="h-4 w-4 text-blue-600/60" />
       </div>
     </div>
   );

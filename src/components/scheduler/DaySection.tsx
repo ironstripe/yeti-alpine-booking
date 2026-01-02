@@ -59,11 +59,11 @@ export const DaySection = forwardRef<HTMLDivElement, DaySectionProps>(
         ref={ref}
         className={cn(
           "day-section",
-          !isFirstDay && "border-t border-border/40"
+          !isFirstDay && "border-t-2 border-slate-300"
         )}
       >
         {/* Slim Day Header - 24px */}
-        <div className="sticky left-0 bg-muted/60 px-3 py-1 font-semibold text-xs border-b border-border/50 flex items-center justify-between">
+        <div className="sticky left-0 bg-slate-100 px-3 py-1 font-semibold text-xs border-b border-slate-300 flex items-center justify-between">
           <span>{format(date, "EEE, dd.MM.", { locale: de })}</span>
           <span className="text-muted-foreground font-normal">
             {dayBookings.length} Buchung{dayBookings.length !== 1 ? "en" : ""}
@@ -71,11 +71,12 @@ export const DaySection = forwardRef<HTMLDivElement, DaySectionProps>(
         </div>
 
         {/* Instructor Rows for this day */}
-        {instructors.map((instructor) => {
+        {instructors.map((instructor, index) => {
           const instructorHasActivity = hasActivity(instructor.id);
           
           // Collapsed empty row (24px)
           if (collapseEmpty && !instructorHasActivity) {
+            const isEvenRow = index % 2 === 0;
             return (
               <div 
                 key={`${instructor.id}-${dateStr}`}
@@ -89,9 +90,15 @@ export const DaySection = forwardRef<HTMLDivElement, DaySectionProps>(
                     }
                   }
                 }}
-                className="flex h-6 border-b border-border/20 opacity-40 hover:opacity-70 transition-opacity"
+                className={cn(
+                  "flex h-6 border-b border-slate-300 opacity-40 hover:opacity-70 transition-opacity",
+                  isEvenRow && "bg-slate-50"
+                )}
               >
-                <div className="w-40 shrink-0 border-r border-border/20 px-2 py-0.5 text-xs truncate flex items-center sticky left-0 bg-background z-10">
+                <div className={cn(
+                  "w-40 shrink-0 border-r border-slate-300 px-2 py-0.5 text-xs truncate flex items-center sticky left-0 z-10",
+                  isEvenRow ? "bg-slate-50" : "bg-background"
+                )}>
                   {instructor.first_name} {instructor.last_name.charAt(0)}.
                 </div>
                 <div 
@@ -123,6 +130,7 @@ export const DaySection = forwardRef<HTMLDivElement, DaySectionProps>(
               onSlotClick={onSlotClick}
               isHighlighted={highlightedInstructorId === instructor.id}
               capabilityFilter={capabilityFilter}
+              rowIndex={index}
             />
           );
         })}
