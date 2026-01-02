@@ -19,6 +19,7 @@ interface DndKitProviderProps {
   onBookingDrop?: (
     booking: SchedulerBooking,
     newInstructorId: string,
+    newDate: string,
     newTimeSlot: string
   ) => void;
 }
@@ -76,7 +77,7 @@ export function DndKitProvider({ children, onBookingDrop }: DndKitProviderProps)
         !overData.isBlocked &&
         onBookingDrop
       ) {
-        onBookingDrop(activeData.booking, overData.instructorId, overData.timeSlot);
+        onBookingDrop(activeData.booking, overData.instructorId, overData.date, overData.timeSlot);
       }
 
       setActiveBooking(null);

@@ -31,10 +31,17 @@ export interface SchedulerAbsence {
   reason?: string;
 }
 
-// Time slots for the scheduler (08:00 - 17:00)
+// Operational hours (lift times: 09:00 - 16:00)
+export const OPERATIONAL_START = "09:00";
+export const OPERATIONAL_END = "16:00";
+export const OPERATIONAL_START_MINUTES = 9 * 60; // 540
+export const OPERATIONAL_END_MINUTES = 16 * 60; // 960
+export const BOOKABLE_HOURS = 7; // 09:00 to 16:00
+
+// Time slots for the scheduler (09:00 - 16:00)
 export const TIME_SLOTS = [
-  "08:00", "09:00", "10:00", "11:00", "12:00", 
-  "13:00", "14:00", "15:00", "16:00", "17:00"
+  "09:00", "10:00", "11:00", "12:00", 
+  "13:00", "14:00", "15:00", "16:00"
 ];
 
 export const TIME_SLOT_HEIGHT = 48; // px per hour
@@ -120,7 +127,7 @@ export function timeToMinutes(time: string): number {
 export function calculateBarPosition(
   timeStart: string,
   timeEnd: string,
-  gridStartTime = "08:00",
+  gridStartTime = OPERATIONAL_START,
   slotWidth = 100 // px per hour
 ): { left: number; width: number } {
   const gridStart = timeToMinutes(gridStartTime);
@@ -134,6 +141,43 @@ export function calculateBarPosition(
     left: (leftMinutes / 60) * slotWidth,
     width: (durationMinutes / 60) * slotWidth,
   };
+}
+
+/**
+ * Check if a time slot is within operational hours
+ */
+export function isWithinOperationalHours(timeStart: string, timeEnd: string): boolean {
+  const startMinutes = timeToMinutes(timeStart);
+  const endMinutes = timeToMinutes(timeEnd);
+  return startMinutes >= OPERATIONAL_START_MINUTES && endMinutes <= OPERATIONAL_END_MINUTES;
+}
+
+/**
+ * Generate an array of dates for a given date range
+ */
+export function generateDateRange(startDate: Date, days: number): Date[] {
+  const dates: Date[] = [];
+  for (let i = 0; i < days; i++) {
+    const date = new Date(startDate);
+    date.setDate(startDate.getDate() + i);
+    dates.push(date);
+  }
+  return dates;
+}
+
+/**
+ * Get the number of days based on view mode
+ */
+export function getDaysForViewMode(viewMode: string): number {
+  switch (viewMode) {
+    case "weekly":
+      return 7;
+    case "3days":
+      return 3;
+    case "daily":
+    default:
+      return 1;
+  }
 }
 
 /**
