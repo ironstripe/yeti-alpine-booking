@@ -11,11 +11,21 @@ export interface SlotSelection {
   durationMinutes: number;
 }
 
+export interface DragState {
+  isDragging: boolean;
+  instructorId: string | null;
+  date: string | null;
+  startTime: string | null;
+  currentTime: string | null;
+  isBlocked: boolean;
+}
+
 interface SelectionState {
   teacherId: string | null;
   selections: SlotSelection[];
   isResizing: boolean;
   activeResizeId: string | null;
+  drag: DragState;
 }
 
 interface SchedulerSelectionContextType {
@@ -36,6 +46,10 @@ interface SchedulerSelectionContextType {
   ) => { valid: boolean; reason?: string };
   setIsResizing: (isResizing: boolean, slotId?: string) => void;
   getTotalHours: () => number;
+  startDrag: (instructorId: string, date: string, startTime: string) => void;
+  updateDrag: (currentTime: string, isBlocked: boolean) => void;
+  endDrag: (bookings: SchedulerBooking[], absences: SchedulerAbsence[]) => void;
+  cancelDrag: () => void;
 }
 
 const SchedulerSelectionContext = createContext<SchedulerSelectionContextType | null>(null);
@@ -55,12 +69,22 @@ function minutesToTime(minutes: number): string {
   return `${hours.toString().padStart(2, "0")}:${mins.toString().padStart(2, "0")}`;
 }
 
+const initialDragState: DragState = {
+  isDragging: false,
+  instructorId: null,
+  date: null,
+  startTime: null,
+  currentTime: null,
+  isBlocked: false,
+};
+
 export function SchedulerSelectionProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<SelectionState>({
     teacherId: null,
     selections: [],
     isResizing: false,
     activeResizeId: null,
+    drag: initialDragState,
   });
 
   const canSelectSlot = useCallback(
@@ -191,6 +215,7 @@ export function SchedulerSelectionProvider({ children }: { children: ReactNode }
       selections: [],
       isResizing: false,
       activeResizeId: null,
+      drag: initialDragState,
     });
   }, []);
 
@@ -232,6 +257,125 @@ export function SchedulerSelectionProvider({ children }: { children: ReactNode }
     return state.selections.reduce((acc, s) => acc + s.durationMinutes / 60, 0);
   }, [state.selections]);
 
+  // Drag selection handlers
+  const startDrag = useCallback((instructorId: string, date: string, startTime: string) => {
+    // Check if trying to select for different teacher
+    if (state.teacherId && state.teacherId !== instructorId) {
+      return;
+    }
+    
+    setState((prev) => ({
+      ...prev,
+      drag: {
+        isDragging: true,
+        instructorId,
+        date,
+        startTime,
+        currentTime: startTime,
+        isBlocked: false,
+      },
+    }));
+  }, [state.teacherId]);
+
+  const updateDrag = useCallback((currentTime: string, isBlocked: boolean) => {
+    setState((prev) => {
+      if (!prev.drag.isDragging) return prev;
+      return {
+        ...prev,
+        drag: {
+          ...prev.drag,
+          currentTime,
+          isBlocked,
+        },
+      };
+    });
+  }, []);
+
+  const endDrag = useCallback((bookings: SchedulerBooking[], absences: SchedulerAbsence[]) => {
+    setState((prev) => {
+      if (!prev.drag.isDragging || !prev.drag.instructorId || !prev.drag.date || !prev.drag.startTime || !prev.drag.currentTime) {
+        return { ...prev, drag: initialDragState };
+      }
+
+      const { instructorId, date, startTime, currentTime, isBlocked } = prev.drag;
+      
+      if (isBlocked) {
+        return { ...prev, drag: initialDragState };
+      }
+
+      // Calculate the range (handle drag in either direction)
+      const startMinutes = timeToMinutes(startTime);
+      const currentMinutes = timeToMinutes(currentTime);
+      
+      const rangeStart = Math.min(startMinutes, currentMinutes);
+      const rangeEnd = Math.max(startMinutes, currentMinutes) + 60; // Add 1 hour for end slot
+      
+      // Clamp to operational hours
+      const clampedStart = Math.max(rangeStart, OPERATIONAL_START_MINUTES);
+      const clampedEnd = Math.min(rangeEnd, OPERATIONAL_END_MINUTES);
+      
+      const duration = clampedEnd - clampedStart;
+      
+      // Validate minimum duration
+      if (duration < 60) {
+        return { ...prev, drag: initialDragState };
+      }
+
+      const newStartTime = minutesToTime(clampedStart);
+      const newEndTime = minutesToTime(clampedEnd);
+
+      // Check for conflicts
+      const hasBookingOverlap = bookings.some((b) => {
+        if (b.instructorId !== instructorId || b.date !== date) return false;
+        const bookingStart = timeToMinutes(b.timeStart);
+        const bookingEnd = timeToMinutes(b.timeEnd);
+        return clampedStart < bookingEnd && clampedEnd > bookingStart;
+      });
+
+      const isAbsent = absences.some(
+        (a) =>
+          a.instructorId === instructorId &&
+          date >= a.startDate &&
+          date <= a.endDate
+      );
+
+      const hasSelectionOverlap = prev.selections.some((s) => {
+        if (s.instructorId !== instructorId || s.date !== date) return false;
+        const selStart = timeToMinutes(s.startTime);
+        const selEnd = timeToMinutes(s.endTime);
+        return clampedStart < selEnd && clampedEnd > selStart;
+      });
+
+      if (hasBookingOverlap || isAbsent || hasSelectionOverlap) {
+        return { ...prev, drag: initialDragState };
+      }
+
+      // Add the selection
+      const newSelection: SlotSelection = {
+        id: generateSlotId(),
+        instructorId,
+        date,
+        startTime: newStartTime,
+        endTime: newEndTime,
+        durationMinutes: duration,
+      };
+
+      return {
+        ...prev,
+        teacherId: instructorId,
+        selections: [...prev.selections, newSelection],
+        drag: initialDragState,
+      };
+    });
+  }, []);
+
+  const cancelDrag = useCallback(() => {
+    setState((prev) => ({
+      ...prev,
+      drag: initialDragState,
+    }));
+  }, []);
+
   return (
     <SchedulerSelectionContext.Provider
       value={{
@@ -245,6 +389,10 @@ export function SchedulerSelectionProvider({ children }: { children: ReactNode }
         canSelectSlot,
         setIsResizing,
         getTotalHours,
+        startDrag,
+        updateDrag,
+        endDrag,
+        cancelDrag,
       }}
     >
       {children}

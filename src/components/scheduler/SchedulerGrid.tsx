@@ -64,8 +64,31 @@ function SchedulerGridContent() {
   });
 
   const updateTicketItem = useUpdateTicketItem();
-  const { clearSelection } = useSchedulerSelection();
+  const { clearSelection, state, endDrag, cancelDrag } = useSchedulerSelection();
   const { isAdminOrOffice } = useUserRole();
+
+  // Global mouseup handler for drag selection
+  useEffect(() => {
+    const handleGlobalMouseUp = () => {
+      if (state.drag.isDragging) {
+        endDrag(bookings, absences);
+      }
+    };
+
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      // Cancel drag on Escape
+      if (e.key === "Escape" && state.drag.isDragging) {
+        cancelDrag();
+      }
+    };
+
+    window.addEventListener("mouseup", handleGlobalMouseUp);
+    window.addEventListener("keydown", handleGlobalKeyDown);
+    return () => {
+      window.removeEventListener("mouseup", handleGlobalMouseUp);
+      window.removeEventListener("keydown", handleGlobalKeyDown);
+    };
+  }, [state.drag.isDragging, bookings, absences, endDrag, cancelDrag]);
 
   // Filter instructors in compact mode (hide those without bookings or absences)
   const filteredInstructors = useMemo(() => {
