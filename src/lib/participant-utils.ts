@@ -4,6 +4,10 @@ export function calculateAge(birthDate: string): number {
   return differenceInYears(new Date(), new Date(birthDate));
 }
 
+export function getAgeDisplay(age: number): string {
+  return age === 1 ? "1 Jahr" : `${age} Jahre`;
+}
+
 export function getInitials(firstName: string, lastName?: string | null): string {
   const first = firstName.charAt(0).toUpperCase();
   const last = lastName ? lastName.charAt(0).toUpperCase() : "";
