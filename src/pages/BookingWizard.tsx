@@ -1,0 +1,176 @@
+import { useEffect } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { ArrowLeft, X } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { toast } from "sonner";
+
+import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+
+import {
+  BookingWizardProvider,
+  useBookingWizard,
+} from "@/contexts/BookingWizardContext";
+import { WizardProgress } from "@/components/bookings/wizard/WizardProgress";
+import { Step1CustomerParticipant } from "@/components/bookings/wizard/Step1CustomerParticipant";
+
+function BookingWizardContent() {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const { state, setCustomer, setConversationId, setCurrentStep, canProceed, goToNextStep, resetWizard } =
+    useBookingWizard();
+
+  const customerId = searchParams.get("customer");
+  const conversationId = searchParams.get("conversation");
+
+  // Fetch customer if provided in URL
+  const { data: prefetchedCustomer } = useQuery({
+    queryKey: ["customer", customerId],
+    queryFn: async () => {
+      if (!customerId) return null;
+      const { data, error } = await supabase
+        .from("customers")
+        .select("*")
+        .eq("id", customerId)
+        .maybeSingle();
+
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!customerId && !state.customer,
+  });
+
+  // Pre-fill from URL params
+  useEffect(() => {
+    if (prefetchedCustomer && !state.customer) {
+      setCustomer(prefetchedCustomer);
+      toast.success("Kunde aus Anfrage übernommen");
+    }
+  }, [prefetchedCustomer, state.customer, setCustomer]);
+
+  useEffect(() => {
+    if (conversationId) {
+      setConversationId(conversationId);
+    }
+  }, [conversationId, setConversationId]);
+
+  const handleCancel = () => {
+    resetWizard();
+    navigate("/bookings");
+  };
+
+  const handleNext = () => {
+    if (canProceed()) {
+      goToNextStep();
+      // For now, since Steps 2-4 aren't implemented, show a toast
+      if (state.currentStep === 1) {
+        toast.info("Schritt 2-4 werden noch implementiert");
+      }
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-background">
+      {/* Header */}
+      <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <div className="mx-auto flex h-14 max-w-3xl items-center justify-between px-4">
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="ghost" size="sm">
+                <X className="mr-2 h-4 w-4" />
+                Abbrechen
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Buchung abbrechen?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Alle eingegebenen Daten gehen verloren. Möchtest du wirklich
+                  abbrechen?
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Weiter bearbeiten</AlertDialogCancel>
+                <AlertDialogAction onClick={handleCancel}>
+                  Ja, abbrechen
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+
+          <h1 className="text-lg font-semibold">Neue Buchung</h1>
+
+          <div className="w-[100px]" /> {/* Spacer for centering */}
+        </div>
+      </header>
+
+      {/* Progress */}
+      <div className="mx-auto max-w-3xl px-4">
+        <WizardProgress
+          currentStep={state.currentStep}
+          onStepClick={setCurrentStep}
+        />
+      </div>
+
+      {/* Content */}
+      <main className="mx-auto max-w-3xl px-4 pb-32">
+        {state.currentStep === 1 && <Step1CustomerParticipant />}
+        {state.currentStep === 2 && (
+          <div className="py-12 text-center text-muted-foreground">
+            Schritt 2: Produkt & Datum (in Entwicklung)
+          </div>
+        )}
+        {state.currentStep === 3 && (
+          <div className="py-12 text-center text-muted-foreground">
+            Schritt 3: Skilehrer & Details (in Entwicklung)
+          </div>
+        )}
+        {state.currentStep === 4 && (
+          <div className="py-12 text-center text-muted-foreground">
+            Schritt 4: Zusammenfassung & Abschluss (in Entwicklung)
+          </div>
+        )}
+      </main>
+
+      {/* Footer */}
+      <footer className="fixed bottom-0 left-0 right-0 border-t bg-background p-4">
+        <div className="mx-auto flex max-w-3xl items-center justify-between gap-4">
+          {state.currentStep > 1 ? (
+            <Button
+              variant="outline"
+              onClick={() => setCurrentStep((state.currentStep - 1) as 1 | 2 | 3 | 4)}
+            >
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Zurück
+            </Button>
+          ) : (
+            <div />
+          )}
+
+          <Button onClick={handleNext} disabled={!canProceed()}>
+            {state.currentStep === 4 ? "Buchung erstellen" : "Weiter"}
+          </Button>
+        </div>
+      </footer>
+    </div>
+  );
+}
+
+export default function BookingWizard() {
+  return (
+    <BookingWizardProvider>
+      <BookingWizardContent />
+    </BookingWizardProvider>
+  );
+}

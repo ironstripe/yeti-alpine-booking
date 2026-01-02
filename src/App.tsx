@@ -17,6 +17,7 @@ import Trainings from "./pages/Trainings";
 import Login from "./pages/Login";
 import NotFound from "./pages/NotFound";
 import CustomerDetail from "./pages/CustomerDetail";
+import BookingWizard from "./pages/BookingWizard";
 
 const queryClient = new QueryClient();
 
@@ -65,6 +66,7 @@ const AppRoutes = () => (
         </AppLayout>
       }
     />
+    <Route path="/bookings/new" element={<BookingWizard />} />
     <Route
       path="/customers"
       element={
