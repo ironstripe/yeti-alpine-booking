@@ -9,11 +9,14 @@ import { InstructorFilters } from "@/components/instructors/InstructorFilters";
 import { InstructorCard } from "@/components/instructors/InstructorCard";
 import { InstructorEmptyState } from "@/components/instructors/InstructorEmptyState";
 import { InstructorGridSkeleton } from "@/components/instructors/InstructorCardSkeleton";
-import { toast } from "sonner";
+import { NewInstructorModal } from "@/components/instructors/NewInstructorModal";
 
 const Instructors = () => {
   const navigate = useNavigate();
   const { data: instructors = [], isLoading, pulsingIds } = useInstructors();
+
+  // Modal state
+  const [isNewInstructorModalOpen, setIsNewInstructorModalOpen] = useState(false);
 
   // Filter state
   const [searchQuery, setSearchQuery] = useState("");
@@ -112,7 +115,7 @@ const Instructors = () => {
   };
 
   const handleAddInstructor = () => {
-    toast.info("Neuer Skilehrer Modal kommt bald...");
+    setIsNewInstructorModalOpen(true);
   };
 
   const handleInstructorClick = (instructor: InstructorWithBookings) => {
@@ -175,6 +178,11 @@ const Instructors = () => {
           )}
         </>
       )}
+
+      <NewInstructorModal
+        open={isNewInstructorModalOpen}
+        onOpenChange={setIsNewInstructorModalOpen}
+      />
     </>
   );
 };
