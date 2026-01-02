@@ -3,11 +3,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 
+export type AbsenceType = "vacation" | "sick" | "organization" | "office_duty" | "other";
+
 interface CreateAbsenceParams {
   instructorId: string;
   startDate: string;
   endDate: string;
-  type: "vacation" | "sick" | "other";
+  type: AbsenceType;
   reason?: string;
 }
 
