@@ -6,9 +6,9 @@ interface StickyTimeHeaderProps {
 
 export function StickyTimeHeader({ slotWidth }: StickyTimeHeaderProps) {
   return (
-    <div className="flex border-b border-border/30 bg-muted/40 sticky top-0 z-30">
+    <div className="flex border-b border-slate-300 bg-slate-100 sticky top-0 z-30">
       {/* Instructor column placeholder - compact sticky left */}
-      <div className="w-40 shrink-0 border-r border-border/20 px-2 py-1.5 font-medium text-xs text-muted-foreground sticky left-0 bg-muted/40 z-40">
+      <div className="w-40 shrink-0 border-r border-slate-300 px-2 py-1.5 font-medium text-xs text-muted-foreground sticky left-0 bg-slate-100 z-40">
         Lehrer
       </div>
       
@@ -17,7 +17,7 @@ export function StickyTimeHeader({ slotWidth }: StickyTimeHeaderProps) {
         {TIME_SLOTS.slice(0, -1).map((time) => (
           <div 
             key={time}
-            className="border-r border-border/20 py-1.5 text-center text-[10px] font-medium text-muted-foreground"
+            className="border-r border-slate-300 py-1.5 text-center text-[10px] font-medium text-muted-foreground"
             style={{ width: `${slotWidth}px` }}
           >
             {time}

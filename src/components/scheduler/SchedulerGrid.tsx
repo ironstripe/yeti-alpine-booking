@@ -379,17 +379,17 @@ function SchedulerGridContent() {
         </div>
 
         {/* Legend - Compact */}
-        <div className="border-t border-border/30 px-3 py-2 flex flex-wrap gap-3 text-[10px]">
+        <div className="border-t border-slate-300 px-3 py-2 flex flex-wrap gap-3 text-[10px]">
           <div className="flex items-center gap-1">
-            <div className="w-2 h-2 rounded-sm bg-green-500" />
+            <div className="w-2 h-2 rounded-sm bg-emerald-500" />
             <span>Bezahlt</span>
           </div>
           <div className="flex items-center gap-1">
-            <div className="w-2 h-2 rounded-sm bg-red-500" />
+            <div className="w-2 h-2 rounded-sm bg-rose-500" />
             <span>Offen</span>
           </div>
           <div className="flex items-center gap-1">
-            <div className="w-2 h-2 rounded-sm bg-blue-700" />
+            <div className="w-2 h-2 rounded-sm bg-blue-600" />
             <span>Gruppe</span>
           </div>
           <div className="flex items-center gap-1">
@@ -397,7 +397,7 @@ function SchedulerGridContent() {
             <span>Abwesend</span>
           </div>
           <div className="flex items-center gap-1">
-            <div className="w-2 h-2 rounded-sm bg-primary/20 border border-primary" />
+            <div className="w-2 h-2 rounded-sm bg-blue-500/20 border border-blue-500" />
             <span>Auswahl</span>
           </div>
           <div className="ml-auto text-muted-foreground">

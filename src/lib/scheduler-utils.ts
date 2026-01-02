@@ -96,14 +96,15 @@ export function getInstructorColorClasses(color: InstructorColor): {
 
 /**
  * Get CSS classes for booking bar based on type and payment status
+ * Uses more saturated colors for better visibility against grid lines
  */
 export function getBookingBarClasses(type: "private" | "group", isPaid: boolean): string {
   if (type === "group") {
-    return "bg-blue-700 text-white border-blue-800";
+    return "bg-blue-600 text-white border-blue-700";
   }
   return isPaid 
-    ? "bg-green-500 text-white border-green-600" 
-    : "bg-red-500 text-white border-red-600";
+    ? "bg-emerald-500 text-white border-emerald-600" 
+    : "bg-rose-500 text-white border-rose-600";
 }
 
 /**

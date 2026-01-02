@@ -156,15 +156,15 @@ export function EmptySlot({
       onMouseDown={handleMouseDown}
       onMouseUp={handleMouseUp}
       className={cn(
-        "absolute top-0 bottom-0 border-r border-dashed border-border/50",
+        "absolute top-0 bottom-0 border-r border-slate-300",
         "transition-colors duration-100 select-none touch-none",
-        !isBlocked && !state.drag.isDragging && "cursor-pointer hover:bg-primary/5 group",
+        !isBlocked && !state.drag.isDragging && "cursor-pointer hover:bg-slate-100 hover:border-slate-400 group",
         state.drag.isDragging && "cursor-crosshair",
         isBlocked && "cursor-not-allowed bg-muted/30",
-        isOver && !isBlocked && "bg-primary/10 ring-2 ring-primary ring-inset",
+        isOver && !isBlocked && "bg-blue-100 ring-2 ring-blue-500 ring-inset",
         isOver && isBlocked && "bg-destructive/10",
-        // Drag preview styling
-        isDragPreview && !isDragBlocked && "bg-primary/15",
+        // Drag preview styling - strong blue
+        isDragPreview && !isDragBlocked && "bg-[rgba(59,130,246,0.15)] border-l-2 border-l-blue-500",
         isDragPreview && isDragBlocked && "bg-destructive/15"
       )}
       style={{
@@ -175,8 +175,8 @@ export function EmptySlot({
       {/* Hover indicator for empty non-dragging slots */}
       {!isBlocked && !isSelected && !isDragPreview && !state.drag.isDragging && (
         <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-          <div className="w-5 h-5 rounded-full bg-primary/20 flex items-center justify-center">
-            <Plus className="h-3 w-3 text-primary" />
+          <div className="w-5 h-5 rounded-full bg-blue-500/20 flex items-center justify-center">
+            <Plus className="h-3 w-3 text-blue-600" />
           </div>
         </div>
       )}
