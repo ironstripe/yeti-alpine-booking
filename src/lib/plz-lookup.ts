@@ -27,6 +27,7 @@ const PLZ_DATABASE: Record<string, PlzEntry> = {
   "9497 Malbun": { city: "Malbun", country: "LI" },
 
   // Switzerland - Major cities and ski resorts
+  "8000": { city: "Zürich", country: "CH" },
   "8001": { city: "Zürich", country: "CH" },
   "8002": { city: "Zürich", country: "CH" },
   "8003": { city: "Zürich", country: "CH" },
