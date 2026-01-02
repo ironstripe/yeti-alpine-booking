@@ -1,5 +1,5 @@
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
-import { Home, Inbox, Calendar, Users, UserCheck, LogOut, Loader2 } from "lucide-react";
+import { Home, Inbox, Calendar, Users, LayoutGrid, LogOut, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { useState } from "react";
@@ -8,8 +8,8 @@ const navItems = [
   { title: "Dashboard", url: "/", icon: Home },
   { title: "Inbox", url: "/inbox", icon: Inbox, badge: 3 },
   { title: "Bookings", url: "/bookings", icon: Calendar },
+  { title: "Scheduler", url: "/scheduler", icon: LayoutGrid },
   { title: "Customers", url: "/customers", icon: Users },
-  { title: "Instructors", url: "/instructors", icon: UserCheck },
 ];
 
 export function BottomNav() {
