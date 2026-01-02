@@ -387,6 +387,54 @@ export type Database = {
         }
         Relationships: []
       }
+      ticket_comments: {
+        Row: {
+          comment_type: string
+          content: string
+          created_at: string
+          created_by_name: string
+          created_by_user_id: string
+          id: string
+          ticket_id: string
+          ticket_item_id: string | null
+        }
+        Insert: {
+          comment_type: string
+          content: string
+          created_at?: string
+          created_by_name: string
+          created_by_user_id: string
+          id?: string
+          ticket_id: string
+          ticket_item_id?: string | null
+        }
+        Update: {
+          comment_type?: string
+          content?: string
+          created_at?: string
+          created_by_name?: string
+          created_by_user_id?: string
+          id?: string
+          ticket_id?: string
+          ticket_item_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ticket_comments_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "tickets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ticket_comments_ticket_item_id_fkey"
+            columns: ["ticket_item_id"]
+            isOneToOne: false
+            referencedRelation: "ticket_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ticket_items: {
         Row: {
           actual_duration_minutes: number | null
