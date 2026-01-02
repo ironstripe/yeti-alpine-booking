@@ -1427,6 +1427,46 @@ export function lookupPlz(plz: string): PlzEntry | null {
   return PLZ_DATABASE[trimmed] || null;
 }
 
+export interface CityMatch {
+  plz: string;
+  city: string;
+  country: string;
+}
+
+export function searchCities(query: string, limit: number = 10): CityMatch[] {
+  if (!query || query.length < 2) return [];
+  
+  const normalizedQuery = query.toLowerCase().trim();
+  const matches: CityMatch[] = [];
+  const seenCities = new Set<string>();
+  
+  for (const [plz, entry] of Object.entries(PLZ_DATABASE)) {
+    const normalizedCity = entry.city.toLowerCase();
+    if (normalizedCity.includes(normalizedQuery)) {
+      // Use city+country as key to avoid duplicates for same city
+      const key = `${entry.city}-${entry.country}`;
+      if (!seenCities.has(key)) {
+        seenCities.add(key);
+        matches.push({
+          plz,
+          city: entry.city,
+          country: entry.country,
+        });
+      }
+      if (matches.length >= limit) break;
+    }
+  }
+  
+  // Sort by exact match first, then alphabetically
+  return matches.sort((a, b) => {
+    const aExact = a.city.toLowerCase() === normalizedQuery;
+    const bExact = b.city.toLowerCase() === normalizedQuery;
+    if (aExact && !bExact) return -1;
+    if (!aExact && bExact) return 1;
+    return a.city.localeCompare(b.city);
+  });
+}
+
 export function getCountryName(code: string): string {
   const countries: Record<string, string> = {
     LI: "Liechtenstein",
