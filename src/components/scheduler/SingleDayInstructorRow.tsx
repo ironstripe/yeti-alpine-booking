@@ -30,6 +30,8 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 
+const ROW_HEIGHT = 40; // Compact row height in px
+
 interface SingleDayInstructorRowProps {
   instructor: SchedulerInstructor;
   date: Date;
@@ -74,48 +76,45 @@ export const SingleDayInstructorRow = forwardRef<HTMLDivElement, SingleDayInstru
       navigate(`/instructors/${instructor.id}`);
     };
 
+    // Calculate booking count for this specific day
+    const dayBookingCount = bookings.filter(
+      b => b.instructorId === instructor.id && b.date === dateStr
+    ).length;
+
     return (
       <div 
         ref={ref}
         className={cn(
-          "flex border-b hover:bg-muted/30 transition-all duration-300",
+          "flex border-b border-border/20 hover:bg-muted/30 transition-all duration-200",
           isHighlighted && "ring-2 ring-primary ring-inset bg-primary/5",
           isDimmed && "opacity-40",
           isFullDayAbsent && "bg-muted/20"
         )}
       >
-        {/* Instructor Info Column - Sticky */}
-        <div className="w-48 shrink-0 border-r p-3 flex items-center gap-2 sticky left-0 bg-background z-10 shadow-[2px_0_4px_rgba(0,0,0,0.05)]">
+        {/* Instructor Info Column - Compact Sticky */}
+        <div className="w-40 shrink-0 border-r border-border/20 px-2 py-1 flex items-center gap-1.5 sticky left-0 bg-background z-10 shadow-[1px_0_2px_rgba(0,0,0,0.03)]">
           {/* Color Indicator */}
           <div
             className={cn(
-              "w-3 h-3 rounded-full shrink-0",
+              "w-2 h-2 rounded-full shrink-0",
               colorClasses.bg,
               isFullDayAbsent && "opacity-50"
             )}
           />
           
-          {/* Name & Info with HoverCard */}
+          {/* Name with HoverCard - Single Line */}
           <HoverCard openDelay={200} closeDelay={100}>
             <HoverCardTrigger asChild>
               <button
                 onClick={handleNameClick}
-                className="min-w-0 text-left hover:underline focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 rounded flex-1"
+                className="min-w-0 text-left hover:underline focus:outline-none rounded truncate flex-1"
               >
-                <p className={cn(
-                  "font-medium text-sm truncate",
+                <span className={cn(
+                  "font-medium text-xs truncate",
                   isFullDayAbsent && "text-muted-foreground"
                 )}>
-                  {instructor.first_name} {instructor.last_name}
-                </p>
-                <p className="text-xs text-muted-foreground truncate">
-                  {isFullDayAbsent 
-                    ? "Abwesend"
-                    : instructor.todayBookingsCount > 0 
-                      ? `${instructor.todayBookingsCount} Buchung${instructor.todayBookingsCount > 1 ? "en" : ""}`
-                      : "Verfügbar"
-                  }
-                </p>
+                  {instructor.first_name} {instructor.last_name.charAt(0)}.
+                </span>
               </button>
             </HoverCardTrigger>
             <HoverCardContent side="right" align="start" className="w-72">
@@ -144,32 +143,38 @@ export const SingleDayInstructorRow = forwardRef<HTMLDivElement, SingleDayInstru
             </HoverCardContent>
           </HoverCard>
 
-          {/* Discipline Badges with Emoji Icons */}
-          {badges.length > 0 && (
-            <div className="flex gap-0.5 shrink-0">
-              {badges.map((badge) => (
-                <Tooltip key={badge.label}>
-                  <TooltipTrigger asChild>
-                    <span className={cn(
-                      "text-sm leading-none",
-                      isFullDayAbsent && "opacity-50"
-                    )}>
-                      {badge.label === "K" ? "⛷️" : "🏂"}
-                    </span>
-                  </TooltipTrigger>
-                  <TooltipContent side="top">
-                    {badge.title}
-                  </TooltipContent>
-                </Tooltip>
-              ))}
-            </div>
-          )}
+          {/* Inline: Discipline Badges + Count */}
+          <div className="flex items-center gap-0.5 shrink-0">
+            {badges.map((badge) => (
+              <Tooltip key={badge.label}>
+                <TooltipTrigger asChild>
+                  <span className={cn(
+                    "text-[10px] leading-none",
+                    isFullDayAbsent && "opacity-50"
+                  )}>
+                    {badge.label === "K" ? "⛷️" : "🏂"}
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent side="top">
+                  {badge.title}
+                </TooltipContent>
+              </Tooltip>
+            ))}
+            {dayBookingCount > 0 && !isFullDayAbsent && (
+              <span className="text-[10px] text-muted-foreground ml-0.5">
+                ({dayBookingCount})
+              </span>
+            )}
+          </div>
         </div>
 
-        {/* Single Day Slots */}
+        {/* Single Day Slots - Compact Height */}
         <div 
-          className="relative h-16"
-          style={{ width: `${BOOKABLE_HOURS * slotWidth}px` }}
+          className="relative"
+          style={{ 
+            width: `${BOOKABLE_HOURS * slotWidth}px`,
+            height: `${ROW_HEIGHT}px`
+          }}
         >
           <DaySlots
             instructor={instructor}

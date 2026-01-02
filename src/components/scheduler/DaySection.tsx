@@ -1,9 +1,9 @@
 import { forwardRef } from "react";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
-import { CalendarDays } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { 
+  BOOKABLE_HOURS,
   type SchedulerInstructor, 
   type SchedulerBooking,
   type SchedulerAbsence 
@@ -21,6 +21,7 @@ interface DaySectionProps {
   highlightedInstructorId?: string | null;
   capabilityFilter?: string | null;
   instructorRefs?: React.MutableRefObject<Map<string, HTMLDivElement>>;
+  collapseEmpty?: boolean;
 }
 
 export const DaySection = forwardRef<HTMLDivElement, DaySectionProps>(
@@ -36,6 +37,7 @@ export const DaySection = forwardRef<HTMLDivElement, DaySectionProps>(
       highlightedInstructorId = null,
       capabilityFilter = null,
       instructorRefs,
+      collapseEmpty = false,
     },
     ref
   ) {
@@ -45,48 +47,85 @@ export const DaySection = forwardRef<HTMLDivElement, DaySectionProps>(
     const dayBookings = bookings.filter(b => b.date === dateStr);
     const dayAbsences = absences.filter(a => dateStr >= a.startDate && dateStr <= a.endDate);
 
+    // Check if instructor has activity on this day
+    const hasActivity = (instructorId: string) => {
+      const hasBookings = dayBookings.some(b => b.instructorId === instructorId);
+      const hasAbsences = dayAbsences.some(a => a.instructorId === instructorId);
+      return hasBookings || hasAbsences;
+    };
+
     return (
       <div 
         ref={ref}
         className={cn(
           "day-section",
-          !isFirstDay && "mt-4 pt-2 border-t-4 border-primary/20"
+          !isFirstDay && "border-t border-border/40"
         )}
       >
-        {/* Day Header - Full Width with distinct background */}
-        <div className="sticky left-0 bg-primary/10 px-4 py-3 font-bold text-base border-b-2 border-primary/30 flex items-center gap-3">
-          <CalendarDays className="h-5 w-5 text-primary" />
-          <span>{format(date, "EEEE, dd. MMMM yyyy", { locale: de })}</span>
-          <span className="text-sm font-normal text-muted-foreground ml-auto">
+        {/* Slim Day Header - 24px */}
+        <div className="sticky left-0 bg-muted/60 px-3 py-1 font-semibold text-xs border-b border-border/50 flex items-center justify-between">
+          <span>{format(date, "EEE, dd.MM.", { locale: de })}</span>
+          <span className="text-muted-foreground font-normal">
             {dayBookings.length} Buchung{dayBookings.length !== 1 ? "en" : ""}
           </span>
         </div>
 
         {/* Instructor Rows for this day */}
-        {instructors.map((instructor) => (
-          <SingleDayInstructorRow
-            key={`${instructor.id}-${dateStr}`}
-            ref={(el) => {
-              // Store ref with a combined key for this day's instructor row
-              if (instructorRefs) {
-                const key = `${instructor.id}-${dateStr}`;
-                if (el) {
-                  instructorRefs.current.set(key, el);
-                } else {
-                  instructorRefs.current.delete(key);
+        {instructors.map((instructor) => {
+          const instructorHasActivity = hasActivity(instructor.id);
+          
+          // Collapsed empty row (24px)
+          if (collapseEmpty && !instructorHasActivity) {
+            return (
+              <div 
+                key={`${instructor.id}-${dateStr}`}
+                ref={(el) => {
+                  if (instructorRefs) {
+                    const key = `${instructor.id}-${dateStr}`;
+                    if (el) {
+                      instructorRefs.current.set(key, el);
+                    } else {
+                      instructorRefs.current.delete(key);
+                    }
+                  }
+                }}
+                className="flex h-6 border-b border-border/20 opacity-40 hover:opacity-70 transition-opacity"
+              >
+                <div className="w-40 shrink-0 border-r border-border/20 px-2 py-0.5 text-xs truncate flex items-center sticky left-0 bg-background z-10">
+                  {instructor.first_name} {instructor.last_name.charAt(0)}.
+                </div>
+                <div 
+                  className="flex-1" 
+                  style={{ width: `${BOOKABLE_HOURS * slotWidth}px` }}
+                />
+              </div>
+            );
+          }
+
+          return (
+            <SingleDayInstructorRow
+              key={`${instructor.id}-${dateStr}`}
+              ref={(el) => {
+                if (instructorRefs) {
+                  const key = `${instructor.id}-${dateStr}`;
+                  if (el) {
+                    instructorRefs.current.set(key, el);
+                  } else {
+                    instructorRefs.current.delete(key);
+                  }
                 }
-              }
-            }}
-            instructor={instructor}
-            date={date}
-            bookings={bookings}
-            absences={absences}
-            slotWidth={slotWidth}
-            onSlotClick={onSlotClick}
-            isHighlighted={highlightedInstructorId === instructor.id}
-            capabilityFilter={capabilityFilter}
-          />
-        ))}
+              }}
+              instructor={instructor}
+              date={date}
+              bookings={bookings}
+              absences={absences}
+              slotWidth={slotWidth}
+              onSlotClick={onSlotClick}
+              isHighlighted={highlightedInstructorId === instructor.id}
+              capabilityFilter={capabilityFilter}
+            />
+          );
+        })}
       </div>
     );
   }
