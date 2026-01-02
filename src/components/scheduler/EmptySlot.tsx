@@ -104,6 +104,7 @@ export function EmptySlot({
   const handleMouseDown = (e: React.MouseEvent) => {
     if (isBlocked || state.isResizing) return;
     e.preventDefault();
+    e.stopPropagation(); // Prevent DndKit interference
 
     // If clicking on existing selection, toggle it off
     if (isSelected && selection) {
@@ -120,15 +121,6 @@ export function EmptySlot({
     startDrag(instructorId, date, timeSlot);
   };
 
-  const handleMouseEnter = () => {
-    if (!state.drag.isDragging) return;
-    if (state.drag.instructorId !== instructorId || state.drag.date !== date) return;
-    
-    // Check if this slot would cause a conflict
-    const conflicted = hasConflict();
-    updateDrag(timeSlot, conflicted);
-  };
-
   const handleMouseUp = () => {
     if (!state.drag.isDragging) return;
     endDrag(bookings, absences);
@@ -137,12 +129,14 @@ export function EmptySlot({
   return (
     <div
       ref={setNodeRef}
+      data-slot-time={timeSlot}
+      data-instructor-id={instructorId}
+      data-date={date}
       onMouseDown={handleMouseDown}
-      onMouseEnter={handleMouseEnter}
       onMouseUp={handleMouseUp}
       className={cn(
         "absolute top-0 bottom-0 border-r border-dashed border-border/50",
-        "transition-colors duration-100 select-none",
+        "transition-colors duration-100 select-none touch-none",
         !isBlocked && !state.drag.isDragging && "cursor-pointer hover:bg-primary/5 group",
         state.drag.isDragging && "cursor-crosshair",
         isBlocked && "cursor-not-allowed bg-muted/30",
