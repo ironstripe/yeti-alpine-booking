@@ -1,86 +1,46 @@
 import { PageHeader } from "@/components/layout";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Calendar, Users, UserCheck, Inbox } from "lucide-react";
-
-const stats = [
-  {
-    title: "Today's Bookings",
-    value: "12",
-    change: "+2 from yesterday",
-    icon: Calendar,
-  },
-  {
-    title: "Active Customers",
-    value: "156",
-    change: "+8 this week",
-    icon: Users,
-  },
-  {
-    title: "Instructors Available",
-    value: "8/24",
-    change: "16 on lessons",
-    icon: UserCheck,
-  },
-  {
-    title: "Unread Messages",
-    value: "3",
-    change: "2 from WhatsApp",
-    icon: Inbox,
-  },
-];
+import { format } from "date-fns";
+import { de } from "date-fns/locale";
+import { QuickStats } from "@/components/dashboard/QuickStats";
+import { DailyTaskList } from "@/components/dashboard/DailyTaskList";
+import { InboxPreview } from "@/components/dashboard/InboxPreview";
+import { PendingAbsencesCard } from "@/components/dashboard/PendingAbsencesCard";
+import { EmbeddedScheduler } from "@/components/dashboard/EmbeddedScheduler";
 
 const Dashboard = () => {
+  const today = new Date();
+  const greeting = getGreeting();
+
   return (
     <>
       <PageHeader
-        title="Dashboard"
-        description="Welcome back! Here's what's happening today."
+        title="Morgen-Cockpit"
+        description={`${greeting}! ${format(today, "EEEE, d. MMMM yyyy", { locale: de })}`}
       />
 
-      {/* Stats Grid */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-8">
-        {stats.map((stat) => (
-          <Card key={stat.title} className="bg-card">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                {stat.title}
-              </CardTitle>
-              <stat.icon className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold font-display">{stat.value}</div>
-              <p className="text-xs text-muted-foreground mt-1">{stat.change}</p>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+      <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-4 h-[calc(100vh-10rem)]">
+        {/* Left: Action Center */}
+        <div className="space-y-4 overflow-auto pr-1">
+          <QuickStats />
+          <DailyTaskList />
+          <InboxPreview />
+          <PendingAbsencesCard />
+        </div>
 
-      {/* Placeholder content */}
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card className="bg-card">
-          <CardHeader>
-            <CardTitle className="text-lg font-display">Today's Schedule</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-muted-foreground text-sm">
-              Schedule overview coming soon...
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-card">
-          <CardHeader>
-            <CardTitle className="text-lg font-display">Recent Activity</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-muted-foreground text-sm">
-              Activity feed coming soon...
-            </p>
-          </CardContent>
-        </Card>
+        {/* Right: Embedded Scheduler */}
+        <div className="overflow-hidden rounded-lg border bg-card min-h-[400px]">
+          <EmbeddedScheduler defaultDays={2} />
+        </div>
       </div>
     </>
   );
 };
+
+function getGreeting(): string {
+  const hour = new Date().getHours();
+  if (hour < 12) return "Guten Morgen";
+  if (hour < 18) return "Guten Tag";
+  return "Guten Abend";
+}
 
 export default Dashboard;
