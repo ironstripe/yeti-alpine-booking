@@ -1,14 +1,14 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { format, addDays } from "date-fns";
+import { format } from "date-fns";
 import { toast } from "sonner";
 
 import { useSchedulerData } from "@/hooks/useSchedulerData";
 import { useUpdateTicketItem } from "@/hooks/useUpdateTicketItem";
 import { DndKitProvider } from "./DndKitProvider";
 import { SchedulerHeader, type ViewMode } from "./SchedulerHeader";
-import { MultiDayTimelineHeader } from "./MultiDayTimelineHeader";
-import { InstructorRow } from "./InstructorRow";
+import { StickyTimeHeader } from "./StickyTimeHeader";
+import { DaySection } from "./DaySection";
 import { SelectionToolbar } from "./SelectionToolbar";
 import { PendingAbsencesList } from "./PendingAbsencesList";
 import { SchedulerSelectionProvider, useSchedulerSelection } from "@/contexts/SchedulerSelectionContext";
@@ -39,6 +39,8 @@ function SchedulerGridContent() {
 
   // Refs for scroll-to-row functionality
   const instructorRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const dayRefs = useRef<Map<number, HTMLDivElement>>(new Map());
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   const { instructors, bookings, absences, isLoading, error } = useSchedulerData({
     startDate,
@@ -68,20 +70,29 @@ function SchedulerGridContent() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [clearSelection]);
 
-  // Scroll to instructor and highlight
+  // Scroll to instructor and highlight (first occurrence in any day section)
   const scrollToInstructor = useCallback((instructorId: string) => {
-    // Wait for next frame to ensure refs are set
     requestAnimationFrame(() => {
-      const element = instructorRefs.current.get(instructorId);
+      // Find the first day's instructor row
+      const firstDateStr = format(visibleDates[0], "yyyy-MM-dd");
+      const key = `${instructorId}-${firstDateStr}`;
+      const element = instructorRefs.current.get(key);
       if (element) {
         element.scrollIntoView({ behavior: "smooth", block: "center" });
         setHighlightedInstructorId(instructorId);
-        // Remove highlight after 3 seconds
         setTimeout(() => {
           setHighlightedInstructorId(null);
         }, 3000);
       }
     });
+  }, [visibleDates]);
+
+  // Jump to specific day section
+  const handleJumpToDay = useCallback((dayIndex: number) => {
+    const element = dayRefs.current.get(dayIndex);
+    if (element) {
+      element.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
   }, []);
 
   // Navigate to booking wizard with pre-filled context (for single slot click from old flow)
@@ -169,15 +180,17 @@ function SchedulerGridContent() {
             onInstructorSelect={scrollToInstructor}
             capabilityFilter={capabilityFilter}
             onCapabilityFilterChange={setCapabilityFilter}
+            visibleDates={visibleDates}
+            onJumpToDay={handleJumpToDay}
           />
           {/* Admin: Show Pending Absences Button */}
           {isAdminOrOffice && <PendingAbsencesList />}
         </div>
 
-        {/* Grid with horizontal scroll for multi-day */}
-        <div className="flex-1 overflow-auto">
-          {/* Multi-Day Timeline Header */}
-          <MultiDayTimelineHeader dates={visibleDates} slotWidth={SLOT_WIDTH} />
+        {/* Vertical Stacking Grid */}
+        <div ref={scrollContainerRef} className="flex-1 overflow-auto">
+          {/* Sticky Time Header */}
+          <StickyTimeHeader slotWidth={SLOT_WIDTH} />
 
           {/* Loading State */}
           {isLoading && (
@@ -196,31 +209,34 @@ function SchedulerGridContent() {
             </div>
           )}
 
-          {/* Instructor Rows */}
+          {/* No Instructors State */}
           {!isLoading && instructors.length === 0 && (
             <div className="flex items-center justify-center p-12 text-muted-foreground">
               Keine aktiven Lehrer gefunden
             </div>
           )}
 
-          {!isLoading && instructors.map((instructor) => (
-            <InstructorRow
-              key={instructor.id}
+          {/* Day Sections - Vertically Stacked */}
+          {!isLoading && instructors.length > 0 && visibleDates.map((date, dayIndex) => (
+            <DaySection
+              key={date.toISOString()}
               ref={(el) => {
                 if (el) {
-                  instructorRefs.current.set(instructor.id, el);
+                  dayRefs.current.set(dayIndex, el);
                 } else {
-                  instructorRefs.current.delete(instructor.id);
+                  dayRefs.current.delete(dayIndex);
                 }
               }}
-              instructor={instructor}
-              dates={visibleDates}
+              date={date}
+              instructors={instructors}
               bookings={bookings}
               absences={absences}
               slotWidth={SLOT_WIDTH}
               onSlotClick={handleSlotClick}
-              isHighlighted={highlightedInstructorId === instructor.id}
+              isFirstDay={dayIndex === 0}
+              highlightedInstructorId={highlightedInstructorId}
               capabilityFilter={capabilityFilter}
+              instructorRefs={instructorRefs}
             />
           ))}
         </div>
