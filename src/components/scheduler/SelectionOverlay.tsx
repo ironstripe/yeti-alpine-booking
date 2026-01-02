@@ -27,6 +27,7 @@ export function SelectionOverlay({ selection, slotWidth, bookings, absences }: S
   const containerRef = useRef<HTMLDivElement>(null);
   const [isResizing, setLocalIsResizing] = useState(false);
   const [previewWidth, setPreviewWidth] = useState<number | null>(null);
+  const [isHovered, setIsHovered] = useState(false);
 
   const { left, width } = calculateBarPosition(
     selection.startTime,
@@ -111,14 +112,17 @@ export function SelectionOverlay({ selection, slotWidth, bookings, absences }: S
   );
 
   const displayWidth = previewWidth || width;
+  const durationHours = selection.durationMinutes / 60;
 
   return (
     <div
       ref={containerRef}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
       className={cn(
-        "absolute top-1 bottom-1 rounded-md",
+        "absolute top-1 bottom-1 rounded-md group",
         "bg-primary/20 border-2 border-primary",
-        "flex items-center justify-between px-2",
+        "flex items-center px-2",
         "transition-all duration-100",
         isResizing && "ring-2 ring-primary/50"
       )}
@@ -128,31 +132,37 @@ export function SelectionOverlay({ selection, slotWidth, bookings, absences }: S
       }}
     >
       {/* Time Label */}
-      <span className="text-xs font-medium text-primary truncate">
+      <span className="text-xs font-medium text-primary truncate flex-1">
         {selection.startTime} - {selection.endTime}
+        {displayWidth > 80 && (
+          <span className="text-primary/70 ml-1">({durationHours}h)</span>
+        )}
       </span>
 
-      {/* Actions */}
-      <div className="flex items-center gap-1">
-        {/* Remove Button */}
-        <button
-          onClick={handleRemove}
-          className="w-5 h-5 rounded-full bg-destructive/20 hover:bg-destructive/40 flex items-center justify-center transition-colors"
-        >
-          <X className="h-3 w-3 text-destructive" />
-        </button>
+      {/* Remove Button - Only visible on hover */}
+      <button
+        onClick={handleRemove}
+        className={cn(
+          "w-5 h-5 rounded-full bg-destructive/20 hover:bg-destructive/40",
+          "flex items-center justify-center transition-all",
+          "absolute -top-2 -right-2",
+          isHovered ? "opacity-100 scale-100" : "opacity-0 scale-75"
+        )}
+      >
+        <X className="h-3 w-3 text-destructive" />
+      </button>
 
-        {/* Resize Handle */}
-        <div
-          onMouseDown={handleResizeStart}
-          className={cn(
-            "w-4 h-full absolute right-0 top-0 bottom-0 cursor-ew-resize",
-            "flex items-center justify-center",
-            "hover:bg-primary/30 transition-colors rounded-r-md"
-          )}
-        >
-          <GripVertical className="h-4 w-4 text-primary/60" />
-        </div>
+      {/* Resize Handle */}
+      <div
+        onMouseDown={handleResizeStart}
+        className={cn(
+          "w-4 h-full absolute right-0 top-0 bottom-0 cursor-ew-resize",
+          "flex items-center justify-center",
+          "hover:bg-primary/30 transition-colors rounded-r-md",
+          isHovered ? "opacity-100" : "opacity-0"
+        )}
+      >
+        <GripVertical className="h-4 w-4 text-primary/60" />
       </div>
     </div>
   );
