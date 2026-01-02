@@ -164,6 +164,7 @@ export function NewCustomerModal({ open, onOpenChange }: NewCustomerModalProps) 
     if (result) {
       form.setValue("city", result.city);
       form.setValue("country", result.country);
+      toast.success(`${result.city} erkannt`, { duration: 1500 });
     }
   };
 
