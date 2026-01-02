@@ -34,7 +34,8 @@ import {
 import { CustomerDetail } from "@/hooks/useCustomerDetail";
 import { useUpdateCustomer } from "@/hooks/useUpdateCustomer";
 import { normalizePhoneNumber, capitalizeName } from "@/lib/phone-utils";
-import { lookupPlz } from "@/lib/plz-lookup";
+import { lookupPlz, CityMatch } from "@/lib/plz-lookup";
+import { CityAutocomplete } from "@/components/ui/city-autocomplete";
 import { COUNTRY_FLAGS, LANGUAGE_OPTIONS } from "@/lib/participant-utils";
 
 const editSchema = z.object({
@@ -207,7 +208,18 @@ export function CustomerInfoCard({ customer }: CustomerInfoCardProps) {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="city">Ort</Label>
-                <Input id="city" {...register("city")} />
+                <CityAutocomplete
+                  id="city"
+                  value={watch("city") || ""}
+                  onChange={(value) => setValue("city", value)}
+                  onSelect={(match: CityMatch) => {
+                    setValue("city", match.city);
+                    setValue("zip", match.plz);
+                    setValue("country", match.country);
+                    toast.success(`${match.city} (${match.plz}) erkannt`, { duration: 1500 });
+                  }}
+                  placeholder="Ort eingeben..."
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="country">Land</Label>
