@@ -104,7 +104,7 @@ export default function CustomerDetail() {
           <FamilyHub
             customerId={customer.id}
             customerLastName={customer.last_name}
-            participants={customer.participants}
+            participants={customer.participants ?? []}
           />
         </div>
       </div>
