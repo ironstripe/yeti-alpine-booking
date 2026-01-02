@@ -181,12 +181,14 @@ export function useSchedulerData({ date, instructorId }: UseSchedulerDataOptions
   // Transform absences
   const absences: SchedulerAbsence[] = (absencesQuery.data || [])
     .filter((a) => !instructorId || a.instructor_id === instructorId)
+    .filter((a) => a.status !== "rejected") // Don't show rejected absences
     .map((a) => ({
       id: a.id,
       instructorId: a.instructor_id,
       startDate: a.start_date,
       endDate: a.end_date,
-      type: a.type as "vacation" | "sick" | "other",
+      type: a.type as "vacation" | "sick" | "organization" | "office_duty" | "other",
+      status: (a.status || "confirmed") as "pending" | "confirmed" | "rejected",
       reason: a.reason || undefined,
     }));
 

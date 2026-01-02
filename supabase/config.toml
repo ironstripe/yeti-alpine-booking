@@ -1,1 +1,4 @@
 project_id = "pgrlrsrjwyixndmrzhct"
+
+[functions.notify-absence]
+verify_jwt = true

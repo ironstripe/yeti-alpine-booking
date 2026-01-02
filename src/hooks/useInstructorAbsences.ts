@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 
 export type AbsenceType = "vacation" | "sick" | "organization" | "office_duty" | "other";
+export type AbsenceStatus = "pending" | "confirmed" | "rejected";
 
 interface CreateAbsenceParams {
   instructorId: string;
@@ -11,6 +12,7 @@ interface CreateAbsenceParams {
   endDate: string;
   type: AbsenceType;
   reason?: string;
+  status?: AbsenceStatus;
 }
 
 export function useCreateAbsence() {
@@ -18,7 +20,14 @@ export function useCreateAbsence() {
   const { user } = useAuth();
 
   return useMutation({
-    mutationFn: async ({ instructorId, startDate, endDate, type, reason }: CreateAbsenceParams) => {
+    mutationFn: async ({ 
+      instructorId, 
+      startDate, 
+      endDate, 
+      type, 
+      reason,
+      status = "confirmed" 
+    }: CreateAbsenceParams) => {
       const { data, error } = await supabase
         .from("instructor_absences")
         .insert({
@@ -27,17 +36,59 @@ export function useCreateAbsence() {
           end_date: endDate,
           type,
           reason,
+          status,
           created_by: user?.id,
+          requested_by: status === "pending" ? user?.id : null,
         })
-        .select()
+        .select(`
+          id,
+          instructor_id,
+          start_date,
+          end_date,
+          type,
+          status,
+          instructors!inner (
+            first_name,
+            last_name,
+            email,
+            phone
+          )
+        `)
         .single();
 
       if (error) throw error;
+
+      // If admin created a confirmed absence, trigger notification to teacher
+      if (status === "confirmed") {
+        try {
+          await supabase.functions.invoke("notify-absence", {
+            body: {
+              instructorId: data.instructor_id,
+              instructorEmail: data.instructors.email,
+              instructorPhone: data.instructors.phone,
+              absenceType: data.type,
+              startDate: data.start_date,
+              endDate: data.end_date,
+              action: "created",
+              triggeredBy: "admin",
+            },
+          });
+        } catch (notifyError) {
+          console.error("Failed to send notification:", notifyError);
+        }
+      }
+
       return data;
     },
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["scheduler-absences"] });
-      toast.success("Abwesenheit eingetragen");
+      queryClient.invalidateQueries({ queryKey: ["pending-absences"] });
+      
+      if (variables.status === "pending") {
+        toast.success("Abwesenheitsantrag gesendet");
+      } else {
+        toast.success("Abwesenheit eingetragen");
+      }
     },
     onError: (error) => {
       console.error("Failed to create absence:", error);
@@ -60,6 +111,7 @@ export function useDeleteAbsence() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["scheduler-absences"] });
+      queryClient.invalidateQueries({ queryKey: ["pending-absences"] });
       toast.success("Abwesenheit gelöscht");
     },
     onError: (error) => {

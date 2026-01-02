@@ -25,7 +25,8 @@ export interface SchedulerAbsence {
   instructorId: string;
   startDate: string;
   endDate: string;
-  type: "vacation" | "sick" | "other";
+  type: "vacation" | "sick" | "organization" | "office_duty" | "other";
+  status: "pending" | "confirmed" | "rejected";
   reason?: string;
 }
 
