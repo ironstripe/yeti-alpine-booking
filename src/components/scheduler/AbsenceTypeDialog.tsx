@@ -12,9 +12,10 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { AlertTriangle, Ban, Calendar } from "lucide-react";
+import { AlertTriangle, Ban, Calendar, Clock } from "lucide-react";
 import { useCreateAbsence } from "@/hooks/useInstructorAbsences";
 import { useSchedulerSelection } from "@/contexts/SchedulerSelectionContext";
+import { useUserRole } from "@/hooks/useUserRole";
 import type { SchedulerBooking } from "@/lib/scheduler-utils";
 import { cn } from "@/lib/utils";
 
@@ -45,9 +46,18 @@ export function AbsenceTypeDialog({
   const [reason, setReason] = useState("");
   
   const { state, clearSelection } = useSchedulerSelection();
+  const { isAdminOrOffice, instructorId } = useUserRole();
   const createAbsence = useCreateAbsence();
 
   const hasConflicts = conflicts.length > 0;
+  
+  // Determine if the absence should be pending or confirmed
+  // Admin/Office can create confirmed absences; teachers create pending
+  const willBePending = !isAdminOrOffice;
+  
+  // Teachers can only create absences for themselves
+  const isCreatingForSelf = instructorId && state.teacherId === instructorId;
+  const canCreateAbsence = isAdminOrOffice || isCreatingForSelf;
 
   const handleConfirm = async () => {
     if (hasConflicts || !state.teacherId || state.selections.length === 0) return;
@@ -63,6 +73,7 @@ export function AbsenceTypeDialog({
       endDate,
       type: selectedType,
       reason: reason || undefined,
+      status: willBePending ? "pending" : "confirmed",
     });
 
     clearSelection();
@@ -85,13 +96,31 @@ export function AbsenceTypeDialog({
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Ban className="h-5 w-5" />
-            Abwesenheit eintragen
+            {willBePending ? (
+              <Clock className="h-5 w-5 text-amber-500" />
+            ) : (
+              <Ban className="h-5 w-5" />
+            )}
+            {willBePending ? "Abwesenheit beantragen" : "Abwesenheit eintragen"}
           </DialogTitle>
           <DialogDescription>
-            Wähle den Grund der Abwesenheit für den ausgewählten Zeitraum.
+            {willBePending 
+              ? "Dein Antrag wird zur Genehmigung an das Büro gesendet."
+              : "Wähle den Grund der Abwesenheit für den ausgewählten Zeitraum."
+            }
           </DialogDescription>
         </DialogHeader>
+
+        {/* Teacher Not Creating For Self Warning */}
+        {!canCreateAbsence && (
+          <Alert variant="destructive">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>Keine Berechtigung</AlertTitle>
+            <AlertDescription>
+              Du kannst nur Abwesenheiten für dich selbst beantragen.
+            </AlertDescription>
+          </Alert>
+        )}
 
         {/* Conflict Warning */}
         {hasConflicts && (
@@ -114,6 +143,17 @@ export function AbsenceTypeDialog({
                   <li>...und {conflicts.length - 3} weitere</li>
                 )}
               </ul>
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {/* Pending Info Banner */}
+        {willBePending && canCreateAbsence && !hasConflicts && (
+          <Alert className="border-amber-500/30 bg-amber-500/10">
+            <Clock className="h-4 w-4 text-amber-500" />
+            <AlertTitle className="text-amber-600">Antrag erforderlich</AlertTitle>
+            <AlertDescription className="text-amber-600/80">
+              Deine Abwesenheit wird als Antrag eingereicht und muss vom Büro genehmigt werden.
             </AlertDescription>
           </Alert>
         )}
@@ -171,9 +211,14 @@ export function AbsenceTypeDialog({
           </Button>
           <Button
             onClick={handleConfirm}
-            disabled={hasConflicts || createAbsence.isPending}
+            disabled={hasConflicts || !canCreateAbsence || createAbsence.isPending}
           >
-            {createAbsence.isPending ? "Speichern..." : "Abwesenheit eintragen"}
+            {createAbsence.isPending 
+              ? "Speichern..." 
+              : willBePending 
+                ? "Antrag senden" 
+                : "Abwesenheit eintragen"
+            }
           </Button>
         </DialogFooter>
       </DialogContent>

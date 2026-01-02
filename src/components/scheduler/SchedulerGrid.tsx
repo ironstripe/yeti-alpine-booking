@@ -10,7 +10,9 @@ import { SchedulerHeader, type ViewMode } from "./SchedulerHeader";
 import { TimelineHeader } from "./TimelineHeader";
 import { InstructorRow } from "./InstructorRow";
 import { SelectionToolbar } from "./SelectionToolbar";
+import { PendingAbsencesList } from "./PendingAbsencesList";
 import { SchedulerSelectionProvider, useSchedulerSelection } from "@/contexts/SchedulerSelectionContext";
+import { useUserRole } from "@/hooks/useUserRole";
 import { hasOverlap, TIME_SLOTS, type SchedulerBooking } from "@/lib/scheduler-utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AlertCircle } from "lucide-react";
@@ -30,6 +32,7 @@ function SchedulerGridContent() {
 
   const updateTicketItem = useUpdateTicketItem();
   const { clearSelection } = useSchedulerSelection();
+  const { isAdminOrOffice } = useUserRole();
 
   // Clear selection when date changes
   useEffect(() => {
@@ -114,15 +117,19 @@ function SchedulerGridContent() {
     <DndKitProvider onBookingDrop={handleBookingDrop}>
       <div className="flex flex-col h-full bg-background">
         {/* Header with Date Navigation & Filters */}
-        <SchedulerHeader
-          date={selectedDate}
-          onDateChange={setSelectedDate}
-          viewMode={viewMode}
-          onViewModeChange={setViewMode}
-          selectedInstructorId={selectedInstructorId}
-          onInstructorFilterChange={setSelectedInstructorId}
-          instructorOptions={instructorOptions}
-        />
+        <div className="flex items-center justify-between">
+          <SchedulerHeader
+            date={selectedDate}
+            onDateChange={setSelectedDate}
+            viewMode={viewMode}
+            onViewModeChange={setViewMode}
+            selectedInstructorId={selectedInstructorId}
+            onInstructorFilterChange={setSelectedInstructorId}
+            instructorOptions={instructorOptions}
+          />
+          {/* Admin: Show Pending Absences Button */}
+          {isAdminOrOffice && <PendingAbsencesList />}
+        </div>
 
         {/* Grid */}
         <div className="flex-1 overflow-auto">
