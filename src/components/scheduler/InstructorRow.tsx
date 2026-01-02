@@ -1,3 +1,4 @@
+import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { 
   TIME_SLOTS, 
@@ -7,11 +8,18 @@ import {
   type SchedulerBooking,
   type SchedulerAbsence 
 } from "@/lib/scheduler-utils";
+import { formatLanguages } from "@/lib/language-utils";
 import { BookingBar } from "./BookingBar";
 import { BlockingBar } from "./BlockingBar";
 import { EmptySlot } from "./EmptySlot";
 import { SelectionOverlay } from "./SelectionOverlay";
 import { useSchedulerSelection } from "@/contexts/SchedulerSelectionContext";
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "@/components/ui/hover-card";
+import { Languages } from "lucide-react";
 
 interface InstructorRowProps {
   instructor: SchedulerInstructor;
@@ -30,6 +38,7 @@ export function InstructorRow({
   slotWidth,
   onSlotClick,
 }: InstructorRowProps) {
+  const navigate = useNavigate();
   const { state } = useSchedulerSelection();
   const colorClasses = getInstructorColorClasses(instructor.color);
   const absence = isInstructorAbsent(instructor.id, date, absences);
@@ -39,6 +48,10 @@ export function InstructorRow({
   const instructorSelections = state.selections.filter(
     (s) => s.instructorId === instructor.id && s.date === date
   );
+
+  const handleNameClick = () => {
+    navigate(`/instructors/${instructor.id}`);
+  };
 
   return (
     <div className="flex border-b hover:bg-muted/30 transition-colors">
@@ -52,18 +65,39 @@ export function InstructorRow({
           )}
         />
         
-        {/* Name & Info */}
-        <div className="min-w-0">
-          <p className="font-medium text-sm truncate">
-            {instructor.first_name} {instructor.last_name}
-          </p>
-          <p className="text-xs text-muted-foreground truncate">
-            {instructor.todayBookingsCount > 0 
-              ? `${instructor.todayBookingsCount} Buchung${instructor.todayBookingsCount > 1 ? "en" : ""}`
-              : "Verfügbar"
-            }
-          </p>
-        </div>
+        {/* Name & Info with HoverCard */}
+        <HoverCard openDelay={200} closeDelay={100}>
+          <HoverCardTrigger asChild>
+            <button
+              onClick={handleNameClick}
+              className="min-w-0 text-left hover:underline focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 rounded"
+            >
+              <p className="font-medium text-sm truncate">
+                {instructor.first_name} {instructor.last_name}
+              </p>
+              <p className="text-xs text-muted-foreground truncate">
+                {instructor.todayBookingsCount > 0 
+                  ? `${instructor.todayBookingsCount} Buchung${instructor.todayBookingsCount > 1 ? "en" : ""}`
+                  : "Verfügbar"
+                }
+              </p>
+            </button>
+          </HoverCardTrigger>
+          <HoverCardContent side="right" align="start" className="w-64">
+            <div className="space-y-2">
+              <p className="font-medium">
+                {instructor.first_name} {instructor.last_name}
+              </p>
+              <div className="flex items-start gap-2 text-sm text-muted-foreground">
+                <Languages className="h-4 w-4 mt-0.5 shrink-0" />
+                <span>Sprachen: {formatLanguages(instructor.languages)}</span>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Klicken für Profil öffnen
+              </p>
+            </div>
+          </HoverCardContent>
+        </HoverCard>
       </div>
 
       {/* Timeline Slots */}

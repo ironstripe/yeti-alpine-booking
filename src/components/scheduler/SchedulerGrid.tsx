@@ -191,7 +191,7 @@ function SchedulerGridContent() {
         </div>
 
         {/* Selection Toolbar */}
-        <SelectionToolbar />
+        <SelectionToolbar bookings={bookings} />
       </div>
     </DndKitProvider>
   );

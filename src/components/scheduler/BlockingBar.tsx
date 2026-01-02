@@ -15,6 +15,8 @@ interface BlockingBarProps {
 const ABSENCE_LABELS: Record<string, string> = {
   vacation: "Urlaub",
   sick: "Krank",
+  organization: "Organisation",
+  office_duty: "Bürodienst",
   other: "Abwesend",
 };
 
