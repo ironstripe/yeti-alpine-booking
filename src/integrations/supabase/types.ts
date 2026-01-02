@@ -264,6 +264,47 @@ export type Database = {
           },
         ]
       }
+      instructor_absences: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          end_date: string
+          id: string
+          instructor_id: string
+          reason: string | null
+          start_date: string
+          type: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          end_date: string
+          id?: string
+          instructor_id: string
+          reason?: string | null
+          start_date: string
+          type: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          end_date?: string
+          id?: string
+          instructor_id?: string
+          reason?: string | null
+          start_date?: string
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "instructor_absences_instructor_id_fkey"
+            columns: ["instructor_id"]
+            isOneToOne: false
+            referencedRelation: "instructors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       instructors: {
         Row: {
           ahv_number: string | null
