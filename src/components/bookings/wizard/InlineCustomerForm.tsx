@@ -27,7 +27,8 @@ import { Separator } from "@/components/ui/separator";
 
 import { useCreateCustomer } from "@/hooks/useCreateCustomer";
 import { normalizePhoneNumber, capitalizeName } from "@/lib/phone-utils";
-import { lookupPlz } from "@/lib/plz-lookup";
+import { lookupPlz, CityMatch } from "@/lib/plz-lookup";
+import { CityAutocomplete } from "@/components/ui/city-autocomplete";
 import type { Tables } from "@/integrations/supabase/types";
 
 const PHONE_LABELS = ["Mutter", "Vater", "Arbeit", "Notfall", "Sonstige"] as const;
@@ -426,12 +427,16 @@ export function InlineCustomerForm({ onSuccess, onCancel }: InlineCustomerFormPr
                   <FormItem className="col-span-2">
                     <FormLabel>Ort</FormLabel>
                     <FormControl>
-                      <Input
-                        {...field}
-                        placeholder="Vaduz"
-                        autoComplete="off"
-                        autoCorrect="off"
-                        spellCheck={false}
+                      <CityAutocomplete
+                        value={field.value || ""}
+                        onChange={(value) => form.setValue("city", value)}
+                        onSelect={(match: CityMatch) => {
+                          form.setValue("city", match.city);
+                          form.setValue("zip", match.plz);
+                          form.setValue("country", match.country);
+                          toast.success(`${match.city} (${match.plz}) erkannt`, { duration: 1500 });
+                        }}
+                        placeholder="Ort eingeben..."
                       />
                     </FormControl>
                     <FormMessage />
