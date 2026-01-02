@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
 import { toast } from "sonner";
@@ -24,6 +24,10 @@ function SchedulerGridContent() {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<ViewMode>("daily");
   const [selectedInstructorId, setSelectedInstructorId] = useState<string | null>(null);
+  const [highlightedInstructorId, setHighlightedInstructorId] = useState<string | null>(null);
+
+  // Refs for scroll-to-row functionality
+  const instructorRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
   const { instructors, bookings, absences, isLoading, error } = useSchedulerData({
     date: selectedDate,
@@ -44,12 +48,29 @@ function SchedulerGridContent() {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         clearSelection();
+        setHighlightedInstructorId(null);
       }
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [clearSelection]);
+
+  // Scroll to instructor and highlight
+  const scrollToInstructor = useCallback((instructorId: string) => {
+    // Wait for next frame to ensure refs are set
+    requestAnimationFrame(() => {
+      const element = instructorRefs.current.get(instructorId);
+      if (element) {
+        element.scrollIntoView({ behavior: "smooth", block: "center" });
+        setHighlightedInstructorId(instructorId);
+        // Remove highlight after 3 seconds
+        setTimeout(() => {
+          setHighlightedInstructorId(null);
+        }, 3000);
+      }
+    });
+  }, []);
 
   // Navigate to booking wizard with pre-filled context (for single slot click from old flow)
   const handleSlotClick = (instructorId: string, date: string, timeSlot: string) => {
@@ -126,6 +147,7 @@ function SchedulerGridContent() {
             selectedInstructorId={selectedInstructorId}
             onInstructorFilterChange={setSelectedInstructorId}
             instructorOptions={instructorOptions}
+            onInstructorSelect={scrollToInstructor}
           />
           {/* Admin: Show Pending Absences Button */}
           {isAdminOrOffice && <PendingAbsencesList />}
@@ -163,12 +185,20 @@ function SchedulerGridContent() {
           {!isLoading && instructors.map((instructor) => (
             <InstructorRow
               key={instructor.id}
+              ref={(el) => {
+                if (el) {
+                  instructorRefs.current.set(instructor.id, el);
+                } else {
+                  instructorRefs.current.delete(instructor.id);
+                }
+              }}
               instructor={instructor}
               bookings={bookings}
               absences={absences}
               date={format(selectedDate, "yyyy-MM-dd")}
               slotWidth={SLOT_WIDTH}
               onSlotClick={handleSlotClick}
+              isHighlighted={highlightedInstructorId === instructor.id}
             />
           ))}
         </div>
