@@ -2,7 +2,7 @@ import { useRef, useCallback, useState } from "react";
 import { cn } from "@/lib/utils";
 import { X, GripVertical } from "lucide-react";
 import { useSchedulerSelection, type SlotSelection } from "@/contexts/SchedulerSelectionContext";
-import { calculateBarPosition, type SchedulerBooking, type SchedulerAbsence } from "@/lib/scheduler-utils";
+import { calculateBarPosition, OPERATIONAL_START, type SchedulerBooking, type SchedulerAbsence } from "@/lib/scheduler-utils";
 
 interface SelectionOverlayProps {
   selection: SlotSelection;
@@ -32,7 +32,7 @@ export function SelectionOverlay({ selection, slotWidth, bookings, absences }: S
   const { left, width } = calculateBarPosition(
     selection.startTime,
     selection.endTime,
-    "08:00",
+    OPERATIONAL_START,
     slotWidth
   );
 
