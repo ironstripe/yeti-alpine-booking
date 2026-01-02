@@ -53,6 +53,9 @@ export function FamilyHub({
   customerLastName,
   participants,
 }: FamilyHubProps) {
+  // Safe default for participants to prevent undefined errors
+  const safeParticipants = participants ?? [];
+  
   const [isAdding, setIsAdding] = useState(false);
   const createParticipant = useCreateParticipant(customerId);
 
@@ -76,7 +79,7 @@ export function FamilyHub({
   const watchedBirthDate = watch("birth_date");
   const watchedSport = watch("sport");
 
-  const isAtLimit = participants.length >= MAX_PARTICIPANTS;
+  const isAtLimit = safeParticipants.length >= MAX_PARTICIPANTS;
 
   const handleCancel = () => {
     reset({
@@ -107,7 +110,7 @@ export function FamilyHub({
       <CardHeader className="flex flex-row items-center justify-between">
         <div className="flex items-center gap-2">
           <CardTitle className="text-lg">Familie</CardTitle>
-          <Badge variant="secondary">{participants.length}</Badge>
+          <Badge variant="secondary">{safeParticipants.length}</Badge>
         </div>
         {!isAdding && !isAtLimit && (
           <Button size="sm" onClick={() => setIsAdding(true)}>
@@ -270,7 +273,7 @@ export function FamilyHub({
           </div>
         )}
 
-        {participants.length === 0 && !isAdding ? (
+        {safeParticipants.length === 0 && !isAdding ? (
           <div className="text-center py-8">
             <Users className="h-12 w-12 mx-auto text-muted-foreground/50" />
             <h3 className="mt-4 font-medium">Noch keine Teilnehmer</h3>
@@ -288,7 +291,7 @@ export function FamilyHub({
           </div>
         ) : (
           <div className="space-y-2">
-            {participants.map((participant) => (
+            {safeParticipants.map((participant) => (
               <ParticipantCard
                 key={participant.id}
                 participant={participant}
