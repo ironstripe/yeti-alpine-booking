@@ -119,6 +119,7 @@ export function InlineCustomerForm({ onSuccess, onCancel }: InlineCustomerFormPr
     if (result) {
       form.setValue("city", result.city);
       form.setValue("country", result.country);
+      toast.success(`${result.city} erkannt`, { duration: 1500 });
     }
   };
 

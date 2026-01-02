@@ -126,6 +126,7 @@ export function CustomerInfoCard({ customer }: CustomerInfoCardProps) {
     const plzEntry = lookupPlz(plz);
     if (plzEntry) {
       setValue("city", plzEntry.city);
+      setValue("country", plzEntry.country);
     }
   };
 
