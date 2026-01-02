@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { BookingWizardState } from "@/contexts/BookingWizardContext";
+import { createInitialComments } from "./useTicketComments";
 
 interface CreateBookingResult {
   ticketId: string;
@@ -37,6 +38,10 @@ export function useCreateBooking() {
 
   return useMutation({
     mutationFn: async (state: BookingWizardState): Promise<CreateBookingResult> => {
+      // Get current user for comment attribution
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+
       // Generate ticket number
       const ticketNumber = await generateTicketNumber();
 
@@ -52,7 +57,7 @@ export function useCreateBooking() {
       }
       const totalAmount = state.productType === "private" ? unitPrice * daysCount : unitPrice;
 
-      // Create ticket
+      // Create ticket (without notes - they go to ticket_comments now)
       const { data: ticket, error: ticketError } = await supabase
         .from("tickets")
         .insert({
@@ -64,7 +69,7 @@ export function useCreateBooking() {
           payment_method: state.paymentMethod,
           payment_due_date: state.paymentDueDate,
           notes: state.customerNotes || null,
-          internal_notes: state.internalNotes || null,
+          internal_notes: null, // Moved to ticket_comments
         })
         .select("id")
         .single();
@@ -86,8 +91,8 @@ export function useCreateBooking() {
           ? null 
           : state.selectedParticipants[0]?.id || null,
         meeting_point: state.meetingPoint,
-        instructor_notes: state.instructorNotes || null,
-        internal_notes: state.internalNotes || null,
+        instructor_notes: null, // Moved to ticket_comments
+        internal_notes: null, // Moved to ticket_comments
         status: "booked",
         instructor_confirmation: state.instructorId ? "pending" : null,
       }));
@@ -97,6 +102,16 @@ export function useCreateBooking() {
         .insert(ticketItems);
 
       if (itemsError) throw itemsError;
+
+      // Create initial comments from wizard notes
+      const userName = user.email?.split("@")[0] || "System";
+      await createInitialComments(
+        ticket.id,
+        state.internalNotes,
+        state.instructorNotes,
+        user.id,
+        userName
+      );
 
       // Link conversation if exists
       if (state.conversationId) {
@@ -126,6 +141,7 @@ export function useCreateBooking() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["tickets"] });
       queryClient.invalidateQueries({ queryKey: ["conversations"] });
+      queryClient.invalidateQueries({ queryKey: ["ticket-comments"] });
     },
   });
 }

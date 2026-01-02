@@ -1,6 +1,7 @@
-import { Info } from "lucide-react";
+import { Info, History } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 interface BookingNotesProps {
   internalNotes: string;
@@ -17,6 +18,14 @@ export function BookingNotes({
 }: BookingNotesProps) {
   return (
     <div className="space-y-6">
+      {/* Info about comment history */}
+      <Alert className="bg-muted/50 border-muted">
+        <History className="h-4 w-4" />
+        <AlertDescription className="text-sm">
+          Alle Bemerkungen werden mit Datum, Uhrzeit und Verfasser in der Buchungshistorie gespeichert.
+        </AlertDescription>
+      </Alert>
+
       {/* Internal Notes */}
       <div className="space-y-2">
         <Label htmlFor="internal-notes">
