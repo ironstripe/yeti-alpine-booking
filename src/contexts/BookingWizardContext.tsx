@@ -19,15 +19,26 @@ export interface BookingWizardState {
   customer: Tables<"customers"> | null;
   selectedParticipants: SelectedParticipant[];
   
-  // Step 2: Product & Date (future)
+  // Step 2: Product & Date
+  productType: "private" | "group" | null;
   productId: string | null;
+  sport: "ski" | "snowboard" | null;
   dateRange: { start: string; end: string } | null;
-  timeSlots: { start: string; end: string }[] | null;
+  selectedDates: string[];
+  timeSlot: string | null;
+  duration: number | null;
+  includeLunch: boolean;
   
-  // Step 3: Instructor & Details (future)
+  // Step 3: Instructor & Details
   instructorId: string | null;
+  instructor: Tables<"instructors"> | null;
+  assignLater: boolean;
   meetingPoint: string | null;
-  notes: string | null;
+  preferredInstructorId: string | null;
+  language: string;
+  customerNotes: string;
+  internalNotes: string;
+  instructorNotes: string;
   
   // Metadata
   conversationId: string | null;
@@ -40,6 +51,25 @@ interface BookingWizardContextType {
   setSelectedParticipants: (participants: SelectedParticipant[]) => void;
   toggleParticipant: (participant: SelectedParticipant) => void;
   addGuestParticipant: (participant: Omit<SelectedParticipant, "id" | "isGuest">) => void;
+  // Step 2 setters
+  setProductType: (type: "private" | "group" | null) => void;
+  setProductId: (id: string | null) => void;
+  setSport: (sport: "ski" | "snowboard" | null) => void;
+  setDateRange: (range: { start: string; end: string } | null) => void;
+  setSelectedDates: (dates: string[]) => void;
+  setTimeSlot: (slot: string | null) => void;
+  setDuration: (duration: number | null) => void;
+  setIncludeLunch: (include: boolean) => void;
+  // Step 3 setters
+  setInstructor: (instructor: Tables<"instructors"> | null) => void;
+  setAssignLater: (assignLater: boolean) => void;
+  setMeetingPoint: (point: string | null) => void;
+  setPreferredInstructorId: (id: string | null) => void;
+  setLanguage: (language: string) => void;
+  setCustomerNotes: (notes: string) => void;
+  setInternalNotes: (notes: string) => void;
+  setInstructorNotes: (notes: string) => void;
+  // Navigation
   setCurrentStep: (step: WizardStep) => void;
   setConversationId: (id: string | null) => void;
   goToNextStep: () => void;
@@ -52,12 +82,23 @@ const initialState: BookingWizardState = {
   customerId: null,
   customer: null,
   selectedParticipants: [],
+  productType: null,
   productId: null,
+  sport: null,
   dateRange: null,
-  timeSlots: null,
+  selectedDates: [],
+  timeSlot: null,
+  duration: null,
+  includeLunch: false,
   instructorId: null,
-  meetingPoint: null,
-  notes: null,
+  instructor: null,
+  assignLater: false,
+  meetingPoint: "hotel_gorfion",
+  preferredInstructorId: null,
+  language: "de",
+  customerNotes: "",
+  internalNotes: "",
+  instructorNotes: "",
   conversationId: null,
   currentStep: 1,
 };
@@ -72,8 +113,9 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
       ...prev,
       customer,
       customerId: customer?.id ?? null,
-      // Clear participants when customer changes
       selectedParticipants: [],
+      // Pre-fill language from customer if available
+      language: customer?.language ?? "de",
     }));
   };
 
@@ -93,7 +135,6 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
           selectedParticipants: prev.selectedParticipants.filter((p) => p.id !== participant.id),
         };
       } else {
-        // Check max limit
         if (prev.selectedParticipants.length >= 6) {
           return prev;
         }
@@ -122,18 +163,95 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
     });
   };
 
-  const setCurrentStep = (step: WizardStep) => {
+  // Step 2 setters
+  const setProductType = (type: "private" | "group" | null) => {
     setState((prev) => ({
       ...prev,
-      currentStep: step,
+      productType: type,
+      productId: null,
+      // Reset instructor if switching to group (not needed)
+      instructorId: type === "group" ? null : prev.instructorId,
+      instructor: type === "group" ? null : prev.instructor,
     }));
   };
 
-  const setConversationId = (id: string | null) => {
+  const setProductId = (id: string | null) => {
+    setState((prev) => ({ ...prev, productId: id }));
+  };
+
+  const setSport = (sport: "ski" | "snowboard" | null) => {
+    setState((prev) => ({ ...prev, sport }));
+  };
+
+  const setDateRange = (range: { start: string; end: string } | null) => {
+    setState((prev) => ({ ...prev, dateRange: range }));
+  };
+
+  const setSelectedDates = (dates: string[]) => {
+    setState((prev) => ({ ...prev, selectedDates: dates }));
+  };
+
+  const setTimeSlot = (slot: string | null) => {
+    setState((prev) => ({ ...prev, timeSlot: slot }));
+  };
+
+  const setDuration = (duration: number | null) => {
+    setState((prev) => ({ ...prev, duration }));
+  };
+
+  const setIncludeLunch = (include: boolean) => {
+    setState((prev) => ({ ...prev, includeLunch: include }));
+  };
+
+  // Step 3 setters
+  const setInstructor = (instructor: Tables<"instructors"> | null) => {
     setState((prev) => ({
       ...prev,
-      conversationId: id,
+      instructor,
+      instructorId: instructor?.id ?? null,
+      assignLater: false,
     }));
+  };
+
+  const setAssignLater = (assignLater: boolean) => {
+    setState((prev) => ({
+      ...prev,
+      assignLater,
+      instructor: assignLater ? null : prev.instructor,
+      instructorId: assignLater ? null : prev.instructorId,
+    }));
+  };
+
+  const setMeetingPoint = (point: string | null) => {
+    setState((prev) => ({ ...prev, meetingPoint: point }));
+  };
+
+  const setPreferredInstructorId = (id: string | null) => {
+    setState((prev) => ({ ...prev, preferredInstructorId: id }));
+  };
+
+  const setLanguage = (language: string) => {
+    setState((prev) => ({ ...prev, language }));
+  };
+
+  const setCustomerNotes = (notes: string) => {
+    setState((prev) => ({ ...prev, customerNotes: notes }));
+  };
+
+  const setInternalNotes = (notes: string) => {
+    setState((prev) => ({ ...prev, internalNotes: notes }));
+  };
+
+  const setInstructorNotes = (notes: string) => {
+    setState((prev) => ({ ...prev, instructorNotes: notes }));
+  };
+
+  const setCurrentStep = (step: WizardStep) => {
+    setState((prev) => ({ ...prev, currentStep: step }));
+  };
+
+  const setConversationId = (id: string | null) => {
+    setState((prev) => ({ ...prev, conversationId: id }));
   };
 
   const goToNextStep = () => {
@@ -155,9 +273,14 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
       case 1:
         return state.customer !== null && state.selectedParticipants.length > 0;
       case 2:
-        return state.productId !== null && state.dateRange !== null;
+        return state.productType !== null && state.selectedDates.length > 0;
       case 3:
-        return true; // Instructor is optional
+        // For private: instructor selected OR assign later checked
+        // For group: always can proceed (no instructor needed)
+        if (state.productType === "private") {
+          return state.instructor !== null || state.assignLater;
+        }
+        return true;
       case 4:
         return true;
       default:
@@ -177,6 +300,22 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
         setSelectedParticipants,
         toggleParticipant,
         addGuestParticipant,
+        setProductType,
+        setProductId,
+        setSport,
+        setDateRange,
+        setSelectedDates,
+        setTimeSlot,
+        setDuration,
+        setIncludeLunch,
+        setInstructor,
+        setAssignLater,
+        setMeetingPoint,
+        setPreferredInstructorId,
+        setLanguage,
+        setCustomerNotes,
+        setInternalNotes,
+        setInstructorNotes,
         setCurrentStep,
         setConversationId,
         goToNextStep,

@@ -24,6 +24,7 @@ import {
 } from "@/contexts/BookingWizardContext";
 import { WizardProgress } from "@/components/bookings/wizard/WizardProgress";
 import { Step1CustomerParticipant } from "@/components/bookings/wizard/Step1CustomerParticipant";
+import { Step3InstructorDetails } from "@/components/bookings/wizard/Step3InstructorDetails";
 
 function BookingWizardContent() {
   const navigate = useNavigate();
@@ -73,9 +74,9 @@ function BookingWizardContent() {
   const handleNext = () => {
     if (canProceed()) {
       goToNextStep();
-      // For now, since Steps 2-4 aren't implemented, show a toast
-      if (state.currentStep === 1) {
-        toast.info("Schritt 2-4 werden noch implementiert");
+      if (state.currentStep === 4) {
+        // Final step - create booking
+        toast.info("Buchungserstellung wird noch implementiert");
       }
     }
   };
@@ -131,11 +132,7 @@ function BookingWizardContent() {
             Schritt 2: Produkt & Datum (in Entwicklung)
           </div>
         )}
-        {state.currentStep === 3 && (
-          <div className="py-12 text-center text-muted-foreground">
-            Schritt 3: Skilehrer & Details (in Entwicklung)
-          </div>
-        )}
+        {state.currentStep === 3 && <Step3InstructorDetails />}
         {state.currentStep === 4 && (
           <div className="py-12 text-center text-muted-foreground">
             Schritt 4: Zusammenfassung & Abschluss (in Entwicklung)
