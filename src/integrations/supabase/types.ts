@@ -257,55 +257,79 @@ export type Database = {
           ahv_number: string | null
           bank_name: string | null
           birth_date: string | null
+          city: string | null
+          country: string | null
           created_at: string
           email: string
+          entry_date: string | null
           first_name: string
+          gender: string | null
           hourly_rate: number
           iban: string | null
           id: string
+          languages: string[] | null
           last_name: string
           level: string | null
           notes: string | null
           phone: string
           real_time_status: string | null
+          role: string | null
           specialization: string | null
           status: string | null
+          street: string | null
+          zip: string | null
         }
         Insert: {
           ahv_number?: string | null
           bank_name?: string | null
           birth_date?: string | null
+          city?: string | null
+          country?: string | null
           created_at?: string
           email: string
+          entry_date?: string | null
           first_name: string
+          gender?: string | null
           hourly_rate: number
           iban?: string | null
           id?: string
+          languages?: string[] | null
           last_name: string
           level?: string | null
           notes?: string | null
           phone: string
           real_time_status?: string | null
+          role?: string | null
           specialization?: string | null
           status?: string | null
+          street?: string | null
+          zip?: string | null
         }
         Update: {
           ahv_number?: string | null
           bank_name?: string | null
           birth_date?: string | null
+          city?: string | null
+          country?: string | null
           created_at?: string
           email?: string
+          entry_date?: string | null
           first_name?: string
+          gender?: string | null
           hourly_rate?: number
           iban?: string | null
           id?: string
+          languages?: string[] | null
           last_name?: string
           level?: string | null
           notes?: string | null
           phone?: string
           real_time_status?: string | null
+          role?: string | null
           specialization?: string | null
           status?: string | null
+          street?: string | null
+          zip?: string | null
         }
         Relationships: []
       }
