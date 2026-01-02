@@ -1,21 +1,23 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
 import { toast } from "sonner";
 
 import { useSchedulerData } from "@/hooks/useSchedulerData";
 import { useUpdateTicketItem } from "@/hooks/useUpdateTicketItem";
-import { DragDropProvider } from "./DragDropProvider";
+import { DndKitProvider } from "./DndKitProvider";
 import { SchedulerHeader, type ViewMode } from "./SchedulerHeader";
 import { TimelineHeader } from "./TimelineHeader";
 import { InstructorRow } from "./InstructorRow";
+import { SelectionToolbar } from "./SelectionToolbar";
+import { SchedulerSelectionProvider, useSchedulerSelection } from "@/contexts/SchedulerSelectionContext";
 import { hasOverlap, TIME_SLOTS, type SchedulerBooking } from "@/lib/scheduler-utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AlertCircle } from "lucide-react";
 
 const SLOT_WIDTH = 100; // px per hour
 
-export function SchedulerGrid() {
+function SchedulerGridContent() {
   const navigate = useNavigate();
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<ViewMode>("daily");
@@ -27,15 +29,29 @@ export function SchedulerGrid() {
   });
 
   const updateTicketItem = useUpdateTicketItem();
+  const { clearSelection } = useSchedulerSelection();
 
-  // Navigate to booking wizard with pre-filled context
+  // Clear selection when date changes
+  useEffect(() => {
+    clearSelection();
+  }, [selectedDate, clearSelection]);
+
+  // Handle keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        clearSelection();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [clearSelection]);
+
+  // Navigate to booking wizard with pre-filled context (for single slot click from old flow)
   const handleSlotClick = (instructorId: string, date: string, timeSlot: string) => {
-    const params = new URLSearchParams({
-      instructor: instructorId,
-      date: date,
-      time: timeSlot,
-    });
-    navigate(`/bookings/new?${params.toString()}`);
+    // This is now handled by the selection context
+    // We could optionally navigate directly for double-click
   };
 
   // Handle drag & drop
@@ -95,7 +111,7 @@ export function SchedulerGrid() {
   }
 
   return (
-    <DragDropProvider>
+    <DndKitProvider onBookingDrop={handleBookingDrop}>
       <div className="flex flex-col h-full bg-background">
         {/* Header with Date Navigation & Filters */}
         <SchedulerHeader
@@ -146,7 +162,6 @@ export function SchedulerGrid() {
               date={format(selectedDate, "yyyy-MM-dd")}
               slotWidth={SLOT_WIDTH}
               onSlotClick={handleSlotClick}
-              onBookingDrop={handleBookingDrop}
             />
           ))}
         </div>
@@ -169,8 +184,23 @@ export function SchedulerGrid() {
             <div className="w-3 h-3 rounded-sm bg-gray-700" />
             <span>Abwesend</span>
           </div>
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 rounded-sm bg-primary/20 border-2 border-primary" />
+            <span>Ausgewählt</span>
+          </div>
         </div>
+
+        {/* Selection Toolbar */}
+        <SelectionToolbar />
       </div>
-    </DragDropProvider>
+    </DndKitProvider>
+  );
+}
+
+export function SchedulerGrid() {
+  return (
+    <SchedulerSelectionProvider>
+      <SchedulerGridContent />
+    </SchedulerSelectionProvider>
   );
 }

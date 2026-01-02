@@ -1,4 +1,5 @@
-import { useDrag } from "react-dnd";
+import { useDraggable } from "@dnd-kit/core";
+import { CSS } from "@dnd-kit/utilities";
 import { cn } from "@/lib/utils";
 import { getBookingBarClasses, calculateBarPosition, type SchedulerBooking } from "@/lib/scheduler-utils";
 import {
@@ -12,22 +13,17 @@ interface BookingBarProps {
   slotWidth: number;
 }
 
-export const BOOKING_ITEM_TYPE = "booking";
-
 export function BookingBar({ booking, slotWidth }: BookingBarProps) {
   const isPrivate = booking.type === "private";
   
-  const [{ isDragging }, drag] = useDrag(
-    () => ({
-      type: BOOKING_ITEM_TYPE,
-      item: { booking },
-      canDrag: isPrivate, // Only private lessons can be dragged
-      collect: (monitor) => ({
-        isDragging: monitor.isDragging(),
-      }),
-    }),
-    [booking, isPrivate]
-  );
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: `booking-${booking.id}`,
+    data: {
+      type: "booking",
+      booking,
+    },
+    disabled: !isPrivate, // Only private lessons can be dragged
+  });
 
   const { left, width } = calculateBarPosition(
     booking.timeStart,
@@ -38,23 +34,28 @@ export function BookingBar({ booking, slotWidth }: BookingBarProps) {
 
   const barClasses = getBookingBarClasses(booking.type, booking.isPaid);
 
+  const style = {
+    left: `${left}px`,
+    width: `${Math.max(width - 4, 40)}px`,
+    transform: CSS.Translate.toString(transform),
+    transition: isDragging ? undefined : "transform 200ms ease",
+  };
+
   return (
     <Tooltip>
       <TooltipTrigger asChild>
         <div
-          ref={isPrivate ? drag : undefined}
+          ref={setNodeRef}
+          {...(isPrivate ? { ...listeners, ...attributes } : {})}
           className={cn(
             "absolute top-1 bottom-1 rounded-md border px-2 py-1 text-xs font-medium truncate",
             "flex items-center gap-1",
             barClasses,
-            isPrivate && "cursor-move",
-            isDragging && "opacity-50",
+            isPrivate && "cursor-grab active:cursor-grabbing",
+            isDragging && "opacity-50 z-50 shadow-lg",
             !isPrivate && "cursor-default"
           )}
-          style={{
-            left: `${left}px`,
-            width: `${Math.max(width - 4, 40)}px`,
-          }}
+          style={style}
         >
           <span className="truncate">
             {booking.participantName || (booking.type === "group" ? "Gruppenkurs" : "Privat")}

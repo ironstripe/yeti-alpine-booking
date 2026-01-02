@@ -10,6 +10,8 @@ import {
 import { BookingBar } from "./BookingBar";
 import { BlockingBar } from "./BlockingBar";
 import { EmptySlot } from "./EmptySlot";
+import { SelectionOverlay } from "./SelectionOverlay";
+import { useSchedulerSelection } from "@/contexts/SchedulerSelectionContext";
 
 interface InstructorRowProps {
   instructor: SchedulerInstructor;
@@ -18,7 +20,6 @@ interface InstructorRowProps {
   date: string;
   slotWidth: number;
   onSlotClick: (instructorId: string, date: string, timeSlot: string) => void;
-  onBookingDrop: (booking: SchedulerBooking, newInstructorId: string, newTimeSlot: string) => void;
 }
 
 export function InstructorRow({
@@ -28,11 +29,16 @@ export function InstructorRow({
   date,
   slotWidth,
   onSlotClick,
-  onBookingDrop,
 }: InstructorRowProps) {
+  const { state } = useSchedulerSelection();
   const colorClasses = getInstructorColorClasses(instructor.color);
   const absence = isInstructorAbsent(instructor.id, date, absences);
   const instructorBookings = bookings.filter((b) => b.instructorId === instructor.id);
+  
+  // Get selections for this instructor on this date
+  const instructorSelections = state.selections.filter(
+    (s) => s.instructorId === instructor.id && s.date === date
+  );
 
   return (
     <div className="flex border-b hover:bg-muted/30 transition-colors">
@@ -72,8 +78,9 @@ export function InstructorRow({
             slotWidth={slotWidth}
             slotIndex={index}
             isBlocked={!!absence}
+            bookings={bookings}
+            absences={absences}
             onSlotClick={onSlotClick}
-            onDrop={onBookingDrop}
           />
         ))}
 
@@ -88,6 +95,17 @@ export function InstructorRow({
             key={booking.id}
             booking={booking}
             slotWidth={slotWidth}
+          />
+        ))}
+
+        {/* Selection Overlays */}
+        {!absence && instructorSelections.map((selection) => (
+          <SelectionOverlay
+            key={selection.id}
+            selection={selection}
+            slotWidth={slotWidth}
+            bookings={bookings}
+            absences={absences}
           />
         ))}
       </div>
