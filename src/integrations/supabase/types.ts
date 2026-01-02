@@ -94,7 +94,8 @@ export type Database = {
           first_name: string
           id: string
           last_name: string | null
-          level: string | null
+          level_current_season: string | null
+          level_last_season: string | null
           notes: string | null
           sport: string | null
         }
@@ -105,7 +106,8 @@ export type Database = {
           first_name: string
           id?: string
           last_name?: string | null
-          level?: string | null
+          level_current_season?: string | null
+          level_last_season?: string | null
           notes?: string | null
           sport?: string | null
         }
@@ -116,7 +118,8 @@ export type Database = {
           first_name?: string
           id?: string
           last_name?: string | null
-          level?: string | null
+          level_current_season?: string | null
+          level_last_season?: string | null
           notes?: string | null
           sport?: string | null
         }
@@ -132,11 +135,14 @@ export type Database = {
       }
       customers: {
         Row: {
+          additional_emails: Json | null
+          additional_phones: Json | null
           city: string | null
           country: string | null
           created_at: string
           email: string
           first_name: string | null
+          holiday_address: string
           id: string
           kulanz_score: number | null
           language: string | null
@@ -149,11 +155,14 @@ export type Database = {
           zip: string | null
         }
         Insert: {
+          additional_emails?: Json | null
+          additional_phones?: Json | null
           city?: string | null
           country?: string | null
           created_at?: string
           email: string
           first_name?: string | null
+          holiday_address?: string
           id?: string
           kulanz_score?: number | null
           language?: string | null
@@ -166,11 +175,14 @@ export type Database = {
           zip?: string | null
         }
         Update: {
+          additional_emails?: Json | null
+          additional_phones?: Json | null
           city?: string | null
           country?: string | null
           created_at?: string
           email?: string
           first_name?: string | null
+          holiday_address?: string
           id?: string
           kulanz_score?: number | null
           language?: string | null

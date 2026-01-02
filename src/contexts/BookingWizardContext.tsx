@@ -8,7 +8,8 @@ export interface SelectedParticipant {
   first_name: string;
   last_name: string | null;
   birth_date: string;
-  level: string | null;
+  level_last_season: string | null;
+  level_current_season: string | null;
   sport: string | null;
   isGuest?: boolean;
 }

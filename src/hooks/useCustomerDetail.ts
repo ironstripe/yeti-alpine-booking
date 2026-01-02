@@ -6,7 +6,8 @@ export interface Participant {
   first_name: string;
   last_name: string | null;
   birth_date: string;
-  level: string | null;
+  level_last_season: string | null;
+  level_current_season: string | null;
   sport: string | null;
   notes: string | null;
   created_at: string;
@@ -28,6 +29,9 @@ export interface CustomerDetail {
   kulanz_score: number | null;
   notes: string | null;
   created_at: string;
+  holiday_address: string;
+  additional_phones: { label: string; number: string }[] | null;
+  additional_emails: { label: string; email: string }[] | null;
   participants: Participant[];
 }
 
@@ -51,6 +55,8 @@ export function useCustomerDetail(customerId: string | undefined) {
 
       return {
         ...data,
+        additional_phones: data.additional_phones as { label: string; number: string }[] | null,
+        additional_emails: data.additional_emails as { label: string; email: string }[] | null,
         participants: data.customer_participants || [],
       };
     },

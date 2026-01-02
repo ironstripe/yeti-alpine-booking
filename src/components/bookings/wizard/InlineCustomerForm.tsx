@@ -1,8 +1,8 @@
 import { useState } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Loader2, X } from "lucide-react";
+import { Loader2, X, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -30,6 +30,9 @@ import { normalizePhoneNumber, capitalizeName } from "@/lib/phone-utils";
 import { lookupPlz } from "@/lib/plz-lookup";
 import type { Tables } from "@/integrations/supabase/types";
 
+const PHONE_LABELS = ["Mutter", "Vater", "Arbeit", "Notfall", "Sonstige"] as const;
+const EMAIL_LABELS = ["Mutter", "Vater", "Arbeit", "Sonstige"] as const;
+
 const customerSchema = z.object({
   first_name: z.string().max(100).optional(),
   last_name: z.string().min(1, "Nachname ist erforderlich").max(100),
@@ -39,6 +42,15 @@ const customerSchema = z.object({
   zip: z.string().max(10).optional(),
   city: z.string().max(100).optional(),
   country: z.string().default("LI"),
+  holiday_address: z.string().min(1, "Ferienadresse ist erforderlich").max(200),
+  additional_phones: z.array(z.object({
+    label: z.string(),
+    number: z.string().max(50),
+  })).default([]),
+  additional_emails: z.array(z.object({
+    label: z.string(),
+    email: z.string().email("Ungültige E-Mail-Adresse").max(255),
+  })).default([]),
 });
 
 type CustomerFormData = z.infer<typeof customerSchema>;
@@ -62,13 +74,33 @@ export function InlineCustomerForm({ onSuccess, onCancel }: InlineCustomerFormPr
       zip: "",
       city: "",
       country: "LI",
+      holiday_address: "",
+      additional_phones: [],
+      additional_emails: [],
     },
+  });
+
+  const { fields: phoneFields, append: appendPhone, remove: removePhone } = useFieldArray({
+    control: form.control,
+    name: "additional_phones",
+  });
+
+  const { fields: emailFields, append: appendEmail, remove: removeEmail } = useFieldArray({
+    control: form.control,
+    name: "additional_emails",
   });
 
   const handlePhoneBlur = (e: React.FocusEvent<HTMLInputElement>) => {
     const normalized = normalizePhoneNumber(e.target.value);
     if (normalized !== e.target.value) {
       form.setValue("phone", normalized);
+    }
+  };
+
+  const handleAdditionalPhoneBlur = (index: number) => (e: React.FocusEvent<HTMLInputElement>) => {
+    const normalized = normalizePhoneNumber(e.target.value);
+    if (normalized !== e.target.value) {
+      form.setValue(`additional_phones.${index}.number`, normalized);
     }
   };
 
@@ -101,6 +133,9 @@ export function InlineCustomerForm({ onSuccess, onCancel }: InlineCustomerFormPr
         zip: data.zip || null,
         city: data.city || null,
         country: data.country,
+        holiday_address: data.holiday_address,
+        additional_phones: data.additional_phones.length > 0 ? data.additional_phones : null,
+        additional_emails: data.additional_emails.length > 0 ? data.additional_emails : null,
       };
 
       const newCustomer = await createCustomer.mutateAsync(customerData);
@@ -211,6 +246,137 @@ export function InlineCustomerForm({ onSuccess, onCancel }: InlineCustomerFormPr
               )}
             />
 
+            {/* Additional Phones */}
+            {phoneFields.length > 0 && (
+              <div className="space-y-2">
+                {phoneFields.map((field, index) => (
+                  <div key={field.id} className="flex items-end gap-2">
+                    <FormField
+                      control={form.control}
+                      name={`additional_phones.${index}.label`}
+                      render={({ field }) => (
+                        <FormItem className="w-[100px]">
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {PHONE_LABELS.map((label) => (
+                                <SelectItem key={label} value={label}>
+                                  {label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name={`additional_phones.${index}.number`}
+                      render={({ field }) => (
+                        <FormItem className="flex-1">
+                          <FormControl>
+                            <Input
+                              {...field}
+                              type="tel"
+                              placeholder="+41 79 xxx xx xx"
+                              onBlur={handleAdditionalPhoneBlur(index)}
+                            />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => removePhone(index)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="text-muted-foreground"
+              onClick={() => appendPhone({ label: "Mutter", number: "" })}
+            >
+              <Plus className="mr-1 h-3 w-3" />
+              Telefon hinzufügen
+            </Button>
+
+            {/* Additional Emails */}
+            {emailFields.length > 0 && (
+              <div className="space-y-2">
+                {emailFields.map((field, index) => (
+                  <div key={field.id} className="flex items-end gap-2">
+                    <FormField
+                      control={form.control}
+                      name={`additional_emails.${index}.label`}
+                      render={({ field }) => (
+                        <FormItem className="w-[100px]">
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {EMAIL_LABELS.map((label) => (
+                                <SelectItem key={label} value={label}>
+                                  {label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name={`additional_emails.${index}.email`}
+                      render={({ field }) => (
+                        <FormItem className="flex-1">
+                          <FormControl>
+                            <Input
+                              {...field}
+                              type="email"
+                              placeholder="email@beispiel.ch"
+                            />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => removeEmail(index)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="text-muted-foreground"
+              onClick={() => appendEmail({ label: "Mutter", email: "" })}
+            >
+              <Plus className="mr-1 h-3 w-3" />
+              E-Mail hinzufügen
+            </Button>
+
             <Separator />
 
             <FormField
@@ -292,6 +458,28 @@ export function InlineCustomerForm({ onSuccess, onCancel }: InlineCustomerFormPr
                       <SelectItem value="DE">Deutschland</SelectItem>
                     </SelectContent>
                   </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <Separator />
+
+            <FormField
+              control={form.control}
+              name="holiday_address"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>
+                    Ferienadresse <span className="text-destructive">*</span>
+                  </FormLabel>
+                  <FormControl>
+                    <Input
+                      {...field}
+                      placeholder="z.B. Hotel Gorfion, Malbun"
+                      autoComplete="off"
+                    />
+                  </FormControl>
                   <FormMessage />
                 </FormItem>
               )}

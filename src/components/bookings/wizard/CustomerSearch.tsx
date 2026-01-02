@@ -56,6 +56,9 @@ export function CustomerSearch({
       preferred_channel: null,
       street: null,
       zip: null,
+      holiday_address: "",
+      additional_phones: [],
+      additional_emails: [],
     };
     onSelect(fullCustomer);
     setSearchQuery("");
