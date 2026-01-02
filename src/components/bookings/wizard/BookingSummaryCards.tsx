@@ -91,7 +91,7 @@ export function BookingSummaryCards({ onEditStep }: BookingSummaryCardsProps) {
               </div>
               <span className="text-sm text-muted-foreground">
                 {getAgeDisplay(calculateAge(participant.birth_date))} ·{" "}
-                {getLevelLabel(participant.level)} ·{" "}
+                {getLevelLabel(participant.level_current_season || participant.level_last_season)} ·{" "}
                 {participant.sport === "snowboard" ? "Snowboard" : "Ski"}
               </span>
             </div>

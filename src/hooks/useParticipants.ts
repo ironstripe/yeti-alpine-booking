@@ -7,7 +7,8 @@ export interface CreateParticipantData {
   first_name: string;
   last_name?: string | null;
   birth_date: string;
-  level?: string | null;
+  level_last_season?: string | null;
+  level_current_season?: string | null;
   sport?: string | null;
   notes?: string | null;
 }
@@ -16,7 +17,8 @@ export interface UpdateParticipantData {
   first_name?: string;
   last_name?: string | null;
   birth_date?: string;
-  level?: string | null;
+  level_last_season?: string | null;
+  level_current_season?: string | null;
   sport?: string | null;
   notes?: string | null;
 }

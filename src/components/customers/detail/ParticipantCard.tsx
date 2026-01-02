@@ -61,7 +61,8 @@ const editSchema = z.object({
   first_name: z.string().min(1, "Vorname ist erforderlich"),
   last_name: z.string().optional(),
   birth_date: z.date({ required_error: "Geburtsdatum ist erforderlich" }),
-  level: z.string().optional(),
+  level_last_season: z.string().optional(),
+  level_current_season: z.string().optional(),
   sport: z.string().optional(),
   notes: z.string().optional(),
 });
@@ -92,7 +93,8 @@ export function ParticipantCard({ participant, customerId }: ParticipantCardProp
       first_name: participant.first_name,
       last_name: participant.last_name || "",
       birth_date: new Date(participant.birth_date),
-      level: participant.level || "",
+      level_last_season: participant.level_last_season || "",
+      level_current_season: participant.level_current_season || "",
       sport: participant.sport || "ski",
       notes: participant.notes || "",
     },
@@ -104,7 +106,7 @@ export function ParticipantCard({ participant, customerId }: ParticipantCardProp
   const age = calculateAge(participant.birth_date);
   const initials = getInitials(participant.first_name, participant.last_name);
   const avatarColor = getAvatarColor(participant.first_name);
-  const levelInfo = getLevelInfo(participant.level);
+  const levelInfo = getLevelInfo(participant.level_current_season || participant.level_last_season);
 
   const fullName = [participant.first_name, participant.last_name]
     .filter(Boolean)
@@ -122,7 +124,8 @@ export function ParticipantCard({ participant, customerId }: ParticipantCardProp
         first_name: data.first_name,
         last_name: data.last_name || null,
         birth_date: format(data.birth_date, "yyyy-MM-dd"),
-        level: data.level || null,
+        level_last_season: data.level_last_season || null,
+        level_current_season: data.level_current_season || null,
         sport: data.sport || "ski",
         notes: data.notes || null,
       },
@@ -197,23 +200,43 @@ export function ParticipantCard({ participant, customerId }: ParticipantCardProp
             )}
           </div>
 
-          <div className="space-y-2">
-            <Label>Level</Label>
-            <Select
-              value={watch("level") || ""}
-              onValueChange={(value) => setValue("level", value)}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Level wählen" />
-              </SelectTrigger>
-              <SelectContent>
-                {LEVEL_OPTIONS.map((level) => (
-                  <SelectItem key={level.value} value={level.value}>
-                    {level.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Level letzte Saison</Label>
+              <Select
+                value={watch("level_last_season") || ""}
+                onValueChange={(value) => setValue("level_last_season", value)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Level wählen" />
+                </SelectTrigger>
+                <SelectContent>
+                  {LEVEL_OPTIONS.map((level) => (
+                    <SelectItem key={level.value} value={level.value}>
+                      {level.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Level diese Saison</Label>
+              <Select
+                value={watch("level_current_season") || ""}
+                onValueChange={(value) => setValue("level_current_season", value)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Level wählen" />
+                </SelectTrigger>
+                <SelectContent>
+                  {LEVEL_OPTIONS.map((level) => (
+                    <SelectItem key={level.value} value={level.value}>
+                      {level.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           <div className="space-y-2">
