@@ -36,7 +36,8 @@ import { Separator } from "@/components/ui/separator";
 
 import { useCreateCustomer } from "@/hooks/useCreateCustomer";
 import { normalizePhoneNumber, capitalizeName } from "@/lib/phone-utils";
-import { lookupPlz } from "@/lib/plz-lookup";
+import { lookupPlz, CityMatch } from "@/lib/plz-lookup";
+import { CityAutocomplete } from "@/components/ui/city-autocomplete";
 
 const PHONE_LABELS = ["Mutter", "Vater", "Arbeit", "Notfall", "Sonstige"] as const;
 const EMAIL_LABELS = ["Mutter", "Vater", "Arbeit", "Sonstige"] as const;
@@ -502,7 +503,17 @@ export function NewCustomerModal({ open, onOpenChange }: NewCustomerModalProps) 
                     <FormItem className="col-span-2">
                       <FormLabel>Ort</FormLabel>
                       <FormControl>
-                        <Input {...field} placeholder="Vaduz" />
+                        <CityAutocomplete
+                          value={field.value || ""}
+                          onChange={(value) => form.setValue("city", value)}
+                          onSelect={(match: CityMatch) => {
+                            form.setValue("city", match.city);
+                            form.setValue("zip", match.plz);
+                            form.setValue("country", match.country);
+                            toast.success(`${match.city} (${match.plz}) erkannt`, { duration: 1500 });
+                          }}
+                          placeholder="Ort eingeben..."
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
