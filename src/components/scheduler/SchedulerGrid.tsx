@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
-import { format } from "date-fns";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { format, parseISO, isValid } from "date-fns";
 import { toast } from "sonner";
 
 import { useSchedulerData } from "@/hooks/useSchedulerData";
@@ -21,11 +21,24 @@ const SLOT_WIDTH = 100; // px per hour
 
 function SchedulerGridContent() {
   const navigate = useNavigate();
-  const [selectedDate, setSelectedDate] = useState(new Date());
+  const [searchParams] = useSearchParams();
+  
+  // Read initial date from URL params if present
+  const initialDate = useMemo(() => {
+    const dateParam = searchParams.get("date");
+    if (dateParam) {
+      const parsed = parseISO(dateParam);
+      if (isValid(parsed)) return parsed;
+    }
+    return new Date();
+  }, []);
+
+  const [selectedDate, setSelectedDate] = useState(initialDate);
   const [viewMode, setViewMode] = useState<ViewMode>("daily");
   const [selectedInstructorId, setSelectedInstructorId] = useState<string | null>(null);
   const [highlightedInstructorId, setHighlightedInstructorId] = useState<string | null>(null);
   const [capabilityFilter, setCapabilityFilter] = useState<string | null>(null);
+  const [compactMode, setCompactMode] = useState(false);
 
   // Calculate visible dates based on view mode
   const visibleDates = useMemo(() => {
@@ -51,6 +64,22 @@ function SchedulerGridContent() {
   const updateTicketItem = useUpdateTicketItem();
   const { clearSelection } = useSchedulerSelection();
   const { isAdminOrOffice } = useUserRole();
+
+  // Filter instructors in compact mode (hide those without bookings or absences)
+  const filteredInstructors = useMemo(() => {
+    if (!compactMode) return instructors;
+    
+    return instructors.filter(instructor => {
+      const hasBookings = bookings.some(b => b.instructorId === instructor.id);
+      const hasAbsences = absences.some(a => a.instructorId === instructor.id);
+      return hasBookings || hasAbsences;
+    });
+  }, [instructors, bookings, absences, compactMode]);
+
+  const compactStats = useMemo(() => ({
+    visible: filteredInstructors.length,
+    total: instructors.length,
+  }), [filteredInstructors.length, instructors.length]);
 
   // Clear selection when date changes
   useEffect(() => {
@@ -182,6 +211,9 @@ function SchedulerGridContent() {
             onCapabilityFilterChange={setCapabilityFilter}
             visibleDates={visibleDates}
             onJumpToDay={handleJumpToDay}
+            compactMode={compactMode}
+            onCompactModeChange={setCompactMode}
+            compactStats={compactStats}
           />
           {/* Admin: Show Pending Absences Button */}
           {isAdminOrOffice && <PendingAbsencesList />}
@@ -216,8 +248,15 @@ function SchedulerGridContent() {
             </div>
           )}
 
+          {/* Compact Mode Info Bar */}
+          {!isLoading && compactMode && filteredInstructors.length < instructors.length && (
+            <div className="bg-muted/50 border-b px-4 py-2 text-xs text-muted-foreground">
+              Kompaktmodus: {filteredInstructors.length} von {instructors.length} Lehrer mit Aktivität angezeigt
+            </div>
+          )}
+
           {/* Day Sections - Vertically Stacked */}
-          {!isLoading && instructors.length > 0 && visibleDates.map((date, dayIndex) => (
+          {!isLoading && filteredInstructors.length > 0 && visibleDates.map((date, dayIndex) => (
             <DaySection
               key={date.toISOString()}
               ref={(el) => {
@@ -228,7 +267,7 @@ function SchedulerGridContent() {
                 }
               }}
               date={date}
-              instructors={instructors}
+              instructors={filteredInstructors}
               bookings={bookings}
               absences={absences}
               slotWidth={SLOT_WIDTH}
