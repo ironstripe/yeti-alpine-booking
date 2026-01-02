@@ -9,14 +9,12 @@ import { useUpdateTicketItem } from "@/hooks/useUpdateTicketItem";
 import { DndKitProvider } from "./DndKitProvider";
 import { SchedulerHeader, type ViewMode } from "./SchedulerHeader";
 import { StickyTimeHeader } from "./StickyTimeHeader";
-import { DaySection } from "./DaySection";
+import { InstructorFocusView } from "./InstructorFocusView";
 import { SelectionToolbar } from "./SelectionToolbar";
 import { PendingAbsencesList } from "./PendingAbsencesList";
 import { SchedulerSelectionProvider, useSchedulerSelection } from "@/contexts/SchedulerSelectionContext";
 import { useUserRole } from "@/hooks/useUserRole";
 import { hasOverlap, getDaysForViewMode, generateDateRange, isWithinOperationalHours, type SchedulerBooking } from "@/lib/scheduler-utils";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Button } from "@/components/ui/button";
 import { AlertCircle } from "lucide-react";
 
 const SLOT_WIDTH = 100; // px per hour
@@ -36,7 +34,7 @@ function SchedulerGridContent() {
   }, []);
 
   const [selectedDate, setSelectedDate] = useState(initialDate);
-  const [viewMode, setViewMode] = useState<ViewMode>("daily");
+  const [viewMode, setViewMode] = useState<ViewMode>("weekly"); // Default to weekly for instructor focus
   const [selectedInstructorId, setSelectedInstructorId] = useState<string | null>(null);
   const [highlightedInstructorId, setHighlightedInstructorId] = useState<string | null>(null);
   const [capabilityFilter, setCapabilityFilter] = useState<string | null>(null);
@@ -54,7 +52,6 @@ function SchedulerGridContent() {
 
   // Refs for scroll-to-row functionality
   const instructorRefs = useRef<Map<string, HTMLDivElement>>(new Map());
-  const dayRefs = useRef<Map<number, HTMLDivElement>>(new Map());
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   const { instructors, bookings, absences, isLoading, error } = useSchedulerData({
@@ -179,13 +176,10 @@ function SchedulerGridContent() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [clearSelection]);
 
-  // Scroll to instructor and highlight (first occurrence in any day section)
+  // Scroll to instructor and highlight
   const scrollToInstructor = useCallback((instructorId: string) => {
     requestAnimationFrame(() => {
-      // Find the first day's instructor row
-      const firstDateStr = format(visibleDates[0], "yyyy-MM-dd");
-      const key = `${instructorId}-${firstDateStr}`;
-      const element = instructorRefs.current.get(key);
+      const element = instructorRefs.current.get(instructorId);
       if (element) {
         element.scrollIntoView({ behavior: "smooth", block: "center" });
         setHighlightedInstructorId(instructorId);
@@ -194,14 +188,6 @@ function SchedulerGridContent() {
         }, 3000);
       }
     });
-  }, [visibleDates]);
-
-  // Jump to specific day section
-  const handleJumpToDay = useCallback((dayIndex: number) => {
-    const element = dayRefs.current.get(dayIndex);
-    if (element) {
-      element.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
   }, []);
 
   // Navigate to booking wizard with pre-filled context (for single slot click from old flow)
@@ -290,7 +276,6 @@ function SchedulerGridContent() {
             capabilityFilter={capabilityFilter}
             onCapabilityFilterChange={setCapabilityFilter}
             visibleDates={visibleDates}
-            onJumpToDay={handleJumpToDay}
             compactMode={compactMode}
             onCompactModeChange={setCompactMode}
             compactStats={compactStats}
@@ -299,83 +284,28 @@ function SchedulerGridContent() {
           {isAdminOrOffice && <PendingAbsencesList />}
         </div>
 
-        {/* Vertical Stacking Grid */}
+        {/* Vertical Stacking Grid with Instructor Focus */}
         <div ref={scrollContainerRef} className="flex-1 overflow-auto">
-          {/* Sticky Time Header */}
-          <StickyTimeHeader slotWidth={SLOT_WIDTH} />
+          {/* Sticky Time Header - with day column for multi-day views */}
+          <StickyTimeHeader 
+            slotWidth={SLOT_WIDTH} 
+            showDayColumn={visibleDates.length > 1}
+          />
 
-          {/* Sticky Jump Bar - Only for multi-day views */}
-          {viewMode !== "daily" && visibleDates.length > 1 && !isLoading && (
-            <div className="sticky top-[34px] z-25 bg-background/95 backdrop-blur-sm border-b border-border/30 px-3 py-1 flex items-center gap-1">
-              <span className="text-[10px] text-muted-foreground mr-1">Springe:</span>
-              {visibleDates.map((date, index) => (
-                <Button
-                  key={index}
-                  variant="ghost"
-                  size="sm"
-                  className="h-5 px-2 text-[10px] font-medium"
-                  onClick={() => handleJumpToDay(index)}
-                >
-                  {format(date, "EEE d.", { locale: de })}
-                </Button>
-              ))}
-            </div>
-          )}
-
-          {/* Loading State */}
-          {isLoading && (
-            <div className="space-y-0">
-              {Array.from({ length: 12 }).map((_, i) => (
-                <div key={i} className="flex border-b border-border/20">
-                  <div className="w-40 shrink-0 border-r border-border/20 px-2 py-1">
-                    <Skeleton className="h-3 w-20" />
-                  </div>
-                  <div className="flex-1 p-1">
-                    <Skeleton className="h-8 w-full" />
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* No Instructors State */}
-          {!isLoading && instructors.length === 0 && (
-            <div className="flex items-center justify-center p-8 text-sm text-muted-foreground">
-              Keine aktiven Lehrer gefunden
-            </div>
-          )}
-
-          {/* Compact Mode Info Bar */}
-          {!isLoading && compactMode && filteredInstructors.length < instructors.length && (
-            <div className="bg-muted/40 border-b border-border/30 px-3 py-1 text-[10px] text-muted-foreground">
-              Kompakt: {filteredInstructors.length}/{instructors.length} Lehrer
-            </div>
-          )}
-
-          {/* Day Sections - Vertically Stacked */}
-          {!isLoading && filteredInstructors.length > 0 && visibleDates.map((date, dayIndex) => (
-            <DaySection
-              key={date.toISOString()}
-              ref={(el) => {
-                if (el) {
-                  dayRefs.current.set(dayIndex, el);
-                } else {
-                  dayRefs.current.delete(dayIndex);
-                }
-              }}
-              date={date}
-              instructors={filteredInstructors}
-              bookings={bookings}
-              absences={absences}
-              slotWidth={SLOT_WIDTH}
-              onSlotClick={handleSlotClick}
-              isFirstDay={dayIndex === 0}
-              highlightedInstructorId={highlightedInstructorId}
-              capabilityFilter={capabilityFilter}
-              instructorRefs={instructorRefs}
-              collapseEmpty={compactMode}
-            />
-          ))}
+          {/* Instructor Focus View - Each instructor with day sub-rows */}
+          <InstructorFocusView
+            instructors={instructors}
+            dates={visibleDates}
+            bookings={bookings}
+            absences={absences}
+            slotWidth={SLOT_WIDTH}
+            onSlotClick={handleSlotClick}
+            isLoading={isLoading}
+            highlightedInstructorId={highlightedInstructorId}
+            capabilityFilter={capabilityFilter}
+            compactMode={compactMode}
+            instructorRefs={instructorRefs}
+          />
         </div>
 
         {/* Legend - Compact */}
