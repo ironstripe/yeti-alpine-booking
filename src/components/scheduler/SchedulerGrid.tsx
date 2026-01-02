@@ -1,19 +1,19 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { format } from "date-fns";
+import { format, addDays } from "date-fns";
 import { toast } from "sonner";
 
 import { useSchedulerData } from "@/hooks/useSchedulerData";
 import { useUpdateTicketItem } from "@/hooks/useUpdateTicketItem";
 import { DndKitProvider } from "./DndKitProvider";
 import { SchedulerHeader, type ViewMode } from "./SchedulerHeader";
-import { TimelineHeader } from "./TimelineHeader";
+import { MultiDayTimelineHeader } from "./MultiDayTimelineHeader";
 import { InstructorRow } from "./InstructorRow";
 import { SelectionToolbar } from "./SelectionToolbar";
 import { PendingAbsencesList } from "./PendingAbsencesList";
 import { SchedulerSelectionProvider, useSchedulerSelection } from "@/contexts/SchedulerSelectionContext";
 import { useUserRole } from "@/hooks/useUserRole";
-import { hasOverlap, TIME_SLOTS, type SchedulerBooking } from "@/lib/scheduler-utils";
+import { hasOverlap, getDaysForViewMode, generateDateRange, isWithinOperationalHours, type SchedulerBooking } from "@/lib/scheduler-utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AlertCircle } from "lucide-react";
 
@@ -27,11 +27,22 @@ function SchedulerGridContent() {
   const [highlightedInstructorId, setHighlightedInstructorId] = useState<string | null>(null);
   const [capabilityFilter, setCapabilityFilter] = useState<string | null>(null);
 
+  // Calculate visible dates based on view mode
+  const visibleDates = useMemo(() => {
+    const days = getDaysForViewMode(viewMode);
+    return generateDateRange(selectedDate, days);
+  }, [selectedDate, viewMode]);
+
+  // Calculate date range for data fetching
+  const startDate = visibleDates[0];
+  const endDate = visibleDates[visibleDates.length - 1];
+
   // Refs for scroll-to-row functionality
   const instructorRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
   const { instructors, bookings, absences, isLoading, error } = useSchedulerData({
-    date: selectedDate,
+    startDate,
+    endDate,
     instructorId: selectedInstructorId,
   });
 
@@ -79,10 +90,11 @@ function SchedulerGridContent() {
     // We could optionally navigate directly for double-click
   };
 
-  // Handle drag & drop
+  // Handle drag & drop with cross-day support
   const handleBookingDrop = (
     booking: SchedulerBooking, 
     newInstructorId: string, 
+    newDate: string,
     newTimeSlot: string
   ) => {
     // Only allow moving private lessons
@@ -102,17 +114,23 @@ function SchedulerGridContent() {
     const newEndMinute = newEndMinutes % 60;
     const newEndTime = `${newEndHour.toString().padStart(2, "0")}:${newEndMinute.toString().padStart(2, "0")}`;
 
-    // Check for overlaps
-    const dateStr = format(selectedDate, "yyyy-MM-dd");
-    if (hasOverlap(newInstructorId, dateStr, newTimeSlot, newEndTime, bookings.filter(b => b.id !== booking.id))) {
+    // Validate operational hours (09:00 - 16:00)
+    if (!isWithinOperationalHours(newTimeSlot, newEndTime)) {
+      toast.error("Buchungen nur zwischen 09:00 - 16:00 erlaubt");
+      return;
+    }
+
+    // Check for overlaps on the target date
+    if (hasOverlap(newInstructorId, newDate, newTimeSlot, newEndTime, bookings.filter(b => b.id !== booking.id))) {
       toast.error("Zeitraum bereits belegt");
       return;
     }
 
-    // Update the booking
+    // Update the booking with new date
     updateTicketItem.mutate({
       ticketItemId: booking.id,
       instructorId: newInstructorId,
+      date: newDate,
       timeStart: newTimeSlot,
       timeEnd: newEndTime,
     });
@@ -156,10 +174,10 @@ function SchedulerGridContent() {
           {isAdminOrOffice && <PendingAbsencesList />}
         </div>
 
-        {/* Grid */}
+        {/* Grid with horizontal scroll for multi-day */}
         <div className="flex-1 overflow-auto">
-          {/* Timeline Header */}
-          <TimelineHeader />
+          {/* Multi-Day Timeline Header */}
+          <MultiDayTimelineHeader dates={visibleDates} slotWidth={SLOT_WIDTH} />
 
           {/* Loading State */}
           {isLoading && (
@@ -196,9 +214,9 @@ function SchedulerGridContent() {
                 }
               }}
               instructor={instructor}
+              dates={visibleDates}
               bookings={bookings}
               absences={absences}
-              date={format(selectedDate, "yyyy-MM-dd")}
               slotWidth={SLOT_WIDTH}
               onSlotClick={handleSlotClick}
               isHighlighted={highlightedInstructorId === instructor.id}
@@ -228,6 +246,9 @@ function SchedulerGridContent() {
           <div className="flex items-center gap-2">
             <div className="w-3 h-3 rounded-sm bg-primary/20 border-2 border-primary" />
             <span>Ausgewählt</span>
+          </div>
+          <div className="ml-auto text-muted-foreground">
+            Betriebszeiten: 09:00 - 16:00 (Liftschluss)
           </div>
         </div>
 

@@ -10,12 +10,14 @@ import {
 } from "@/lib/scheduler-utils";
 
 interface UseSchedulerDataOptions {
-  date: Date;
+  startDate: Date;
+  endDate: Date;
   instructorId?: string | null; // Filter to specific instructor
 }
 
-export function useSchedulerData({ date, instructorId }: UseSchedulerDataOptions) {
-  const dateStr = format(date, "yyyy-MM-dd");
+export function useSchedulerData({ startDate, endDate, instructorId }: UseSchedulerDataOptions) {
+  const startDateStr = format(startDate, "yyyy-MM-dd");
+  const endDateStr = format(endDate, "yyyy-MM-dd");
 
   // Fetch instructors
   const instructorsQuery = useQuery({
@@ -32,9 +34,9 @@ export function useSchedulerData({ date, instructorId }: UseSchedulerDataOptions
     },
   });
 
-  // Fetch ticket items (private lessons) for the date
+  // Fetch ticket items (private lessons) for the date range
   const bookingsQuery = useQuery({
-    queryKey: ["scheduler-bookings", dateStr],
+    queryKey: ["scheduler-bookings", startDateStr, endDateStr],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("ticket_items")
@@ -59,7 +61,8 @@ export function useSchedulerData({ date, instructorId }: UseSchedulerDataOptions
             sport
           )
         `)
-        .eq("date", dateStr)
+        .gte("date", startDateStr)
+        .lte("date", endDateStr)
         .not("instructor_id", "is", null);
 
       if (error) throw error;
@@ -67,15 +70,15 @@ export function useSchedulerData({ date, instructorId }: UseSchedulerDataOptions
     },
   });
 
-  // Fetch groups (group courses) for the date
+  // Fetch groups (group courses) for the date range
   const groupsQuery = useQuery({
-    queryKey: ["scheduler-groups", dateStr],
+    queryKey: ["scheduler-groups", startDateStr, endDateStr],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("groups")
         .select("*")
-        .lte("start_date", dateStr)
-        .gte("end_date", dateStr)
+        .lte("start_date", endDateStr)
+        .gte("end_date", startDateStr)
         .not("instructor_id", "is", null);
 
       if (error) throw error;
@@ -83,15 +86,15 @@ export function useSchedulerData({ date, instructorId }: UseSchedulerDataOptions
     },
   });
 
-  // Fetch absences
+  // Fetch absences for the date range
   const absencesQuery = useQuery({
-    queryKey: ["scheduler-absences", dateStr],
+    queryKey: ["scheduler-absences", startDateStr, endDateStr],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("instructor_absences")
         .select("*")
-        .lte("start_date", dateStr)
-        .gte("end_date", dateStr);
+        .lte("start_date", endDateStr)
+        .gte("end_date", startDateStr);
 
       if (error) throw error;
       return data;
@@ -143,15 +146,23 @@ export function useSchedulerData({ date, instructorId }: UseSchedulerDataOptions
       };
     });
 
-  // Add group courses as bookings
+  // Add group courses as bookings - expand for each day in the range
   const groupBookings: SchedulerBooking[] = (groupsQuery.data || [])
     .filter((g) => !instructorId || g.instructor_id === instructorId)
     .flatMap((g) => {
-      const morningSlot: SchedulerBooking | null = g.time_morning_start && g.time_morning_end
-        ? {
-            id: `group-${g.id}-morning`,
+      const slots: SchedulerBooking[] = [];
+      // Generate bookings for each day the group is active within our date range
+      let current = new Date(Math.max(new Date(g.start_date).getTime(), startDate.getTime()));
+      const groupEnd = new Date(Math.min(new Date(g.end_date).getTime(), endDate.getTime()));
+      
+      while (current <= groupEnd) {
+        const currentDateStr = format(current, "yyyy-MM-dd");
+        
+        if (g.time_morning_start && g.time_morning_end) {
+          slots.push({
+            id: `group-${g.id}-morning-${currentDateStr}`,
             instructorId: g.instructor_id!,
-            date: dateStr,
+            date: currentDateStr,
             timeStart: g.time_morning_start,
             timeEnd: g.time_morning_end,
             type: "group",
@@ -159,14 +170,14 @@ export function useSchedulerData({ date, instructorId }: UseSchedulerDataOptions
             ticketId: g.id,
             participantName: g.name,
             status: g.status || "active",
-          }
-        : null;
+          });
+        }
 
-      const afternoonSlot: SchedulerBooking | null = g.time_afternoon_start && g.time_afternoon_end
-        ? {
-            id: `group-${g.id}-afternoon`,
+        if (g.time_afternoon_start && g.time_afternoon_end) {
+          slots.push({
+            id: `group-${g.id}-afternoon-${currentDateStr}`,
             instructorId: g.instructor_id!,
-            date: dateStr,
+            date: currentDateStr,
             timeStart: g.time_afternoon_start,
             timeEnd: g.time_afternoon_end,
             type: "group",
@@ -174,10 +185,13 @@ export function useSchedulerData({ date, instructorId }: UseSchedulerDataOptions
             ticketId: g.id,
             participantName: g.name,
             status: g.status || "active",
-          }
-        : null;
-
-      return [morningSlot, afternoonSlot].filter(Boolean) as SchedulerBooking[];
+          });
+        }
+        
+        current.setDate(current.getDate() + 1);
+      }
+      
+      return slots;
     });
 
   // Transform absences

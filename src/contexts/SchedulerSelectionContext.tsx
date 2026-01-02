@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useCallback, ReactNode } from "react";
 import type { SchedulerBooking, SchedulerAbsence } from "@/lib/scheduler-utils";
+import { OPERATIONAL_START_MINUTES, OPERATIONAL_END_MINUTES } from "@/lib/scheduler-utils";
 
 export interface SlotSelection {
   id: string;
@@ -74,6 +75,14 @@ export function SchedulerSelectionProvider({ children }: { children: ReactNode }
       const startMinutes = timeToMinutes(startTime);
       const endMinutes = timeToMinutes(endTime);
       const duration = endMinutes - startMinutes;
+
+      // Check operational hours (09:00 - 16:00)
+      if (startMinutes < OPERATIONAL_START_MINUTES) {
+        return { valid: false, reason: "Frühester Start: 09:00" };
+      }
+      if (endMinutes > OPERATIONAL_END_MINUTES) {
+        return { valid: false, reason: "Spätestes Ende: 16:00 (Liftschluss)" };
+      }
 
       // Check minimum duration (60 minutes)
       if (duration < 60) {

@@ -2,9 +2,8 @@ import { forwardRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { 
-  TIME_SLOTS, 
+  BOOKABLE_HOURS,
   getInstructorColorClasses,
-  isInstructorAbsent,
   type SchedulerInstructor, 
   type SchedulerBooking,
   type SchedulerAbsence 
@@ -16,11 +15,7 @@ import {
   getDisciplineBadges,
   matchesCapabilityFilter 
 } from "@/lib/level-utils";
-import { BookingBar } from "./BookingBar";
-import { BlockingBar } from "./BlockingBar";
-import { EmptySlot } from "./EmptySlot";
-import { SelectionOverlay } from "./SelectionOverlay";
-import { useSchedulerSelection } from "@/contexts/SchedulerSelectionContext";
+import { DaySlots } from "./DaySlots";
 import {
   HoverCard,
   HoverCardContent,
@@ -32,12 +27,13 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { format } from "date-fns";
 
 interface InstructorRowProps {
   instructor: SchedulerInstructor;
+  dates: Date[];
   bookings: SchedulerBooking[];
   absences: SchedulerAbsence[];
-  date: string;
   slotWidth: number;
   onSlotClick: (instructorId: string, date: string, timeSlot: string) => void;
   isHighlighted?: boolean;
@@ -48,9 +44,9 @@ export const InstructorRow = forwardRef<HTMLDivElement, InstructorRowProps>(
   function InstructorRow(
     {
       instructor,
+      dates,
       bookings,
       absences,
-      date,
       slotWidth,
       onSlotClick,
       isHighlighted = false,
@@ -59,15 +55,7 @@ export const InstructorRow = forwardRef<HTMLDivElement, InstructorRowProps>(
     ref
   ) {
     const navigate = useNavigate();
-    const { state } = useSchedulerSelection();
     const colorClasses = getInstructorColorClasses(instructor.color);
-    const absence = isInstructorAbsent(instructor.id, date, absences);
-    const instructorBookings = bookings.filter((b) => b.instructorId === instructor.id);
-    
-    // Get selections for this instructor on this date
-    const instructorSelections = state.selections.filter(
-      (s) => s.instructorId === instructor.id && s.date === date
-    );
 
     // Check if instructor matches capability filter
     const matchesFilter = matchesCapabilityFilter(instructor.specialization, capabilityFilter);
@@ -89,8 +77,8 @@ export const InstructorRow = forwardRef<HTMLDivElement, InstructorRowProps>(
           isDimmed && "opacity-40"
         )}
       >
-        {/* Instructor Info Column */}
-        <div className="w-48 shrink-0 border-r p-3 flex items-center gap-2">
+        {/* Instructor Info Column - Sticky */}
+        <div className="w-48 shrink-0 border-r p-3 flex items-center gap-2 sticky left-0 bg-background z-10 shadow-[2px_0_4px_rgba(0,0,0,0.05)]">
           {/* Color Indicator */}
           <div
             className={cn(
@@ -164,49 +152,30 @@ export const InstructorRow = forwardRef<HTMLDivElement, InstructorRowProps>(
           )}
         </div>
 
-        {/* Timeline Slots */}
-        <div className="flex-1 relative h-16">
-          {/* Empty Slot Drop Zones */}
-          {TIME_SLOTS.slice(0, -1).map((time, index) => (
-            <EmptySlot
-              key={time}
-              instructorId={instructor.id}
-              date={date}
-              timeSlot={time}
-              slotWidth={slotWidth}
-              slotIndex={index}
-              isBlocked={!!absence}
-              bookings={bookings}
-              absences={absences}
-              onSlotClick={onSlotClick}
-            />
-          ))}
-
-          {/* Blocking Bar (Full Day) */}
-          {absence && (
-            <BlockingBar absence={absence} slotWidth={slotWidth} />
-          )}
-
-          {/* Booking Bars */}
-          {!absence && instructorBookings.map((booking) => (
-            <BookingBar
-              key={booking.id}
-              booking={booking}
-              slotWidth={slotWidth}
-              instructorSpecialization={instructor.specialization}
-            />
-          ))}
-
-          {/* Selection Overlays */}
-          {!absence && instructorSelections.map((selection) => (
-            <SelectionOverlay
-              key={selection.id}
-              selection={selection}
-              slotWidth={slotWidth}
-              bookings={bookings}
-              absences={absences}
-            />
-          ))}
+        {/* Timeline Slots for each day */}
+        <div className="flex">
+          {dates.map((date, dayIndex) => {
+            const dateStr = format(date, "yyyy-MM-dd");
+            return (
+              <div 
+                key={dateStr}
+                className={cn(
+                  "relative h-16",
+                  dayIndex > 0 && "border-l-2 border-primary/30"
+                )}
+                style={{ width: `${BOOKABLE_HOURS * slotWidth}px` }}
+              >
+                <DaySlots
+                  instructor={instructor}
+                  date={dateStr}
+                  bookings={bookings}
+                  absences={absences}
+                  slotWidth={slotWidth}
+                  onSlotClick={onSlotClick}
+                />
+              </div>
+            );
+          })}
         </div>
       </div>
     );
