@@ -25,6 +25,7 @@ import {
 import { WizardProgress } from "@/components/bookings/wizard/WizardProgress";
 import { Step1CustomerParticipant } from "@/components/bookings/wizard/Step1CustomerParticipant";
 import { Step3InstructorDetails } from "@/components/bookings/wizard/Step3InstructorDetails";
+import { Step4Summary } from "@/components/bookings/wizard/Step4Summary";
 
 function BookingWizardContent() {
   const navigate = useNavigate();
@@ -133,11 +134,7 @@ function BookingWizardContent() {
           </div>
         )}
         {state.currentStep === 3 && <Step3InstructorDetails />}
-        {state.currentStep === 4 && (
-          <div className="py-12 text-center text-muted-foreground">
-            Schritt 4: Zusammenfassung & Abschluss (in Entwicklung)
-          </div>
-        )}
+        {state.currentStep === 4 && <Step4Summary onEditStep={setCurrentStep} />}
       </main>
 
       {/* Footer */}

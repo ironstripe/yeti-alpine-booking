@@ -49,6 +49,10 @@ export function getLevelInfo(level: string | null): { label: string; color: stri
   return found || { label: level || "Nicht angegeben", color: "bg-muted text-muted-foreground" };
 }
 
+export function getLevelLabel(level: string | null): string {
+  return getLevelInfo(level).label;
+}
+
 export const COUNTRY_FLAGS: Record<string, string> = {
   LI: "🇱🇮",
   CH: "🇨🇭",

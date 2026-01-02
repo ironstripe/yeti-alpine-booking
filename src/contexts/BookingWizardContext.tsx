@@ -40,6 +40,16 @@ export interface BookingWizardState {
   internalNotes: string;
   instructorNotes: string;
   
+  // Step 4: Payment & Confirmation
+  paymentMethod: "cash" | "card" | "twint" | "invoice" | null;
+  isPaid: boolean;
+  paymentDueDate: string | null;
+  discountPercent: number;
+  discountReason: string;
+  sendCustomerEmail: boolean;
+  sendCustomerWhatsApp: boolean;
+  notifyInstructor: boolean;
+  
   // Metadata
   conversationId: string | null;
   currentStep: WizardStep;
@@ -99,6 +109,14 @@ const initialState: BookingWizardState = {
   customerNotes: "",
   internalNotes: "",
   instructorNotes: "",
+  paymentMethod: null,
+  isPaid: false,
+  paymentDueDate: null,
+  discountPercent: 0,
+  discountReason: "",
+  sendCustomerEmail: true,
+  sendCustomerWhatsApp: false,
+  notifyInstructor: true,
   conversationId: null,
   currentStep: 1,
 };
