@@ -12,6 +12,7 @@ import Inbox from "./pages/Inbox";
 import Bookings from "./pages/Bookings";
 import Customers from "./pages/Customers";
 import Instructors from "./pages/Instructors";
+import InstructorDetail from "./pages/InstructorDetail";
 import Trainings from "./pages/Trainings";
 import Login from "./pages/Login";
 import NotFound from "./pages/NotFound";
@@ -85,6 +86,14 @@ const AppRoutes = () => (
       element={
         <AppLayout>
           <Instructors />
+        </AppLayout>
+      }
+    />
+    <Route
+      path="/instructors/:id"
+      element={
+        <AppLayout>
+          <InstructorDetail />
         </AppLayout>
       }
     />
