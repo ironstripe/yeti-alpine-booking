@@ -21,7 +21,7 @@ import {
   HoverCardContent,
   HoverCardTrigger,
 } from "@/components/ui/hover-card";
-import { Languages, Award, GraduationCap, Snowflake } from "lucide-react";
+import { Languages, Award, GraduationCap } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
@@ -131,31 +131,14 @@ export const InstructorRow = forwardRef<HTMLDivElement, InstructorRowProps>(
             </HoverCardContent>
           </HoverCard>
 
-          {/* Discipline Badges with Icons */}
+          {/* Discipline Badges with Emoji Icons */}
           {badges.length > 0 && (
-            <div className="flex gap-1 shrink-0">
+            <div className="flex gap-0.5 shrink-0">
               {badges.map((badge) => (
                 <Tooltip key={badge.label}>
                   <TooltipTrigger asChild>
-                    <span className="flex items-center justify-center w-5 h-5 rounded bg-muted text-muted-foreground">
-                      {badge.label === "K" ? (
-                        // Ski icon - custom SVG
-                        <svg 
-                          viewBox="0 0 24 24" 
-                          fill="none" 
-                          stroke="currentColor" 
-                          strokeWidth="2" 
-                          strokeLinecap="round" 
-                          strokeLinejoin="round"
-                          className="w-3.5 h-3.5"
-                        >
-                          <path d="M5 20L19 4" />
-                          <path d="M3 18L6 21" />
-                        </svg>
-                      ) : (
-                        // Snowboard icon
-                        <Snowflake className="w-3.5 h-3.5" />
-                      )}
+                    <span className="text-sm leading-none">
+                      {badge.label === "K" ? "⛷️" : "🏂"}
                     </span>
                   </TooltipTrigger>
                   <TooltipContent side="top">
