@@ -29,7 +29,7 @@ import { cn } from "@/lib/utils";
 import { useSchedulerCustomerSearch, type SchedulerCustomer } from "@/hooks/useSchedulerCustomerSearch";
 import { toast } from "sonner";
 
-export type ViewMode = "daily" | "weekly" | "period";
+export type ViewMode = "daily" | "3days" | "weekly" | "period";
 
 interface SchedulerHeaderProps {
   date: Date;
@@ -128,6 +128,37 @@ export function SchedulerHeader({
         <Button variant="ghost" size="sm" onClick={goToToday}>
           Heute
         </Button>
+
+        {/* View Mode Toggle */}
+        <div className="flex items-center gap-1 border-l pl-3 ml-2">
+          <span className="text-xs text-muted-foreground mr-1">Ansicht:</span>
+          <div className="flex bg-muted rounded-md p-0.5">
+            <Button 
+              variant={viewMode === "daily" ? "secondary" : "ghost"}
+              size="sm" 
+              className="px-2 h-7 text-xs"
+              onClick={() => onViewModeChange("daily")}
+            >
+              1 Tag
+            </Button>
+            <Button 
+              variant={viewMode === "3days" ? "secondary" : "ghost"}
+              size="sm" 
+              className="px-2 h-7 text-xs"
+              onClick={() => onViewModeChange("3days")}
+            >
+              3 Tage
+            </Button>
+            <Button 
+              variant={viewMode === "weekly" ? "secondary" : "ghost"}
+              size="sm" 
+              className="px-2 h-7 text-xs"
+              onClick={() => onViewModeChange("weekly")}
+            >
+              1 Woche
+            </Button>
+          </div>
+        </div>
 
         {/* Quick-select date buttons */}
         <div className="flex items-center gap-1 border-l pl-2 ml-1">
