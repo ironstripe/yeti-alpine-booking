@@ -50,7 +50,8 @@ export function PendingAbsencesCard() {
         {pendingAbsences?.slice(0, 3).map((absence) => (
           <div 
             key={absence.id}
-            className="flex items-center gap-2 p-2 rounded-md bg-muted/30"
+            className="flex items-center gap-2 p-2 rounded-md bg-muted/30 cursor-pointer hover:bg-muted/50 transition-colors"
+            onClick={() => navigate(`/scheduler?date=${absence.startDate}`)}
           >
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium truncate">

@@ -5,6 +5,7 @@ import { QuickStats } from "@/components/dashboard/QuickStats";
 import { DailyTaskList } from "@/components/dashboard/DailyTaskList";
 import { InboxPreview } from "@/components/dashboard/InboxPreview";
 import { PendingAbsencesCard } from "@/components/dashboard/PendingAbsencesCard";
+import { BookingInquiriesCard } from "@/components/dashboard/BookingInquiriesCard";
 import { EmbeddedScheduler } from "@/components/dashboard/EmbeddedScheduler";
 
 const Dashboard = () => {
@@ -23,6 +24,7 @@ const Dashboard = () => {
         <div className="space-y-4 overflow-auto pr-1">
           <QuickStats />
           <DailyTaskList />
+          <BookingInquiriesCard />
           <InboxPreview />
           <PendingAbsencesCard />
         </div>

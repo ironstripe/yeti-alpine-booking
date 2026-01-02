@@ -2,9 +2,10 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { format, addDays, subDays } from "date-fns";
 import { de } from "date-fns/locale";
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Search, User, Filter } from "lucide-react";
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Search, User, Filter, LayoutList } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -45,6 +46,9 @@ interface SchedulerHeaderProps {
   onCapabilityFilterChange: (filter: string | null) => void;
   visibleDates?: Date[];
   onJumpToDay?: (index: number) => void;
+  compactMode?: boolean;
+  onCompactModeChange?: (compact: boolean) => void;
+  compactStats?: { visible: number; total: number };
 }
 
 export function SchedulerHeader({
@@ -60,6 +64,9 @@ export function SchedulerHeader({
   onCapabilityFilterChange,
   visibleDates = [],
   onJumpToDay,
+  compactMode = false,
+  onCompactModeChange,
+  compactStats,
 }: SchedulerHeaderProps) {
   const navigate = useNavigate();
   const [teacherSearchOpen, setTeacherSearchOpen] = useState(false);
@@ -204,6 +211,26 @@ export function SchedulerHeader({
         {/* Jump to Day Navigator - only for multi-day views */}
         {viewMode !== "daily" && visibleDates.length > 1 && onJumpToDay && (
           <DayNavigator dates={visibleDates} onJumpToDay={onJumpToDay} />
+        )}
+
+        {/* Compact Mode Toggle */}
+        {onCompactModeChange && (
+          <div className="flex items-center gap-2 border-l pl-3 ml-2">
+            <Switch 
+              checked={compactMode} 
+              onCheckedChange={onCompactModeChange}
+              id="compact-mode"
+            />
+            <label htmlFor="compact-mode" className="text-xs flex items-center gap-1 cursor-pointer">
+              <LayoutList className="h-3.5 w-3.5" />
+              Kompakt
+            </label>
+            {compactMode && compactStats && (
+              <span className="text-xs text-muted-foreground">
+                ({compactStats.visible}/{compactStats.total})
+              </span>
+            )}
+          </div>
         )}
       </div>
 
