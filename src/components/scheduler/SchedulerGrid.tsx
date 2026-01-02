@@ -25,6 +25,7 @@ function SchedulerGridContent() {
   const [viewMode, setViewMode] = useState<ViewMode>("daily");
   const [selectedInstructorId, setSelectedInstructorId] = useState<string | null>(null);
   const [highlightedInstructorId, setHighlightedInstructorId] = useState<string | null>(null);
+  const [capabilityFilter, setCapabilityFilter] = useState<string | null>(null);
 
   // Refs for scroll-to-row functionality
   const instructorRefs = useRef<Map<string, HTMLDivElement>>(new Map());
@@ -148,6 +149,8 @@ function SchedulerGridContent() {
             onInstructorFilterChange={setSelectedInstructorId}
             instructorOptions={instructorOptions}
             onInstructorSelect={scrollToInstructor}
+            capabilityFilter={capabilityFilter}
+            onCapabilityFilterChange={setCapabilityFilter}
           />
           {/* Admin: Show Pending Absences Button */}
           {isAdminOrOffice && <PendingAbsencesList />}
@@ -199,6 +202,7 @@ function SchedulerGridContent() {
               slotWidth={SLOT_WIDTH}
               onSlotClick={handleSlotClick}
               isHighlighted={highlightedInstructorId === instructor.id}
+              capabilityFilter={capabilityFilter}
             />
           ))}
         </div>

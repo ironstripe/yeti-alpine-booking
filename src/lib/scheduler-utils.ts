@@ -18,6 +18,7 @@ export interface SchedulerBooking {
   ticketId: string;
   participantName?: string;
   status: string;
+  participantSport?: string | null;
 }
 
 export interface SchedulerAbsence {
