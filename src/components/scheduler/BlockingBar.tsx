@@ -36,14 +36,12 @@ export function BlockingBar({ absence, slotWidth }: BlockingBarProps) {
       <TooltipTrigger asChild>
         <div
           className={cn(
-            "absolute top-1 bottom-1 rounded-md px-2 py-1 text-xs font-medium",
-            "flex items-center gap-1",
+            "absolute top-0.5 bottom-0.5 rounded border px-1.5 py-0.5 text-[10px] font-medium",
+            "flex items-center gap-0.5",
             "cursor-not-allowed",
             isPending
-              ? // Pending: diagonal stripes on dark background
-                "bg-gray-600 text-gray-300 border-2 border-dashed border-amber-500/50"
-              : // Confirmed: solid dark
-                "bg-gray-700 text-gray-200 border border-gray-600"
+              ? "bg-gray-600 text-gray-300 border-dashed border-amber-500/50"
+              : "bg-gray-700 text-gray-200 border-gray-600"
           )}
           style={{
             left: `${left}px`,
@@ -51,15 +49,15 @@ export function BlockingBar({ absence, slotWidth }: BlockingBarProps) {
             ...(isPending
               ? {
                   backgroundImage:
-                    "repeating-linear-gradient(45deg, transparent, transparent 4px, rgba(251, 191, 36, 0.15) 4px, rgba(251, 191, 36, 0.15) 8px)",
+                    "repeating-linear-gradient(45deg, transparent, transparent 3px, rgba(251, 191, 36, 0.15) 3px, rgba(251, 191, 36, 0.15) 6px)",
                 }
               : {}),
           }}
         >
           {isPending ? (
-            <Clock className="h-3 w-3 shrink-0 text-amber-400" />
+            <Clock className="h-2.5 w-2.5 shrink-0 text-amber-400" />
           ) : (
-            <Ban className="h-3 w-3 shrink-0" />
+            <Ban className="h-2.5 w-2.5 shrink-0" />
           )}
           <span className="truncate">
             {ABSENCE_LABELS[absence.type]}

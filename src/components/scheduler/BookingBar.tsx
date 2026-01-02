@@ -70,8 +70,8 @@ export function BookingBar({ booking, slotWidth, instructorSpecialization }: Boo
             {...(isPrivate ? { ...listeners, ...attributes } : {})}
             onClick={handleClick}
             className={cn(
-              "absolute top-1 bottom-1 rounded-md border px-2 py-1 text-xs font-medium truncate",
-              "flex items-center gap-1",
+              "absolute top-0.5 bottom-0.5 rounded border px-1.5 py-0.5 text-[10px] font-medium truncate",
+              "flex items-center gap-0.5",
               barClasses,
               isPrivate && "cursor-grab active:cursor-grabbing",
               isDragging && "opacity-50 z-50 shadow-lg",
@@ -80,10 +80,10 @@ export function BookingBar({ booking, slotWidth, instructorSpecialization }: Boo
             style={style}
           >
             {hasCrossDiscipline && (
-              <AlertTriangle className="h-3 w-3 text-yellow-300 shrink-0" />
+              <AlertTriangle className="h-2.5 w-2.5 text-yellow-300 shrink-0" />
             )}
             <span className="truncate">
-              {booking.participantName || (booking.type === "group" ? "Gruppenkurs" : "Privat")}
+              {booking.participantName || (booking.type === "group" ? "Gruppe" : "Privat")}
             </span>
           </div>
         </TooltipTrigger>
