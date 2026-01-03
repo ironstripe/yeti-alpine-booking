@@ -18,12 +18,21 @@ export function isValidIBAN(iban: string): boolean {
   const cleaned = iban.replace(/\s/g, "").toUpperCase();
   
   // Swiss IBAN: CH + 2 check digits + 17 characters = 21 total
-  if (cleaned.length !== 21 || !cleaned.startsWith("CH")) {
-    return false;
+  if (cleaned.length === 21 && cleaned.startsWith("CH")) {
+    return /^CH\d{2}[A-Z0-9]{17}$/.test(cleaned);
   }
   
-  // Check if it's alphanumeric
-  return /^CH\d{2}[A-Z0-9]{17}$/.test(cleaned);
+  // Liechtenstein IBAN: LI + 2 check digits + 17 characters = 21 total
+  if (cleaned.length === 21 && cleaned.startsWith("LI")) {
+    return /^LI\d{2}[A-Z0-9]{17}$/.test(cleaned);
+  }
+  
+  // German IBAN: DE + 2 check digits + 18 characters = 22 total
+  if (cleaned.length === 22 && cleaned.startsWith("DE")) {
+    return /^DE\d{2}[A-Z0-9]{18}$/.test(cleaned);
+  }
+  
+  return false;
 }
 
 /**

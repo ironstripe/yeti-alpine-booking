@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { PageHeader } from "@/components/layout";
 import { Button } from "@/components/ui/button";
-import { Plus } from "lucide-react";
+import { Plus, Upload } from "lucide-react";
 import { useInstructors, type InstructorWithBookings } from "@/hooks/useInstructors";
 import { StatusSummaryBar } from "@/components/instructors/StatusSummaryBar";
 import { InstructorFilters } from "@/components/instructors/InstructorFilters";
@@ -10,6 +10,7 @@ import { InstructorCard } from "@/components/instructors/InstructorCard";
 import { InstructorEmptyState } from "@/components/instructors/InstructorEmptyState";
 import { InstructorGridSkeleton } from "@/components/instructors/InstructorCardSkeleton";
 import { NewInstructorModal } from "@/components/instructors/NewInstructorModal";
+import { BulkUploadModal } from "@/components/instructors/BulkUploadModal";
 
 const Instructors = () => {
   const navigate = useNavigate();
@@ -17,6 +18,7 @@ const Instructors = () => {
 
   // Modal state
   const [isNewInstructorModalOpen, setIsNewInstructorModalOpen] = useState(false);
+  const [isBulkUploadModalOpen, setIsBulkUploadModalOpen] = useState(false);
 
   // Filter state
   const [searchQuery, setSearchQuery] = useState("");
@@ -128,10 +130,16 @@ const Instructors = () => {
         title="Skilehrer"
         description="Übersicht aller Skilehrer und ihre Verfügbarkeit"
         actions={
-          <Button size="sm" onClick={handleAddInstructor}>
-            <Plus className="h-4 w-4 mr-2" />
-            Neuer Skilehrer
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={() => setIsBulkUploadModalOpen(true)}>
+              <Upload className="h-4 w-4 mr-2" />
+              Import
+            </Button>
+            <Button size="sm" onClick={handleAddInstructor}>
+              <Plus className="h-4 w-4 mr-2" />
+              Neuer Skilehrer
+            </Button>
+          </div>
         }
       />
 
@@ -182,6 +190,11 @@ const Instructors = () => {
       <NewInstructorModal
         open={isNewInstructorModalOpen}
         onOpenChange={setIsNewInstructorModalOpen}
+      />
+
+      <BulkUploadModal
+        open={isBulkUploadModalOpen}
+        onOpenChange={setIsBulkUploadModalOpen}
       />
     </>
   );
