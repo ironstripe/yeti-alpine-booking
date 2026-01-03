@@ -1,8 +1,8 @@
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { format, parseISO } from "date-fns";
+import { format, parseISO, differenceInYears } from "date-fns";
 import { de } from "date-fns/locale";
-import { Snowflake, Sun, AlertTriangle, Clock, CalendarDays, Info, ArrowRight } from "lucide-react";
+import { Snowflake, Sun, AlertTriangle, Clock, CalendarDays, Info, ArrowRight, Baby } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
 import { useBookingWizard } from "@/contexts/BookingWizardContext";
@@ -21,6 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { BookingWarnings, type BookingWarning } from "./BookingWarnings";
 
 // Available start and end times (lift hours: 09:00 - 16:00)
 const START_TIMES = ["09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00"];
@@ -94,6 +95,27 @@ export function Step2ProductDates() {
     const timeSlotValue = `${startTime} - ${endTime}`;
     return UNUSUAL_1H_SLOTS.includes(timeSlotValue);
   }, [calculatedDuration, startTime, endTime]);
+
+  // Check for young children (under 6) with duration > 1h
+  const youngChildWarning = useMemo<BookingWarning | null>(() => {
+    if (state.productType !== "private") return null;
+    if (!calculatedDuration || calculatedDuration <= 1) return null;
+
+    const youngParticipants = state.selectedParticipants.filter((p) => {
+      const age = differenceInYears(new Date(), new Date(p.birth_date));
+      return age < 6;
+    });
+
+    if (youngParticipants.length === 0) return null;
+
+    const names = youngParticipants.map((p) => p.first_name).join(", ");
+    return {
+      id: "age-warning",
+      type: "warning",
+      icon: "age",
+      message: `Intensive Session: Für ${names} (unter 6 Jahren) ist mehr als 1 Stunde sehr anspruchsvoll.`,
+    };
+  }, [state.productType, calculatedDuration, state.selectedParticipants]);
 
   // Find matching product
   const selectedProduct = useMemo(() => {
@@ -294,6 +316,11 @@ export function Step2ProductDates() {
                 Diese Startzeit ist unüblich für Einzelstunden. Bitte bestätigen Sie die Auswahl.
               </AlertDescription>
             </Alert>
+          )}
+
+          {/* Age warning for young children with long lessons */}
+          {youngChildWarning && (
+            <BookingWarnings warnings={[youngChildWarning]} />
           )}
         </div>
       )}

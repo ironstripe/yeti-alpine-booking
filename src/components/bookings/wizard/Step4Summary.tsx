@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { toast } from "sonner";
 
 import { Checkbox } from "@/components/ui/checkbox";
@@ -13,9 +13,40 @@ import { DiscountSection } from "./DiscountSection";
 import { PaymentMethodSelection } from "./PaymentMethodSelection";
 import { ConfirmationOptions } from "./ConfirmationOptions";
 import { BookingSuccessModal } from "./BookingSuccessModal";
+import { BookingWarnings, type BookingWarning } from "./BookingWarnings";
 
 interface Step4SummaryProps {
   onEditStep: (step: WizardStep) => void;
+}
+
+// Check if booking qualifies for 2x2h discount
+function check2x2hDiscount(
+  duration: number | null,
+  selectedDates: string[],
+  appointments: { date: string; durationMinutes: number }[] | null
+): boolean {
+  // If using appointments mode (from scheduler)
+  if (appointments && appointments.length > 0) {
+    // Group by date and check for 2x 2h blocks on the same day
+    const byDate = appointments.reduce((acc, apt) => {
+      if (!acc[apt.date]) acc[apt.date] = [];
+      acc[apt.date].push(apt.durationMinutes);
+      return acc;
+    }, {} as Record<string, number[]>);
+
+    return Object.values(byDate).some((durations) => {
+      const twoHourBlocks = durations.filter((d) => d === 120);
+      return twoHourBlocks.length >= 2;
+    });
+  }
+
+  // Simple mode: same duration across all dates
+  // 2x2h discount only applies if duration is 2h and we have bookings
+  // that when combined on same day equal 2x2h
+  // For simple mode, user would need to book 2h twice on same day
+  // which currently isn't supported in simple mode (single duration selection)
+  // So for now, this only triggers in complex/appointments mode
+  return false;
 }
 
 export function Step4Summary({ onEditStep }: Step4SummaryProps) {
@@ -37,6 +68,30 @@ export function Step4Summary({ onEditStep }: Step4SummaryProps) {
   const [showSuccess, setShowSuccess] = useState(false);
   const [createdTicket, setCreatedTicket] = useState<{ id: string; number: string } | null>(null);
 
+  // Check for automatic 2x2h discount
+  const qualifiesFor2x2hDiscount = useMemo(() => {
+    return check2x2hDiscount(state.duration, state.selectedDates, state.appointments);
+  }, [state.duration, state.selectedDates, state.appointments]);
+
+  const autoDiscountPercent = qualifiesFor2x2hDiscount ? 10 : 0;
+  const autoDiscountReason = qualifiesFor2x2hDiscount ? "2x2h Tagesrabatt" : undefined;
+
+  // Build warnings for summary
+  const warnings = useMemo<BookingWarning[]>(() => {
+    const result: BookingWarning[] = [];
+
+    if (qualifiesFor2x2hDiscount) {
+      result.push({
+        id: "2x2h-discount",
+        type: "info",
+        icon: "discount",
+        message: "2x2h Tagesrabatt automatisch angewendet: 10% Ermässigung",
+      });
+    }
+
+    return result;
+  }, [qualifiesFor2x2hDiscount]);
+
   const handleDiscountChange = (percent: number, reason: string) => {
     setDiscountPercent(percent);
     setDiscountReason(reason);
@@ -53,14 +108,21 @@ export function Step4Summary({ onEditStep }: Step4SummaryProps) {
       return;
     }
 
+    // Combine manual + auto discount
+    const totalDiscount = discountPercent + autoDiscountPercent;
+    const combinedReason = [
+      autoDiscountReason,
+      discountReason,
+    ].filter(Boolean).join(", ");
+
     try {
       const result = await createBooking.mutateAsync({
         ...state,
         paymentMethod,
         isPaid,
         paymentDueDate,
-        discountPercent,
-        discountReason,
+        discountPercent: totalDiscount,
+        discountReason: combinedReason,
         sendCustomerEmail,
         sendCustomerWhatsApp,
         notifyInstructor,
@@ -93,13 +155,20 @@ export function Step4Summary({ onEditStep }: Step4SummaryProps) {
         </p>
       </div>
 
+      {/* Auto-discount and other warnings */}
+      <BookingWarnings warnings={warnings} />
+
       {/* Summary Cards */}
       <BookingSummaryCards onEditStep={onEditStep} />
 
       <Separator />
 
       {/* Price Breakdown */}
-      <PriceBreakdown discountPercent={discountPercent} />
+      <PriceBreakdown
+        discountPercent={discountPercent}
+        autoDiscountPercent={autoDiscountPercent}
+        autoDiscountReason={autoDiscountReason}
+      />
 
       {/* Discount */}
       <DiscountSection

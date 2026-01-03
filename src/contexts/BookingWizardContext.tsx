@@ -118,7 +118,7 @@ const initialState: BookingWizardState = {
   instructorId: null,
   instructor: null,
   assignLater: false,
-  meetingPoint: "hotel_gorfion",
+  meetingPoint: "sammelplatz_gorfion",
   preferredInstructorId: null,
   language: "de",
   customerNotes: "",
