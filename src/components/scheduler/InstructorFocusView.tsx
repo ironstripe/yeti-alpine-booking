@@ -49,15 +49,15 @@ export function InstructorFocusView({
         {Array.from({ length: 8 }).map((_, i) => (
           <div key={i} className="border-b-2 border-slate-300">
             <div className="flex border-b border-slate-300">
-              <div className="w-40 shrink-0 border-r border-slate-300 px-2 py-2">
-                <Skeleton className="h-4 w-24" />
+              <div className="w-28 shrink-0 border-r border-slate-300 px-2 py-2">
+                <Skeleton className="h-4 w-20" />
               </div>
               <div className="w-14 shrink-0 border-r border-slate-300" />
               <div className="flex-1" />
             </div>
             {Array.from({ length: 3 }).map((_, j) => (
               <div key={j} className="flex border-b border-slate-200 last:border-b-0">
-                <div className="w-40 shrink-0 border-r border-slate-300" />
+                <div className="w-28 shrink-0 border-r border-slate-300" />
                 <div className="w-14 shrink-0 border-r border-slate-200 px-1.5 py-0.5">
                   <Skeleton className="h-3 w-8" />
                 </div>

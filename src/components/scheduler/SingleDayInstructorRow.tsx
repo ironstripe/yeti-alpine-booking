@@ -99,7 +99,7 @@ export const SingleDayInstructorRow = forwardRef<HTMLDivElement, SingleDayInstru
       >
         {/* Instructor Info Column - Compact Sticky */}
         <div className={cn(
-          "w-40 shrink-0 border-r border-slate-300 px-2 py-1 flex items-center gap-1.5 sticky left-0 z-10 shadow-[1px_0_2px_rgba(0,0,0,0.03)]",
+          "w-28 shrink-0 border-r border-slate-300 px-2 py-1 flex items-center gap-1.5 sticky left-0 z-10 shadow-[1px_0_2px_rgba(0,0,0,0.03)]",
           isEvenRow && !isFullDayAbsent && !isHighlighted ? "bg-slate-50" : "bg-background"
         )}>
           {/* Color Indicator */}
