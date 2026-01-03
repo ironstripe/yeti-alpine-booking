@@ -24,8 +24,7 @@ import {
 } from "@/contexts/BookingWizardContext";
 import { WizardProgress } from "@/components/bookings/wizard/WizardProgress";
 import { Step1CustomerParticipant } from "@/components/bookings/wizard/Step1CustomerParticipant";
-import { Step2ProductDates } from "@/components/bookings/wizard/Step2ProductDates";
-import { Step3InstructorDetails } from "@/components/bookings/wizard/Step3InstructorDetails";
+import { Step2ProductAllocation } from "@/components/bookings/wizard/Step2ProductAllocation";
 import { Step4Summary } from "@/components/bookings/wizard/Step4Summary";
 
 function BookingWizardContent() {
@@ -76,7 +75,7 @@ function BookingWizardContent() {
   const handleNext = () => {
     if (canProceed()) {
       goToNextStep();
-      if (state.currentStep === 4) {
+      if (state.currentStep === 3) {
         // Final step - create booking
         toast.info("Buchungserstellung wird noch implementiert");
       }
@@ -119,7 +118,7 @@ function BookingWizardContent() {
       </header>
 
       {/* Progress */}
-      <div className="mx-auto max-w-3xl px-4">
+      <div className="mx-auto max-w-5xl px-4">
         <WizardProgress
           currentStep={state.currentStep}
           onStepClick={setCurrentStep}
@@ -127,11 +126,10 @@ function BookingWizardContent() {
       </div>
 
       {/* Content */}
-      <main className="mx-auto max-w-3xl px-4 pb-32">
+      <main className="mx-auto max-w-5xl px-4 pb-32">
         {state.currentStep === 1 && <Step1CustomerParticipant />}
-        {state.currentStep === 2 && <Step2ProductDates />}
-        {state.currentStep === 3 && <Step3InstructorDetails />}
-        {state.currentStep === 4 && <Step4Summary onEditStep={setCurrentStep} />}
+        {state.currentStep === 2 && <Step2ProductAllocation />}
+        {state.currentStep === 3 && <Step4Summary onEditStep={setCurrentStep} />}
       </main>
 
       {/* Footer */}
@@ -140,7 +138,7 @@ function BookingWizardContent() {
           {state.currentStep > 1 ? (
             <Button
               variant="outline"
-              onClick={() => setCurrentStep((state.currentStep - 1) as 1 | 2 | 3 | 4)}
+              onClick={() => setCurrentStep((state.currentStep - 1) as 1 | 2 | 3)}
             >
               <ArrowLeft className="mr-2 h-4 w-4" />
               Zurück
@@ -150,7 +148,7 @@ function BookingWizardContent() {
           )}
 
           <Button onClick={handleNext} disabled={!canProceed()}>
-            {state.currentStep === 4 ? "Buchung erstellen" : "Weiter"}
+            {state.currentStep === 3 ? "Buchung erstellen" : "Weiter"}
           </Button>
         </div>
       </footer>

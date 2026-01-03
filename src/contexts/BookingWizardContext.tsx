@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, ReactNode } from "react";
 import type { Tables } from "@/integrations/supabase/types";
 
-export type WizardStep = 1 | 2 | 3 | 4;
+export type WizardStep = 1 | 2 | 3;
 
 export interface SelectedParticipant {
   id: string;
@@ -312,7 +312,7 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
   const goToNextStep = () => {
     setState((prev) => ({
       ...prev,
-      currentStep: Math.min(prev.currentStep + 1, 4) as WizardStep,
+      currentStep: Math.min(prev.currentStep + 1, 3) as WizardStep,
     }));
   };
 
@@ -327,20 +327,19 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
     switch (state.currentStep) {
       case 1:
         return state.customer !== null && state.selectedParticipants.length > 0;
-      case 2:
-        return state.productType !== null && state.selectedDates.length > 0;
-      case 3: {
-        // Meeting point and language are always required
-        const hasBasicRequirements = state.meetingPoint !== null && state.language !== "";
+      case 2: {
+        // Merged step: Product + Instructor + Meeting Point
+        const hasProduct = state.productType !== null && state.selectedDates.length > 0;
+        const hasMeetingPoint = state.meetingPoint !== null;
         
         // For private: instructor selected OR assign later checked
         if (state.productType === "private") {
-          return hasBasicRequirements && (state.instructor !== null || state.assignLater);
+          return hasProduct && hasMeetingPoint && (state.instructor !== null || state.assignLater);
         }
         // For group: no instructor validation needed
-        return hasBasicRequirements;
+        return hasProduct && hasMeetingPoint;
       }
-      case 4:
+      case 3:
         return true;
       default:
         return false;

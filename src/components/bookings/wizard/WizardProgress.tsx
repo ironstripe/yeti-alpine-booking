@@ -9,9 +9,8 @@ interface WizardProgressProps {
 
 const steps = [
   { step: 1 as WizardStep, label: "Kunde" },
-  { step: 2 as WizardStep, label: "Produkt" },
-  { step: 3 as WizardStep, label: "Lehrer" },
-  { step: 4 as WizardStep, label: "Abschluss" },
+  { step: 2 as WizardStep, label: "Produkt & Zuweisung" },
+  { step: 3 as WizardStep, label: "Abschluss" },
 ];
 
 export function WizardProgress({ currentStep, onStepClick }: WizardProgressProps) {
