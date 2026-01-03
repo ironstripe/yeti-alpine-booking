@@ -306,11 +306,11 @@ export function Step2ProductAllocation() {
               className="justify-start gap-2"
             >
               <ToggleGroupItem value="ski" className="gap-1.5 px-4">
-                <Snowflake className="h-4 w-4" />
+                <span className="text-base">⛷️</span>
                 Ski
               </ToggleGroupItem>
               <ToggleGroupItem value="snowboard" className="gap-1.5 px-4">
-                <Sun className="h-4 w-4" />
+                <span className="text-base">🏂</span>
                 Snowboard
               </ToggleGroupItem>
             </ToggleGroup>
