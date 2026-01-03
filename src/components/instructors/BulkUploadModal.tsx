@@ -44,6 +44,7 @@ export function BulkUploadModal({ open, onOpenChange }: BulkUploadModalProps) {
   const [selectedRows, setSelectedRows] = useState<Set<number>>(new Set());
   const [importResult, setImportResult] = useState<BulkCreateResult | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   const { mutateAsync: bulkCreate, isPending } = useBulkCreateInstructors();
   const { toast } = useToast();
@@ -53,6 +54,7 @@ export function BulkUploadModal({ open, onOpenChange }: BulkUploadModalProps) {
     setParseResult(null);
     setSelectedRows(new Set());
     setImportResult(null);
+    setUploadError(null);
   }, []);
 
   const handleClose = (open: boolean) => {
@@ -63,19 +65,53 @@ export function BulkUploadModal({ open, onOpenChange }: BulkUploadModalProps) {
   };
 
   const handleFileSelect = useCallback((file: File) => {
+    setUploadError(null);
+    console.log("[BulkUpload] Reading file:", file.name, "size:", file.size, "type:", file.type);
+    
     const reader = new FileReader();
-    reader.onload = (e) => {
-      const content = e.target?.result as string;
-      const result = parseInstructorCSV(content);
-      setParseResult(result);
-
-      // Pre-select all valid rows
-      const validRowNumbers = new Set(
-        result.rows.filter((r) => r.errors.length === 0).map((r) => r.rowNumber)
-      );
-      setSelectedRows(validRowNumbers);
-      setStep("preview");
+    
+    reader.onerror = () => {
+      console.error("[BulkUpload] FileReader error:", reader.error);
+      setUploadError("Datei konnte nicht gelesen werden.");
     };
+    
+    reader.onload = (e) => {
+      try {
+        const content = e.target?.result as string;
+        console.log("[BulkUpload] File content length:", content?.length, "first 200 chars:", content?.slice(0, 200));
+        
+        if (!content || content.trim().length === 0) {
+          setUploadError("Die Datei ist leer.");
+          return;
+        }
+        
+        const result = parseInstructorCSV(content);
+        console.log("[BulkUpload] Parse result:", {
+          rowCount: result.rows.length,
+          validCount: result.validCount,
+          errorCount: result.errorCount,
+          headers: result.headers,
+        });
+        
+        if (result.rows.length === 0) {
+          setUploadError("Keine Datenzeilen gefunden. Stellen Sie sicher, dass die CSV-Datei eine Kopfzeile und Daten enthält.");
+          return;
+        }
+        
+        setParseResult(result);
+
+        // Pre-select all valid rows
+        const validRowNumbers = new Set(
+          result.rows.filter((r) => r.errors.length === 0).map((r) => r.rowNumber)
+        );
+        setSelectedRows(validRowNumbers);
+        setStep("preview");
+      } catch (err) {
+        console.error("[BulkUpload] Parse error:", err);
+        setUploadError("Fehler beim Parsen der CSV-Datei: " + (err instanceof Error ? err.message : "Unbekannter Fehler"));
+      }
+    };
+    
     reader.readAsText(file, "UTF-8");
   }, []);
 
@@ -247,10 +283,16 @@ export function BulkUploadModal({ open, onOpenChange }: BulkUploadModalProps) {
                   Unterstützt: .csv mit Semikolon-Trennung
                 </p>
               </div>
+              {uploadError && (
+                <div className="flex items-center gap-2 text-destructive bg-destructive/10 px-4 py-2 rounded-md">
+                  <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                  <span className="text-sm">{uploadError}</span>
+                </div>
+              )}
               <input
                 id="csv-input"
                 type="file"
-                accept=".csv"
+                accept=".csv,.txt"
                 className="hidden"
                 onChange={handleFileInputChange}
               />

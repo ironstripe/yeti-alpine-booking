@@ -20,7 +20,7 @@ export interface CSVParseResult {
   errorCount: number;
 }
 
-// Column mapping from German CSV headers to database fields
+// Column mapping from German CSV headers to database fields (case-insensitive, normalized)
 const COLUMN_MAP: Record<string, keyof InstructorInsert | "extra"> = {
   "name": "last_name",
   "nachname": "last_name",
@@ -34,8 +34,10 @@ const COLUMN_MAP: Record<string, keyof InstructorInsert | "extra"> = {
   "ort": "city",
   "land": "country",
   "status": "status",
+  "ahvpeid": "ahv_number",
   "ahv_peid": "ahv_number",
   "ahv": "ahv_number",
+  "lohnaktuell": "hourly_rate",
   "lohn_aktuell": "hourly_rate",
   "stundenlohn": "hourly_rate",
   "iban": "iban",
@@ -133,7 +135,14 @@ function mapCountry(countryStr: string): string {
  * Parse CSV content to array of rows
  */
 export function parseCSVContent(content: string, delimiter = ";"): string[][] {
-  const lines = content.split(/\r?\n/).filter((line) => line.trim());
+  // Remove BOM if present (common in Excel-exported CSVs)
+  let cleanContent = content;
+  if (content.charCodeAt(0) === 0xFEFF) {
+    cleanContent = content.slice(1);
+  }
+  
+  const lines = cleanContent.split(/\r?\n/).filter((line) => line.trim());
+  
   return lines.map((line) => {
     // Handle quoted values
     const values: string[] = [];
@@ -174,7 +183,19 @@ export function parseInstructorCSV(content: string): CSVParseResult {
     };
   }
   
-  const headers = rows[0].map((h) => h.toLowerCase().replace(/[^a-z_]/g, ""));
+  // Normalize headers: lowercase, remove special chars, trim
+  const headers = rows[0].map((h) => 
+    h.toLowerCase()
+      .trim()
+      .replace(/ä/g, "a")
+      .replace(/ö/g, "o")
+      .replace(/ü/g, "u")
+      .replace(/ß/g, "ss")
+      .replace(/[^a-z0-9_]/g, "")
+  );
+  
+  console.log("[CSV Parser] Detected headers:", headers);
+  
   const dataRows = rows.slice(1);
   
   const parsedRows: ParsedInstructorRow[] = [];
