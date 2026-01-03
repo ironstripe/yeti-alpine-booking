@@ -1,8 +1,8 @@
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { format, parseISO, isWithinInterval } from "date-fns";
+import { format, parseISO } from "date-fns";
 import { de } from "date-fns/locale";
-import { Snowflake, Sun, AlertTriangle, Clock, CalendarDays, Info } from "lucide-react";
+import { Snowflake, Sun, AlertTriangle, Clock, CalendarDays, Info, ArrowRight } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
 import { useBookingWizard } from "@/contexts/BookingWizardContext";
@@ -14,47 +14,23 @@ import { Calendar } from "@/components/ui/calendar";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
-// High season date ranges for current season
-const HIGH_SEASON_RANGES = [
-  { start: "2025-12-23", end: "2026-01-05" },
-  { start: "2026-02-10", end: "2026-03-01" },
-];
-
-function isHighSeasonDate(dateStr: string): boolean {
-  const date = parseISO(dateStr);
-  return HIGH_SEASON_RANGES.some((range) =>
-    isWithinInterval(date, { start: parseISO(range.start), end: parseISO(range.end) })
-  );
-}
-
-const TIME_SLOTS = [
-  { value: "09:00 - 10:00", label: "09:00", duration: 1 },
-  { value: "09:00 - 11:00", label: "09:00", duration: 2 },
-  { value: "09:00 - 13:00", label: "09:00", duration: 4 },
-  { value: "10:00 - 11:00", label: "10:00", duration: 1 },
-  { value: "10:00 - 12:00", label: "10:00", duration: 2 },
-  { value: "10:00 - 14:00", label: "10:00", duration: 4 },
-  { value: "11:00 - 12:00", label: "11:00", duration: 1 },
-  { value: "11:00 - 13:00", label: "11:00", duration: 2 },
-  { value: "12:00 - 13:00", label: "12:00", duration: 1 },
-  { value: "13:00 - 14:00", label: "13:00", duration: 1 },
-  { value: "13:00 - 15:00", label: "13:00", duration: 2 },
-  { value: "14:00 - 15:00", label: "14:00", duration: 1 },
-  { value: "14:00 - 16:00", label: "14:00", duration: 2 },
-  { value: "14:00 - 18:00", label: "14:00", duration: 4 },
-];
+// Available start and end times (lift hours: 09:00 - 16:00)
+const START_TIMES = ["09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00"];
+const END_TIMES = ["10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00"];
 
 // Preferred 1h slots (09-10, 12-13, 13-14)
 const PREFERRED_1H_SLOTS = ["09:00 - 10:00", "12:00 - 13:00", "13:00 - 14:00"];
 
 // Unusual 1h slots (10-12 and 14-16 range)
-const UNUSUAL_1H_SLOTS = ["10:00 - 11:00", "11:00 - 12:00", "14:00 - 15:00"];
-
-// High season allowed slots (only 10:00 and 14:00, min 2h)
-const HIGH_SEASON_SLOTS = TIME_SLOTS.filter(
-  (slot) => (slot.label === "10:00" || slot.label === "14:00") && slot.duration >= 2
-);
+const UNUSUAL_1H_SLOTS = ["10:00 - 11:00", "11:00 - 12:00", "14:00 - 15:00", "15:00 - 16:00"];
 
 export function Step2ProductDates() {
   const {
@@ -69,6 +45,8 @@ export function Step2ProductDates() {
   } = useBookingWizard();
 
   const [selectedMonth, setSelectedMonth] = useState<Date>(new Date());
+  const [startTime, setStartTime] = useState<string | null>(null);
+  const [endTime, setEndTime] = useState<string | null>(null);
 
   // Fetch products from database
   const { data: products = [], isLoading } = useQuery({
@@ -84,26 +62,38 @@ export function Step2ProductDates() {
     },
   });
 
-  // Check if any selected date is in high season
-  const hasHighSeasonDate = useMemo(() => {
-    return state.selectedDates.some(isHighSeasonDate);
-  }, [state.selectedDates]);
+  // Calculate duration from start and end time
+  const calculatedDuration = useMemo(() => {
+    if (!startTime || !endTime) return null;
+    const startHour = parseInt(startTime.split(":")[0]);
+    const endHour = parseInt(endTime.split(":")[0]);
+    return endHour - startHour;
+  }, [startTime, endTime]);
 
-  // Filter time slots based on duration and high season
-  const availableTimeSlots = useMemo(() => {
-    if (!state.duration) return [];
-    
-    const durationSlots = TIME_SLOTS.filter((slot) => slot.duration === state.duration);
-    
-    if (hasHighSeasonDate) {
-      // In high season, only allow 10:00 and 14:00 starts with min 2h
-      return durationSlots.filter(
-        (slot) => (slot.label === "10:00" || slot.label === "14:00")
-      );
+  // Update wizard state when time changes
+  useMemo(() => {
+    if (startTime && endTime) {
+      const timeSlotValue = `${startTime} - ${endTime}`;
+      setTimeSlot(timeSlotValue);
+      if (calculatedDuration) {
+        setDuration(calculatedDuration);
+      }
     }
-    
-    return durationSlots;
-  }, [state.duration, hasHighSeasonDate]);
+  }, [startTime, endTime, calculatedDuration, setTimeSlot, setDuration]);
+
+  // Filter end times to be after start time
+  const availableEndTimes = useMemo(() => {
+    if (!startTime) return END_TIMES;
+    const startHour = parseInt(startTime.split(":")[0]);
+    return END_TIMES.filter((time) => parseInt(time.split(":")[0]) > startHour);
+  }, [startTime]);
+
+  // Check if current selection is an unusual 1h slot
+  const isUnusualSlot = useMemo(() => {
+    if (calculatedDuration !== 1) return false;
+    const timeSlotValue = `${startTime} - ${endTime}`;
+    return UNUSUAL_1H_SLOTS.includes(timeSlotValue);
+  }, [calculatedDuration, startTime, endTime]);
 
   // Find matching product
   const selectedProduct = useMemo(() => {
@@ -222,47 +212,88 @@ export function Step2ProductDates() {
         </div>
       )}
 
-      {/* Duration Selection (for private lessons) */}
+      {/* Time Selection (for private lessons) */}
       {state.productType === "private" && (
         <div className="space-y-3">
-          <Label className="text-base font-semibold">Dauer</Label>
-          <ToggleGroup
-            type="single"
-            value={state.duration?.toString() || ""}
-            onValueChange={(value) => {
-              setDuration(value ? parseInt(value) : null);
-              setTimeSlot(null); // Reset time slot when duration changes
-            }}
-            className="justify-start gap-3"
-          >
-            {!hasHighSeasonDate && (
-              <ToggleGroupItem value="1" className="flex items-center gap-2 px-6 py-3">
-                <Clock className="h-4 w-4" />
-                1 Stunde
-                <Badge variant="secondary" className="ml-2">
-                  CHF 95
+          <Label className="text-base font-semibold">Zeitfenster</Label>
+          
+          <div className="flex items-center gap-3">
+            <div className="flex-1">
+              <Label className="text-xs text-muted-foreground mb-1 block">Startzeit</Label>
+              <Select
+                value={startTime || ""}
+                onValueChange={(value) => {
+                  setStartTime(value);
+                  // Reset end time if it's not valid anymore
+                  if (endTime && parseInt(value.split(":")[0]) >= parseInt(endTime.split(":")[0])) {
+                    setEndTime(null);
+                  }
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Start wählen" />
+                </SelectTrigger>
+                <SelectContent>
+                  {START_TIMES.map((time) => (
+                    <SelectItem key={time} value={time}>
+                      {time}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <ArrowRight className="h-4 w-4 text-muted-foreground mt-5" />
+            
+            <div className="flex-1">
+              <Label className="text-xs text-muted-foreground mb-1 block">Endzeit</Label>
+              <Select
+                value={endTime || ""}
+                onValueChange={setEndTime}
+                disabled={!startTime}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Ende wählen" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableEndTimes.map((time) => (
+                    <SelectItem key={time} value={time}>
+                      {time}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            {calculatedDuration && (
+              <div className="flex items-center gap-2 mt-5">
+                <Clock className="h-4 w-4 text-muted-foreground" />
+                <Badge variant="secondary">
+                  {calculatedDuration} {calculatedDuration === 1 ? "Stunde" : "Stunden"}
                 </Badge>
-              </ToggleGroupItem>
+              </div>
             )}
-            <ToggleGroupItem value="2" className="flex items-center gap-2 px-6 py-3">
-              <Clock className="h-4 w-4" />
-              2 Stunden
-              <Badge variant="secondary" className="ml-2">
-                CHF 180
-              </Badge>
-            </ToggleGroupItem>
-            <ToggleGroupItem value="4" className="flex items-center gap-2 px-6 py-3">
-              <Clock className="h-4 w-4" />
-              4 Stunden
-              <Badge variant="secondary" className="ml-2">
-                CHF 340
-              </Badge>
-            </ToggleGroupItem>
-          </ToggleGroup>
-          {hasHighSeasonDate && (
-            <p className="text-sm text-muted-foreground">
-              In der Hochsaison beträgt die Mindestdauer 2 Stunden.
-            </p>
+          </div>
+          
+          {/* Info hint for 1h lessons */}
+          {calculatedDuration === 1 && (
+            <Alert className="bg-blue-50 border-blue-200">
+              <Info className="h-4 w-4 text-blue-600" />
+              <AlertDescription className="text-blue-800">
+                Einzelstunden sind normalerweise um 09:00, 12:00 oder 13:00 Uhr möglich. 
+                Andere Zeiten können bei Bedarf ausgewählt werden.
+              </AlertDescription>
+            </Alert>
+          )}
+          
+          {/* Warning when unusual slot is selected */}
+          {isUnusualSlot && (
+            <Alert className="bg-amber-50 border-amber-200">
+              <AlertTriangle className="h-4 w-4 text-amber-600" />
+              <AlertDescription className="text-amber-800">
+                Diese Startzeit ist unüblich für Einzelstunden. Bitte bestätigen Sie die Auswahl.
+              </AlertDescription>
+            </Alert>
           )}
         </div>
       )}
@@ -274,16 +305,6 @@ export function Step2ProductDates() {
             <CalendarDays className="mr-2 inline h-4 w-4" />
             {state.productType === "private" ? "Datum wählen" : "Kurstage wählen"}
           </Label>
-          
-          {hasHighSeasonDate && (
-            <Alert variant="destructive" className="bg-orange-50 border-orange-200">
-              <AlertTriangle className="h-4 w-4 text-orange-600" />
-              <AlertDescription className="text-orange-800">
-                <strong>Hochsaison:</strong> Eingeschränkte Startzeiten (10:00 / 14:00) 
-                und Mindestdauer 2h gelten.
-              </AlertDescription>
-            </Alert>
-          )}
 
           <Card>
             <CardContent className="p-0">
@@ -294,17 +315,8 @@ export function Step2ProductDates() {
                 month={selectedMonth}
                 onMonthChange={setSelectedMonth}
                 locale={de}
-                className="rounded-md"
+                className="rounded-md pointer-events-auto"
                 disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
-                modifiers={{
-                  highSeason: (date) => isHighSeasonDate(format(date, "yyyy-MM-dd")),
-                }}
-                modifiersStyles={{
-                  highSeason: {
-                    backgroundColor: "hsl(var(--warning) / 0.2)",
-                    borderRadius: "4px",
-                  },
-                }}
               />
             </CardContent>
           </Card>
@@ -314,11 +326,10 @@ export function Step2ProductDates() {
               {state.selectedDates.sort().map((date) => (
                 <Badge
                   key={date}
-                  variant={isHighSeasonDate(date) ? "destructive" : "secondary"}
+                  variant="secondary"
                   className="text-xs"
                 >
                   {format(parseISO(date), "EEE, d. MMM", { locale: de })}
-                  {isHighSeasonDate(date) && " (HS)"}
                 </Badge>
               ))}
             </div>
@@ -326,66 +337,6 @@ export function Step2ProductDates() {
         </div>
       )}
 
-      {/* Time Slot Selection (for private lessons) */}
-      {state.productType === "private" && state.duration && state.selectedDates.length > 0 && (
-        <div className="space-y-3">
-          <Label className="text-base font-semibold">Startzeit</Label>
-          
-          {/* Info hint for 1h lessons */}
-          {state.duration === 1 && (
-            <Alert className="bg-blue-50 border-blue-200">
-              <Info className="h-4 w-4 text-blue-600" />
-              <AlertDescription className="text-blue-800">
-                Einzelstunden sind normalerweise um 09:00, 12:00 oder 13:00 Uhr möglich. 
-                Andere Zeiten können bei Bedarf ausgewählt werden.
-              </AlertDescription>
-            </Alert>
-          )}
-          
-          <RadioGroup
-            value={state.timeSlot || ""}
-            onValueChange={setTimeSlot}
-            className="grid grid-cols-2 sm:grid-cols-3 gap-2"
-          >
-            {availableTimeSlots.map((slot) => {
-              const isUnusual = state.duration === 1 && UNUSUAL_1H_SLOTS.includes(slot.value);
-              const isPreferred = state.duration === 1 && PREFERRED_1H_SLOTS.includes(slot.value);
-              
-              return (
-                <Label
-                  key={slot.value}
-                  htmlFor={slot.value}
-                  className={`flex cursor-pointer items-center justify-center gap-2 rounded-lg border-2 px-4 py-3 transition-colors ${
-                    state.timeSlot === slot.value
-                      ? "border-primary bg-primary/5"
-                      : isUnusual
-                        ? "border-muted bg-muted/30 hover:border-amber-400"
-                        : "border-muted hover:border-muted-foreground/30"
-                  }`}
-                >
-                  <RadioGroupItem value={slot.value} id={slot.value} className="sr-only" />
-                  <span className={`font-mono text-sm ${isUnusual ? "text-muted-foreground" : ""}`}>
-                    {slot.value}
-                  </span>
-                  {isUnusual && (
-                    <AlertTriangle className="h-3 w-3 text-amber-500" />
-                  )}
-                </Label>
-              );
-            })}
-          </RadioGroup>
-          
-          {/* Warning when unusual slot is selected */}
-          {state.duration === 1 && state.timeSlot && UNUSUAL_1H_SLOTS.includes(state.timeSlot) && (
-            <Alert className="bg-amber-50 border-amber-200">
-              <AlertTriangle className="h-4 w-4 text-amber-600" />
-              <AlertDescription className="text-amber-800">
-                Diese Startzeit ist unüblich für Einzelstunden. Bitte bestätigen Sie die Auswahl.
-              </AlertDescription>
-            </Alert>
-          )}
-        </div>
-      )}
 
       {/* Lunch Supervision Add-on (only for group lessons) */}
       {state.productType === "group" && lunchProduct && (
