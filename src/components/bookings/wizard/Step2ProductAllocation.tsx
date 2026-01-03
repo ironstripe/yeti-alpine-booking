@@ -519,7 +519,7 @@ export function Step2ProductAllocation() {
             </div>
             {/* Assign Later */}
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1">
                 Ohne Lehrer
               </Label>
               <div className="flex items-center gap-2 h-8 rounded-md border bg-background px-3">
