@@ -345,8 +345,8 @@ export function Step2ProductDates() {
         </div>
       )}
 
-      {/* Lunch Supervision Add-on */}
-      {state.productType && lunchProduct && (
+      {/* Lunch Supervision Add-on (only for group lessons) */}
+      {state.productType === "group" && lunchProduct && (
         <div className="space-y-3">
           <Label className="text-base font-semibold">Zusatzoptionen</Label>
           <Card className="p-4">
