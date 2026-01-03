@@ -24,6 +24,7 @@ import {
 } from "@/contexts/BookingWizardContext";
 import { WizardProgress } from "@/components/bookings/wizard/WizardProgress";
 import { Step1CustomerParticipant } from "@/components/bookings/wizard/Step1CustomerParticipant";
+import { Step2ProductDates } from "@/components/bookings/wizard/Step2ProductDates";
 import { Step3InstructorDetails } from "@/components/bookings/wizard/Step3InstructorDetails";
 import { Step4Summary } from "@/components/bookings/wizard/Step4Summary";
 
@@ -128,11 +129,7 @@ function BookingWizardContent() {
       {/* Content */}
       <main className="mx-auto max-w-3xl px-4 pb-32">
         {state.currentStep === 1 && <Step1CustomerParticipant />}
-        {state.currentStep === 2 && (
-          <div className="py-12 text-center text-muted-foreground">
-            Schritt 2: Produkt & Datum (in Entwicklung)
-          </div>
-        )}
+        {state.currentStep === 2 && <Step2ProductDates />}
         {state.currentStep === 3 && <Step3InstructorDetails />}
         {state.currentStep === 4 && <Step4Summary onEditStep={setCurrentStep} />}
       </main>

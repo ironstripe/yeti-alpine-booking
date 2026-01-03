@@ -45,17 +45,52 @@ export function useCreateBooking() {
       // Generate ticket number
       const ticketNumber = await generateTicketNumber();
 
-      // Calculate total (mock calculation - in production use products table)
+      // Fetch products from database
+      const { data: products, error: productsError } = await supabase
+        .from("products")
+        .select("*")
+        .eq("is_active", true);
+      
+      if (productsError) throw productsError;
+
+      // Calculate total from real products
       const daysCount = state.selectedDates.length;
       const duration = state.duration || 2;
-      let unitPrice = 180; // Default 2h private
-      if (state.productType === "private") {
-        unitPrice = duration === 1 ? 95 : duration === 4 ? 340 : 180;
-      } else {
-        const groupPrices: Record<number, number> = { 1: 85, 2: 160, 3: 225, 4: 280, 5: 325 };
-        unitPrice = groupPrices[daysCount] || 85;
+      
+      let unitPrice = 180; // Fallback
+      let productId = state.productId;
+      
+      if (state.productType === "private" && state.sport) {
+        const durationMinutes = duration * 60;
+        const sportName = state.sport === "ski" ? "Ski" : "Snowboard";
+        const product = products?.find(
+          (p) =>
+            p.type === "private" &&
+            p.duration_minutes === durationMinutes &&
+            p.name.includes(sportName)
+        );
+        if (product) {
+          unitPrice = Number(product.price);
+          productId = product.id;
+        }
+      } else if (state.productType === "group") {
+        const product = products?.find(
+          (p) => p.type === "group" && p.name.includes(`${daysCount} Tag`)
+        );
+        if (product) {
+          unitPrice = Number(product.price);
+          productId = product.id;
+        }
       }
-      const totalAmount = state.productType === "private" ? unitPrice * daysCount : unitPrice;
+
+      // Add lunch cost if selected
+      let lunchTotal = 0;
+      const lunchProduct = products?.find((p) => p.type === "lunch");
+      if (state.includeLunch && lunchProduct) {
+        lunchTotal = Number(lunchProduct.price) * daysCount;
+      }
+      
+      const totalAmount = (state.productType === "private" ? unitPrice * daysCount : unitPrice) + lunchTotal;
 
       // Create ticket (without notes - they go to ticket_comments now)
       const { data: ticket, error: ticketError } = await supabase
@@ -77,9 +112,13 @@ export function useCreateBooking() {
       if (ticketError) throw ticketError;
 
       // Create ticket items for each selected date
+      if (!productId) {
+        throw new Error("No product selected");
+      }
+
       const ticketItems = state.selectedDates.map((dateStr) => ({
         ticket_id: ticket.id,
-        product_id: state.productId || "00000000-0000-0000-0000-000000000000", // Placeholder
+        product_id: productId,
         date: dateStr,
         time_start: state.timeSlot?.split(" - ")[0] || "10:00",
         time_end: state.timeSlot?.split(" - ")[1] || "12:00",
