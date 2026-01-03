@@ -363,12 +363,12 @@ export function MiniSchedulerGrid({
             <Users className="h-3.5 w-3.5" />
             <span>Verfügbare Skilehrer</span>
           </div>
-          <div className="flex items-center gap-2 text-[9px] text-muted-foreground">
+          <div className="flex items-center gap-2.5 text-[9px] text-muted-foreground">
             <div className="flex items-center gap-0.5">
-              <Star className="h-2 w-2 fill-amber-400 text-amber-400" />
+              <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
               <span>Empfehlung</span>
             </div>
-            <Badge variant="outline" className="h-3 px-1 text-[7px] bg-purple-50 text-purple-700 border-purple-200">
+            <Badge variant="outline" className="h-3.5 px-1 text-[8px] bg-purple-50 text-purple-700 border-purple-200">
               Kontinuität
             </Badge>
             <div className="flex items-center gap-0.5">
@@ -419,10 +419,10 @@ export function MiniSchedulerGrid({
                 <div
                   key={instructor.id}
                   className={cn(
-                    "flex border-b border-slate-300 last:border-b-0",
+                    "flex border-b border-slate-300 last:border-b-0 transition-colors",
                     idx % 2 === 1 && "bg-slate-50/50",
-                    isSelected && "bg-primary/5",
-                    isContinuity && "border-l-2 border-l-purple-400"
+                    isSelected && "bg-primary/10 ring-1 ring-inset ring-primary/30",
+                    isContinuity && !isSelected && "border-l-2 border-l-purple-400"
                   )}
                 >
                   {/* Instructor name column */}
@@ -450,8 +450,8 @@ export function MiniSchedulerGrid({
                           </p>
                         </TooltipContent>
                       </Tooltip>
-                      {isRecommended && (
-                        <Star className="h-2.5 w-2.5 flex-shrink-0 fill-amber-400 text-amber-400" />
+                      {isRecommended && !isSelected && (
+                        <Star className="h-3 w-3 flex-shrink-0 fill-amber-400 text-amber-400" />
                       )}
                       {isSelected && (
                         <Check className="h-2.5 w-2.5 flex-shrink-0 text-primary" />

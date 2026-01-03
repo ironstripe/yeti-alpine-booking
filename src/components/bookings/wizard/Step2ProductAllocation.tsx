@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
+import { cn } from "@/lib/utils";
 import { useBookingWizard } from "@/contexts/BookingWizardContext";
 import { Separator } from "@/components/ui/separator";
 import { Label } from "@/components/ui/label";
@@ -456,12 +457,12 @@ export function Step2ProductAllocation() {
                         key={point.id}
                         onClick={() => !isLocked && setMeetingPoint(point.id)}
                         disabled={isLocked}
-                        className={`px-2 py-0.5 text-[10px] rounded-full border transition-colors ${
+                        className={`px-2.5 py-1 text-[10px] font-medium rounded-full border transition-all ${
                           isSelected
-                            ? "bg-primary text-primary-foreground border-primary"
+                            ? "bg-primary text-primary-foreground border-primary shadow-sm"
                             : isLocked
-                            ? "cursor-not-allowed bg-muted/30 border-muted text-muted-foreground/50"
-                            : "bg-background hover:bg-muted border-slate-300"
+                            ? "cursor-not-allowed bg-muted/30 border-muted/50 text-muted-foreground/40"
+                            : "bg-background hover:bg-primary/10 hover:border-primary/50 border-border"
                         }`}
                       >
                         {point.name.replace("Sammelplatz ", "").replace("Kasse ", "")}
@@ -561,18 +562,23 @@ export function Step2ProductAllocation() {
             </p>
           </div>
         ) : showAvailabilityGrid ? (
-          <MiniSchedulerGrid
-            selectedDates={state.selectedDates}
-            sport={state.sport}
-            language={state.language}
-            meetingPoint={state.meetingPoint}
-            onSlotSelect={handleSlotSelect}
-            selectedInstructor={state.instructor}
-            preferredTeacher={preferredTeacher}
-            selectedDuration={calculatedDuration}
-            selectedStartTime={startTime}
-            participantIds={state.selectedParticipants.map(p => p.id)}
-          />
+          <div className={cn(
+            "transition-opacity",
+            state.assignLater && "opacity-50 pointer-events-none"
+          )}>
+            <MiniSchedulerGrid
+              selectedDates={state.selectedDates}
+              sport={state.sport}
+              language={state.language}
+              meetingPoint={state.meetingPoint}
+              onSlotSelect={handleSlotSelect}
+              selectedInstructor={state.instructor}
+              preferredTeacher={preferredTeacher}
+              selectedDuration={calculatedDuration}
+              selectedStartTime={startTime}
+              participantIds={state.selectedParticipants.map(p => p.id)}
+            />
+          </div>
         ) : (
           <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground rounded-lg border border-dashed">
             <Info className="h-6 w-6 mb-2" />
