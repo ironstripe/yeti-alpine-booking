@@ -16,7 +16,7 @@ import {
 
 import { supabase } from "@/integrations/supabase/client";
 import { useBookingWizard } from "@/contexts/BookingWizardContext";
-import { Card, CardContent } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
@@ -254,7 +254,7 @@ export function Step2ProductAllocation() {
   }
 
   return (
-    <div className="grid grid-cols-1 gap-4 py-2 lg:grid-cols-5">
+    <div className="grid grid-cols-1 gap-4 py-2 lg:grid-cols-5 items-start">
       {/* Left Column - Requirements (40%) */}
       <div className="space-y-3 lg:col-span-2 bg-slate-50 dark:bg-slate-900/50 rounded-lg p-3">
         {/* Product Type */}
@@ -314,27 +314,23 @@ export function Step2ProductAllocation() {
           </div>
         )}
 
-        {/* Date Selection - Compact */}
+        {/* Date Selection - No Card wrapper for alignment */}
         {state.productType && (
           <div className="space-y-1.5">
             <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1">
               <CalendarDays className="h-3 w-3" />
               {state.productType === "private" ? "Datum" : "Kurstage"}
             </Label>
-            <Card className="overflow-hidden">
-              <CardContent className="p-0">
-                <Calendar
-                  mode="multiple"
-                  selected={state.selectedDates.map((d) => parseISO(d))}
-                  onSelect={handleDateSelect}
-                  month={selectedMonth}
-                  onMonthChange={setSelectedMonth}
-                  locale={de}
-                  className="rounded-md pointer-events-auto text-xs"
-                  disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
-                />
-              </CardContent>
-            </Card>
+            <Calendar
+              mode="multiple"
+              selected={state.selectedDates.map((d) => parseISO(d))}
+              onSelect={handleDateSelect}
+              month={selectedMonth}
+              onMonthChange={setSelectedMonth}
+              locale={de}
+              className="rounded-md border bg-background pointer-events-auto text-xs"
+              disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
+            />
             {state.selectedDates.length > 0 && (
               <div className="flex flex-wrap gap-1">
                 {state.selectedDates.sort().slice(0, 5).map((date) => (
@@ -352,101 +348,7 @@ export function Step2ProductAllocation() {
           </div>
         )}
 
-        {/* Time Selection (for private lessons) - Inline */}
-        {state.productType === "private" && state.selectedDates.length > 0 && (
-          <div className="space-y-1.5">
-            <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1">
-              <Clock className="h-3 w-3" />
-              Zeitfenster
-            </Label>
-            <div className="flex items-center gap-1.5">
-              <Select
-                value={startTime || ""}
-                onValueChange={(value) => {
-                  setStartTime(value);
-                  if (endTime && parseInt(value.split(":")[0]) >= parseInt(endTime.split(":")[0])) {
-                    setEndTime(null);
-                  }
-                }}
-              >
-                <SelectTrigger className="flex-1 h-8 text-sm">
-                  <SelectValue placeholder="Start" />
-                </SelectTrigger>
-                <SelectContent>
-                  {START_TIMES.map((time) => (
-                    <SelectItem key={time} value={time}>
-                      {time}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <ArrowRight className="h-3 w-3 text-muted-foreground flex-shrink-0" />
-              <Select
-                value={endTime || ""}
-                onValueChange={setEndTime}
-                disabled={!startTime}
-              >
-                <SelectTrigger className="flex-1 h-8 text-sm">
-                  <SelectValue placeholder="Ende" />
-                </SelectTrigger>
-                <SelectContent>
-                  {availableEndTimes.map((time) => (
-                    <SelectItem key={time} value={time}>
-                      {time}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {calculatedDuration && (
-                <Badge variant="secondary" className="flex-shrink-0 text-xs">
-                  {calculatedDuration}h
-                </Badge>
-              )}
-            </div>
-            {/* Compact inline warnings */}
-            {warnings.length > 0 && (
-              <BookingWarnings warnings={warnings} variant="compact" className="mt-1" />
-            )}
-          </div>
-        )}
-
-        {/* Meeting Point - 2x2 Grid */}
-        {state.productType && state.selectedDates.length > 0 && (
-          <div className="space-y-1.5">
-            <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1">
-              <MapPin className="h-3 w-3" />
-              Treffpunkt
-            </Label>
-            <div className="grid grid-cols-2 gap-1.5">
-              {MEETING_POINTS.map((point) => {
-                const isSelected = state.meetingPoint === point.id;
-                const isLocked = allBeginnersOnly && point.id !== "sammelplatz_gorfion";
-                const Icon = point.icon;
-
-                return (
-                  <button
-                    key={point.id}
-                    onClick={() => !isLocked && setMeetingPoint(point.id)}
-                    disabled={isLocked}
-                    className={`flex items-center gap-1.5 rounded-md border p-1.5 text-left transition-colors ${
-                      isSelected
-                        ? "border-primary bg-primary/5"
-                        : isLocked
-                        ? "cursor-not-allowed border-muted bg-muted/30 opacity-50"
-                        : "border-muted hover:border-muted-foreground/30"
-                    }`}
-                  >
-                    <Icon className="h-3.5 w-3.5 flex-shrink-0" />
-                    <span className="text-[11px] font-medium truncate">{point.name.replace("Sammelplatz ", "")}</span>
-                    {isSelected && <Check className="h-3 w-3 text-primary ml-auto flex-shrink-0" />}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* Language - Inline */}
+        {/* Language */}
         {state.productType && (
           <div className="space-y-1.5">
             <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1">
@@ -479,7 +381,7 @@ export function Step2ProductAllocation() {
               placeholder="Name suchen..."
               value={preferredTeacher}
               onChange={(e) => setPreferredTeacher(e.target.value)}
-              className="h-8 text-sm"
+              className="h-9 text-sm"
             />
           </div>
         )}
@@ -534,9 +436,104 @@ export function Step2ProductAllocation() {
         )}
       </div>
 
-      {/* Right Column - Live Availability (60%) */}
-      <div className="lg:col-span-3 space-y-1.5">
+      {/* Right Column - Controls + Live Availability (60%) */}
+      <div className="lg:col-span-3 space-y-2">
+        {/* Grid Control Bar - Time + Meeting Point (only for private with dates) */}
+        {state.productType === "private" && state.selectedDates.length > 0 && (
+          <div className="flex flex-wrap items-center gap-3 bg-background rounded-lg border border-slate-300 px-3 py-2">
+            {/* Time Selection */}
+            <div className="flex items-center gap-1.5">
+              <Clock className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+              <Select
+                value={startTime || ""}
+                onValueChange={(value) => {
+                  setStartTime(value);
+                  if (endTime && parseInt(value.split(":")[0]) >= parseInt(endTime.split(":")[0])) {
+                    setEndTime(null);
+                  }
+                }}
+              >
+                <SelectTrigger className="w-[72px] h-7 text-xs">
+                  <SelectValue placeholder="Start" />
+                </SelectTrigger>
+                <SelectContent>
+                  {START_TIMES.map((time) => (
+                    <SelectItem key={time} value={time}>
+                      {time}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <ArrowRight className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+              <Select
+                value={endTime || ""}
+                onValueChange={setEndTime}
+                disabled={!startTime}
+              >
+                <SelectTrigger className="w-[72px] h-7 text-xs">
+                  <SelectValue placeholder="Ende" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableEndTimes.map((time) => (
+                    <SelectItem key={time} value={time}>
+                      {time}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {calculatedDuration && (
+                <Badge variant="secondary" className="text-xs h-5 px-1.5">
+                  {calculatedDuration}h
+                </Badge>
+              )}
+            </div>
 
+            {/* Separator */}
+            <div className="w-px h-5 bg-slate-300" />
+
+            {/* Meeting Points - Horizontal Pills */}
+            <div className="flex items-center gap-1.5">
+              <MapPin className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+              {MEETING_POINTS.map((point) => {
+                const isSelected = state.meetingPoint === point.id;
+                const isLocked = allBeginnersOnly && point.id !== "sammelplatz_gorfion";
+                return (
+                  <button
+                    key={point.id}
+                    onClick={() => !isLocked && setMeetingPoint(point.id)}
+                    disabled={isLocked}
+                    className={`px-2 py-0.5 text-[10px] rounded-full border transition-colors ${
+                      isSelected
+                        ? "bg-primary text-primary-foreground border-primary"
+                        : isLocked
+                        ? "cursor-not-allowed bg-muted/30 border-muted text-muted-foreground/50"
+                        : "bg-background hover:bg-muted border-slate-300"
+                    }`}
+                  >
+                    {point.name.replace("Sammelplatz ", "").replace("Kasse ", "")}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Slim Warning Bar */}
+        {warnings.length > 0 && state.productType === "private" && state.selectedDates.length > 0 && (
+          <div className="flex flex-wrap items-center gap-3 px-3 py-1.5 bg-amber-50/80 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded text-[11px] text-amber-800 dark:text-amber-200">
+            {warnings.map((w) => {
+              const IconComponent = w.icon === "age" ? Users : w.icon === "beginner" ? MapPin : Clock;
+              return (
+                <div key={w.id} className="flex items-center gap-1">
+                  <IconComponent className="h-3 w-3" />
+                  <span>{w.message}</span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Availability Grid or Placeholder */}
         {isGroupCourse ? (
           <div className="flex flex-col items-center justify-center py-8 text-center rounded-lg border border-dashed">
             <Users className="h-10 w-10 text-muted-foreground mb-2" />
