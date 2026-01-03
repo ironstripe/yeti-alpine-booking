@@ -187,15 +187,22 @@ export function MiniSchedulerGrid({
       return hour >= bookingStart && hour < bookingEnd;
     });
 
-    // Check for absence
-    const hasAbsence = absences.some(
+    // Check for absence (both pending and confirmed block bookings)
+    const absence = absences.find(
       (a) =>
         a.instructorId === instructorId &&
         date >= a.startDate &&
         date <= a.endDate
     );
+    const hasAbsence = !!absence;
+    const absenceStatus = absence?.status || null;
 
-    return { available: !hasBooking && !hasAbsence, booked: hasBooking, absent: hasAbsence };
+    return { 
+      available: !hasBooking && !hasAbsence, 
+      booked: hasBooking, 
+      absent: hasAbsence,
+      absenceStatus,
+    };
   };
 
   // Check if instructor is available for the selected time window
@@ -559,7 +566,7 @@ export function MiniSchedulerGrid({
                           </div>
                         )}
                         {HOURS.map((hour) => {
-                          const { available, booked, absent } = isSlotAvailable(instructor.id, dateStr, hour);
+                          const { available, booked, absent, absenceStatus } = isSlotAvailable(instructor.id, dateStr, hour);
                           const timeStart = `${hour.toString().padStart(2, "0")}:00`;
                           const timeEnd = `${(hour + 1).toString().padStart(2, "0")}:00`;
                           // Only highlight duration for the SELECTED instructor, not all
@@ -569,6 +576,7 @@ export function MiniSchedulerGrid({
                           const materialConflict = getMaterialConflict(instructor.id, dateStr, hour);
                           const inDragRange = isInDragRange(instructor.id, dateStr, hour);
                           const dragRangeValid = isDragRangeAvailable();
+                          const isPendingAbsence = absent && absenceStatus === "pending";
 
                           return (
                             <Tooltip key={hour}>
@@ -624,6 +632,8 @@ export function MiniSchedulerGrid({
                                       ? "cursor-pointer bg-emerald-50 hover:bg-emerald-200"
                                       : booked
                                       ? "cursor-not-allowed bg-rose-100"
+                                      : absent && isPendingAbsence
+                                      ? "cursor-not-allowed bg-slate-600 bg-stripes"
                                       : absent
                                       ? "cursor-not-allowed bg-slate-800"
                                       : "cursor-not-allowed bg-slate-200",
@@ -641,7 +651,7 @@ export function MiniSchedulerGrid({
                                     materialConflict && available && "ring-1 ring-amber-500"
                                   )}
                                 >
-                                  {materialConflict && available && (
+                                {materialConflict && available && (
                                     <RefreshCw className="h-2 w-2 absolute top-0.5 right-0.5 text-amber-600" />
                                   )}
                                 </button>
@@ -651,6 +661,21 @@ export function MiniSchedulerGrid({
                                   {materialConflict.message}
                                   <br />
                                   <span className="text-amber-600">30 Min. Puffer empfohlen</span>
+                                </TooltipContent>
+                              )}
+                              {absent && (
+                                <TooltipContent className="text-xs">
+                                  <span className="font-medium">Abwesenheit</span>
+                                  {isPendingAbsence && (
+                                    <span className="text-amber-600 ml-1">(Antrag ausstehend)</span>
+                                  )}
+                                  <br />
+                                  Keine Buchung möglich
+                                </TooltipContent>
+                              )}
+                              {booked && !absent && (
+                                <TooltipContent className="text-xs">
+                                  Bereits gebucht
                                 </TooltipContent>
                               )}
                             </Tooltip>
