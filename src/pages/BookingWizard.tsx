@@ -158,36 +158,36 @@ function BookingWizardContent() {
 
 class BookingWizardErrorBoundary extends Component<
   { children: ReactNode },
-  { hasError: boolean; isContextError: boolean }
+  { hasContextError: boolean }
 > {
   constructor(props: { children: ReactNode }) {
     super(props);
-    this.state = { hasError: false, isContextError: false };
+    this.state = { hasContextError: false };
   }
 
   static getDerivedStateFromError(error: Error) {
-    const isContextError = error.message.includes("useBookingWizard must be used within");
-    return { hasError: true, isContextError };
+    // Only catch the specific context error - let others bubble up
+    if (error.message.includes("useBookingWizard must be used within")) {
+      return { hasContextError: true };
+    }
+    // For non-context errors, don't update state - let them propagate
+    throw error;
   }
 
   componentDidCatch(error: Error) {
-    console.error("BookingWizard Error:", error);
     if (error.message.includes("useBookingWizard must be used within")) {
+      console.error("Context error detected, reloading:", error);
       window.location.reload();
     }
   }
 
   render() {
-    if (this.state.hasError && this.state.isContextError) {
+    if (this.state.hasContextError) {
       return (
         <div className="flex min-h-screen items-center justify-center">
           <p className="text-muted-foreground">Laden...</p>
         </div>
       );
-    }
-    // For non-context errors, let them bubble up or reset
-    if (this.state.hasError && !this.state.isContextError) {
-      this.setState({ hasError: false, isContextError: false });
     }
     return this.props.children;
   }
