@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format, parseISO, isWithinInterval } from "date-fns";
 import { de } from "date-fns/locale";
-import { Snowflake, Sun, AlertTriangle, Clock, CalendarDays } from "lucide-react";
+import { Snowflake, Sun, AlertTriangle, Clock, CalendarDays, Info } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
 import { useBookingWizard } from "@/contexts/BookingWizardContext";
@@ -37,12 +37,19 @@ const TIME_SLOTS = [
   { value: "10:00 - 14:00", label: "10:00", duration: 4 },
   { value: "11:00 - 12:00", label: "11:00", duration: 1 },
   { value: "11:00 - 13:00", label: "11:00", duration: 2 },
+  { value: "12:00 - 13:00", label: "12:00", duration: 1 },
   { value: "13:00 - 14:00", label: "13:00", duration: 1 },
   { value: "13:00 - 15:00", label: "13:00", duration: 2 },
   { value: "14:00 - 15:00", label: "14:00", duration: 1 },
   { value: "14:00 - 16:00", label: "14:00", duration: 2 },
   { value: "14:00 - 18:00", label: "14:00", duration: 4 },
 ];
+
+// Preferred 1h slots (09-10, 12-13, 13-14)
+const PREFERRED_1H_SLOTS = ["09:00 - 10:00", "12:00 - 13:00", "13:00 - 14:00"];
+
+// Unusual 1h slots (10-12 and 14-16 range)
+const UNUSUAL_1H_SLOTS = ["10:00 - 11:00", "11:00 - 12:00", "14:00 - 15:00"];
 
 // High season allowed slots (only 10:00 and 14:00, min 2h)
 const HIGH_SEASON_SLOTS = TIME_SLOTS.filter(
@@ -323,26 +330,60 @@ export function Step2ProductDates() {
       {state.productType === "private" && state.duration && state.selectedDates.length > 0 && (
         <div className="space-y-3">
           <Label className="text-base font-semibold">Startzeit</Label>
+          
+          {/* Info hint for 1h lessons */}
+          {state.duration === 1 && (
+            <Alert className="bg-blue-50 border-blue-200">
+              <Info className="h-4 w-4 text-blue-600" />
+              <AlertDescription className="text-blue-800">
+                Einzelstunden sind normalerweise um 09:00, 12:00 oder 13:00 Uhr möglich. 
+                Andere Zeiten können bei Bedarf ausgewählt werden.
+              </AlertDescription>
+            </Alert>
+          )}
+          
           <RadioGroup
             value={state.timeSlot || ""}
             onValueChange={setTimeSlot}
             className="grid grid-cols-2 sm:grid-cols-3 gap-2"
           >
-            {availableTimeSlots.map((slot) => (
-              <Label
-                key={slot.value}
-                htmlFor={slot.value}
-                className={`flex cursor-pointer items-center justify-center rounded-lg border-2 px-4 py-3 transition-colors ${
-                  state.timeSlot === slot.value
-                    ? "border-primary bg-primary/5"
-                    : "border-muted hover:border-muted-foreground/30"
-                }`}
-              >
-                <RadioGroupItem value={slot.value} id={slot.value} className="sr-only" />
-                <span className="font-mono text-sm">{slot.value}</span>
-              </Label>
-            ))}
+            {availableTimeSlots.map((slot) => {
+              const isUnusual = state.duration === 1 && UNUSUAL_1H_SLOTS.includes(slot.value);
+              const isPreferred = state.duration === 1 && PREFERRED_1H_SLOTS.includes(slot.value);
+              
+              return (
+                <Label
+                  key={slot.value}
+                  htmlFor={slot.value}
+                  className={`flex cursor-pointer items-center justify-center gap-2 rounded-lg border-2 px-4 py-3 transition-colors ${
+                    state.timeSlot === slot.value
+                      ? "border-primary bg-primary/5"
+                      : isUnusual
+                        ? "border-muted bg-muted/30 hover:border-amber-400"
+                        : "border-muted hover:border-muted-foreground/30"
+                  }`}
+                >
+                  <RadioGroupItem value={slot.value} id={slot.value} className="sr-only" />
+                  <span className={`font-mono text-sm ${isUnusual ? "text-muted-foreground" : ""}`}>
+                    {slot.value}
+                  </span>
+                  {isUnusual && (
+                    <AlertTriangle className="h-3 w-3 text-amber-500" />
+                  )}
+                </Label>
+              );
+            })}
           </RadioGroup>
+          
+          {/* Warning when unusual slot is selected */}
+          {state.duration === 1 && state.timeSlot && UNUSUAL_1H_SLOTS.includes(state.timeSlot) && (
+            <Alert className="bg-amber-50 border-amber-200">
+              <AlertTriangle className="h-4 w-4 text-amber-600" />
+              <AlertDescription className="text-amber-800">
+                Diese Startzeit ist unüblich für Einzelstunden. Bitte bestätigen Sie die Auswahl.
+              </AlertDescription>
+            </Alert>
+          )}
         </div>
       )}
 
