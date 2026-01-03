@@ -314,124 +314,128 @@ export function Step2ProductAllocation() {
           </div>
         )}
 
-        {/* Date Selection - No Card wrapper for alignment */}
+        {/* Calendar + Preferences Sub-Grid */}
         {state.productType && (
-          <div className="space-y-1.5">
-            <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1">
-              <CalendarDays className="h-3 w-3" />
-              {state.productType === "private" ? "Datum" : "Kurstage"}
-            </Label>
-            <Calendar
-              mode="multiple"
-              selected={state.selectedDates.map((d) => parseISO(d))}
-              onSelect={handleDateSelect}
-              month={selectedMonth}
-              onMonthChange={setSelectedMonth}
-              locale={de}
-              className="rounded-md border bg-background pointer-events-auto text-xs"
-              disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
-            />
-            {state.selectedDates.length > 0 && (
-              <div className="flex flex-wrap gap-1">
-                {state.selectedDates.sort().slice(0, 5).map((date) => (
-                  <Badge key={date} variant="secondary" className="text-[10px] px-1.5 py-0">
-                    {format(parseISO(date), "E d.", { locale: de })}
-                  </Badge>
-                ))}
-                {state.selectedDates.length > 5 && (
-                  <Badge variant="outline" className="text-[10px] px-1.5 py-0">
-                    +{state.selectedDates.length - 5}
-                  </Badge>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Language */}
-        {state.productType && (
-          <div className="space-y-1.5">
-            <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1">
-              <Globe className="h-3 w-3" />
-              Sprache
-            </Label>
-            <Select value={state.language} onValueChange={setLanguage}>
-              <SelectTrigger className="h-8 text-sm">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {LANGUAGES.map((lang) => (
-                  <SelectItem key={lang.value} value={lang.value}>
-                    {lang.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        )}
-
-        {/* Preferred Teacher Search */}
-        {state.productType === "private" && showAvailabilityGrid && (
-          <div className="space-y-1.5">
-            <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1">
-              <Search className="h-3 w-3" />
-              Wunschlehrer
-            </Label>
-            <Input
-              placeholder="Name suchen..."
-              value={preferredTeacher}
-              onChange={(e) => setPreferredTeacher(e.target.value)}
-              className="h-9 text-sm"
-            />
-          </div>
-        )}
-
-        {/* Lunch Add-on (only for group) */}
-        {state.productType === "group" && lunchProduct && state.selectedDates.length > 0 && (
-          <div className="flex items-center gap-2 rounded-md border p-2">
-            <Checkbox
-              id="lunch"
-              checked={state.includeLunch}
-              onCheckedChange={(checked) => setIncludeLunch(checked as boolean)}
-            />
-            <label htmlFor="lunch" className="flex-1 cursor-pointer text-sm">
-              {lunchProduct.name}
-              <span className="ml-1 text-muted-foreground text-xs">CHF {lunchProduct.price}</span>
-            </label>
-          </div>
-        )}
-
-        {/* Price Preview - Compact */}
-        {selectedProduct && (
-          <div className="flex items-center justify-between rounded-md bg-muted/50 p-2">
-            <div>
-              <p className="text-xs font-medium">{selectedProduct.name}</p>
-              {state.productType === "private" && state.selectedDates.length > 1 && (
-                <p className="text-[10px] text-muted-foreground">
-                  {state.selectedDates.length}× CHF {selectedProduct.price}
-                </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-start">
+            {/* Left: Calendar */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1">
+                <CalendarDays className="h-3 w-3" />
+                {state.productType === "private" ? "Datum" : "Kurstage"}
+              </Label>
+              <Calendar
+                mode="multiple"
+                selected={state.selectedDates.map((d) => parseISO(d))}
+                onSelect={handleDateSelect}
+                month={selectedMonth}
+                onMonthChange={setSelectedMonth}
+                locale={de}
+                className="rounded-md border bg-background pointer-events-auto text-xs"
+                disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
+              />
+              {state.selectedDates.length > 0 && (
+                <div className="flex flex-wrap gap-1">
+                  {state.selectedDates.sort().slice(0, 5).map((date) => (
+                    <Badge key={date} variant="secondary" className="text-[10px] px-1.5 py-0">
+                      {format(parseISO(date), "E d.", { locale: de })}
+                    </Badge>
+                  ))}
+                  {state.selectedDates.length > 5 && (
+                    <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                      +{state.selectedDates.length - 5}
+                    </Badge>
+                  )}
+                </div>
               )}
             </div>
-            <p className="text-lg font-bold">
-              CHF{" "}
-              {state.productType === "private"
-                ? (selectedProduct.price * state.selectedDates.length).toFixed(0)
-                : selectedProduct.price.toFixed(0)}
-            </p>
-          </div>
-        )}
 
-        {/* Assign Later for private lessons */}
-        {state.productType === "private" && showAvailabilityGrid && (
-          <div className="flex items-center gap-2 rounded-md border p-2">
-            <Checkbox
-              id="assign-later"
-              checked={state.assignLater}
-              onCheckedChange={(checked) => setAssignLater(checked === true)}
-            />
-            <label htmlFor="assign-later" className="cursor-pointer text-sm">
-              Später zuweisen (ohne Skilehrer)
-            </label>
+            {/* Right: Preferences */}
+            <div className="space-y-3">
+              {/* Language */}
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1">
+                  <Globe className="h-3 w-3" />
+                  Sprache
+                </Label>
+                <Select value={state.language} onValueChange={setLanguage}>
+                  <SelectTrigger className="h-8 text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {LANGUAGES.map((lang) => (
+                      <SelectItem key={lang.value} value={lang.value}>
+                        {lang.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Preferred Teacher Search */}
+              {state.productType === "private" && (
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1">
+                    <Search className="h-3 w-3" />
+                    Wunschlehrer
+                  </Label>
+                  <Input
+                    placeholder="Name suchen..."
+                    value={preferredTeacher}
+                    onChange={(e) => setPreferredTeacher(e.target.value)}
+                    className="h-9 text-sm"
+                  />
+                </div>
+              )}
+
+              {/* Lunch Add-on (only for group) */}
+              {state.productType === "group" && lunchProduct && state.selectedDates.length > 0 && (
+                <div className="flex items-center gap-2 rounded-md border p-2">
+                  <Checkbox
+                    id="lunch"
+                    checked={state.includeLunch}
+                    onCheckedChange={(checked) => setIncludeLunch(checked as boolean)}
+                  />
+                  <label htmlFor="lunch" className="flex-1 cursor-pointer text-sm">
+                    {lunchProduct.name}
+                    <span className="ml-1 text-muted-foreground text-xs">CHF {lunchProduct.price}</span>
+                  </label>
+                </div>
+              )}
+
+              {/* Assign Later for private lessons */}
+              {state.productType === "private" && showAvailabilityGrid && (
+                <div className="flex items-center gap-2 rounded-md border p-2">
+                  <Checkbox
+                    id="assign-later"
+                    checked={state.assignLater}
+                    onCheckedChange={(checked) => setAssignLater(checked === true)}
+                  />
+                  <label htmlFor="assign-later" className="cursor-pointer text-sm">
+                    Später zuweisen (ohne Skilehrer)
+                  </label>
+                </div>
+              )}
+
+              {/* Price Preview - Compact */}
+              {selectedProduct && (
+                <div className="flex items-center justify-between rounded-md bg-muted/50 p-2">
+                  <div>
+                    <p className="text-xs font-medium">{selectedProduct.name}</p>
+                    {state.productType === "private" && state.selectedDates.length > 1 && (
+                      <p className="text-[10px] text-muted-foreground">
+                        {state.selectedDates.length}× CHF {selectedProduct.price}
+                      </p>
+                    )}
+                  </div>
+                  <p className="text-lg font-bold">
+                    CHF{" "}
+                    {state.productType === "private"
+                      ? (selectedProduct.price * state.selectedDates.length).toFixed(0)
+                      : selectedProduct.price.toFixed(0)}
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>
