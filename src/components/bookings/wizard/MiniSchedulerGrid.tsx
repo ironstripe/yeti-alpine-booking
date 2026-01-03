@@ -9,6 +9,7 @@ import { useSchedulerData } from "@/hooks/useSchedulerData";
 import { cn } from "@/lib/utils";
 import type { Tables } from "@/integrations/supabase/types";
 import { isCrossDiscipline } from "@/lib/level-utils";
+import { getMeetingPointById } from "@/lib/meeting-point-utils";
 
 interface MiniSchedulerGridProps {
   selectedDates: string[];
@@ -17,6 +18,7 @@ interface MiniSchedulerGridProps {
   meetingPoint: string | null;
   onSlotSelect: (instructor: Tables<"instructors">, date: string, timeStart: string, timeEnd: string) => void;
   selectedInstructor: Tables<"instructors"> | null;
+  preferredTeacher?: string;
 }
 
 // Grid hours: 09:00 - 16:00
@@ -29,6 +31,7 @@ export function MiniSchedulerGrid({
   meetingPoint,
   onSlotSelect,
   selectedInstructor,
+  preferredTeacher = "",
 }: MiniSchedulerGridProps) {
   // Determine date range from selected dates
   const dateRange = useMemo(() => {
@@ -71,6 +74,14 @@ export function MiniSchedulerGrid({
     const getAvailabilityScore = (instructor: typeof instructors[0]) => {
       let score = 0;
       
+      // Boost for preferred teacher search
+      if (preferredTeacher) {
+        const fullName = `${instructor.first_name} ${instructor.last_name}`.toLowerCase();
+        if (fullName.includes(preferredTeacher.toLowerCase())) {
+          score += 1000; // Highest priority
+        }
+      }
+      
       for (const dateStr of selectedDates) {
         // Check if absent on this date
         const isAbsent = absences.some(
@@ -108,7 +119,7 @@ export function MiniSchedulerGrid({
       if (scoreB !== scoreA) return scoreB - scoreA;
       return a.last_name.localeCompare(b.last_name);
     });
-  }, [instructors, sport, language, selectedDates, bookings, absences]);
+  }, [instructors, sport, language, selectedDates, bookings, absences, preferredTeacher]);
 
   // Check if a slot is available
   const isSlotAvailable = (instructorId: string, date: string, hour: number) => {
@@ -131,7 +142,7 @@ export function MiniSchedulerGrid({
         date <= a.endDate
     );
 
-    return !hasBooking && !hasAbsence;
+    return { available: !hasBooking && !hasAbsence, booked: hasBooking, absent: hasAbsence };
   };
 
   // Get instructor meeting point conflicts
@@ -142,18 +153,35 @@ export function MiniSchedulerGrid({
       const dayBookings = bookings.filter(
         (b) => b.instructorId === instructorId && b.date === dateStr
       );
-      // This would need to check the meeting point of existing bookings
-      // For now, we just check if they have other bookings
+      
+      for (const booking of dayBookings) {
+        // Check if meeting point differs (booking.meetingPoint from scheduler data)
+        const bookingMeetingPoint = (booking as any).meetingPoint;
+        if (bookingMeetingPoint && bookingMeetingPoint !== meetingPoint) {
+          const otherPoint = getMeetingPointById(bookingMeetingPoint);
+          return `Wechselt von ${otherPoint.name}`;
+        }
+      }
+      
+      // Just has other bookings
       if (dayBookings.length > 0) {
-        return "Hat bereits Buchungen an diesem Tag";
+        return "Hat bereits Buchungen";
       }
     }
     return null;
   };
 
+  // Get discipline icon
+  const getDisciplineIcon = (specialization: string | null) => {
+    if (specialization === "ski") return "⛷️";
+    if (specialization === "snowboard") return "🏂";
+    if (specialization === "both") return "⛷️🏂";
+    return "";
+  };
+
   if (selectedDates.length === 0) {
     return (
-      <div className="flex h-40 items-center justify-center rounded-lg border border-dashed text-muted-foreground">
+      <div className="flex h-32 items-center justify-center rounded-lg border border-dashed text-muted-foreground text-sm">
         Bitte wählen Sie zuerst Datum und Uhrzeit
       </div>
     );
@@ -161,15 +189,15 @@ export function MiniSchedulerGrid({
 
   if (isLoading) {
     return (
-      <div className="flex h-40 items-center justify-center">
-        <div className="animate-pulse text-muted-foreground">Lade Verfügbarkeit...</div>
+      <div className="flex h-32 items-center justify-center">
+        <div className="animate-pulse text-muted-foreground text-sm">Lade Verfügbarkeit...</div>
       </div>
     );
   }
 
   if (sortedInstructors.length === 0) {
     return (
-      <div className="flex h-40 items-center justify-center rounded-lg border border-dashed text-muted-foreground">
+      <div className="flex h-32 items-center justify-center rounded-lg border border-dashed text-muted-foreground text-sm">
         Keine passenden Skilehrer gefunden
       </div>
     );
@@ -177,33 +205,38 @@ export function MiniSchedulerGrid({
 
   return (
     <TooltipProvider>
-      <div className="space-y-2">
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+      <div className="space-y-1.5">
+        {/* Legend */}
+        <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
           <div className="flex items-center gap-1">
-            <div className="h-3 w-3 rounded bg-emerald-100 border border-emerald-300" />
+            <div className="h-2.5 w-2.5 rounded-sm bg-emerald-100 border border-emerald-400" />
             <span>Verfügbar</span>
           </div>
           <div className="flex items-center gap-1">
-            <div className="h-3 w-3 rounded bg-slate-200 border border-slate-400" />
+            <div className="h-2.5 w-2.5 rounded-sm bg-rose-100 border border-rose-400" />
             <span>Belegt</span>
           </div>
           <div className="flex items-center gap-1">
-            <div className="h-3 w-3 rounded bg-primary/20 border-2 border-primary" />
+            <div className="h-2.5 w-2.5 rounded-sm bg-slate-800" />
+            <span>Gesperrt</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="h-2.5 w-2.5 rounded-sm bg-primary/20 border-2 border-primary" />
             <span>Ausgewählt</span>
           </div>
         </div>
 
-        <ScrollArea className="h-[320px] rounded-lg border">
+        <ScrollArea className="h-[380px] rounded-lg border border-slate-300">
           <div className="min-w-[500px]">
             {/* Time header */}
-            <div className="sticky top-0 z-10 flex border-b bg-slate-50">
-              <div className="w-28 flex-shrink-0 border-r p-2 text-xs font-medium text-muted-foreground">
+            <div className="sticky top-0 z-10 flex border-b border-slate-300 bg-slate-100">
+              <div className="w-32 flex-shrink-0 border-r border-slate-300 px-2 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
                 Skilehrer
               </div>
               {HOURS.map((hour) => (
                 <div
                   key={hour}
-                  className="flex-1 border-r p-1 text-center text-xs font-medium text-muted-foreground last:border-r-0"
+                  className="flex-1 border-r border-slate-200 px-1 py-1.5 text-center text-[10px] font-semibold text-muted-foreground last:border-r-0"
                 >
                   {hour}:00
                 </div>
@@ -211,41 +244,46 @@ export function MiniSchedulerGrid({
             </div>
 
             {/* Instructor rows */}
-            {sortedInstructors.slice(0, 10).map((instructor, idx) => {
+            {sortedInstructors.slice(0, 12).map((instructor, idx) => {
               const isRecommended = idx === 0;
               const warning = getInstructorWarning(instructor.id);
               const isSelected = selectedInstructor?.id === instructor.id;
               const isCross = isCrossDiscipline(instructor.specialization, sport);
+              const disciplineIcon = getDisciplineIcon(instructor.specialization);
 
               return (
                 <div
                   key={instructor.id}
                   className={cn(
-                    "flex border-b last:border-b-0",
+                    "flex border-b border-slate-200 last:border-b-0",
                     idx % 2 === 1 && "bg-slate-50/50",
                     isSelected && "bg-primary/5"
                   )}
                 >
-                  {/* Instructor name */}
-                  <div className="w-28 flex-shrink-0 border-r p-2">
+                  {/* Instructor name column */}
+                  <div className="w-32 flex-shrink-0 border-r border-slate-300 px-2 py-1">
                     <div className="flex items-center gap-1">
+                      <span className="text-xs flex-shrink-0">{disciplineIcon}</span>
                       <Tooltip>
                         <TooltipTrigger asChild>
-                          <span className="truncate text-sm font-medium cursor-help">
+                          <span className="truncate text-xs font-medium cursor-help">
                             {instructor.first_name.charAt(0)}. {instructor.last_name}
                           </span>
                         </TooltipTrigger>
-                        <TooltipContent>
-                          <p>{instructor.first_name} {instructor.last_name}</p>
+                        <TooltipContent side="right">
+                          <p className="font-medium">{instructor.first_name} {instructor.last_name}</p>
                           {instructor.languages && (
                             <p className="text-xs text-muted-foreground">
-                              {instructor.languages.join(", ")}
+                              Sprachen: {instructor.languages.join(", ")}
                             </p>
                           )}
+                          <p className="text-xs text-muted-foreground">
+                            Status: {instructor.real_time_status || "unbekannt"}
+                          </p>
                         </TooltipContent>
                       </Tooltip>
                       {isRecommended && (
-                        <Star className="h-3 w-3 flex-shrink-0 text-amber-500" />
+                        <Star className="h-3 w-3 flex-shrink-0 fill-amber-400 text-amber-400" />
                       )}
                       {isSelected && (
                         <Check className="h-3 w-3 flex-shrink-0 text-primary" />
@@ -253,7 +291,7 @@ export function MiniSchedulerGrid({
                     </div>
                     <div className="flex items-center gap-1 mt-0.5">
                       {isCross && (
-                        <Badge variant="outline" className="h-4 px-1 text-[10px]">
+                        <Badge variant="outline" className="h-3.5 px-1 text-[9px] py-0">
                           Fachfremd
                         </Badge>
                       )}
@@ -273,12 +311,12 @@ export function MiniSchedulerGrid({
                     {selectedDates.map((dateStr) => (
                       <div key={dateStr} className="flex">
                         {selectedDates.length > 1 && (
-                          <div className="w-12 flex-shrink-0 border-r p-1 text-[10px] text-muted-foreground">
+                          <div className="w-10 flex-shrink-0 border-r border-slate-200 px-1 py-0.5 text-[9px] text-muted-foreground flex items-center">
                             {format(parseISO(dateStr), "E d.", { locale: de })}
                           </div>
                         )}
                         {HOURS.map((hour) => {
-                          const available = isSlotAvailable(instructor.id, dateStr, hour);
+                          const { available, booked, absent } = isSlotAvailable(instructor.id, dateStr, hour);
                           const timeStart = `${hour.toString().padStart(2, "0")}:00`;
                           const timeEnd = `${(hour + 1).toString().padStart(2, "0")}:00`;
 
@@ -292,9 +330,13 @@ export function MiniSchedulerGrid({
                                 }
                               }}
                               className={cn(
-                                "h-8 flex-1 border-r transition-colors last:border-r-0",
+                                "h-7 flex-1 border-r border-slate-200 transition-all last:border-r-0",
                                 available
-                                  ? "cursor-pointer bg-emerald-50 hover:bg-emerald-100 hover:border-emerald-400"
+                                  ? "cursor-pointer bg-emerald-50 hover:bg-emerald-200 hover:shadow-inner"
+                                  : booked
+                                  ? "cursor-not-allowed bg-rose-100"
+                                  : absent
+                                  ? "cursor-not-allowed bg-slate-800"
                                   : "cursor-not-allowed bg-slate-200",
                                 isSelected && available && "bg-primary/10 hover:bg-primary/20"
                               )}
@@ -311,9 +353,9 @@ export function MiniSchedulerGrid({
           <ScrollBar orientation="horizontal" />
         </ScrollArea>
 
-        {sortedInstructors.length > 10 && (
-          <p className="text-xs text-muted-foreground text-center">
-            +{sortedInstructors.length - 10} weitere Skilehrer
+        {sortedInstructors.length > 12 && (
+          <p className="text-[10px] text-muted-foreground text-center">
+            +{sortedInstructors.length - 12} weitere Skilehrer verfügbar
           </p>
         )}
       </div>
