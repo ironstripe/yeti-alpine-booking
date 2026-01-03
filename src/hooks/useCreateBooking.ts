@@ -2,6 +2,8 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { BookingWizardState } from "@/contexts/BookingWizardContext";
 import { createInitialComments } from "./useTicketComments";
+import { format } from "date-fns";
+import { de } from "date-fns/locale";
 
 interface CreateBookingResult {
   ticketId: string;
@@ -163,6 +165,34 @@ export function useCreateBooking() {
           .eq("id", state.conversationId);
       }
 
+      // Create "Assign Instructor" task if booking was created with "später zuweisen"
+      if (state.assignLater || !state.instructorId) {
+        const customerName = state.customer
+          ? `${state.customer.first_name || ""} ${state.customer.last_name}`.trim()
+          : "Kunde";
+        
+        const dateRange = state.selectedDates.length === 1
+          ? format(new Date(state.selectedDates[0]), "dd.MM.yyyy", { locale: de })
+          : `${format(new Date(state.selectedDates[0]), "dd.MM.", { locale: de })} - ${format(new Date(state.selectedDates[state.selectedDates.length - 1]), "dd.MM.yyyy", { locale: de })}`;
+        
+        const description = `${customerName} – ${dateRange} – ${state.duration || 2}h ${state.sport === "ski" ? "Ski" : "Snowboard"}`;
+
+        await supabase
+          .from("action_tasks")
+          .insert({
+            task_type: "assign_instructor",
+            title: "Skilehrer zuweisen",
+            description,
+            related_ticket_id: ticket.id,
+            due_date: state.selectedDates[0], // First lesson date
+            priority: "high",
+            status: "pending",
+            created_by: user.id,
+          });
+        
+        console.log("📋 Created 'Assign Instructor' task for ticket:", ticketNumber);
+      }
+
       // Log notifications (placeholder for actual sending)
       console.log("📧 Would send confirmation email to:", state.customer?.email);
       if (state.sendCustomerWhatsApp) {
@@ -181,6 +211,7 @@ export function useCreateBooking() {
       queryClient.invalidateQueries({ queryKey: ["tickets"] });
       queryClient.invalidateQueries({ queryKey: ["conversations"] });
       queryClient.invalidateQueries({ queryKey: ["ticket-comments"] });
+      queryClient.invalidateQueries({ queryKey: ["action-tasks"] });
     },
   });
 }

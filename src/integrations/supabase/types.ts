@@ -14,6 +14,69 @@ export type Database = {
   }
   public: {
     Tables: {
+      action_tasks: {
+        Row: {
+          completed_at: string | null
+          completed_by: string | null
+          created_at: string
+          created_by: string | null
+          description: string | null
+          due_date: string | null
+          id: string
+          priority: string | null
+          related_ticket_id: string | null
+          related_ticket_item_id: string | null
+          status: string
+          task_type: string
+          title: string
+        }
+        Insert: {
+          completed_at?: string | null
+          completed_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          priority?: string | null
+          related_ticket_id?: string | null
+          related_ticket_item_id?: string | null
+          status?: string
+          task_type: string
+          title: string
+        }
+        Update: {
+          completed_at?: string | null
+          completed_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          priority?: string | null
+          related_ticket_id?: string | null
+          related_ticket_item_id?: string | null
+          status?: string
+          task_type?: string
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "action_tasks_related_ticket_id_fkey"
+            columns: ["related_ticket_id"]
+            isOneToOne: false
+            referencedRelation: "tickets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "action_tasks_related_ticket_item_id_fkey"
+            columns: ["related_ticket_item_id"]
+            isOneToOne: false
+            referencedRelation: "ticket_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       conversations: {
         Row: {
           ai_confidence_score: number | null
