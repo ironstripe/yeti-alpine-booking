@@ -34,6 +34,7 @@ import {
   Check,
   X,
   AlertCircle,
+  Info,
 } from "lucide-react";
 import { useCreateAbsence, type AbsenceType } from "@/hooks/useInstructorAbsences";
 import { useInstructorAbsenceHistory, type AbsenceHistoryItem } from "@/hooks/useInstructorAbsenceHistory";
@@ -70,6 +71,7 @@ export function AbsenceRequestCard({ instructorId, isTeacherView = false }: Abse
   });
   const [isFullDay, setIsFullDay] = useState(true);
   const [reason, setReason] = useState("");
+  const [submitForApproval, setSubmitForApproval] = useState(false);
 
   const createAbsence = useCreateAbsence();
   const { data: absenceHistory = [], isLoading: isHistoryLoading } = useInstructorAbsenceHistory(instructorId);
@@ -86,14 +88,15 @@ export function AbsenceRequestCard({ instructorId, isTeacherView = false }: Abse
       endDate,
       type: absenceType,
       reason: reason.trim() || undefined,
-      // Teachers submit as pending, admins as confirmed
-      status: isTeacherView ? "pending" : "confirmed",
+      // Teachers submit as pending, admins can choose via toggle
+      status: isTeacherView ? "pending" : (submitForApproval ? "pending" : "confirmed"),
     });
 
     // Reset form
     setAbsenceType("vacation");
     setDateRange({ from: undefined, to: undefined });
     setReason("");
+    setSubmitForApproval(false);
     setIsFormOpen(false);
   };
 
@@ -218,6 +221,30 @@ export function AbsenceRequestCard({ instructorId, isTeacherView = false }: Abse
               />
             </div>
 
+            {/* Submit for Approval Toggle - Only for Admin/Office */}
+            {!isTeacherView && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="submit-for-approval" className="text-sm">
+                    Als Antrag senden (erfordert Genehmigung)
+                  </Label>
+                  <Switch
+                    id="submit-for-approval"
+                    checked={submitForApproval}
+                    onCheckedChange={setSubmitForApproval}
+                  />
+                </div>
+                {submitForApproval && (
+                  <div className="flex items-start gap-2 p-2 rounded-md bg-amber-50 border border-amber-200 text-amber-800">
+                    <Info className="h-4 w-4 mt-0.5 shrink-0" />
+                    <p className="text-xs">
+                      Der Antrag erscheint im Dashboard zur Genehmigung und ist bis dahin als ausstehend markiert.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Submit */}
             <div className="flex gap-2">
               <Button
@@ -225,7 +252,12 @@ export function AbsenceRequestCard({ instructorId, isTeacherView = false }: Abse
                 disabled={!dateRange.from || createAbsence.isPending}
                 className="flex-1"
               >
-                {createAbsence.isPending ? "Wird gesendet..." : isTeacherView ? "Antrag senden" : "Eintragen"}
+                {createAbsence.isPending 
+                  ? "Wird gesendet..." 
+                  : isTeacherView || submitForApproval 
+                    ? "Antrag senden" 
+                    : "Direkt eintragen"
+                }
               </Button>
               <Button variant="outline" onClick={() => setIsFormOpen(false)}>
                 Abbrechen
