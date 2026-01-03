@@ -240,11 +240,12 @@ export function Step2ProductAllocation() {
       setStartTime(timeStart);
       setEndTime(timeEnd);
     }
-    goToNextStep();
+    // No auto-navigation - user must click "Weiter" to proceed
   };
 
   const isGroupCourse = state.productType === "group";
-  const showAvailabilityGrid = state.productType === "private" && state.selectedDates.length > 0 && startTime && endTime;
+  // Show grid as soon as date is selected (before time selection)
+  const showAvailabilityGrid = state.productType === "private" && state.selectedDates.length > 0;
 
   if (productsLoading) {
     return (
