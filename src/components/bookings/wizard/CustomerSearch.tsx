@@ -83,7 +83,16 @@ export function CustomerSearch({
               </p>
             </div>
           </div>
-          <Button variant="ghost" size="sm" onClick={onClear}>
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onClear();
+            }}
+          >
             Ändern
           </Button>
         </CardContent>
