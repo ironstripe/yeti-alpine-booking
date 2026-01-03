@@ -527,8 +527,11 @@ export function MiniSchedulerGrid({
                             <Tooltip key={hour}>
                               <TooltipTrigger asChild>
                                 <button
+                                  type="button"
                                   disabled={!available}
-                                  onClick={() => {
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
                                     if (available) {
                                       onSlotSelect(instructor, dateStr, timeStart, timeEnd);
                                     }
