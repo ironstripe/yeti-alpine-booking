@@ -437,11 +437,11 @@ export function Step2ProductAllocation() {
       </div>
 
       {/* Right Column - Controls + Live Availability (60%) */}
-      <div className="lg:col-span-3 space-y-2 pt-3">
+      <div className="lg:col-span-3 space-y-4">
         {/* Grid Control Bar - Time + Meeting Point (aligned with Buchungstyp) */}
         <div className="space-y-1.5">
-          <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1">
-            <Clock className="h-3 w-3" />
+          <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+            <Clock className="h-3 w-3 inline mr-1" />
             Zeitfenster & Treffpunkt
           </Label>
           <div className="flex flex-wrap items-center gap-3 rounded-md border-2 p-2 min-h-[42px]">
