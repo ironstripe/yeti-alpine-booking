@@ -153,6 +153,21 @@ export function MiniSchedulerGrid({
     return total;
   };
 
+  // Check if instructor is available for the selected time window
+  const isAvailableForSelectedTime = (instructor: typeof instructors[0]) => {
+    if (!selectedStartTime || !selectedDuration) return true; // No time selected = show all
+    
+    const startHour = parseInt(selectedStartTime.split(":")[0]);
+    
+    for (const dateStr of selectedDates) {
+      for (let h = startHour; h < startHour + selectedDuration && h < 16; h++) {
+        const { available } = isSlotAvailable(instructor.id, dateStr, h);
+        if (!available) return false;
+      }
+    }
+    return true;
+  };
+
   // Filter and sort instructors by 4-Tier Ranking Algorithm
   const sortedInstructors = useMemo(() => {
     if (!instructors) return [];
@@ -240,13 +255,22 @@ export function MiniSchedulerGrid({
       return score;
     };
 
+    // Sort: available for selected time first, then by score
     return filtered.sort((a, b) => {
+      // First: Sort by availability for selected time
+      const aAvailable = isAvailableForSelectedTime(a);
+      const bAvailable = isAvailableForSelectedTime(b);
+      
+      if (aAvailable && !bAvailable) return -1;
+      if (!aAvailable && bAvailable) return 1;
+      
+      // Then: Apply 4-tier ranking
       const scoreA = getAvailabilityScore(a);
       const scoreB = getAvailabilityScore(b);
       if (scoreB !== scoreA) return scoreB - scoreA;
       return a.last_name.localeCompare(b.last_name);
     });
-  }, [instructors, sport, language, selectedDates, bookings, absences, preferredTeacher, bookingHistory, selectedDuration]);
+  }, [instructors, sport, language, selectedDates, bookings, absences, preferredTeacher, bookingHistory, selectedDuration, selectedStartTime]);
 
   // Check if a slot is available
   const isSlotAvailable = (instructorId: string, date: string, hour: number) => {
@@ -333,7 +357,7 @@ export function MiniSchedulerGrid({
   if (selectedDates.length === 0) {
     return (
       <div className="flex h-32 items-center justify-center rounded-lg border border-dashed text-muted-foreground text-sm">
-        Bitte wählen Sie zuerst Datum und Uhrzeit
+        Bitte wählen Sie zuerst ein Datum
       </div>
     );
   }
@@ -414,6 +438,7 @@ export function MiniSchedulerGrid({
               const isCross = isCrossDiscipline(instructor.specialization, sport);
               const disciplineIcon = getDisciplineIcon(instructor.specialization);
               const hoursToday = getHoursBooked(instructor.id);
+              const isUnavailableForTime = selectedStartTime && selectedDuration && !isAvailableForSelectedTime(instructor);
 
               return (
                 <div
@@ -422,7 +447,8 @@ export function MiniSchedulerGrid({
                     "flex border-b border-slate-300 last:border-b-0 transition-colors",
                     idx % 2 === 1 && "bg-slate-50/50",
                     isSelected && "bg-primary/10 ring-1 ring-inset ring-primary/30",
-                    isContinuity && !isSelected && "border-l-2 border-l-purple-400"
+                    isContinuity && !isSelected && "border-l-2 border-l-purple-400",
+                    isUnavailableForTime && !isSelected && "opacity-50 bg-slate-100"
                   )}
                 >
                   {/* Instructor name column */}
