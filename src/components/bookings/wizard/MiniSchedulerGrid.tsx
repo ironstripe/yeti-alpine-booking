@@ -520,7 +520,8 @@ export function MiniSchedulerGrid({
                           const { available, booked, absent } = isSlotAvailable(instructor.id, dateStr, hour);
                           const timeStart = `${hour.toString().padStart(2, "0")}:00`;
                           const timeEnd = `${(hour + 1).toString().padStart(2, "0")}:00`;
-                          const isHighlightedDuration = isWithinSelectedDuration(hour) && available;
+                          // Only highlight duration for the SELECTED instructor, not all
+                          const isSelectedInstructorDuration = isSelected && isWithinSelectedDuration(hour);
                           const isHoverPreview = isInHoverPreview(instructor.id, dateStr, hour);
                           const canBookDuration = isDurationBlockAvailable(instructor.id, dateStr, hour);
                           const materialConflict = getMaterialConflict(instructor.id, dateStr, hour);
@@ -553,8 +554,8 @@ export function MiniSchedulerGrid({
                                       : absent
                                       ? "cursor-not-allowed bg-slate-800"
                                       : "cursor-not-allowed bg-slate-200",
-                                    // Duration highlight for matching time window
-                                    isHighlightedDuration && "ring-2 ring-inset ring-primary/50",
+                                    // Duration highlight ONLY for the selected instructor's time window
+                                    isSelectedInstructorDuration && "ring-2 ring-inset ring-primary bg-primary/20",
                                     // Hover preview for booking block
                                     isHoverPreview && canBookDuration && "bg-blue-100",
                                     isHoverPreview && !canBookDuration && "bg-rose-200",
