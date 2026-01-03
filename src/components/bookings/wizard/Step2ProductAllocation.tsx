@@ -255,7 +255,7 @@ export function Step2ProductAllocation() {
   return (
     <div className="grid grid-cols-1 gap-4 py-2 lg:grid-cols-5">
       {/* Left Column - Requirements (40%) */}
-      <div className="space-y-3 lg:col-span-2">
+      <div className="space-y-3 lg:col-span-2 bg-slate-50 dark:bg-slate-900/50 rounded-lg p-3">
         {/* Product Type */}
         <div className="space-y-1.5">
           <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Buchungstyp</Label>
@@ -402,6 +402,10 @@ export function Step2ProductAllocation() {
                 </Badge>
               )}
             </div>
+            {/* Compact inline warnings */}
+            {warnings.length > 0 && (
+              <BookingWarnings warnings={warnings} variant="compact" className="mt-1" />
+            )}
           </div>
         )}
 
@@ -530,15 +534,7 @@ export function Step2ProductAllocation() {
       </div>
 
       {/* Right Column - Live Availability (60%) */}
-      <div className="lg:col-span-3 space-y-2">
-        {/* Warnings at TOP of right column */}
-        {warnings.length > 0 && <BookingWarnings warnings={warnings} />}
-
-        {/* Grid title */}
-        <div className="flex items-center gap-2 text-sm font-medium">
-          <Users className="h-4 w-4" />
-          {isGroupCourse ? "Gruppeninfo" : "Verfügbare Skilehrer"}
-        </div>
+      <div className="lg:col-span-3 space-y-1.5">
 
         {isGroupCourse ? (
           <div className="flex flex-col items-center justify-center py-8 text-center rounded-lg border border-dashed">
@@ -557,6 +553,8 @@ export function Step2ProductAllocation() {
             onSlotSelect={handleSlotSelect}
             selectedInstructor={state.instructor}
             preferredTeacher={preferredTeacher}
+            selectedDuration={calculatedDuration}
+            selectedStartTime={startTime}
           />
         ) : (
           <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground rounded-lg border border-dashed">

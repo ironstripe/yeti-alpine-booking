@@ -15,7 +15,7 @@ const steps = [
 
 export function WizardProgress({ currentStep, onStepClick }: WizardProgressProps) {
   return (
-    <div className="flex items-center justify-center py-6">
+    <div className="flex items-center justify-center py-3">
       <div className="flex items-center gap-0">
         {steps.map((step, index) => {
           const isCompleted = step.step < currentStep;
@@ -34,27 +34,27 @@ export function WizardProgress({ currentStep, onStepClick }: WizardProgressProps
                 }}
                 disabled={isFuture}
                 className={cn(
-                  "flex flex-col items-center gap-2 transition-all",
+                  "flex flex-col items-center gap-1.5 transition-all",
                   isFuture ? "cursor-not-allowed" : "cursor-pointer"
                 )}
               >
                 <div
                   className={cn(
-                    "flex h-10 w-10 items-center justify-center rounded-full border-2 transition-all",
+                    "flex h-8 w-8 items-center justify-center rounded-full border-2 transition-all",
                     isCompleted && "border-primary bg-primary text-primary-foreground",
-                    isCurrent && "border-primary bg-primary text-primary-foreground ring-4 ring-primary/20",
+                    isCurrent && "border-primary bg-primary text-primary-foreground ring-2 ring-primary/20",
                     isFuture && "border-muted-foreground/30 bg-background text-muted-foreground"
                   )}
                 >
                   {isCompleted ? (
-                    <Check className="h-5 w-5" />
+                    <Check className="h-4 w-4" />
                   ) : (
-                    <span className="text-sm font-medium">{step.step}</span>
+                    <span className="text-xs font-medium">{step.step}</span>
                   )}
                 </div>
                 <span
                   className={cn(
-                    "text-xs font-medium",
+                    "text-[11px] font-medium",
                     isCurrent && "text-primary",
                     isCompleted && "text-foreground",
                     isFuture && "text-muted-foreground"
@@ -68,7 +68,7 @@ export function WizardProgress({ currentStep, onStepClick }: WizardProgressProps
               {index < steps.length - 1 && (
                 <div
                   className={cn(
-                    "mx-2 mt-[-20px] h-0.5 w-12 md:w-20",
+                    "mx-1.5 mt-[-16px] h-0.5 w-8 md:w-16",
                     step.step < currentStep ? "bg-primary" : "bg-muted-foreground/30"
                   )}
                 />
