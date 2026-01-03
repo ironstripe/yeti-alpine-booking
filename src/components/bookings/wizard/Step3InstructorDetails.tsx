@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { Users, Info } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
@@ -22,6 +23,11 @@ export function Step3InstructorDetails() {
   } = useBookingWizard();
 
   const isGroupCourse = state.productType === "group";
+
+  // Extract participant levels for meeting point logic
+  const participantLevels = useMemo(() => {
+    return state.selectedParticipants.map((p) => p.level_current_season);
+  }, [state.selectedParticipants]);
 
   return (
     <div className="space-y-8 py-6">
@@ -51,10 +57,13 @@ export function Step3InstructorDetails() {
 
       <Separator />
 
-      {/* Meeting Point */}
+      {/* Meeting Point - pass participant levels and instructor info */}
       <MeetingPointSelection
         selectedPoint={state.meetingPoint}
         onChange={setMeetingPoint}
+        participantLevels={participantLevels}
+        instructorId={state.instructorId}
+        selectedDates={state.selectedDates}
       />
 
       <Separator />
