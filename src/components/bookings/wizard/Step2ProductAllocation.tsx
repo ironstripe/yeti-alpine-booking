@@ -383,19 +383,6 @@ export function Step2ProductAllocation() {
           </div>
         )}
 
-        {/* Assign Later for private lessons */}
-        {state.productType === "private" && showAvailabilityGrid && (
-          <div className="flex items-center gap-2 rounded-md border p-2">
-            <Checkbox
-              id="assign-later"
-              checked={state.assignLater}
-              onCheckedChange={(checked) => setAssignLater(checked === true)}
-            />
-            <label htmlFor="assign-later" className="cursor-pointer text-sm">
-              Später zuweisen (ohne Skilehrer)
-            </label>
-          </div>
-        )}
       </div>
 
       {/* Right Column - Controls + Live Availability (60%) */}
@@ -495,9 +482,9 @@ export function Step2ProductAllocation() {
           </div>
         </div>
 
-        {/* Sprache + Wunschlehrer Row (aligned with Sportart) */}
+        {/* Sprache + Wunschlehrer + Ohne Lehrer Row (aligned with Sportart) */}
         {state.productType === "private" && (
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-3 gap-3">
             {/* Language */}
             <div className="space-y-1.5">
               <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1">
@@ -529,6 +516,22 @@ export function Step2ProductAllocation() {
                 onChange={(e) => setPreferredTeacher(e.target.value)}
                 className="h-8 text-sm"
               />
+            </div>
+            {/* Assign Later */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                Ohne Lehrer
+              </Label>
+              <div className="flex items-center gap-2 h-8 rounded-md border px-2">
+                <Checkbox
+                  id="assign-later"
+                  checked={state.assignLater}
+                  onCheckedChange={(checked) => setAssignLater(checked === true)}
+                />
+                <label htmlFor="assign-later" className="cursor-pointer text-xs">
+                  Später zuweisen
+                </label>
+              </div>
             </div>
           </div>
         )}
