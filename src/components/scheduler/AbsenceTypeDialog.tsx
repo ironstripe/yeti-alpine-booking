@@ -12,7 +12,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { AlertTriangle, Ban, Calendar, Clock } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { AlertTriangle, Ban, Calendar, Clock, Info } from "lucide-react";
 import { useCreateAbsence } from "@/hooks/useInstructorAbsences";
 import { useSchedulerSelection } from "@/contexts/SchedulerSelectionContext";
 import { useUserRole } from "@/hooks/useUserRole";
@@ -44,6 +45,7 @@ export function AbsenceTypeDialog({
 }: AbsenceTypeDialogProps) {
   const [selectedType, setSelectedType] = useState<AbsenceType>("vacation");
   const [reason, setReason] = useState("");
+  const [submitForApproval, setSubmitForApproval] = useState(false);
   
   const { state, clearSelection } = useSchedulerSelection();
   const { isAdminOrOffice, instructorId } = useUserRole();
@@ -52,8 +54,9 @@ export function AbsenceTypeDialog({
   const hasConflicts = conflicts.length > 0;
   
   // Determine if the absence should be pending or confirmed
-  // Admin/Office can create confirmed absences; teachers create pending
-  const willBePending = !isAdminOrOffice;
+  // Admin/Office can create confirmed absences unless they toggle "submit for approval"
+  // Teachers always create pending absences
+  const willBePending = !isAdminOrOffice || submitForApproval;
   
   // Teachers can only create absences for themselves
   const isCreatingForSelf = instructorId && state.teacherId === instructorId;
@@ -83,12 +86,14 @@ export function AbsenceTypeDialog({
     // Reset form
     setSelectedType("vacation");
     setReason("");
+    setSubmitForApproval(false);
   };
 
   const handleClose = () => {
     onOpenChange(false);
     setSelectedType("vacation");
     setReason("");
+    setSubmitForApproval(false);
   };
 
   return (
@@ -204,6 +209,32 @@ export function AbsenceTypeDialog({
             rows={2}
           />
         </div>
+
+        {/* Submit for Approval Toggle - Only for Admin/Office */}
+        {isAdminOrOffice && (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label>Als Antrag senden</Label>
+                <p className="text-sm text-muted-foreground">
+                  Erfordert Genehmigung im Dashboard
+                </p>
+              </div>
+              <Switch
+                checked={submitForApproval}
+                onCheckedChange={setSubmitForApproval}
+              />
+            </div>
+            {submitForApproval && (
+              <Alert className="border-amber-500/30 bg-amber-500/10">
+                <Info className="h-4 w-4 text-amber-500" />
+                <AlertDescription className="text-amber-600/80">
+                  Die Abwesenheit wird als Antrag eingereicht und erscheint im Dashboard zur Genehmigung.
+                </AlertDescription>
+              </Alert>
+            )}
+          </div>
+        )}
 
         <DialogFooter>
           <Button variant="outline" onClick={handleClose}>
