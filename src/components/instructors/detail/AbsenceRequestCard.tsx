@@ -188,13 +188,14 @@ export function AbsenceRequestCard({ instructorId, isTeacherView = false }: Abse
                     )}
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
+                <PopoverContent className="w-auto p-0 z-50" align="start" side="top">
                   <Calendar
                     mode="range"
                     selected={{ from: dateRange.from, to: dateRange.to }}
                     onSelect={(range) => setDateRange({ from: range?.from, to: range?.to })}
                     numberOfMonths={2}
                     disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
+                    className="pointer-events-auto"
                   />
                 </PopoverContent>
               </Popover>
