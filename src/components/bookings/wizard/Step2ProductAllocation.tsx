@@ -348,44 +348,6 @@ export function Step2ProductAllocation() {
           </div>
         )}
 
-        {/* Language */}
-        {state.productType && (
-          <div className="space-y-1.5">
-            <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1">
-              <Globe className="h-3 w-3" />
-              Sprache
-            </Label>
-            <Select value={state.language} onValueChange={setLanguage}>
-              <SelectTrigger className="h-8 text-sm">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {LANGUAGES.map((lang) => (
-                  <SelectItem key={lang.value} value={lang.value}>
-                    {lang.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        )}
-
-        {/* Preferred Teacher Search */}
-        {state.productType === "private" && showAvailabilityGrid && (
-          <div className="space-y-1.5">
-            <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1">
-              <Search className="h-3 w-3" />
-              Wunschlehrer
-            </Label>
-            <Input
-              placeholder="Name suchen..."
-              value={preferredTeacher}
-              onChange={(e) => setPreferredTeacher(e.target.value)}
-              className="h-9 text-sm"
-            />
-          </div>
-        )}
-
         {/* Lunch Add-on (only for group) */}
         {state.productType === "group" && lunchProduct && state.selectedDates.length > 0 && (
           <div className="flex items-center gap-2 rounded-md border p-2">
@@ -438,7 +400,7 @@ export function Step2ProductAllocation() {
 
       {/* Right Column - Controls + Live Availability (60%) */}
       <div className="lg:col-span-3 space-y-4 lg:pt-3">
-        {/* Grid Control Bar - Time + Meeting Point (aligned with Buchungstyp) */}
+        {/* Grid Control Bar - Time + Meeting Point */}
         <div className="space-y-1.5">
           <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
             <Clock className="h-3 w-3 inline mr-1" />
@@ -532,6 +494,44 @@ export function Step2ProductAllocation() {
             )}
           </div>
         </div>
+
+        {/* Sprache + Wunschlehrer Row (aligned with Sportart) */}
+        {state.productType === "private" && (
+          <div className="grid grid-cols-2 gap-3">
+            {/* Language */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1">
+                <Globe className="h-3 w-3" />
+                Sprache
+              </Label>
+              <Select value={state.language} onValueChange={setLanguage}>
+                <SelectTrigger className="h-8 text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {LANGUAGES.map((lang) => (
+                    <SelectItem key={lang.value} value={lang.value}>
+                      {lang.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {/* Preferred Teacher Search */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1">
+                <Search className="h-3 w-3" />
+                Wunschlehrer
+              </Label>
+              <Input
+                placeholder="Name suchen..."
+                value={preferredTeacher}
+                onChange={(e) => setPreferredTeacher(e.target.value)}
+                className="h-8 text-sm"
+              />
+            </div>
+          </div>
+        )}
 
         {/* Slim Warning Bar */}
         {warnings.length > 0 && state.productType === "private" && state.selectedDates.length > 0 && (
