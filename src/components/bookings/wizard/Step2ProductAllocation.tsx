@@ -232,15 +232,19 @@ export function Step2ProductAllocation() {
     timeStart: string,
     timeEnd: string
   ) => {
-    setInstructor(instructor);
-    const clickedDuration = parseInt(timeEnd.split(":")[0]) - parseInt(timeStart.split(":")[0]);
-    if (clickedDuration === 1 && calculatedDuration && calculatedDuration > 1) {
-      // Keep the duration they selected, just assign the instructor
-    } else {
-      setStartTime(timeStart);
-      setEndTime(timeEnd);
+    try {
+      setInstructor(instructor);
+      const clickedDuration = parseInt(timeEnd.split(":")[0]) - parseInt(timeStart.split(":")[0]);
+      if (clickedDuration === 1 && calculatedDuration && calculatedDuration > 1) {
+        // Keep the duration they selected, just assign the instructor
+      } else {
+        setStartTime(timeStart);
+        setEndTime(timeEnd);
+      }
+      // No auto-navigation - user must click "Weiter" to proceed
+    } catch (error) {
+      console.error("Error selecting slot:", error);
     }
-    // No auto-navigation - user must click "Weiter" to proceed
   };
 
   const isGroupCourse = state.productType === "group";
