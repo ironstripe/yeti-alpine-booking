@@ -537,36 +537,6 @@ export function ParticipantSelection({
       {/* Add participant form */}
       {isAddingParticipant && renderParticipantForm(false)}
 
-      {/* Guest child section */}
-      {!isAddingParticipant && !isAddingGuest && (
-        <Card className="border-dashed bg-muted/30">
-          <CardContent className="p-4">
-            <div className="flex items-start gap-3">
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-muted">
-                <User className="h-4 w-4 text-muted-foreground" />
-              </div>
-              <div className="flex-1">
-                <p className="font-medium">Freundeskind hinzufügen?</p>
-                <p className="text-sm text-muted-foreground">
-                  Füge ein Kind hinzu, das nicht zur Familie gehört
-                </p>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setIsAddingGuest(true)}
-                disabled={isAtLimit}
-              >
-                <Plus className="mr-1 h-3 w-3" />
-                Freundeskind
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Add guest form */}
-      {isAddingGuest && renderParticipantForm(true)}
 
       {/* Empty state */}
       {(!participants || participants.length === 0) &&
