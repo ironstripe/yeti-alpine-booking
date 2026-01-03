@@ -522,13 +522,13 @@ export function Step2ProductAllocation() {
               <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
                 Ohne Lehrer
               </Label>
-              <div className="flex items-center gap-2 h-8 rounded-md border px-2">
+              <div className="flex items-center gap-2 h-8 rounded-md border bg-background px-3">
                 <Checkbox
                   id="assign-later"
                   checked={state.assignLater}
                   onCheckedChange={(checked) => setAssignLater(checked === true)}
                 />
-                <label htmlFor="assign-later" className="cursor-pointer text-xs">
+                <label htmlFor="assign-later" className="cursor-pointer text-sm">
                   Später zuweisen
                 </label>
               </div>
