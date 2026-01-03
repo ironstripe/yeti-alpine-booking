@@ -8,8 +8,10 @@ import { StatusToggle } from "@/components/instructors/detail/StatusToggle";
 import { ProfileInfoCard } from "@/components/instructors/detail/ProfileInfoCard";
 import { TodayScheduleCard } from "@/components/instructors/detail/TodayScheduleCard";
 import { SeasonStatsCard } from "@/components/instructors/detail/SeasonStatsCard";
+import { AbsenceRequestCard } from "@/components/instructors/detail/AbsenceRequestCard";
 import { getSpecializationLabel } from "@/hooks/useInstructors";
 import { getLevelLabel } from "@/lib/instructor-utils";
+import { useUserRole } from "@/hooks/useUserRole";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
@@ -17,6 +19,7 @@ import { de } from "date-fns/locale";
 export default function InstructorDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { isTeacher, instructorId: currentUserInstructorId } = useUserRole();
   const {
     instructor,
     isLoading,
@@ -27,6 +30,9 @@ export default function InstructorDetail() {
     updateStatus,
     isUpdatingStatus,
   } = useInstructorDetail(id);
+
+  // Check if the current user is viewing their own profile
+  const isOwnProfile = isTeacher && currentUserInstructorId === id;
 
   const handleEdit = () => {
     toast.info("Bearbeiten-Funktion kommt bald...");
@@ -126,9 +132,15 @@ export default function InstructorDetail() {
           <ProfileInfoCard instructor={instructor} onEdit={handleEdit} />
         </div>
 
-        {/* Right Column - Today & Stats */}
+        {/* Right Column - Today, Absences & Stats */}
         <div className="lg:col-span-2 space-y-6">
           <TodayScheduleCard bookings={todayBookings} />
+          {id && (
+            <AbsenceRequestCard 
+              instructorId={id} 
+              isTeacherView={isOwnProfile}
+            />
+          )}
           <SeasonStatsCard stats={seasonStats} />
         </div>
       </div>

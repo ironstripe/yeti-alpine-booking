@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import {
@@ -28,6 +28,8 @@ import {
   useRejectAbsence,
   type PendingAbsence,
 } from "@/hooks/useAbsenceApproval";
+import { useAbsenceConflicts } from "@/hooks/useAbsenceConflicts";
+import { ConflictWarningBadge } from "./ConflictWarningBadge";
 
 const ABSENCE_LABELS: Record<string, string> = {
   vacation: "Urlaub",
@@ -41,6 +43,19 @@ export function PendingAbsencesList() {
   const { data: pendingAbsences = [], isLoading } = usePendingAbsences();
   const approveAbsence = useApproveAbsence();
   const rejectAbsence = useRejectAbsence();
+
+  // Prepare absence data for conflict check
+  const absencesForConflictCheck = useMemo(() => 
+    pendingAbsences.map(a => ({
+      id: a.id,
+      instructorId: a.instructorId,
+      startDate: a.startDate,
+      endDate: a.endDate,
+    })),
+    [pendingAbsences]
+  );
+
+  const { data: conflictMap = {} } = useAbsenceConflicts(absencesForConflictCheck);
 
   const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
   const [selectedAbsence, setSelectedAbsence] = useState<PendingAbsence | null>(null);
@@ -139,6 +154,11 @@ export function PendingAbsencesList() {
                       <Calendar className="h-4 w-4" />
                       <span>{formatDateRange(absence.startDate, absence.endDate)}</span>
                     </div>
+
+                    {/* Conflict Warning */}
+                    {conflictMap[absence.id] && conflictMap[absence.id].length > 0 && (
+                      <ConflictWarningBadge conflicts={conflictMap[absence.id]} />
+                    )}
 
                     {/* Reason */}
                     {absence.reason && (
