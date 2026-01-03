@@ -29,6 +29,10 @@ export interface SchedulerAbsence {
   type: "vacation" | "sick" | "organization" | "office_duty" | "other";
   status: "pending" | "confirmed" | "rejected";
   reason?: string;
+  // Hourly absence support
+  isFullDay: boolean;
+  timeStart?: string; // e.g., "12:00"
+  timeEnd?: string;   // e.g., "14:00"
 }
 
 // Operational hours (lift times: 09:00 - 16:00)

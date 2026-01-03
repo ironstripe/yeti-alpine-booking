@@ -10,6 +10,9 @@ export interface AbsenceHistoryItem {
   status: string;
   createdAt: string;
   rejectionReason: string | null;
+  isFullDay: boolean;
+  timeStart: string | null;
+  timeEnd: string | null;
 }
 
 export function useInstructorAbsenceHistory(instructorId: string | undefined) {
@@ -35,6 +38,9 @@ export function useInstructorAbsenceHistory(instructorId: string | undefined) {
         status: row.status,
         createdAt: row.created_at,
         rejectionReason: row.rejection_reason,
+        isFullDay: row.is_full_day ?? true,
+        timeStart: row.time_start,
+        timeEnd: row.time_end,
       }));
     },
     enabled: !!instructorId,

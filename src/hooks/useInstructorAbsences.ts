@@ -13,6 +13,9 @@ interface CreateAbsenceParams {
   type: AbsenceType;
   reason?: string;
   status?: AbsenceStatus;
+  isFullDay?: boolean;
+  timeStart?: string;
+  timeEnd?: string;
 }
 
 export function useCreateAbsence() {
@@ -26,7 +29,10 @@ export function useCreateAbsence() {
       endDate, 
       type, 
       reason,
-      status = "confirmed" 
+      status = "confirmed",
+      isFullDay = true,
+      timeStart,
+      timeEnd,
     }: CreateAbsenceParams) => {
       const { data, error } = await supabase
         .from("instructor_absences")
@@ -39,6 +45,9 @@ export function useCreateAbsence() {
           status,
           created_by: user?.id,
           requested_by: status === "pending" ? user?.id : null,
+          is_full_day: isFullDay,
+          time_start: isFullDay ? null : timeStart,
+          time_end: isFullDay ? null : timeEnd,
         })
         .select(`
           id,
