@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format, parseISO, differenceInYears } from "date-fns";
 import { de } from "date-fns/locale";
@@ -72,7 +72,7 @@ export function Step2ProductDates() {
   }, [startTime, endTime]);
 
   // Update wizard state when time changes
-  useMemo(() => {
+  useEffect(() => {
     if (startTime && endTime) {
       const timeSlotValue = `${startTime} - ${endTime}`;
       setTimeSlot(timeSlotValue);
@@ -139,7 +139,7 @@ export function Step2ProductDates() {
   }, [products, state.productType, state.duration, state.sport, state.selectedDates.length]);
 
   // Update productId when product changes
-  useMemo(() => {
+  useEffect(() => {
     if (selectedProduct && selectedProduct.id !== state.productId) {
       setProductId(selectedProduct.id);
     }
