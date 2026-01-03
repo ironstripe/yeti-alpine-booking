@@ -153,6 +153,30 @@ export function MiniSchedulerGrid({
     return total;
   };
 
+  // Check if a slot is available (moved up to be available for isAvailableForSelectedTime)
+  const isSlotAvailable = (instructorId: string, date: string, hour: number) => {
+    const timeStart = `${hour.toString().padStart(2, "0")}:00`;
+    const timeEnd = `${(hour + 1).toString().padStart(2, "0")}:00`;
+
+    // Check for booking overlap
+    const hasBooking = bookings.some((b) => {
+      if (b.instructorId !== instructorId || b.date !== date) return false;
+      const bookingStart = parseInt(b.timeStart.split(":")[0]);
+      const bookingEnd = parseInt(b.timeEnd.split(":")[0]);
+      return hour >= bookingStart && hour < bookingEnd;
+    });
+
+    // Check for absence
+    const hasAbsence = absences.some(
+      (a) =>
+        a.instructorId === instructorId &&
+        date >= a.startDate &&
+        date <= a.endDate
+    );
+
+    return { available: !hasBooking && !hasAbsence, booked: hasBooking, absent: hasAbsence };
+  };
+
   // Check if instructor is available for the selected time window
   const isAvailableForSelectedTime = (instructor: typeof instructors[0]) => {
     if (!selectedStartTime || !selectedDuration) return true; // No time selected = show all
@@ -272,29 +296,7 @@ export function MiniSchedulerGrid({
     });
   }, [instructors, sport, language, selectedDates, bookings, absences, preferredTeacher, bookingHistory, selectedDuration, selectedStartTime]);
 
-  // Check if a slot is available
-  const isSlotAvailable = (instructorId: string, date: string, hour: number) => {
-    const timeStart = `${hour.toString().padStart(2, "0")}:00`;
-    const timeEnd = `${(hour + 1).toString().padStart(2, "0")}:00`;
-
-    // Check for booking overlap
-    const hasBooking = bookings.some((b) => {
-      if (b.instructorId !== instructorId || b.date !== date) return false;
-      const bookingStart = parseInt(b.timeStart.split(":")[0]);
-      const bookingEnd = parseInt(b.timeEnd.split(":")[0]);
-      return hour >= bookingStart && hour < bookingEnd;
-    });
-
-    // Check for absence
-    const hasAbsence = absences.some(
-      (a) =>
-        a.instructorId === instructorId &&
-        date >= a.startDate &&
-        date <= a.endDate
-    );
-
-    return { available: !hasBooking && !hasAbsence, booked: hasBooking, absent: hasAbsence };
-  };
+  // (isSlotAvailable is defined earlier)
 
   // Check if slot is within selected duration window
   const isWithinSelectedDuration = (hour: number) => {
