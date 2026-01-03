@@ -37,6 +37,11 @@ export interface BookingWizardState {
   duration: number | null;
   includeLunch: boolean;
   
+  // Group course specific
+  selectedGroupId: string | null;
+  groupCourseType: "windel_wedelkurs" | "kids_village" | "standard" | null;
+  lunchSelections: Record<string, string[]>; // { participantId: ['2026-01-06', ...] }
+  
   // New: Variable appointments (from scheduler multi-slot selection)
   appointments: AppointmentSlot[] | null;
   
@@ -82,6 +87,10 @@ interface BookingWizardContextType {
   setDuration: (duration: number | null) => void;
   setIncludeLunch: (include: boolean) => void;
   setAppointments: (appointments: AppointmentSlot[] | null) => void;
+  // Group course setters
+  setSelectedGroupId: (id: string | null) => void;
+  setGroupCourseType: (type: "windel_wedelkurs" | "kids_village" | "standard" | null) => void;
+  setLunchDaysForParticipant: (participantId: string, days: string[]) => void;
   // Step 3 setters
   setInstructor: (instructor: Tables<"instructors"> | null) => void;
   setAssignLater: (assignLater: boolean) => void;
@@ -114,6 +123,9 @@ const initialState: BookingWizardState = {
   timeSlot: null,
   duration: null,
   includeLunch: false,
+  selectedGroupId: null,
+  groupCourseType: null,
+  lunchSelections: {},
   appointments: null,
   instructorId: null,
   instructor: null,
@@ -247,6 +259,25 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
     });
   };
 
+  // Group course setters
+  const setSelectedGroupId = (id: string | null) => {
+    setState((prev) => ({ ...prev, selectedGroupId: id }));
+  };
+
+  const setGroupCourseType = (type: "windel_wedelkurs" | "kids_village" | "standard" | null) => {
+    setState((prev) => ({ ...prev, groupCourseType: type }));
+  };
+
+  const setLunchDaysForParticipant = (participantId: string, days: string[]) => {
+    setState((prev) => ({
+      ...prev,
+      lunchSelections: {
+        ...prev.lunchSelections,
+        [participantId]: days,
+      },
+    }));
+  };
+
   const prefillFromScheduler = (instructorId: string, appointments: AppointmentSlot[]) => {
     const dates = [...new Set(appointments.map((a) => a.date))];
     setState((prev) => ({
@@ -367,6 +398,9 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
         setDuration,
         setIncludeLunch,
         setAppointments,
+        setSelectedGroupId,
+        setGroupCourseType,
+        setLunchDaysForParticipant,
         setInstructor,
         setAssignLater,
         setMeetingPoint,

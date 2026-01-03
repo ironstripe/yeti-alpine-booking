@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/select";
 import { EnhancedDatePicker } from "@/components/ui/enhanced-date-picker";
 import { ParticipantEditDialog } from "./ParticipantEditDialog";
+import { LunchDaySelector } from "./LunchDaySelector";
 import type { SelectedParticipant } from "@/contexts/BookingWizardContext";
 import type { Tables } from "@/integrations/supabase/types";
 
@@ -39,6 +40,11 @@ interface ParticipantListCardProps {
   selectedParticipants: SelectedParticipant[];
   onToggle: (participant: SelectedParticipant) => void;
   onAddParticipant: (participant: Omit<SelectedParticipant, "id" | "isGuest">) => void;
+  // Group booking lunch selection
+  isGroupBooking?: boolean;
+  selectedDates?: string[];
+  lunchSelections?: Record<string, string[]>;
+  onLunchDaysChange?: (participantId: string, days: string[]) => void;
 }
 
 const participantSchema = z.object({
@@ -55,6 +61,10 @@ export function ParticipantListCard({
   selectedParticipants,
   onToggle,
   onAddParticipant,
+  isGroupBooking = false,
+  selectedDates = [],
+  lunchSelections = {},
+  onLunchDaysChange,
 }: ParticipantListCardProps) {
   const [isAdding, setIsAdding] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -223,6 +233,15 @@ export function ParticipantListCard({
                     )}
                   </div>
                 </div>
+
+                {/* Lunch Day Selector (for group bookings) */}
+                {isGroupBooking && selected && selectedDates.length > 0 && onLunchDaysChange && (
+                  <LunchDaySelector
+                    selectedDates={selectedDates}
+                    lunchDays={lunchSelections[participant.id] || []}
+                    onLunchDaysChange={(days) => onLunchDaysChange(participant.id, days)}
+                  />
+                )}
 
                 {/* Edit button */}
                 <Button
