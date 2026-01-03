@@ -126,15 +126,15 @@ function BookingWizardContent() {
       </div>
 
       {/* Content */}
-      <main className="mx-auto max-w-5xl px-4 pb-32">
+      <main className="mx-auto max-w-5xl px-4 pb-4">
         {state.currentStep === 1 && <Step1CustomerParticipant />}
         {state.currentStep === 2 && <Step2ProductAllocation />}
         {state.currentStep === 3 && <Step4Summary onEditStep={setCurrentStep} />}
       </main>
 
-      {/* Footer */}
-      <footer className="fixed bottom-0 left-0 right-0 border-t bg-background p-4">
-        <div className="mx-auto flex max-w-3xl items-center justify-between gap-4">
+      {/* Sticky Footer */}
+      <footer className="sticky bottom-0 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 p-3">
+        <div className="mx-auto flex max-w-5xl items-center justify-between gap-4">
           {state.currentStep > 1 ? (
             <Button
               variant="outline"
