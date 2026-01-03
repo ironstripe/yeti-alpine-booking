@@ -53,6 +53,9 @@ export function SelectionOverlay({ selection, slotWidth, bookings, absences }: S
       const startWidth = width;
       const minWidth = slotWidth; // 1 hour minimum
       const maxWidth = slotWidth * 4; // 4 hours maximum
+      
+      // Track the latest valid width during drag
+      let latestValidWidth: number | null = null;
 
       const handleMouseMove = (moveEvent: MouseEvent) => {
         const deltaX = moveEvent.clientX - startX;
@@ -82,6 +85,7 @@ export function SelectionOverlay({ selection, slotWidth, bookings, absences }: S
         );
         
         if (validation.valid) {
+          latestValidWidth = newWidth;
           setPreviewWidth(newWidth);
         }
       };
@@ -93,9 +97,10 @@ export function SelectionOverlay({ selection, slotWidth, bookings, absences }: S
         setLocalIsResizing(false);
         setIsResizing(false);
         
-        if (previewWidth) {
+        // Use the tracked latestValidWidth instead of stale closure
+        if (latestValidWidth !== null) {
           const startMinutes = timeToMinutes(selection.startTime);
-          const newDurationMinutes = (previewWidth / slotWidth) * 60;
+          const newDurationMinutes = (latestValidWidth / slotWidth) * 60;
           const newEndMinutes = startMinutes + newDurationMinutes;
           const newEndTime = minutesToTime(newEndMinutes);
           
@@ -108,7 +113,7 @@ export function SelectionOverlay({ selection, slotWidth, bookings, absences }: S
       document.addEventListener("mousemove", handleMouseMove);
       document.addEventListener("mouseup", handleMouseUp);
     },
-    [selection, slotWidth, width, bookings, absences, canSelectSlot, setIsResizing, updateSelectionDuration, previewWidth]
+    [selection, slotWidth, width, bookings, absences, canSelectSlot, setIsResizing, updateSelectionDuration]
   );
 
   const displayWidth = previewWidth || width;
