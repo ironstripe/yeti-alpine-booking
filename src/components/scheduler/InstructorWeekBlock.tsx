@@ -96,7 +96,7 @@ export const InstructorWeekBlock = forwardRef<HTMLDivElement, InstructorWeekBloc
         <div className="flex">
           {/* Instructor Info Column - spans all days */}
           <div className={cn(
-            "w-40 shrink-0 border-r border-slate-300 sticky left-0 z-20",
+            "w-28 shrink-0 border-r border-slate-300 sticky left-0 z-20",
             bgColor
           )}>
             <div className="px-2 py-2 flex items-center gap-1.5 h-full">
@@ -189,7 +189,7 @@ export const InstructorWeekBlock = forwardRef<HTMLDivElement, InstructorWeekBloc
                 >
                   {/* Day Label */}
                   <div className={cn(
-                    "w-14 shrink-0 border-r border-slate-200 px-1.5 flex items-center justify-between sticky left-40 z-10 text-[10px]",
+                    "w-14 shrink-0 border-r border-slate-200 px-1.5 flex items-center justify-between sticky left-28 z-10 text-[10px]",
                     isAbsent ? "bg-muted/20" : bgColor
                   )}>
                     <span className={cn(

@@ -9,13 +9,13 @@ export function StickyTimeHeader({ slotWidth, showDayColumn = false }: StickyTim
   return (
     <div className="flex border-b border-slate-300 bg-slate-100 sticky top-0 z-30">
       {/* Instructor column placeholder - compact sticky left */}
-      <div className="w-40 shrink-0 border-r border-slate-300 px-2 py-1.5 font-medium text-xs text-muted-foreground sticky left-0 bg-slate-100 z-40">
+      <div className="w-28 shrink-0 border-r border-slate-300 px-2 py-1.5 font-medium text-xs text-muted-foreground sticky left-0 bg-slate-100 z-40">
         Lehrer
       </div>
       
       {/* Day column placeholder for instructor-focus view */}
       {showDayColumn && (
-        <div className="w-14 shrink-0 border-r border-slate-300 py-1.5 text-center text-[10px] font-medium text-muted-foreground sticky left-40 bg-slate-100 z-35">
+        <div className="w-14 shrink-0 border-r border-slate-300 py-1.5 text-center text-[10px] font-medium text-muted-foreground sticky left-28 bg-slate-100 z-35">
           Tag
         </div>
       )}
