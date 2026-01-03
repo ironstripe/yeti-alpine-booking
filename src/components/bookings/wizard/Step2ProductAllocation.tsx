@@ -438,85 +438,100 @@ export function Step2ProductAllocation() {
 
       {/* Right Column - Controls + Live Availability (60%) */}
       <div className="lg:col-span-3 space-y-2">
-        {/* Grid Control Bar - Time + Meeting Point (only for private with dates) */}
-        {state.productType === "private" && state.selectedDates.length > 0 && (
-          <div className="flex flex-wrap items-center gap-3 bg-background rounded-lg border border-slate-300 px-3 py-2">
-            {/* Time Selection */}
-            <div className="flex items-center gap-1.5">
-              <Clock className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
-              <Select
-                value={startTime || ""}
-                onValueChange={(value) => {
-                  setStartTime(value);
-                  if (endTime && parseInt(value.split(":")[0]) >= parseInt(endTime.split(":")[0])) {
-                    setEndTime(null);
-                  }
-                }}
-              >
-                <SelectTrigger className="w-[72px] h-7 text-xs">
-                  <SelectValue placeholder="Start" />
-                </SelectTrigger>
-                <SelectContent>
-                  {START_TIMES.map((time) => (
-                    <SelectItem key={time} value={time}>
-                      {time}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <ArrowRight className="h-3 w-3 text-muted-foreground flex-shrink-0" />
-              <Select
-                value={endTime || ""}
-                onValueChange={setEndTime}
-                disabled={!startTime}
-              >
-                <SelectTrigger className="w-[72px] h-7 text-xs">
-                  <SelectValue placeholder="Ende" />
-                </SelectTrigger>
-                <SelectContent>
-                  {availableEndTimes.map((time) => (
-                    <SelectItem key={time} value={time}>
-                      {time}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {calculatedDuration && (
-                <Badge variant="secondary" className="text-xs h-5 px-1.5">
-                  {calculatedDuration}h
-                </Badge>
-              )}
-            </div>
-
-            {/* Separator */}
-            <div className="w-px h-5 bg-slate-300" />
-
-            {/* Meeting Points - Horizontal Pills */}
-            <div className="flex items-center gap-1.5">
-              <MapPin className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
-              {MEETING_POINTS.map((point) => {
-                const isSelected = state.meetingPoint === point.id;
-                const isLocked = allBeginnersOnly && point.id !== "sammelplatz_gorfion";
-                return (
-                  <button
-                    key={point.id}
-                    onClick={() => !isLocked && setMeetingPoint(point.id)}
-                    disabled={isLocked}
-                    className={`px-2 py-0.5 text-[10px] rounded-full border transition-colors ${
-                      isSelected
-                        ? "bg-primary text-primary-foreground border-primary"
-                        : isLocked
-                        ? "cursor-not-allowed bg-muted/30 border-muted text-muted-foreground/50"
-                        : "bg-background hover:bg-muted border-slate-300"
-                    }`}
+        {/* Grid Control Bar - Time + Meeting Point (aligned with Buchungstyp) */}
+        <div className="space-y-1.5">
+          <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1">
+            <Clock className="h-3 w-3" />
+            Zeitfenster & Treffpunkt
+          </Label>
+          <div className="flex flex-wrap items-center gap-3 rounded-md border-2 p-2 min-h-[42px]">
+            {state.productType === "private" && state.selectedDates.length > 0 ? (
+              <>
+                {/* Time Selection */}
+                <div className="flex items-center gap-1.5">
+                  <Select
+                    value={startTime || ""}
+                    onValueChange={(value) => {
+                      setStartTime(value);
+                      if (endTime && parseInt(value.split(":")[0]) >= parseInt(endTime.split(":")[0])) {
+                        setEndTime(null);
+                      }
+                    }}
                   >
-                    {point.name.replace("Sammelplatz ", "").replace("Kasse ", "")}
-                  </button>
-                );
-              })}
-            </div>
+                    <SelectTrigger className="w-[72px] h-7 text-xs">
+                      <SelectValue placeholder="Start" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {START_TIMES.map((time) => (
+                        <SelectItem key={time} value={time}>
+                          {time}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <ArrowRight className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                  <Select
+                    value={endTime || ""}
+                    onValueChange={setEndTime}
+                    disabled={!startTime}
+                  >
+                    <SelectTrigger className="w-[72px] h-7 text-xs">
+                      <SelectValue placeholder="Ende" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableEndTimes.map((time) => (
+                        <SelectItem key={time} value={time}>
+                          {time}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {calculatedDuration && (
+                    <Badge variant="secondary" className="text-xs h-5 px-1.5">
+                      {calculatedDuration}h
+                    </Badge>
+                  )}
+                </div>
+
+                {/* Separator */}
+                <div className="w-px h-5 bg-slate-300" />
+
+                {/* Meeting Points - Horizontal Pills */}
+                <div className="flex items-center gap-1.5">
+                  <MapPin className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                  {MEETING_POINTS.map((point) => {
+                    const isSelected = state.meetingPoint === point.id;
+                    const isLocked = allBeginnersOnly && point.id !== "sammelplatz_gorfion";
+                    return (
+                      <button
+                        key={point.id}
+                        onClick={() => !isLocked && setMeetingPoint(point.id)}
+                        disabled={isLocked}
+                        className={`px-2 py-0.5 text-[10px] rounded-full border transition-colors ${
+                          isSelected
+                            ? "bg-primary text-primary-foreground border-primary"
+                            : isLocked
+                            ? "cursor-not-allowed bg-muted/30 border-muted text-muted-foreground/50"
+                            : "bg-background hover:bg-muted border-slate-300"
+                        }`}
+                      >
+                        {point.name.replace("Sammelplatz ", "").replace("Kasse ", "")}
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            ) : (
+              <span className="text-xs text-muted-foreground">
+                {!state.productType 
+                  ? "Wählen Sie Buchungstyp" 
+                  : state.productType === "group"
+                  ? "Für Gruppenkurse vom Büro zugeteilt"
+                  : "Datum auswählen"}
+              </span>
+            )}
           </div>
-        )}
+        </div>
 
         {/* Slim Warning Bar */}
         {warnings.length > 0 && state.productType === "private" && state.selectedDates.length > 0 && (
