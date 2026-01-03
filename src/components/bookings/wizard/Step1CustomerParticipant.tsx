@@ -9,8 +9,16 @@ import { InlineCustomerForm } from "./InlineCustomerForm";
 import { useBookingWizard } from "@/contexts/BookingWizardContext";
 
 export function Step1CustomerParticipant() {
-  const { state, setCustomer, toggleParticipant, addGuestParticipant } = useBookingWizard();
+  const { 
+    state, 
+    setCustomer, 
+    toggleParticipant, 
+    addGuestParticipant,
+    setLunchDaysForParticipant,
+  } = useBookingWizard();
   const [isCreatingCustomer, setIsCreatingCustomer] = useState(false);
+  
+  const isGroupBooking = state.productType === "group";
 
   // If no customer selected, show full-width search
   if (!state.customer) {
@@ -75,6 +83,10 @@ export function Step1CustomerParticipant() {
             selectedParticipants={state.selectedParticipants}
             onToggle={toggleParticipant}
             onAddParticipant={() => {}}
+            isGroupBooking={isGroupBooking}
+            selectedDates={state.selectedDates}
+            lunchSelections={state.lunchSelections}
+            onLunchDaysChange={setLunchDaysForParticipant}
           />
         </CardContent>
       </Card>

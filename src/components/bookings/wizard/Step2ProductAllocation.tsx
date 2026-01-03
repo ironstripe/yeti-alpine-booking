@@ -12,12 +12,12 @@ import {
   Globe,
   Check,
   Search,
+  AlertTriangle,
 } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { useBookingWizard } from "@/contexts/BookingWizardContext";
-import { Separator } from "@/components/ui/separator";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
@@ -25,6 +25,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Select,
   SelectContent,
@@ -34,12 +35,18 @@ import {
 } from "@/components/ui/select";
 import { BookingWarnings, type BookingWarning } from "./BookingWarnings";
 import { MiniSchedulerGrid } from "./MiniSchedulerGrid";
+import { GroupSelector } from "./GroupSelector";
 import {
   MEETING_POINTS,
   isBeginnerLevel,
   canSelectAlternativeMeetingPoint,
 } from "@/lib/meeting-point-utils";
 import { LEVEL_OPTIONS } from "@/lib/level-utils";
+import {
+  getGroupRecommendationForParticipants,
+  formatGroupTimes,
+  GROUP_COURSE_TIMES,
+} from "@/lib/group-course-utils";
 import type { Tables } from "@/integrations/supabase/types";
 
 // Available start and end times (lift hours: 09:00 - 16:00)
@@ -69,13 +76,19 @@ export function Step2ProductAllocation() {
     setAssignLater,
     setMeetingPoint,
     setLanguage,
-    goToNextStep,
+    setSelectedGroupId,
+    setGroupCourseType,
   } = useBookingWizard();
 
   const [selectedMonth, setSelectedMonth] = useState<Date>(new Date());
   const [startTime, setStartTime] = useState<string | null>(null);
   const [endTime, setEndTime] = useState<string | null>(null);
   const [preferredTeacher, setPreferredTeacher] = useState("");
+
+  // Analyze participants for group course recommendations
+  const groupRecommendation = useMemo(() => {
+    return getGroupRecommendationForParticipants(state.selectedParticipants);
+  }, [state.selectedParticipants]);
 
   // Fetch products from database
   const { data: products = [], isLoading: productsLoading } = useQuery({
@@ -285,17 +298,34 @@ export function Step2ProductAllocation() {
             </Label>
             <Label
               htmlFor="group"
-              className={`flex cursor-pointer items-center gap-2 rounded-md border-2 p-2 transition-colors ${
+              className={cn(
+                "flex cursor-pointer items-center gap-2 rounded-md border-2 p-2 transition-colors",
                 state.productType === "group"
                   ? "border-primary bg-primary/5"
-                  : "border-muted hover:border-muted-foreground/30"
-              }`}
+                  : "border-muted hover:border-muted-foreground/30",
+                groupRecommendation.hasAdults && "opacity-50 cursor-not-allowed"
+              )}
             >
-              <RadioGroupItem value="group" id="group" className="sr-only" />
+              <RadioGroupItem 
+                value="group" 
+                id="group" 
+                className="sr-only" 
+                disabled={groupRecommendation.hasAdults}
+              />
               <span className="text-base">👥</span>
               <span className="text-sm font-medium">Gruppe</span>
             </Label>
           </RadioGroup>
+          
+          {/* Adult restriction warning */}
+          {groupRecommendation.hasAdults && (
+            <Alert variant="destructive" className="py-2">
+              <AlertTriangle className="h-3.5 w-3.5" />
+              <AlertDescription className="text-xs">
+                {groupRecommendation.hint}
+              </AlertDescription>
+            </Alert>
+          )}
         </div>
 
         {/* Sport Selection (for private lessons) */}
@@ -354,18 +384,27 @@ export function Step2ProductAllocation() {
           </div>
         )}
 
-        {/* Lunch Add-on (only for group) */}
-        {state.productType === "group" && lunchProduct && state.selectedDates.length > 0 && (
-          <div className="flex items-center gap-2 rounded-md border p-2">
-            <Checkbox
-              id="lunch"
-              checked={state.includeLunch}
-              onCheckedChange={(checked) => setIncludeLunch(checked as boolean)}
-            />
-            <label htmlFor="lunch" className="flex-1 cursor-pointer text-sm">
-              {lunchProduct.name}
-              <span className="ml-1 text-muted-foreground text-xs">CHF {lunchProduct.price}</span>
-            </label>
+        {/* Group Course Fixed Times Info */}
+        {state.productType === "group" && state.selectedDates.length > 0 && (
+          <div className="rounded-md border bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800 p-3">
+            <div className="flex items-center gap-2 mb-2">
+              <Clock className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+              <span className="text-sm font-medium text-blue-800 dark:text-blue-200">
+                Feste Kurszeiten
+              </span>
+            </div>
+            <div className="text-sm text-blue-700 dark:text-blue-300">
+              {groupRecommendation.hasToddlers ? (
+                <span>🧒 Windel-Wedelkurs: <strong>10:00 - 12:00</strong> (nur vormittags)</span>
+              ) : (
+                <span>📚 Standard: <strong>10:00 - 12:00</strong> + <strong>14:00 - 16:00</strong></span>
+              )}
+            </div>
+            {groupRecommendation.hint && !groupRecommendation.hasToddlers && (
+              <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                {groupRecommendation.hint}
+              </p>
+            )}
           </div>
         )}
 
@@ -557,14 +596,26 @@ export function Step2ProductAllocation() {
           </div>
         )}
 
-        {/* Availability Grid or Placeholder */}
+        {/* Group Course Selector or Availability Grid */}
         {isGroupCourse ? (
-          <div className="flex flex-col items-center justify-center py-8 text-center rounded-lg border border-dashed">
-            <Users className="h-10 w-10 text-muted-foreground mb-2" />
-            <p className="font-medium text-sm">Gruppenkurse werden vom Büro zugeteilt</p>
-            <p className="text-xs text-muted-foreground mt-1">
-              Zuweisung nach Verfügbarkeit und Erfahrung.
-            </p>
+          <div className="space-y-4">
+            {state.selectedDates.length > 0 ? (
+              <GroupSelector
+                selectedDates={state.selectedDates}
+                sport={state.sport}
+                level={state.selectedParticipants[0]?.level_current_season || null}
+                selectedGroupId={state.selectedGroupId}
+                onGroupSelect={setSelectedGroupId}
+              />
+            ) : (
+              <div className="flex flex-col items-center justify-center py-8 text-center rounded-lg border border-dashed">
+                <CalendarDays className="h-10 w-10 text-muted-foreground mb-2" />
+                <p className="font-medium text-sm">Wählen Sie zuerst die Kurstage</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Dann werden verfügbare Gruppen angezeigt.
+                </p>
+              </div>
+            )}
           </div>
         ) : showAvailabilityGrid ? (
           <div className={cn(
