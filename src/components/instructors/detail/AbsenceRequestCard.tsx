@@ -62,6 +62,7 @@ const STATUS_BADGES: Record<string, { label: string; variant: "default" | "outli
 export function AbsenceRequestCard({ instructorId, isTeacherView = false }: AbsenceRequestCardProps) {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   
   // Form state
   const [absenceType, setAbsenceType] = useState<AbsenceType>("vacation");
@@ -171,7 +172,7 @@ export function AbsenceRequestCard({ instructorId, isTeacherView = false }: Abse
             {/* Date Range */}
             <div className="space-y-2">
               <Label>Zeitraum</Label>
-              <Popover>
+              <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
                 <PopoverTrigger asChild>
                   <Button variant="outline" className="w-full justify-start text-left font-normal">
                     <CalendarDays className="mr-2 h-4 w-4" />
@@ -192,8 +193,14 @@ export function AbsenceRequestCard({ instructorId, isTeacherView = false }: Abse
                   <Calendar
                     mode="range"
                     selected={{ from: dateRange.from, to: dateRange.to }}
-                    onSelect={(range) => setDateRange({ from: range?.from, to: range?.to })}
-                    numberOfMonths={2}
+                    onSelect={(range) => {
+                      setDateRange({ from: range?.from, to: range?.to });
+                      // Auto-close when both dates are selected
+                      if (range?.from && range?.to) {
+                        setIsCalendarOpen(false);
+                      }
+                    }}
+                    numberOfMonths={1}
                     disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
                     className="pointer-events-auto"
                   />
