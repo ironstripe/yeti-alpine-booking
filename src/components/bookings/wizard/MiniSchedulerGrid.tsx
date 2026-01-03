@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect, useCallback } from "react";
 import { format, parseISO } from "date-fns";
 import { de } from "date-fns/locale";
 import { Star, Check, AlertTriangle, Users, MapPin, RefreshCw } from "lucide-react";
@@ -47,6 +47,27 @@ export function MiniSchedulerGrid({
     date: string;
     hour: number;
   } | null>(null);
+
+  // Drag selection state
+  const [dragState, setDragState] = useState<{
+    instructorId: string;
+    date: string;
+    startHour: number;
+    currentHour: number;
+    isActive: boolean;
+  } | null>(null);
+
+  // Global mouseup handler to clear drag state when releasing outside grid
+  const handleGlobalMouseUp = useCallback(() => {
+    if (dragState?.isActive) {
+      setDragState(null);
+    }
+  }, [dragState]);
+
+  useEffect(() => {
+    document.addEventListener("mouseup", handleGlobalMouseUp);
+    return () => document.removeEventListener("mouseup", handleGlobalMouseUp);
+  }, [handleGlobalMouseUp]);
 
   // Determine date range from selected dates
   const dateRange = useMemo(() => {
@@ -312,6 +333,27 @@ export function MiniSchedulerGrid({
     return hour >= hoveredSlot.hour && hour < hoveredSlot.hour + selectedDuration;
   };
 
+  // Check if slot is in drag selection range
+  const isInDragRange = (instructorId: string, date: string, hour: number) => {
+    if (!dragState || !dragState.isActive) return false;
+    if (dragState.instructorId !== instructorId || dragState.date !== date) return false;
+    const minHour = Math.min(dragState.startHour, dragState.currentHour);
+    const maxHour = Math.max(dragState.startHour, dragState.currentHour);
+    return hour >= minHour && hour <= maxHour;
+  };
+
+  // Check if entire drag range is available
+  const isDragRangeAvailable = () => {
+    if (!dragState) return true;
+    const minHour = Math.min(dragState.startHour, dragState.currentHour);
+    const maxHour = Math.max(dragState.startHour, dragState.currentHour);
+    for (let h = minHour; h <= maxHour; h++) {
+      const { available } = isSlotAvailable(dragState.instructorId, dragState.date, h);
+      if (!available) return false;
+    }
+    return true;
+  };
+
   // Check if entire duration block is available for hover preview
   const isDurationBlockAvailable = (instructorId: string, date: string, startHour: number) => {
     if (!selectedDuration) return true;
@@ -525,28 +567,59 @@ export function MiniSchedulerGrid({
                           const isHoverPreview = isInHoverPreview(instructor.id, dateStr, hour);
                           const canBookDuration = isDurationBlockAvailable(instructor.id, dateStr, hour);
                           const materialConflict = getMaterialConflict(instructor.id, dateStr, hour);
+                          const inDragRange = isInDragRange(instructor.id, dateStr, hour);
+                          const dragRangeValid = isDragRangeAvailable();
 
                           return (
                             <Tooltip key={hour}>
                               <TooltipTrigger asChild>
                                 <button
                                   type="button"
-                                  disabled={!available}
-                                  onClick={(e) => {
+                                  disabled={!available && !inDragRange}
+                                  onMouseDown={(e) => {
                                     e.preventDefault();
                                     e.stopPropagation();
                                     if (available) {
-                                      onSlotSelect(instructor, dateStr, timeStart, timeEnd);
+                                      setDragState({
+                                        instructorId: instructor.id,
+                                        date: dateStr,
+                                        startHour: hour,
+                                        currentHour: hour,
+                                        isActive: true,
+                                      });
                                     }
                                   }}
                                   onMouseEnter={() => {
-                                    if (available && selectedDuration) {
+                                    // Update drag range if dragging
+                                    if (dragState?.isActive && dragState.instructorId === instructor.id && dragState.date === dateStr) {
+                                      setDragState(prev => prev ? { ...prev, currentHour: hour } : null);
+                                    } else if (available && selectedDuration && !dragState?.isActive) {
                                       setHoveredSlot({ instructorId: instructor.id, date: dateStr, hour });
                                     }
                                   }}
-                                  onMouseLeave={() => setHoveredSlot(null)}
+                                  onMouseLeave={() => {
+                                    if (!dragState?.isActive) {
+                                      setHoveredSlot(null);
+                                    }
+                                  }}
+                                  onMouseUp={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    if (dragState?.isActive && dragState.instructorId === instructor.id) {
+                                      const minHour = Math.min(dragState.startHour, dragState.currentHour);
+                                      const maxHour = Math.max(dragState.startHour, dragState.currentHour);
+                                      const dragTimeStart = `${minHour.toString().padStart(2, "0")}:00`;
+                                      const dragTimeEnd = `${(maxHour + 1).toString().padStart(2, "0")}:00`;
+                                      
+                                      // Check if the entire range is available
+                                      if (isDragRangeAvailable()) {
+                                        onSlotSelect(instructor, dateStr, dragTimeStart, dragTimeEnd);
+                                      }
+                                      setDragState(null);
+                                    }
+                                  }}
                                   className={cn(
-                                    "h-6 flex-1 border-r border-slate-200 transition-all last:border-r-0 relative",
+                                    "h-6 flex-1 border-r border-slate-200 transition-all last:border-r-0 relative select-none",
                                     available
                                       ? "cursor-pointer bg-emerald-50 hover:bg-emerald-200"
                                       : booked
@@ -554,13 +627,16 @@ export function MiniSchedulerGrid({
                                       : absent
                                       ? "cursor-not-allowed bg-slate-800"
                                       : "cursor-not-allowed bg-slate-200",
+                                    // Drag selection highlight
+                                    inDragRange && dragRangeValid && "bg-blue-200 ring-2 ring-inset ring-primary",
+                                    inDragRange && !dragRangeValid && "bg-rose-200 ring-2 ring-inset ring-rose-500",
                                     // Duration highlight ONLY for the selected instructor's time window
                                     isSelectedInstructorDuration && "ring-2 ring-inset ring-primary bg-primary/20",
                                     // Hover preview for booking block
-                                    isHoverPreview && canBookDuration && "bg-blue-100",
-                                    isHoverPreview && !canBookDuration && "bg-rose-200",
+                                    isHoverPreview && canBookDuration && !inDragRange && "bg-blue-100",
+                                    isHoverPreview && !canBookDuration && !inDragRange && "bg-rose-200",
                                     // Selected instructor slot highlight
-                                    isSelected && available && "bg-primary/10 hover:bg-primary/20",
+                                    isSelected && available && !inDragRange && "bg-primary/10 hover:bg-primary/20",
                                     // Material conflict warning
                                     materialConflict && available && "ring-1 ring-amber-500"
                                   )}
