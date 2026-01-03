@@ -336,11 +336,14 @@ export type Database = {
           end_date: string
           id: string
           instructor_id: string
+          is_full_day: boolean | null
           reason: string | null
           rejection_reason: string | null
           requested_by: string | null
           start_date: string
           status: string
+          time_end: string | null
+          time_start: string | null
           type: string
         }
         Insert: {
@@ -351,11 +354,14 @@ export type Database = {
           end_date: string
           id?: string
           instructor_id: string
+          is_full_day?: boolean | null
           reason?: string | null
           rejection_reason?: string | null
           requested_by?: string | null
           start_date: string
           status?: string
+          time_end?: string | null
+          time_start?: string | null
           type: string
         }
         Update: {
@@ -366,11 +372,14 @@ export type Database = {
           end_date?: string
           id?: string
           instructor_id?: string
+          is_full_day?: boolean | null
           reason?: string | null
           rejection_reason?: string | null
           requested_by?: string | null
           start_date?: string
           status?: string
+          time_end?: string | null
+          time_start?: string | null
           type?: string
         }
         Relationships: [

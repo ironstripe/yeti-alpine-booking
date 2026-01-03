@@ -16,9 +16,17 @@ export interface AbsenceConflict {
   conflicts: ConflictingBooking[];
 }
 
-export function useAbsenceConflicts(absences: { id: string; instructorId: string; startDate: string; endDate: string }[]) {
+export function useAbsenceConflicts(absences: { 
+  id: string; 
+  instructorId: string; 
+  startDate: string; 
+  endDate: string;
+  isFullDay?: boolean;
+  timeStart?: string;
+  timeEnd?: string;
+}[]) {
   return useQuery({
-    queryKey: ["absence-conflicts", absences.map(a => a.id).join(",")],
+    queryKey: ["absence-conflicts", absences.map(a => `${a.id}-${a.isFullDay}-${a.timeStart}-${a.timeEnd}`).join(",")],
     queryFn: async () => {
       if (absences.length === 0) return {};
 
@@ -55,7 +63,24 @@ export function useAbsenceConflicts(absences: { id: string; instructorId: string
           continue;
         }
 
-        conflictMap[absence.id] = (data || []).map((item: any) => ({
+        // Filter for time overlap if partial-day absence
+        const conflicts = (data || []).filter((item: any) => {
+          // Full-day absence conflicts with all bookings
+          if (absence.isFullDay !== false) return true;
+          
+          // Partial-day: check time overlap
+          const bookingStart = item.time_start;
+          const bookingEnd = item.time_end;
+          const absenceStart = absence.timeStart;
+          const absenceEnd = absence.timeEnd;
+          
+          if (!bookingStart || !bookingEnd || !absenceStart || !absenceEnd) return true;
+          
+          // Check if times overlap: booking starts before absence ends AND booking ends after absence starts
+          return bookingStart < absenceEnd && bookingEnd > absenceStart;
+        });
+
+        conflictMap[absence.id] = conflicts.map((item: any) => ({
           id: item.id,
           date: item.date,
           timeStart: item.time_start,

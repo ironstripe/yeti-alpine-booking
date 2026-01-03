@@ -13,6 +13,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Switch } from "@/components/ui/switch";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { AlertTriangle, Ban, Calendar, Clock, Info } from "lucide-react";
 import { useCreateAbsence } from "@/hooks/useInstructorAbsences";
 import { useSchedulerSelection } from "@/contexts/SchedulerSelectionContext";
@@ -46,10 +53,16 @@ export function AbsenceTypeDialog({
   const [selectedType, setSelectedType] = useState<AbsenceType>("vacation");
   const [reason, setReason] = useState("");
   const [submitForApproval, setSubmitForApproval] = useState(false);
+  const [isFullDay, setIsFullDay] = useState(true);
+  const [timeStart, setTimeStart] = useState("12:00");
+  const [timeEnd, setTimeEnd] = useState("14:00");
   
   const { state, clearSelection } = useSchedulerSelection();
   const { isAdminOrOffice, instructorId } = useUserRole();
   const createAbsence = useCreateAbsence();
+
+  // Time slots for partial-day absences
+  const TIME_SLOTS = ["09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00"];
 
   const hasConflicts = conflicts.length > 0;
   
@@ -64,6 +77,9 @@ export function AbsenceTypeDialog({
 
   const handleConfirm = async () => {
     if (hasConflicts || !state.teacherId || state.selections.length === 0) return;
+    
+    // Validate time range for partial-day
+    if (!isFullDay && timeStart >= timeEnd) return;
 
     // Get date range from selections
     const dates = state.selections.map((s) => s.date).sort();
@@ -77,6 +93,9 @@ export function AbsenceTypeDialog({
       type: selectedType,
       reason: reason || undefined,
       status: willBePending ? "pending" : "confirmed",
+      isFullDay,
+      timeStart: isFullDay ? undefined : timeStart,
+      timeEnd: isFullDay ? undefined : timeEnd,
     });
 
     clearSelection();
@@ -87,6 +106,9 @@ export function AbsenceTypeDialog({
     setSelectedType("vacation");
     setReason("");
     setSubmitForApproval(false);
+    setIsFullDay(true);
+    setTimeStart("12:00");
+    setTimeEnd("14:00");
   };
 
   const handleClose = () => {
@@ -94,6 +116,9 @@ export function AbsenceTypeDialog({
     setSelectedType("vacation");
     setReason("");
     setSubmitForApproval(false);
+    setIsFullDay(true);
+    setTimeStart("12:00");
+    setTimeEnd("14:00");
   };
 
   return (
@@ -208,6 +233,65 @@ export function AbsenceTypeDialog({
             placeholder="z.B. Arzttermin, Fortbildung..."
             rows={2}
           />
+        </div>
+
+        {/* Full Day Toggle */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label>Ganztägig</Label>
+              <p className="text-sm text-muted-foreground">
+                Gesamten Tag blockieren
+              </p>
+            </div>
+            <Switch
+              checked={isFullDay}
+              onCheckedChange={setIsFullDay}
+            />
+          </div>
+          
+          {/* Time Selection - Only show when not full day */}
+          {!isFullDay && (
+            <div className="space-y-2">
+              <Label>Zeitraum</Label>
+              <div className="flex items-center gap-2">
+                <Select value={timeStart} onValueChange={setTimeStart}>
+                  <SelectTrigger className="flex-1">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {TIME_SLOTS.slice(0, -1).map((time) => (
+                      <SelectItem key={time} value={time}>
+                        {time}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <span className="text-muted-foreground">bis</span>
+                <Select value={timeEnd} onValueChange={setTimeEnd}>
+                  <SelectTrigger className="flex-1">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {TIME_SLOTS.slice(1).map((time) => (
+                      <SelectItem 
+                        key={time} 
+                        value={time}
+                        disabled={time <= timeStart}
+                      >
+                        {time}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {timeStart >= timeEnd && (
+                <p className="text-xs text-destructive">
+                  Endzeit muss nach Startzeit liegen
+                </p>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Submit for Approval Toggle - Only for Admin/Office */}

@@ -21,15 +21,18 @@ const ABSENCE_LABELS: Record<string, string> = {
 };
 
 export function BlockingBar({ absence, slotWidth }: BlockingBarProps) {
-  // Full day blocking - spans entire timeline
-  const { left, width } = calculateBarPosition(
-    "08:00",
-    "17:00",
-    "08:00",
-    slotWidth
-  );
+  // Calculate position based on full-day or partial-day absence
+  const { left, width } = absence.isFullDay
+    ? calculateBarPosition("09:00", "16:00", "09:00", slotWidth)
+    : calculateBarPosition(
+        absence.timeStart || "09:00",
+        absence.timeEnd || "16:00",
+        "09:00",
+        slotWidth
+      );
 
   const isPending = absence.status === "pending";
+  const isPartialDay = !absence.isFullDay && absence.timeStart && absence.timeEnd;
 
   return (
     <Tooltip>
@@ -59,9 +62,10 @@ export function BlockingBar({ absence, slotWidth }: BlockingBarProps) {
           ) : (
             <Ban className="h-2.5 w-2.5 shrink-0" />
           )}
-          <span className="truncate">
+        <span className="truncate">
             {ABSENCE_LABELS[absence.type]}
             {isPending && " (Antrag)"}
+            {isPartialDay && ` ${absence.timeStart}-${absence.timeEnd}`}
           </span>
         </div>
       </TooltipTrigger>
@@ -77,6 +81,11 @@ export function BlockingBar({ absence, slotWidth }: BlockingBarProps) {
             {absence.startDate === absence.endDate
               ? absence.startDate
               : `${absence.startDate} - ${absence.endDate}`}
+            {isPartialDay && (
+              <span className="ml-1">
+                ({absence.timeStart} - {absence.timeEnd})
+              </span>
+            )}
           </p>
           {absence.reason && (
             <p className="text-sm">{absence.reason}</p>
@@ -84,7 +93,9 @@ export function BlockingBar({ absence, slotWidth }: BlockingBarProps) {
           <p className="text-xs text-destructive mt-1">
             {isPending 
               ? "Antrag wartet auf Genehmigung" 
-              : "Keine Buchungen möglich"}
+              : isPartialDay
+                ? `Blockiert: ${absence.timeStart} - ${absence.timeEnd}`
+                : "Keine Buchungen möglich (ganztägig)"}
           </p>
         </div>
       </TooltipContent>

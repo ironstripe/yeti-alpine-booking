@@ -59,6 +59,11 @@ const STATUS_BADGES: Record<string, { label: string; variant: "default" | "outli
   rejected: { label: "Abgelehnt", variant: "destructive" },
 };
 
+// Time slots for partial-day absences (operational hours)
+const TIME_SLOTS = [
+  "09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00"
+];
+
 export function AbsenceRequestCard({ instructorId, isTeacherView = false }: AbsenceRequestCardProps) {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
@@ -71,6 +76,8 @@ export function AbsenceRequestCard({ instructorId, isTeacherView = false }: Abse
     to: undefined,
   });
   const [isFullDay, setIsFullDay] = useState(true);
+  const [timeStart, setTimeStart] = useState("12:00");
+  const [timeEnd, setTimeEnd] = useState("14:00");
   const [reason, setReason] = useState("");
   const [submitForApproval, setSubmitForApproval] = useState(false);
 
@@ -79,6 +86,11 @@ export function AbsenceRequestCard({ instructorId, isTeacherView = false }: Abse
 
   const handleSubmit = async () => {
     if (!dateRange.from) return;
+    
+    // Validate time range for partial-day absences
+    if (!isFullDay && timeStart >= timeEnd) {
+      return; // Invalid time range
+    }
 
     const startDate = format(dateRange.from, "yyyy-MM-dd");
     const endDate = dateRange.to ? format(dateRange.to, "yyyy-MM-dd") : startDate;
@@ -91,11 +103,17 @@ export function AbsenceRequestCard({ instructorId, isTeacherView = false }: Abse
       reason: reason.trim() || undefined,
       // Teachers submit as pending, admins can choose via toggle
       status: isTeacherView ? "pending" : (submitForApproval ? "pending" : "confirmed"),
+      isFullDay,
+      timeStart: isFullDay ? undefined : timeStart,
+      timeEnd: isFullDay ? undefined : timeEnd,
     });
 
     // Reset form
     setAbsenceType("vacation");
     setDateRange({ from: undefined, to: undefined });
+    setIsFullDay(true);
+    setTimeStart("12:00");
+    setTimeEnd("14:00");
     setReason("");
     setSubmitForApproval(false);
     setIsFormOpen(false);
@@ -218,6 +236,49 @@ export function AbsenceRequestCard({ instructorId, isTeacherView = false }: Abse
               />
             </div>
 
+            {/* Time Selection - Only show when not full day */}
+            {!isFullDay && (
+              <div className="space-y-2">
+                <Label>Zeitraum</Label>
+                <div className="flex items-center gap-2">
+                  <Select value={timeStart} onValueChange={setTimeStart}>
+                    <SelectTrigger className="flex-1">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {TIME_SLOTS.slice(0, -1).map((time) => (
+                        <SelectItem key={time} value={time}>
+                          {time}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <span className="text-muted-foreground">bis</span>
+                  <Select value={timeEnd} onValueChange={setTimeEnd}>
+                    <SelectTrigger className="flex-1">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {TIME_SLOTS.slice(1).map((time) => (
+                        <SelectItem 
+                          key={time} 
+                          value={time}
+                          disabled={time <= timeStart}
+                        >
+                          {time}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                {timeStart >= timeEnd && (
+                  <p className="text-xs text-destructive">
+                    Endzeit muss nach Startzeit liegen
+                  </p>
+                )}
+              </div>
+            )}
+
             {/* Reason */}
             <div className="space-y-2">
               <Label>Grund (optional)</Label>
@@ -311,6 +372,9 @@ export function AbsenceRequestCard({ instructorId, isTeacherView = false }: Abse
                     </div>
                     <p className="text-xs text-muted-foreground">
                       {formatDateRange(absence.startDate, absence.endDate)}
+                      {!absence.isFullDay && absence.timeStart && absence.timeEnd && (
+                        <span className="ml-1">({absence.timeStart} - {absence.timeEnd})</span>
+                      )}
                     </p>
                     {absence.status === "rejected" && absence.rejectionReason && (
                       <p className="text-xs text-red-600">

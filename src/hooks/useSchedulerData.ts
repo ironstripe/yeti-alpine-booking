@@ -206,6 +206,9 @@ export function useSchedulerData({ startDate, endDate, instructorId }: UseSchedu
       type: a.type as "vacation" | "sick" | "organization" | "office_duty" | "other",
       status: (a.status || "confirmed") as "pending" | "confirmed" | "rejected",
       reason: a.reason || undefined,
+      isFullDay: a.is_full_day ?? true,
+      timeStart: a.time_start || undefined,
+      timeEnd: a.time_end || undefined,
     }));
 
   return {
