@@ -288,6 +288,7 @@ export function Step2ProductDates() {
                 onMonthChange={setSelectedMonth}
                 locale={de}
                 className="rounded-md"
+                disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
                 modifiers={{
                   highSeason: (date) => isHighSeasonDate(format(date, "yyyy-MM-dd")),
                 }}
