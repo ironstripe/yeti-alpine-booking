@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, Component, ReactNode } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowLeft, X } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
@@ -158,10 +158,43 @@ function BookingWizardContent() {
   );
 }
 
+class BookingWizardErrorBoundary extends Component<
+  { children: ReactNode },
+  { hasError: boolean }
+> {
+  constructor(props: { children: ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: Error) {
+    if (error.message.includes("useBookingWizard must be used within")) {
+      window.location.reload();
+    }
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="flex min-h-screen items-center justify-center">
+          <p className="text-muted-foreground">Laden...</p>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 export default function BookingWizard() {
   return (
-    <BookingWizardProvider>
-      <BookingWizardContent />
-    </BookingWizardProvider>
+    <BookingWizardErrorBoundary>
+      <BookingWizardProvider>
+        <BookingWizardContent />
+      </BookingWizardProvider>
+    </BookingWizardErrorBoundary>
   );
 }

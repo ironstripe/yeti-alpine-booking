@@ -1,3 +1,4 @@
+import { forwardRef } from "react";
 import { AlertTriangle, Info, MapPin, Baby, Tag } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { cn } from "@/lib/utils";
@@ -22,42 +23,46 @@ const iconMap = {
   general: AlertTriangle,
 };
 
-export function BookingWarnings({ warnings, className }: BookingWarningsProps) {
-  if (warnings.length === 0) return null;
+export const BookingWarnings = forwardRef<HTMLDivElement, BookingWarningsProps>(
+  ({ warnings, className }, ref) => {
+    if (warnings.length === 0) return null;
 
-  return (
-    <div className={cn("space-y-2", className)}>
-      {warnings.map((warning) => {
-        const Icon = iconMap[warning.icon];
-        const isInfo = warning.type === "info";
+    return (
+      <div ref={ref} className={cn("space-y-2", className)}>
+        {warnings.map((warning) => {
+          const Icon = iconMap[warning.icon];
+          const isInfo = warning.type === "info";
 
-        return (
-          <Alert
-            key={warning.id}
-            className={cn(
-              isInfo
-                ? "border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-950/20"
-                : "border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/20"
-            )}
-          >
-            <Icon
+          return (
+            <Alert
+              key={warning.id}
               className={cn(
-                "h-4 w-4",
-                isInfo ? "text-blue-600 dark:text-blue-400" : "text-amber-600 dark:text-amber-400"
-              )}
-            />
-            <AlertDescription
-              className={cn(
-                isInfo ? "text-blue-800 dark:text-blue-200" : "text-amber-800 dark:text-amber-200"
+                isInfo
+                  ? "border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-950/20"
+                  : "border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/20"
               )}
             >
-              {warning.message}
-            </AlertDescription>
-          </Alert>
-        );
-      })}
-    </div>
-  );
-}
+              <Icon
+                className={cn(
+                  "h-4 w-4",
+                  isInfo ? "text-blue-600 dark:text-blue-400" : "text-amber-600 dark:text-amber-400"
+                )}
+              />
+              <AlertDescription
+                className={cn(
+                  isInfo ? "text-blue-800 dark:text-blue-200" : "text-amber-800 dark:text-amber-200"
+                )}
+              >
+                {warning.message}
+              </AlertDescription>
+            </Alert>
+          );
+        })}
+      </div>
+    );
+  }
+);
+
+BookingWarnings.displayName = "BookingWarnings";
 
 export type { BookingWarning };
