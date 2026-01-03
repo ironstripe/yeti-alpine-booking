@@ -38,6 +38,7 @@ import {
   isBeginnerLevel,
   canSelectAlternativeMeetingPoint,
 } from "@/lib/meeting-point-utils";
+import { LEVEL_OPTIONS } from "@/lib/level-utils";
 import type { Tables } from "@/integrations/supabase/types";
 
 // Available start and end times (lift hours: 09:00 - 16:00)
@@ -555,6 +556,7 @@ export function Step2ProductAllocation() {
             preferredTeacher={preferredTeacher}
             selectedDuration={calculatedDuration}
             selectedStartTime={startTime}
+            participantIds={state.selectedParticipants.map(p => p.id)}
           />
         ) : (
           <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground rounded-lg border border-dashed">

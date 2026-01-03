@@ -1,11 +1,13 @@
 import { useMemo, useState } from "react";
 import { format, parseISO } from "date-fns";
 import { de } from "date-fns/locale";
-import { Star, Check, AlertTriangle, Users } from "lucide-react";
+import { Star, Check, AlertTriangle, Users, MapPin, RefreshCw } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useSchedulerData } from "@/hooks/useSchedulerData";
+import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import type { Tables } from "@/integrations/supabase/types";
 import { isCrossDiscipline } from "@/lib/level-utils";
@@ -21,6 +23,7 @@ interface MiniSchedulerGridProps {
   preferredTeacher?: string;
   selectedDuration?: number | null;
   selectedStartTime?: string | null;
+  participantIds?: string[];
 }
 
 // Grid hours: 09:00 - 16:00
@@ -36,6 +39,7 @@ export function MiniSchedulerGrid({
   preferredTeacher = "",
   selectedDuration,
   selectedStartTime,
+  participantIds = [],
 }: MiniSchedulerGridProps) {
   // Hover state for preview
   const [hoveredSlot, setHoveredSlot] = useState<{
@@ -62,7 +66,94 @@ export function MiniSchedulerGrid({
     endDate: dateRange.end,
   });
 
-  // Filter and sort instructors by Best-Match algorithm
+  // Fetch booking history for continuity detection
+  const { data: bookingHistory = [] } = useQuery({
+    queryKey: ["booking-history", participantIds],
+    queryFn: async () => {
+      if (!participantIds?.length) return [];
+      const { data } = await supabase
+        .from("ticket_items")
+        .select("instructor_id, participant_id, date, meeting_point")
+        .in("participant_id", participantIds)
+        .not("instructor_id", "is", null)
+        .order("date", { ascending: false })
+        .limit(50);
+      return data || [];
+    },
+    enabled: participantIds.length > 0,
+  });
+
+  // Check for continuity match (instructor taught participant before)
+  const hasContinuityMatch = (instructorId: string) => {
+    return bookingHistory.some((h) => h.instructor_id === instructorId);
+  };
+
+  // Get material conflict for adjacent bookings with different sport
+  const getMaterialConflict = (instructorId: string, dateStr: string, hour: number) => {
+    const dayBookings = bookings.filter(
+      (b) => b.instructorId === instructorId && b.date === dateStr
+    );
+    
+    for (const booking of dayBookings) {
+      const bookingStart = parseInt(booking.timeStart.split(":")[0]);
+      const bookingEnd = parseInt(booking.timeEnd.split(":")[0]);
+      const bookingSport = booking.participantSport;
+      
+      // Check if adjacent
+      const isAdjacent = (hour === bookingEnd) || 
+        (selectedDuration && (hour + selectedDuration === bookingStart));
+      
+      if (isAdjacent && bookingSport && sport && bookingSport !== sport) {
+        return {
+          type: "material" as const,
+          message: `Materialwechsel: ${bookingSport === "ski" ? "Ski" : "Snowboard"} → ${sport === "ski" ? "Ski" : "Snowboard"}`,
+        };
+      }
+    }
+    return null;
+  };
+
+  // Get location conflict for different meeting points
+  const getLocationConflict = (instructorId: string) => {
+    if (!meetingPoint) return null;
+    
+    for (const dateStr of selectedDates) {
+      const dayBookings = bookings.filter(
+        (b) => b.instructorId === instructorId && b.date === dateStr
+      );
+      
+      for (const booking of dayBookings) {
+        const bookingMeetingPoint = (booking as any).meetingPoint;
+        if (bookingMeetingPoint && bookingMeetingPoint !== meetingPoint) {
+          const otherPoint = getMeetingPointById(bookingMeetingPoint);
+          const newPoint = getMeetingPointById(meetingPoint);
+          return {
+            type: "location" as const,
+            message: `Standortwechsel: ${otherPoint.name} → ${newPoint.name}`,
+          };
+        }
+      }
+    }
+    return null;
+  };
+
+  // Calculate hours booked for an instructor on selected dates
+  const getHoursBooked = (instructorId: string) => {
+    let total = 0;
+    for (const dateStr of selectedDates) {
+      const dayBookings = bookings.filter(
+        (b) => b.instructorId === instructorId && b.date === dateStr
+      );
+      for (const b of dayBookings) {
+        const start = parseInt(b.timeStart.split(":")[0]);
+        const end = parseInt(b.timeEnd.split(":")[0]);
+        total += end - start;
+      }
+    }
+    return total;
+  };
+
+  // Filter and sort instructors by 4-Tier Ranking Algorithm
   const sortedInstructors = useMemo(() => {
     if (!instructors) return [];
 
@@ -81,19 +172,43 @@ export function MiniSchedulerGrid({
       );
     }
 
-    // Check availability for all selected dates
+    // 4-Tier Ranking Algorithm
     const getAvailabilityScore = (instructor: typeof instructors[0]) => {
       let score = 0;
       
-      // Boost for preferred teacher search
-      if (preferredTeacher) {
+      // ========== RULE A: Requested Teacher (Highest Priority) ==========
+      if (preferredTeacher && preferredTeacher.trim().length >= 2) {
         const fullName = `${instructor.first_name} ${instructor.last_name}`.toLowerCase();
         if (fullName.includes(preferredTeacher.toLowerCase())) {
-          score += 1000; // Highest priority
+          score += 10000; // Absolute top priority
         }
       }
       
+      // ========== RULE B: Continuity Bonus ==========
+      if (hasContinuityMatch(instructor.id)) {
+        score += 500; // Strong bonus for pedagogical continuity
+      }
+      
+      // ========== RULE C: Density Optimization (Fill-Before-Activate) ==========
       for (const dateStr of selectedDates) {
+        const dayBookings = bookings.filter(
+          (b) => b.instructorId === instructor.id && b.date === dateStr
+        );
+        const hoursBooked = dayBookings.reduce((sum, b) => {
+          const start = parseInt(b.timeStart.split(":")[0]);
+          const end = parseInt(b.timeEnd.split(":")[0]);
+          return sum + (end - start);
+        }, 0);
+        
+        // Prefer instructors with 1-3 hours (fill to 4-5h target)
+        if (hoursBooked >= 1 && hoursBooked <= 3) {
+          score += 100; // Fill existing schedule bonus
+        } else if (hoursBooked >= 4 && hoursBooked <= 5) {
+          score += 20; // Near optimal, slight bonus
+        } else if (hoursBooked >= 6) {
+          score -= 200; // Overworked penalty
+        }
+        
         // Check if absent on this date
         const isAbsent = absences.some(
           (a) =>
@@ -102,19 +217,20 @@ export function MiniSchedulerGrid({
             dateStr <= a.endDate
         );
         if (isAbsent) {
-          score -= 100; // Heavy penalty for absence
+          score -= 1000; // Heavy penalty for absence
         }
-
-        // Check how many hours already booked
-        const dayBookings = bookings.filter(
-          (b) => b.instructorId === instructor.id && b.date === dateStr
-        );
-        // Prefer instructors with some bookings (fill-before-activate) but not fully booked
-        if (dayBookings.length > 0 && dayBookings.length < 6) {
-          score += 10; // Bonus for filling existing schedule
-        } else if (dayBookings.length >= 6) {
-          score -= 50; // Penalty for nearly full
+      }
+      
+      // ========== RULE D: Efficiency Guard ==========
+      const hasAnyBookings = selectedDates.some(dateStr => 
+        bookings.some(b => b.instructorId === instructor.id && b.date === dateStr)
+      );
+      if (!hasAnyBookings) {
+        // Avoid 1h shifts for inactive instructors
+        if (selectedDuration === 1) {
+          score -= 50;
         }
+        score -= 30; // General penalty for activating new instructor
       }
 
       // Status bonus
@@ -130,7 +246,7 @@ export function MiniSchedulerGrid({
       if (scoreB !== scoreA) return scoreB - scoreA;
       return a.last_name.localeCompare(b.last_name);
     });
-  }, [instructors, sport, language, selectedDates, bookings, absences, preferredTeacher]);
+  }, [instructors, sport, language, selectedDates, bookings, absences, preferredTeacher, bookingHistory, selectedDuration]);
 
   // Check if a slot is available
   const isSlotAvailable = (instructorId: string, date: string, hour: number) => {
@@ -241,7 +357,7 @@ export function MiniSchedulerGrid({
   return (
     <TooltipProvider>
       <div className="space-y-1">
-        {/* Compact header with legend integrated */}
+        {/* Compact header with ranking legend */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
             <Users className="h-3.5 w-3.5" />
@@ -249,16 +365,19 @@ export function MiniSchedulerGrid({
           </div>
           <div className="flex items-center gap-2 text-[9px] text-muted-foreground">
             <div className="flex items-center gap-0.5">
+              <Star className="h-2 w-2 fill-amber-400 text-amber-400" />
+              <span>Empfehlung</span>
+            </div>
+            <Badge variant="outline" className="h-3 px-1 text-[7px] bg-purple-50 text-purple-700 border-purple-200">
+              Kontinuität
+            </Badge>
+            <div className="flex items-center gap-0.5">
               <div className="h-2 w-2 rounded-sm bg-emerald-100 border border-emerald-400" />
               <span>Frei</span>
             </div>
             <div className="flex items-center gap-0.5">
               <div className="h-2 w-2 rounded-sm bg-rose-100 border border-rose-400" />
               <span>Belegt</span>
-            </div>
-            <div className="flex items-center gap-0.5">
-              <div className="h-2 w-2 rounded-sm bg-slate-800" />
-              <span>Gesperrt</span>
             </div>
           </div>
         </div>
@@ -289,10 +408,12 @@ export function MiniSchedulerGrid({
             {/* Instructor rows */}
             {sortedInstructors.slice(0, 14).map((instructor, idx) => {
               const isRecommended = idx === 0;
-              const warning = getInstructorWarning(instructor.id);
+              const isContinuity = hasContinuityMatch(instructor.id);
+              const locationConflict = getLocationConflict(instructor.id);
               const isSelected = selectedInstructor?.id === instructor.id;
               const isCross = isCrossDiscipline(instructor.specialization, sport);
               const disciplineIcon = getDisciplineIcon(instructor.specialization);
+              const hoursToday = getHoursBooked(instructor.id);
 
               return (
                 <div
@@ -300,7 +421,8 @@ export function MiniSchedulerGrid({
                   className={cn(
                     "flex border-b border-slate-300 last:border-b-0",
                     idx % 2 === 1 && "bg-slate-50/50",
-                    isSelected && "bg-primary/5"
+                    isSelected && "bg-primary/5",
+                    isContinuity && "border-l-2 border-l-purple-400"
                   )}
                 >
                   {/* Instructor name column */}
@@ -323,6 +445,9 @@ export function MiniSchedulerGrid({
                           <p className="text-xs text-muted-foreground">
                             Status: {instructor.real_time_status || "unbekannt"}
                           </p>
+                          <p className="text-xs text-muted-foreground">
+                            Heute: {hoursToday}h gebucht
+                          </p>
                         </TooltipContent>
                       </Tooltip>
                       {isRecommended && (
@@ -333,17 +458,22 @@ export function MiniSchedulerGrid({
                       )}
                     </div>
                     <div className="flex items-center gap-0.5 mt-0">
+                      {isContinuity && (
+                        <Badge variant="outline" className="h-3 px-0.5 text-[7px] py-0 bg-purple-50 text-purple-700 border-purple-200">
+                          Kontinuität
+                        </Badge>
+                      )}
                       {isCross && (
                         <Badge variant="outline" className="h-3 px-0.5 text-[8px] py-0">
                           Fachfremd
                         </Badge>
                       )}
-                      {warning && (
+                      {locationConflict && (
                         <Tooltip>
                           <TooltipTrigger>
-                            <AlertTriangle className="h-2.5 w-2.5 text-amber-500" />
+                            <MapPin className="h-2.5 w-2.5 text-blue-500" />
                           </TooltipTrigger>
-                          <TooltipContent>{warning}</TooltipContent>
+                          <TooltipContent>{locationConflict.message}</TooltipContent>
                         </Tooltip>
                       )}
                     </div>
@@ -365,40 +495,57 @@ export function MiniSchedulerGrid({
                           const isHighlightedDuration = isWithinSelectedDuration(hour) && available;
                           const isHoverPreview = isInHoverPreview(instructor.id, dateStr, hour);
                           const canBookDuration = isDurationBlockAvailable(instructor.id, dateStr, hour);
+                          const materialConflict = getMaterialConflict(instructor.id, dateStr, hour);
 
                           return (
-                            <button
-                              key={hour}
-                              disabled={!available}
-                              onClick={() => {
-                                if (available) {
-                                  onSlotSelect(instructor, dateStr, timeStart, timeEnd);
-                                }
-                              }}
-                              onMouseEnter={() => {
-                                if (available && selectedDuration) {
-                                  setHoveredSlot({ instructorId: instructor.id, date: dateStr, hour });
-                                }
-                              }}
-                              onMouseLeave={() => setHoveredSlot(null)}
-                              className={cn(
-                                "h-6 flex-1 border-r border-slate-200 transition-all last:border-r-0",
-                                available
-                                  ? "cursor-pointer bg-emerald-50 hover:bg-emerald-200"
-                                  : booked
-                                  ? "cursor-not-allowed bg-rose-100"
-                                  : absent
-                                  ? "cursor-not-allowed bg-slate-800"
-                                  : "cursor-not-allowed bg-slate-200",
-                                // Duration highlight for matching time window
-                                isHighlightedDuration && "ring-2 ring-inset ring-primary/50",
-                                // Hover preview for booking block
-                                isHoverPreview && canBookDuration && "bg-blue-100",
-                                isHoverPreview && !canBookDuration && "bg-rose-200",
-                                // Selected instructor slot highlight
-                                isSelected && available && "bg-primary/10 hover:bg-primary/20"
+                            <Tooltip key={hour}>
+                              <TooltipTrigger asChild>
+                                <button
+                                  disabled={!available}
+                                  onClick={() => {
+                                    if (available) {
+                                      onSlotSelect(instructor, dateStr, timeStart, timeEnd);
+                                    }
+                                  }}
+                                  onMouseEnter={() => {
+                                    if (available && selectedDuration) {
+                                      setHoveredSlot({ instructorId: instructor.id, date: dateStr, hour });
+                                    }
+                                  }}
+                                  onMouseLeave={() => setHoveredSlot(null)}
+                                  className={cn(
+                                    "h-6 flex-1 border-r border-slate-200 transition-all last:border-r-0 relative",
+                                    available
+                                      ? "cursor-pointer bg-emerald-50 hover:bg-emerald-200"
+                                      : booked
+                                      ? "cursor-not-allowed bg-rose-100"
+                                      : absent
+                                      ? "cursor-not-allowed bg-slate-800"
+                                      : "cursor-not-allowed bg-slate-200",
+                                    // Duration highlight for matching time window
+                                    isHighlightedDuration && "ring-2 ring-inset ring-primary/50",
+                                    // Hover preview for booking block
+                                    isHoverPreview && canBookDuration && "bg-blue-100",
+                                    isHoverPreview && !canBookDuration && "bg-rose-200",
+                                    // Selected instructor slot highlight
+                                    isSelected && available && "bg-primary/10 hover:bg-primary/20",
+                                    // Material conflict warning
+                                    materialConflict && available && "ring-1 ring-amber-500"
+                                  )}
+                                >
+                                  {materialConflict && available && (
+                                    <RefreshCw className="h-2 w-2 absolute top-0.5 right-0.5 text-amber-600" />
+                                  )}
+                                </button>
+                              </TooltipTrigger>
+                              {materialConflict && (
+                                <TooltipContent className="text-xs">
+                                  {materialConflict.message}
+                                  <br />
+                                  <span className="text-amber-600">30 Min. Puffer empfohlen</span>
+                                </TooltipContent>
                               )}
-                            />
+                            </Tooltip>
                           );
                         })}
                       </div>
@@ -416,6 +563,11 @@ export function MiniSchedulerGrid({
             +{sortedInstructors.length - 14} weitere Skilehrer
           </p>
         )}
+        
+        {/* Admin override hint */}
+        <p className="text-[9px] text-muted-foreground text-center italic">
+          Empfehlungen sind Richtlinien. Klicken Sie auf jeden freien Slot für manuelle Zuweisung.
+        </p>
       </div>
     </TooltipProvider>
   );
