@@ -21,6 +21,7 @@ import BookingWizard from "./pages/BookingWizard";
 import BookingDetail from "./pages/BookingDetail";
 import Scheduler from "./pages/Scheduler";
 import Reconciliation from "./pages/Reconciliation";
+import Lists from "./pages/Lists";
 
 const queryClient = new QueryClient();
 
@@ -130,6 +131,14 @@ const AppRoutes = () => (
       element={
         <AppLayout>
           <Reconciliation />
+        </AppLayout>
+      }
+    />
+    <Route
+      path="/lists"
+      element={
+        <AppLayout>
+          <Lists />
         </AppLayout>
       }
     />
