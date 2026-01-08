@@ -46,8 +46,15 @@ import PrivateBookingForm from "./pages/booking-portal/PrivateBookingForm";
 import GroupBookingForm from "./pages/booking-portal/GroupBookingForm";
 import RequestConfirmation from "./pages/booking-portal/RequestConfirmation";
 import Settings from "./pages/Settings";
+import SettingsSchool from "./pages/SettingsSchool";
+import SettingsProducts from "./pages/SettingsProducts";
+import SettingsPricing from "./pages/SettingsPricing";
+import SettingsSeasons from "./pages/SettingsSeasons";
+import SettingsUsers from "./pages/SettingsUsers";
 import SettingsEmailTemplates from "./pages/SettingsEmailTemplates";
 import SettingsEmailTemplateEdit from "./pages/SettingsEmailTemplateEdit";
+import SettingsNotifications from "./pages/SettingsNotifications";
+import SettingsSystem from "./pages/SettingsSystem";
 
 const queryClient = new QueryClient();
 

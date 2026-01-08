@@ -1,5 +1,5 @@
 import { Navigate } from "react-router-dom";
 
 export default function Settings() {
-  return <Navigate to="/settings/emails" replace />;
+  return <Navigate to="/settings/school" replace />;
 }

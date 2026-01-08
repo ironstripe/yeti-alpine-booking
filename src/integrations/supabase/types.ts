@@ -170,6 +170,62 @@ export type Database = {
           },
         ]
       }
+      cancellation_policy: {
+        Row: {
+          free_cancellation_hours: number | null
+          id: string
+          late_cancellation_percent: number | null
+          no_show_percent: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          free_cancellation_hours?: number | null
+          id?: string
+          late_cancellation_percent?: number | null
+          no_show_percent?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          free_cancellation_hours?: number | null
+          id?: string
+          late_cancellation_percent?: number | null
+          no_show_percent?: number | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      closure_dates: {
+        Row: {
+          created_at: string | null
+          date: string
+          id: string
+          reason: string | null
+          season_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          date: string
+          id?: string
+          reason?: string | null
+          season_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          date?: string
+          id?: string
+          reason?: string | null
+          season_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "closure_dates_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "seasons"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       conversations: {
         Row: {
           ai_confidence_score: number | null
@@ -823,6 +879,41 @@ export type Database = {
           },
         ]
       }
+      high_season_periods: {
+        Row: {
+          created_at: string | null
+          end_date: string
+          id: string
+          name: string
+          season_id: string | null
+          start_date: string
+        }
+        Insert: {
+          created_at?: string | null
+          end_date: string
+          id?: string
+          name: string
+          season_id?: string | null
+          start_date: string
+        }
+        Update: {
+          created_at?: string | null
+          end_date?: string
+          id?: string
+          name?: string
+          season_id?: string | null
+          start_date?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "high_season_periods_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "seasons"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       instructor_absences: {
         Row: {
           approved_at: string | null
@@ -1127,6 +1218,66 @@ export type Database = {
           },
         ]
       }
+      pricing_rules: {
+        Row: {
+          applies_to_products: string[] | null
+          created_at: string | null
+          description: string | null
+          discount_type: string
+          discount_value: number
+          id: string
+          is_active: boolean | null
+          min_days: number | null
+          min_quantity: number | null
+          name: string
+          partner_name: string | null
+          promo_code: string | null
+          sort_order: number | null
+          type: string
+          updated_at: string | null
+          valid_from: string | null
+          valid_until: string | null
+        }
+        Insert: {
+          applies_to_products?: string[] | null
+          created_at?: string | null
+          description?: string | null
+          discount_type: string
+          discount_value: number
+          id?: string
+          is_active?: boolean | null
+          min_days?: number | null
+          min_quantity?: number | null
+          name: string
+          partner_name?: string | null
+          promo_code?: string | null
+          sort_order?: number | null
+          type: string
+          updated_at?: string | null
+          valid_from?: string | null
+          valid_until?: string | null
+        }
+        Update: {
+          applies_to_products?: string[] | null
+          created_at?: string | null
+          description?: string | null
+          discount_type?: string
+          discount_value?: number
+          id?: string
+          is_active?: boolean | null
+          min_days?: number | null
+          min_quantity?: number | null
+          name?: string
+          partner_name?: string | null
+          promo_code?: string | null
+          sort_order?: number | null
+          type?: string
+          updated_at?: string | null
+          valid_from?: string | null
+          valid_until?: string | null
+        }
+        Relationships: []
+      }
       products: {
         Row: {
           created_at: string
@@ -1166,6 +1317,105 @@ export type Database = {
           sort_order?: number | null
           type?: string
           vat_rate?: number | null
+        }
+        Relationships: []
+      }
+      school_settings: {
+        Row: {
+          account_holder: string | null
+          bank_name: string | null
+          bic: string | null
+          city: string | null
+          country: string | null
+          created_at: string | null
+          email: string | null
+          iban: string | null
+          id: string
+          lesson_times: Json | null
+          logo_url: string | null
+          name: string
+          office_hours: Json | null
+          phone: string | null
+          slogan: string | null
+          street: string | null
+          updated_at: string | null
+          vat_number: string | null
+          website: string | null
+          zip: string | null
+        }
+        Insert: {
+          account_holder?: string | null
+          bank_name?: string | null
+          bic?: string | null
+          city?: string | null
+          country?: string | null
+          created_at?: string | null
+          email?: string | null
+          iban?: string | null
+          id?: string
+          lesson_times?: Json | null
+          logo_url?: string | null
+          name?: string
+          office_hours?: Json | null
+          phone?: string | null
+          slogan?: string | null
+          street?: string | null
+          updated_at?: string | null
+          vat_number?: string | null
+          website?: string | null
+          zip?: string | null
+        }
+        Update: {
+          account_holder?: string | null
+          bank_name?: string | null
+          bic?: string | null
+          city?: string | null
+          country?: string | null
+          created_at?: string | null
+          email?: string | null
+          iban?: string | null
+          id?: string
+          lesson_times?: Json | null
+          logo_url?: string | null
+          name?: string
+          office_hours?: Json | null
+          phone?: string | null
+          slogan?: string | null
+          street?: string | null
+          updated_at?: string | null
+          vat_number?: string | null
+          website?: string | null
+          zip?: string | null
+        }
+        Relationships: []
+      }
+      seasons: {
+        Row: {
+          created_at: string | null
+          end_date: string
+          id: string
+          is_current: boolean | null
+          name: string
+          start_date: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          end_date: string
+          id?: string
+          is_current?: boolean | null
+          name: string
+          start_date: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          end_date?: string
+          id?: string
+          is_current?: boolean | null
+          name?: string
+          start_date?: string
+          updated_at?: string | null
         }
         Relationships: []
       }

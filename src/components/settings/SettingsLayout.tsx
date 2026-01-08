@@ -1,11 +1,17 @@
 import { ReactNode } from "react";
 import { NavLink, useLocation } from "react-router-dom";
-import { Mail, Bell, Settings2 } from "lucide-react";
+import { Building2, Package, DollarSign, CalendarDays, Users, Mail, Bell, Settings2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AppLayout } from "@/components/layout";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 const settingsNav = [
+  { title: "Skischule", url: "/settings/school", icon: Building2 },
+  { title: "Produkte", url: "/settings/products", icon: Package },
+  { title: "Preise", url: "/settings/pricing", icon: DollarSign },
+  { title: "Saisons", url: "/settings/seasons", icon: CalendarDays },
+  { title: "Benutzer", url: "/settings/users", icon: Users },
   { title: "E-Mail Vorlagen", url: "/settings/emails", icon: Mail },
   { title: "Benachrichtigungen", url: "/settings/notifications", icon: Bell },
   { title: "System", url: "/settings/system", icon: Settings2 },
@@ -27,26 +33,31 @@ export function SettingsLayout({ children, title, description }: SettingsLayoutP
 
         <div className="flex flex-col lg:flex-row gap-6">
           {/* Sidebar Navigation */}
-          <nav className="lg:w-64 shrink-0">
-            <div className="bg-card rounded-lg border border-border p-2 space-y-1">
-              {settingsNav.map((item) => {
-                const isActive = location.pathname.startsWith(item.url);
-                return (
-                  <NavLink
-                    key={item.url}
-                    to={item.url}
-                    className={cn(
-                      "flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-colors",
-                      isActive
-                        ? "bg-primary/10 text-primary"
-                        : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                    )}
-                  >
-                    <item.icon className="h-4 w-4" />
-                    {item.title}
-                  </NavLink>
-                );
-              })}
+          <nav className="lg:w-56 shrink-0">
+            <div className="bg-card rounded-lg border border-border">
+              <ScrollArea className="h-auto lg:h-[calc(100vh-12rem)]">
+                <div className="p-2 space-y-1">
+                  {settingsNav.map((item) => {
+                    const isActive = location.pathname === item.url || 
+                      (item.url !== "/settings/school" && location.pathname.startsWith(item.url));
+                    return (
+                      <NavLink
+                        key={item.url}
+                        to={item.url}
+                        className={cn(
+                          "flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-colors",
+                          isActive
+                            ? "bg-primary/10 text-primary"
+                            : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                        )}
+                      >
+                        <item.icon className="h-4 w-4" />
+                        {item.title}
+                      </NavLink>
+                    );
+                  })}
+                </div>
+              </ScrollArea>
             </div>
           </nav>
 
