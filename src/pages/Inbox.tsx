@@ -11,7 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Search, CheckCheck, ArrowUpDown } from "lucide-react";
+import { Search, CheckCheck, ArrowUpDown, FlaskConical } from "lucide-react";
 import { useDebounce } from "@/hooks/useDebounce";
 import {
   useConversations,
@@ -26,6 +26,7 @@ import { ConversationListSkeleton } from "@/components/inbox/ConversationListSke
 import { ConversationEmptyState } from "@/components/inbox/ConversationEmptyState";
 import { InboxQuickStats } from "@/components/inbox/InboxQuickStats";
 import { QuickBookingModal } from "@/components/inbox/QuickBookingModal";
+import { AITestPanel } from "@/components/inbox/AITestPanel";
 import type { ExtractedData } from "@/hooks/useAIExtraction";
 
 type SortOption = "newest" | "oldest" | "confidence";
@@ -39,6 +40,7 @@ const Inbox = () => {
 
   // Quick booking modal state
   const [quickBookingOpen, setQuickBookingOpen] = useState(false);
+  const [aiTestOpen, setAiTestOpen] = useState(false);
   const [selectedConversation, setSelectedConversation] = useState<{
     id: string;
     extractedData: ExtractedData;
@@ -100,12 +102,18 @@ const Inbox = () => {
         title={unreadCount > 0 ? `Posteingang (${unreadCount} ungelesen)` : "Posteingang"}
         description="Eingehende Anfragen und Nachrichten"
         actions={
-          unreadCount > 0 && (
-            <Button variant="outline" size="sm" onClick={markAllAsRead}>
-              <CheckCheck className="h-4 w-4 mr-2" />
-              Alle als gelesen markieren
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={() => setAiTestOpen(true)}>
+              <FlaskConical className="h-4 w-4 mr-2" />
+              KI testen
             </Button>
-          )
+            {unreadCount > 0 && (
+              <Button variant="outline" size="sm" onClick={markAllAsRead}>
+                <CheckCheck className="h-4 w-4 mr-2" />
+                Alle als gelesen markieren
+              </Button>
+            )}
+          </div>
         }
       />
 
@@ -195,6 +203,9 @@ const Inbox = () => {
           onConvertToWizard={handleConvertToWizard}
         />
       )}
+
+      {/* AI Test Panel */}
+      <AITestPanel open={aiTestOpen} onOpenChange={setAiTestOpen} />
     </>
   );
 };
