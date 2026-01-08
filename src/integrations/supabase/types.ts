@@ -259,6 +259,81 @@ export type Database = {
         }
         Relationships: []
       }
+      daily_reconciliations: {
+        Row: {
+          card_actual: number | null
+          card_expected: number
+          cash_actual: number | null
+          cash_expected: number
+          closed_at: string | null
+          closed_by: string | null
+          closed_by_name: string | null
+          created_at: string
+          date: string
+          difference: number
+          difference_acknowledged: boolean
+          difference_reason: string | null
+          id: string
+          notes: string | null
+          status: string
+          total_bookings: number
+          total_hours: number
+          total_instructors: number
+          total_revenue: number
+          twint_actual: number | null
+          twint_expected: number
+          updated_at: string
+        }
+        Insert: {
+          card_actual?: number | null
+          card_expected?: number
+          cash_actual?: number | null
+          cash_expected?: number
+          closed_at?: string | null
+          closed_by?: string | null
+          closed_by_name?: string | null
+          created_at?: string
+          date: string
+          difference?: number
+          difference_acknowledged?: boolean
+          difference_reason?: string | null
+          id?: string
+          notes?: string | null
+          status?: string
+          total_bookings?: number
+          total_hours?: number
+          total_instructors?: number
+          total_revenue?: number
+          twint_actual?: number | null
+          twint_expected?: number
+          updated_at?: string
+        }
+        Update: {
+          card_actual?: number | null
+          card_expected?: number
+          cash_actual?: number | null
+          cash_expected?: number
+          closed_at?: string | null
+          closed_by?: string | null
+          closed_by_name?: string | null
+          created_at?: string
+          date?: string
+          difference?: number
+          difference_acknowledged?: boolean
+          difference_reason?: string | null
+          id?: string
+          notes?: string | null
+          status?: string
+          total_bookings?: number
+          total_hours?: number
+          total_instructors?: number
+          total_revenue?: number
+          twint_actual?: number | null
+          twint_expected?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       groups: {
         Row: {
           created_at: string
