@@ -17,6 +17,7 @@ import {
   ShoppingCart,
   Gift,
   BarChart3,
+  Settings,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -37,6 +38,7 @@ const navItems = [
   { title: "Berichte", url: "/reports", icon: BarChart3 },
   { title: "Tagesabschluss", url: "/reconciliation", icon: Calculator },
   { title: "Trainings", url: "/trainings", icon: GraduationCap },
+  { title: "Einstellungen", url: "/settings", icon: Settings },
 ];
 
 export function AppSidebar() {
