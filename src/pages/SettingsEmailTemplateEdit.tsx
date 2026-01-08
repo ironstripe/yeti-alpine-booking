@@ -9,8 +9,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useEmailTemplate, useUpdateEmailTemplate, EmailTemplate } from "@/hooks/useEmailTemplates";
-
+import type { Json } from "@/integrations/supabase/types";
 export default function SettingsEmailTemplateEdit() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -20,6 +21,7 @@ export default function SettingsEmailTemplateEdit() {
   const [subject, setSubject] = useState("");
   const [bodyHtml, setBodyHtml] = useState("");
   const [bodyText, setBodyText] = useState("");
+  const [attachments, setAttachments] = useState<{ confirmation_pdf?: boolean; invoice_pdf?: boolean; terms_pdf?: boolean }>({});
   const [showPreview, setShowPreview] = useState(false);
   const [activeTab, setActiveTab] = useState("html");
 
@@ -31,6 +33,8 @@ export default function SettingsEmailTemplateEdit() {
       setSubject(template.subject);
       setBodyHtml(template.body_html);
       setBodyText(template.body_text || "");
+      const attachmentsData = template.attachments as Record<string, boolean> | null;
+      setAttachments(attachmentsData || {});
     }
   }, [template]);
 
@@ -42,6 +46,7 @@ export default function SettingsEmailTemplateEdit() {
         subject,
         body_html: bodyHtml,
         body_text: bodyText || null,
+        attachments: attachments as Json,
       },
     });
   };
@@ -165,8 +170,45 @@ export default function SettingsEmailTemplateEdit() {
                   Die Nur-Text-Version wird als Fallback verwendet, wenn HTML nicht angezeigt werden kann.
                 </p>
               </TabsContent>
-            </Tabs>
+          </Tabs>
+
+          {/* Attachments */}
+          <div className="space-y-3">
+            <Label>Anhänge</Label>
+            <div className="space-y-2 p-3 bg-muted/50 rounded-lg">
+              <div className="flex items-center space-x-2">
+                <Checkbox 
+                  id="attach-confirmation"
+                  checked={attachments.confirmation_pdf || false}
+                  onCheckedChange={(checked) => setAttachments(prev => ({ ...prev, confirmation_pdf: !!checked }))}
+                />
+                <label htmlFor="attach-confirmation" className="text-sm cursor-pointer">
+                  Buchungsbestätigung als PDF
+                </label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Checkbox 
+                  id="attach-invoice"
+                  checked={attachments.invoice_pdf || false}
+                  onCheckedChange={(checked) => setAttachments(prev => ({ ...prev, invoice_pdf: !!checked }))}
+                />
+                <label htmlFor="attach-invoice" className="text-sm cursor-pointer">
+                  Rechnung als PDF (mit QR-Code)
+                </label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Checkbox 
+                  id="attach-terms"
+                  checked={attachments.terms_pdf || false}
+                  onCheckedChange={(checked) => setAttachments(prev => ({ ...prev, terms_pdf: !!checked }))}
+                />
+                <label htmlFor="attach-terms" className="text-sm cursor-pointer">
+                  AGB als PDF
+                </label>
+              </div>
+            </div>
           </div>
+        </div>
         </div>
 
         {/* Variable Helper Sidebar */}

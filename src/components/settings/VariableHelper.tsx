@@ -20,6 +20,9 @@ const variableGroups = [
       { key: "customer.last_name", label: "Nachname" },
       { key: "customer.email", label: "E-Mail" },
       { key: "customer.phone", label: "Telefon" },
+      { key: "customer.street", label: "Strasse" },
+      { key: "customer.zip", label: "PLZ" },
+      { key: "customer.city", label: "Ort" },
     ],
   },
   {
@@ -32,6 +35,21 @@ const variableGroups = [
       { key: "product.name", label: "Produkt" },
       { key: "instructor.name", label: "Skilehrer" },
       { key: "meeting_point", label: "Treffpunkt" },
+      { key: "booking.items", label: "Buchungspositionen" },
+      { key: "booking.total", label: "Gesamtbetrag" },
+    ],
+  },
+  {
+    name: "Rechnung",
+    variables: [
+      { key: "invoice.number", label: "Rechnungsnummer" },
+      { key: "invoice.date", label: "Rechnungsdatum" },
+      { key: "invoice.due_date", label: "Fälligkeitsdatum" },
+      { key: "invoice.subtotal", label: "Zwischensumme" },
+      { key: "invoice.discount", label: "Rabatt" },
+      { key: "invoice.total", label: "Gesamtbetrag" },
+      { key: "invoice.qr_reference", label: "QR-Referenz" },
+      { key: "invoice.items", label: "Rechnungspositionen" },
     ],
   },
   {
@@ -40,6 +58,7 @@ const variableGroups = [
       { key: "payment.amount", label: "Betrag" },
       { key: "payment.due_date", label: "Fälligkeitsdatum" },
       { key: "payment.method", label: "Zahlungsart" },
+      { key: "payment.status", label: "Zahlungsstatus" },
     ],
   },
   {
@@ -52,12 +71,23 @@ const variableGroups = [
     ],
   },
   {
+    name: "Skischule",
+    variables: [
+      { key: "school.name", label: "Name" },
+      { key: "school.email", label: "E-Mail" },
+      { key: "school.phone", label: "Telefon" },
+      { key: "school.street", label: "Strasse" },
+      { key: "school.zip", label: "PLZ" },
+      { key: "school.city", label: "Ort" },
+      { key: "school.iban", label: "IBAN" },
+      { key: "school.website", label: "Website" },
+    ],
+  },
+  {
     name: "System",
     variables: [
-      { key: "company.name", label: "Firmenname" },
-      { key: "company.email", label: "Firmen-E-Mail" },
-      { key: "company.phone", label: "Firmen-Telefon" },
       { key: "current.date", label: "Aktuelles Datum" },
+      { key: "current.year", label: "Aktuelles Jahr" },
     ],
   },
 ];
