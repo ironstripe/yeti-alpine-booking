@@ -27,11 +27,11 @@ const SIDEBAR_COLLAPSED_KEY = "yety-sidebar-collapsed";
 
 const navItems = [
   { title: "Dashboard", url: "/", icon: Home },
-  { title: "Inbox", url: "/inbox", icon: Inbox, badge: 3 },
-  { title: "Bookings", url: "/bookings", icon: Calendar },
-  { title: "Scheduler", url: "/scheduler", icon: LayoutGrid },
-  { title: "Customers", url: "/customers", icon: Users },
-  { title: "Instructors", url: "/instructors", icon: UserCheck },
+  { title: "Posteingang", url: "/inbox", icon: Inbox, badge: 3 },
+  { title: "Buchungen", url: "/bookings", icon: Calendar },
+  { title: "Stundenplan", url: "/scheduler", icon: LayoutGrid },
+  { title: "Kunden", url: "/customers", icon: Users },
+  { title: "Skilehrer", url: "/instructors", icon: UserCheck },
   { title: "Listen", url: "/lists", icon: FileText },
   { title: "Shop", url: "/shop", icon: ShoppingCart },
   { title: "Gutscheine", url: "/vouchers", icon: Gift },

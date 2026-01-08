@@ -21,15 +21,15 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/co
 
 // Primary nav items (shown in bottom bar)
 const primaryNavItems = [
-  { title: "Home", url: "/", icon: Home },
+  { title: "Dashboard", url: "/", icon: Home },
   { title: "Buchungen", url: "/bookings", icon: Calendar },
-  { title: "Plan", url: "/scheduler", icon: LayoutGrid },
+  { title: "Stundenplan", url: "/scheduler", icon: LayoutGrid },
   { title: "Kunden", url: "/customers", icon: Users },
 ];
 
 // Secondary nav items (shown in "Mehr" drawer)
 const secondaryNavItems = [
-  { title: "Inbox", url: "/inbox", icon: Inbox, badge: 3 },
+  { title: "Posteingang", url: "/inbox", icon: Inbox, badge: 3 },
   { title: "Skilehrer", url: "/instructors", icon: UserCheck },
   { title: "Trainings", url: "/trainings", icon: GraduationCap },
   { title: "Shop", url: "/shop", icon: ShoppingCart },

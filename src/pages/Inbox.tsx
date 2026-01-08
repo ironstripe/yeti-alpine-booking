@@ -41,7 +41,7 @@ const Inbox = () => {
   return (
     <>
       <PageHeader
-        title={unreadCount > 0 ? `Inbox (${unreadCount} ungelesen)` : "Inbox"}
+        title={unreadCount > 0 ? `Posteingang (${unreadCount} ungelesen)` : "Posteingang"}
         description="Alle Nachrichten an einem Ort"
         actions={
           unreadCount > 0 && (
