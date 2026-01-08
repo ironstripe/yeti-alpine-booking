@@ -534,6 +534,227 @@ export type Database = {
         }
         Relationships: []
       }
+      group_course_enrollments: {
+        Row: {
+          attendance_status: string | null
+          checked_in_at: string | null
+          created_at: string | null
+          id: string
+          instance_id: string
+          notes: string | null
+          participant_id: string | null
+          ticket_item_id: string | null
+        }
+        Insert: {
+          attendance_status?: string | null
+          checked_in_at?: string | null
+          created_at?: string | null
+          id?: string
+          instance_id: string
+          notes?: string | null
+          participant_id?: string | null
+          ticket_item_id?: string | null
+        }
+        Update: {
+          attendance_status?: string | null
+          checked_in_at?: string | null
+          created_at?: string | null
+          id?: string
+          instance_id?: string
+          notes?: string | null
+          participant_id?: string | null
+          ticket_item_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "group_course_enrollments_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "group_course_instances"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "group_course_enrollments_participant_id_fkey"
+            columns: ["participant_id"]
+            isOneToOne: false
+            referencedRelation: "customer_participants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "group_course_enrollments_ticket_item_id_fkey"
+            columns: ["ticket_item_id"]
+            isOneToOne: false
+            referencedRelation: "ticket_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      group_course_instances: {
+        Row: {
+          assistant_instructor_id: string | null
+          course_id: string
+          created_at: string | null
+          current_participants: number | null
+          date: string
+          end_time: string
+          id: string
+          instructor_id: string | null
+          notes: string | null
+          schedule_id: string | null
+          start_time: string
+          status: string | null
+        }
+        Insert: {
+          assistant_instructor_id?: string | null
+          course_id: string
+          created_at?: string | null
+          current_participants?: number | null
+          date: string
+          end_time: string
+          id?: string
+          instructor_id?: string | null
+          notes?: string | null
+          schedule_id?: string | null
+          start_time: string
+          status?: string | null
+        }
+        Update: {
+          assistant_instructor_id?: string | null
+          course_id?: string
+          created_at?: string | null
+          current_participants?: number | null
+          date?: string
+          end_time?: string
+          id?: string
+          instructor_id?: string | null
+          notes?: string | null
+          schedule_id?: string | null
+          start_time?: string
+          status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "group_course_instances_assistant_instructor_id_fkey"
+            columns: ["assistant_instructor_id"]
+            isOneToOne: false
+            referencedRelation: "instructors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "group_course_instances_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "group_courses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "group_course_instances_instructor_id_fkey"
+            columns: ["instructor_id"]
+            isOneToOne: false
+            referencedRelation: "instructors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "group_course_instances_schedule_id_fkey"
+            columns: ["schedule_id"]
+            isOneToOne: false
+            referencedRelation: "group_course_schedules"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      group_course_schedules: {
+        Row: {
+          course_id: string
+          created_at: string | null
+          day_of_week: number
+          end_time: string
+          id: string
+          is_active: boolean | null
+          start_time: string
+        }
+        Insert: {
+          course_id: string
+          created_at?: string | null
+          day_of_week: number
+          end_time: string
+          id?: string
+          is_active?: boolean | null
+          start_time: string
+        }
+        Update: {
+          course_id?: string
+          created_at?: string | null
+          day_of_week?: number
+          end_time?: string
+          id?: string
+          is_active?: boolean | null
+          start_time?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "group_course_schedules_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "group_courses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      group_courses: {
+        Row: {
+          color: string | null
+          created_at: string | null
+          description: string | null
+          discipline: string
+          id: string
+          is_active: boolean | null
+          max_age: number | null
+          max_participants: number
+          meeting_point: string | null
+          min_age: number | null
+          name: string
+          price_full_week: number | null
+          price_per_day: number
+          skill_level: string
+          updated_at: string | null
+        }
+        Insert: {
+          color?: string | null
+          created_at?: string | null
+          description?: string | null
+          discipline?: string
+          id?: string
+          is_active?: boolean | null
+          max_age?: number | null
+          max_participants?: number
+          meeting_point?: string | null
+          min_age?: number | null
+          name: string
+          price_full_week?: number | null
+          price_per_day: number
+          skill_level?: string
+          updated_at?: string | null
+        }
+        Update: {
+          color?: string | null
+          created_at?: string | null
+          description?: string | null
+          discipline?: string
+          id?: string
+          is_active?: boolean | null
+          max_age?: number | null
+          max_participants?: number
+          meeting_point?: string | null
+          min_age?: number | null
+          name?: string
+          price_full_week?: number | null
+          price_per_day?: number
+          skill_level?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       groups: {
         Row: {
           created_at: string
