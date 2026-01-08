@@ -673,6 +673,257 @@ export type Database = {
         }
         Relationships: []
       }
+      shop_article_variants: {
+        Row: {
+          article_id: string
+          created_at: string
+          id: string
+          name: string
+          price: number | null
+          sku: string
+          stock_quantity: number
+        }
+        Insert: {
+          article_id: string
+          created_at?: string
+          id?: string
+          name: string
+          price?: number | null
+          sku: string
+          stock_quantity?: number
+        }
+        Update: {
+          article_id?: string
+          created_at?: string
+          id?: string
+          name?: string
+          price?: number | null
+          sku?: string
+          stock_quantity?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shop_article_variants_article_id_fkey"
+            columns: ["article_id"]
+            isOneToOne: false
+            referencedRelation: "shop_articles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      shop_articles: {
+        Row: {
+          category: string
+          cost_price: number | null
+          created_at: string
+          description: string | null
+          has_variants: boolean
+          id: string
+          image_url: string | null
+          is_popular: boolean
+          min_stock: number
+          name: string
+          price: number
+          sku: string
+          status: string
+          stock_quantity: number
+          updated_at: string
+        }
+        Insert: {
+          category?: string
+          cost_price?: number | null
+          created_at?: string
+          description?: string | null
+          has_variants?: boolean
+          id?: string
+          image_url?: string | null
+          is_popular?: boolean
+          min_stock?: number
+          name: string
+          price: number
+          sku: string
+          status?: string
+          stock_quantity?: number
+          updated_at?: string
+        }
+        Update: {
+          category?: string
+          cost_price?: number | null
+          created_at?: string
+          description?: string | null
+          has_variants?: boolean
+          id?: string
+          image_url?: string | null
+          is_popular?: boolean
+          min_stock?: number
+          name?: string
+          price?: number
+          sku?: string
+          status?: string
+          stock_quantity?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      shop_stock_movements: {
+        Row: {
+          article_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          quantity: number
+          reason: string | null
+          reference_id: string | null
+          type: string
+          variant_id: string | null
+        }
+        Insert: {
+          article_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          quantity: number
+          reason?: string | null
+          reference_id?: string | null
+          type: string
+          variant_id?: string | null
+        }
+        Update: {
+          article_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          quantity?: number
+          reason?: string | null
+          reference_id?: string | null
+          type?: string
+          variant_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shop_stock_movements_article_id_fkey"
+            columns: ["article_id"]
+            isOneToOne: false
+            referencedRelation: "shop_articles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shop_stock_movements_variant_id_fkey"
+            columns: ["variant_id"]
+            isOneToOne: false
+            referencedRelation: "shop_article_variants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      shop_transaction_items: {
+        Row: {
+          article_id: string
+          created_at: string
+          id: string
+          quantity: number
+          total_price: number
+          transaction_id: string
+          unit_price: number
+          variant_id: string | null
+        }
+        Insert: {
+          article_id: string
+          created_at?: string
+          id?: string
+          quantity?: number
+          total_price: number
+          transaction_id: string
+          unit_price: number
+          variant_id?: string | null
+        }
+        Update: {
+          article_id?: string
+          created_at?: string
+          id?: string
+          quantity?: number
+          total_price?: number
+          transaction_id?: string
+          unit_price?: number
+          variant_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shop_transaction_items_article_id_fkey"
+            columns: ["article_id"]
+            isOneToOne: false
+            referencedRelation: "shop_articles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shop_transaction_items_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "shop_transactions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shop_transaction_items_variant_id_fkey"
+            columns: ["variant_id"]
+            isOneToOne: false
+            referencedRelation: "shop_article_variants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      shop_transactions: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          date: string
+          discount_amount: number
+          discount_percent: number | null
+          discount_reason: string | null
+          id: string
+          linked_ticket_id: string | null
+          payment_method: string
+          subtotal: number
+          total: number
+          transaction_number: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          date?: string
+          discount_amount?: number
+          discount_percent?: number | null
+          discount_reason?: string | null
+          id?: string
+          linked_ticket_id?: string | null
+          payment_method: string
+          subtotal?: number
+          total?: number
+          transaction_number: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          date?: string
+          discount_amount?: number
+          discount_percent?: number | null
+          discount_reason?: string | null
+          id?: string
+          linked_ticket_id?: string | null
+          payment_method?: string
+          subtotal?: number
+          total?: number
+          transaction_number?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shop_transactions_linked_ticket_id_fkey"
+            columns: ["linked_ticket_id"]
+            isOneToOne: false
+            referencedRelation: "tickets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ticket_comments: {
         Row: {
           comment_type: string
