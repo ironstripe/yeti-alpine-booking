@@ -7,6 +7,9 @@ import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { AppLayout } from "@/components/layout";
 import { InstallBanner } from "@/components/pwa/InstallBanner";
 import { OfflineIndicator } from "@/components/pwa/OfflineIndicator";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { OnboardingDialog } from "@/components/onboarding/OnboardingDialog";
+import { SessionTimeoutWarning } from "@/components/auth/SessionTimeoutWarning";
 
 // Pages
 import Dashboard from "./pages/Index";
@@ -300,27 +303,38 @@ const AppRoutes = () => (
     <Route path="/book/request/:token" element={<RequestConfirmation />} />
     {/* Settings Routes */}
     <Route path="/settings" element={<Settings />} />
+    <Route path="/settings/school" element={<SettingsSchool />} />
+    <Route path="/settings/products" element={<SettingsProducts />} />
+    <Route path="/settings/pricing" element={<SettingsPricing />} />
+    <Route path="/settings/seasons" element={<SettingsSeasons />} />
+    <Route path="/settings/users" element={<SettingsUsers />} />
     <Route path="/settings/emails" element={<SettingsEmailTemplates />} />
     <Route path="/settings/emails/:id" element={<SettingsEmailTemplateEdit />} />
+    <Route path="/settings/notifications" element={<SettingsNotifications />} />
+    <Route path="/settings/system" element={<SettingsSystem />} />
     {/* Catch-all route */}
     <Route path="*" element={<NotFound />} />
   </Routes>
 );
 
 const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <AuthProvider>
-          <OfflineIndicator />
-          <AppRoutes />
-          <InstallBanner />
-        </AuthProvider>
-      </BrowserRouter>
-    </TooltipProvider>
-  </QueryClientProvider>
+  <ErrorBoundary>
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <AuthProvider>
+            <OfflineIndicator />
+            <AppRoutes />
+            <InstallBanner />
+            <OnboardingDialog />
+            <SessionTimeoutWarning />
+          </AuthProvider>
+        </BrowserRouter>
+      </TooltipProvider>
+    </QueryClientProvider>
+  </ErrorBoundary>
 );
 
 export default App;

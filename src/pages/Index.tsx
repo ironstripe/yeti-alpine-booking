@@ -10,6 +10,7 @@ import { BookingInquiriesCard } from "@/components/dashboard/BookingInquiriesCar
 import { EmbeddedScheduler } from "@/components/dashboard/EmbeddedScheduler";
 import { PendingPaymentsCard } from "@/components/dashboard/PendingPaymentsCard";
 import { QuickActionsDropdown } from "@/components/dashboard/QuickActionsDropdown";
+import { LaunchChecklist } from "@/components/dashboard/LaunchChecklist";
 
 const Dashboard = () => {
   const today = new Date();
@@ -31,6 +32,7 @@ const Dashboard = () => {
       <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-4 h-[calc(100vh-14rem)]">
         {/* Left: Action Center */}
         <div className="space-y-4 overflow-auto pr-1">
+          <LaunchChecklist />
           <DailyTaskList />
           <PendingActionsCard />
           <BookingInquiriesCard />
