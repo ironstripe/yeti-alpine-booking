@@ -16,6 +16,7 @@ import {
   Calculator,
   ShoppingCart,
   Gift,
+  BarChart3,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -33,6 +34,7 @@ const navItems = [
   { title: "Listen", url: "/lists", icon: FileText },
   { title: "Shop", url: "/shop", icon: ShoppingCart },
   { title: "Gutscheine", url: "/vouchers", icon: Gift },
+  { title: "Berichte", url: "/reports", icon: BarChart3 },
   { title: "Tagesabschluss", url: "/reconciliation", icon: Calculator },
   { title: "Trainings", url: "/trainings", icon: GraduationCap },
 ];

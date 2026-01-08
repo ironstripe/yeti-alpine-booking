@@ -30,6 +30,11 @@ import ShopTransactions from "./pages/ShopTransactions";
 import Vouchers from "./pages/Vouchers";
 import VoucherNew from "./pages/VoucherNew";
 import VoucherDetail from "./pages/VoucherDetail";
+import Reports from "./pages/Reports";
+import ReportsRevenue from "./pages/ReportsRevenue";
+import ReportsInstructors from "./pages/ReportsInstructors";
+import ReportsBookings from "./pages/ReportsBookings";
+import ReportsCustomers from "./pages/ReportsCustomers";
 
 const queryClient = new QueryClient();
 
@@ -211,6 +216,46 @@ const AppRoutes = () => (
       element={
         <AppLayout>
           <VoucherDetail />
+        </AppLayout>
+      }
+    />
+    <Route
+      path="/reports"
+      element={
+        <AppLayout>
+          <Reports />
+        </AppLayout>
+      }
+    />
+    <Route
+      path="/reports/revenue"
+      element={
+        <AppLayout>
+          <ReportsRevenue />
+        </AppLayout>
+      }
+    />
+    <Route
+      path="/reports/instructors"
+      element={
+        <AppLayout>
+          <ReportsInstructors />
+        </AppLayout>
+      }
+    />
+    <Route
+      path="/reports/bookings"
+      element={
+        <AppLayout>
+          <ReportsBookings />
+        </AppLayout>
+      }
+    />
+    <Route
+      path="/reports/customers"
+      element={
+        <AppLayout>
+          <ReportsCustomers />
         </AppLayout>
       }
     />
