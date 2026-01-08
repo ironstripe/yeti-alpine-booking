@@ -1,38 +1,105 @@
+import { useState, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { PageHeader } from "@/components/layout";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Plus, Calendar } from "lucide-react";
+import { Plus } from "lucide-react";
+import { useDebounce } from "@/hooks/useDebounce";
+import { useTickets, defaultFilters, TicketFilters, TicketWithDetails } from "@/hooks/useTickets";
+import { BookingsFilters } from "@/components/bookings/BookingsFilters";
+import { BookingsTable } from "@/components/bookings/BookingsTable";
+import { BookingsTableSkeleton } from "@/components/bookings/BookingsTableSkeleton";
+import { BookingsEmptyState } from "@/components/bookings/BookingsEmptyState";
+import { BookingsBulkActions } from "@/components/bookings/BookingsBulkActions";
+import { PaymentModal } from "@/components/bookings/PaymentModal";
+
+const DEFAULT_COLUMNS = ["ticket", "customer", "course", "dateTime", "instructor", "total", "status"];
 
 const Bookings = () => {
+  const navigate = useNavigate();
+  
+  // Filter state
+  const [searchInput, setSearchInput] = useState("");
+  const [filters, setFilters] = useState<TicketFilters>(defaultFilters);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [visibleColumns, setVisibleColumns] = useState<string[]>(DEFAULT_COLUMNS);
+  const [paymentModalTicket, setPaymentModalTicket] = useState<TicketWithDetails | null>(null);
+
+  // Debounced search
+  const debouncedSearch = useDebounce(searchInput, 300);
+
+  // Fetch tickets with filters
+  const { data: tickets, isLoading } = useTickets({
+    ...filters,
+    search: debouncedSearch,
+  });
+
+  const hasActiveFilters = useMemo(() => {
+    return (
+      filters.status.length > 0 ||
+      filters.productType.length > 0 ||
+      filters.paymentStatus.length > 0 ||
+      filters.paymentMethod.length > 0 ||
+      filters.dateFrom !== undefined ||
+      filters.dateTo !== undefined ||
+      debouncedSearch.length > 0
+    );
+  }, [filters, debouncedSearch]);
+
+  const clearFilters = () => {
+    setSearchInput("");
+    setFilters(defaultFilters);
+  };
+
   return (
     <>
       <PageHeader
-        title="Bookings"
-        description="Manage all ski lessons and group course bookings."
+        title="Buchungen"
+        description="Verwalte alle Buchungen und Tickets"
         actions={
-          <Button size="sm">
+          <Button size="sm" onClick={() => navigate("/bookings/new")}>
             <Plus className="h-4 w-4 mr-2" />
-            New Booking
+            Neue Buchung
           </Button>
         }
       />
 
-      <Card className="bg-card">
-        <CardContent className="py-12">
-          <div className="text-center">
-            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-muted mb-4">
-              <Calendar className="h-8 w-8 text-muted-foreground" />
-            </div>
-            <h3 className="text-lg font-semibold font-display mb-2">
-              Booking Management
-            </h3>
-            <p className="text-muted-foreground text-sm max-w-md mx-auto">
-              Coming soon — Create, edit, and manage all bookings with the
-              booking wizard. Assign instructors and track payments.
-            </p>
-          </div>
-        </CardContent>
-      </Card>
+      <BookingsFilters
+        searchInput={searchInput}
+        onSearchChange={setSearchInput}
+        filters={filters}
+        onFiltersChange={setFilters}
+        visibleColumns={visibleColumns}
+        onColumnsChange={setVisibleColumns}
+      />
+
+      {isLoading ? (
+        <BookingsTableSkeleton />
+      ) : tickets && tickets.length > 0 ? (
+        <BookingsTable
+          tickets={tickets}
+          selectedIds={selectedIds}
+          onSelectionChange={setSelectedIds}
+          visibleColumns={visibleColumns}
+          onRecordPayment={setPaymentModalTicket}
+        />
+      ) : (
+        <BookingsEmptyState
+          hasFilters={hasActiveFilters}
+          onClearFilters={clearFilters}
+        />
+      )}
+
+      {selectedIds.size > 0 && (
+        <BookingsBulkActions
+          count={selectedIds.size}
+          selectedIds={selectedIds}
+        />
+      )}
+
+      <PaymentModal
+        ticket={paymentModalTicket}
+        onClose={() => setPaymentModalTicket(null)}
+      />
     </>
   );
 };

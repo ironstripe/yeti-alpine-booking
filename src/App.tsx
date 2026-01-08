@@ -18,6 +18,7 @@ import Login from "./pages/Login";
 import NotFound from "./pages/NotFound";
 import CustomerDetail from "./pages/CustomerDetail";
 import BookingWizard from "./pages/BookingWizard";
+import BookingDetail from "./pages/BookingDetail";
 import Scheduler from "./pages/Scheduler";
 
 const queryClient = new QueryClient();
@@ -68,6 +69,14 @@ const AppRoutes = () => (
       }
     />
     <Route path="/bookings/new" element={<BookingWizard />} />
+    <Route
+      path="/bookings/:id"
+      element={
+        <AppLayout>
+          <BookingDetail />
+        </AppLayout>
+      }
+    />
     <Route
       path="/customers"
       element={
