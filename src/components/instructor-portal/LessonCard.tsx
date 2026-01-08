@@ -121,7 +121,7 @@ export function LessonCard({ lesson, onMarkAttendance }: LessonCardProps) {
                 {lesson.meetingPoint && (
                   <div className="flex items-center gap-1 text-sm text-muted-foreground mt-1">
                     <MapPin className="h-3.5 w-3.5" />
-                    <span>{getMeetingPointById(lesson.meetingPoint)?.label || lesson.meetingPoint}</span>
+                    <span>{getMeetingPointById(lesson.meetingPoint)?.name || lesson.meetingPoint}</span>
                   </div>
                 )}
               </div>
