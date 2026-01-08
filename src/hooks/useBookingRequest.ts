@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { ParticipantData } from "@/components/booking-portal/ParticipantFormFields";
+import type { Json } from "@/integrations/supabase/types";
 
 export interface BookingRequestData {
   type: "private" | "group";
@@ -39,26 +40,28 @@ export function useBookingRequest() {
     mutationFn: async (data: BookingRequestData): Promise<CreateBookingRequestResult> => {
       setIsSubmitting(true);
 
-      const insertData = {
-        type: data.type,
-        sport_type: data.sport,
-        requested_date: data.requestedDate,
-        requested_time_slot: data.requestedTimeSlot,
-        duration_hours: data.durationHours,
-        participant_count: data.participantCount,
-        participants_data: data.participants as unknown as Record<string, unknown>[],
-        customer_data: data.customer as unknown as Record<string, unknown>,
-        voucher_code: data.voucherCode,
-        voucher_discount: data.voucherDiscount,
-        estimated_price: data.estimatedPrice,
-        notes: data.notes,
-        product_id: data.productId,
-        source: "website" as const,
-      };
-
+      // Generate a temporary request number (will be replaced by trigger)
+      const tempRequestNumber = `ANF-TEMP-${Date.now()}`;
+      
       const { data: result, error } = await supabase
         .from("booking_requests")
-        .insert(insertData)
+        .insert([{
+          request_number: tempRequestNumber,
+          type: data.type,
+          sport_type: data.sport,
+          requested_date: data.requestedDate,
+          requested_time_slot: data.requestedTimeSlot,
+          duration_hours: data.durationHours,
+          participant_count: data.participantCount,
+          participants_data: data.participants as unknown as Json,
+          customer_data: data.customer as unknown as Json,
+          voucher_code: data.voucherCode,
+          voucher_discount: data.voucherDiscount,
+          estimated_price: data.estimatedPrice,
+          notes: data.notes,
+          product_id: data.productId,
+          source: "website",
+        }])
         .select("id, request_number, magic_token")
         .single();
 
