@@ -77,6 +77,99 @@ export type Database = {
           },
         ]
       }
+      booking_requests: {
+        Row: {
+          converted_ticket_id: string | null
+          created_at: string
+          customer_data: Json
+          duration_hours: number | null
+          estimated_price: number | null
+          expires_at: string
+          id: string
+          magic_token: string
+          notes: string | null
+          participant_count: number
+          participants_data: Json
+          processed_at: string | null
+          processed_by: string | null
+          product_id: string | null
+          request_number: string
+          requested_date: string
+          requested_time_slot: string | null
+          source: string
+          sport_type: string
+          status: string
+          type: string
+          voucher_code: string | null
+          voucher_discount: number | null
+        }
+        Insert: {
+          converted_ticket_id?: string | null
+          created_at?: string
+          customer_data?: Json
+          duration_hours?: number | null
+          estimated_price?: number | null
+          expires_at?: string
+          id?: string
+          magic_token?: string
+          notes?: string | null
+          participant_count?: number
+          participants_data?: Json
+          processed_at?: string | null
+          processed_by?: string | null
+          product_id?: string | null
+          request_number: string
+          requested_date: string
+          requested_time_slot?: string | null
+          source?: string
+          sport_type: string
+          status?: string
+          type: string
+          voucher_code?: string | null
+          voucher_discount?: number | null
+        }
+        Update: {
+          converted_ticket_id?: string | null
+          created_at?: string
+          customer_data?: Json
+          duration_hours?: number | null
+          estimated_price?: number | null
+          expires_at?: string
+          id?: string
+          magic_token?: string
+          notes?: string | null
+          participant_count?: number
+          participants_data?: Json
+          processed_at?: string | null
+          processed_by?: string | null
+          product_id?: string | null
+          request_number?: string
+          requested_date?: string
+          requested_time_slot?: string | null
+          source?: string
+          sport_type?: string
+          status?: string
+          type?: string
+          voucher_code?: string | null
+          voucher_discount?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "booking_requests_converted_ticket_id_fkey"
+            columns: ["converted_ticket_id"]
+            isOneToOne: false
+            referencedRelation: "tickets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "booking_requests_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       conversations: {
         Row: {
           ai_confidence_score: number | null
