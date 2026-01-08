@@ -85,12 +85,16 @@ export default function ShopInventory() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Inventar" description="Bestandsübersicht und -verwaltung">
-        <Button variant="outline" onClick={handleExportCSV}>
-          <Download className="mr-2 h-4 w-4" />
-          Export CSV
-        </Button>
-      </PageHeader>
+      <PageHeader
+        title="Inventar"
+        description="Bestandsübersicht und -verwaltung"
+        actions={
+          <Button variant="outline" onClick={handleExportCSV}>
+            <Download className="mr-2 h-4 w-4" />
+            Export CSV
+          </Button>
+        }
+      />
 
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-4">

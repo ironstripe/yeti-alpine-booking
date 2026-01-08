@@ -144,14 +144,15 @@ export default function ShopProductDetail() {
       <PageHeader
         title={isNew ? "Neues Produkt" : "Produkt bearbeiten"}
         description={isNew ? "Neuen Artikel zum Katalog hinzufügen" : data?.article?.sku}
-      >
-        <Button variant="outline" asChild>
-          <Link to="/shop/products">
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Zurück zum Katalog
-          </Link>
-        </Button>
-      </PageHeader>
+        actions={
+          <Button variant="outline" asChild>
+            <Link to="/shop/products">
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Zurück zum Katalog
+            </Link>
+          </Button>
+        }
+      />
 
       <form onSubmit={handleSubmit} className="space-y-6">
         <div className="grid lg:grid-cols-3 gap-6">

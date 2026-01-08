@@ -14,6 +14,7 @@ import {
   Loader2,
   FileText,
   Calculator,
+  ShoppingCart,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -29,6 +30,7 @@ const navItems = [
   { title: "Customers", url: "/customers", icon: Users },
   { title: "Instructors", url: "/instructors", icon: UserCheck },
   { title: "Listen", url: "/lists", icon: FileText },
+  { title: "Shop", url: "/shop", icon: ShoppingCart },
   { title: "Tagesabschluss", url: "/reconciliation", icon: Calculator },
   { title: "Trainings", url: "/trainings", icon: GraduationCap },
 ];

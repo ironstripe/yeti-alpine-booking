@@ -22,6 +22,11 @@ import BookingDetail from "./pages/BookingDetail";
 import Scheduler from "./pages/Scheduler";
 import Reconciliation from "./pages/Reconciliation";
 import Lists from "./pages/Lists";
+import Shop from "./pages/Shop";
+import ShopProducts from "./pages/ShopProducts";
+import ShopProductDetail from "./pages/ShopProductDetail";
+import ShopInventory from "./pages/ShopInventory";
+import ShopTransactions from "./pages/ShopTransactions";
 
 const queryClient = new QueryClient();
 
@@ -139,6 +144,46 @@ const AppRoutes = () => (
       element={
         <AppLayout>
           <Lists />
+        </AppLayout>
+      }
+    />
+    <Route
+      path="/shop"
+      element={
+        <AppLayout>
+          <Shop />
+        </AppLayout>
+      }
+    />
+    <Route
+      path="/shop/products"
+      element={
+        <AppLayout>
+          <ShopProducts />
+        </AppLayout>
+      }
+    />
+    <Route
+      path="/shop/products/:id"
+      element={
+        <AppLayout>
+          <ShopProductDetail />
+        </AppLayout>
+      }
+    />
+    <Route
+      path="/shop/inventory"
+      element={
+        <AppLayout>
+          <ShopInventory />
+        </AppLayout>
+      }
+    />
+    <Route
+      path="/shop/transactions"
+      element={
+        <AppLayout>
+          <ShopTransactions />
         </AppLayout>
       }
     />
