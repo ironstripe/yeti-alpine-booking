@@ -8,6 +8,8 @@ import { PendingAbsencesCard } from "@/components/dashboard/PendingAbsencesCard"
 import { PendingActionsCard } from "@/components/dashboard/PendingActionsCard";
 import { BookingInquiriesCard } from "@/components/dashboard/BookingInquiriesCard";
 import { EmbeddedScheduler } from "@/components/dashboard/EmbeddedScheduler";
+import { PendingPaymentsCard } from "@/components/dashboard/PendingPaymentsCard";
+import { QuickActionsDropdown } from "@/components/dashboard/QuickActionsDropdown";
 
 const Dashboard = () => {
   const today = new Date();
@@ -18,21 +20,27 @@ const Dashboard = () => {
       <PageHeader
         title="Morgen-Cockpit"
         description={`${greeting}! ${format(today, "EEEE, d. MMMM yyyy", { locale: de })}`}
+        actions={<QuickActionsDropdown />}
       />
 
-      <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-4 h-[calc(100vh-10rem)]">
+      {/* KPI Cards - Full Width */}
+      <div className="mb-4">
+        <QuickStats />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-4 h-[calc(100vh-14rem)]">
         {/* Left: Action Center */}
         <div className="space-y-4 overflow-auto pr-1">
-          <QuickStats />
           <DailyTaskList />
           <PendingActionsCard />
           <BookingInquiriesCard />
+          <PendingPaymentsCard />
           <InboxPreview />
           <PendingAbsencesCard />
         </div>
 
         {/* Right: Embedded Scheduler */}
-        <div className="overflow-hidden rounded-lg border bg-card min-h-[400px]">
+        <div className="overflow-hidden rounded-lg border bg-card min-h-[400px] hidden lg:block">
           <EmbeddedScheduler defaultDays={2} />
         </div>
       </div>
