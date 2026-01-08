@@ -4,6 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { AppSidebar } from "./AppSidebar";
 import { BottomNav } from "./BottomNav";
 import { MobileHeader } from "./MobileHeader";
+import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { Loader2 } from "lucide-react";
 
 interface AppLayoutProps {
@@ -40,6 +41,11 @@ export function AppLayout({ children }: AppLayoutProps) {
       <div className="flex-1 flex flex-col min-h-screen md:min-h-0">
         {/* Mobile Header */}
         <MobileHeader />
+
+        {/* Desktop Header with Notifications */}
+        <div className="hidden md:flex h-14 border-b border-border items-center justify-end px-6 bg-card">
+          <NotificationBell />
+        </div>
 
         {/* Page Content */}
         <main className="flex-1 overflow-auto">

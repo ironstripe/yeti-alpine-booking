@@ -1,14 +1,16 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useParams, Link } from "react-router-dom";
 import { BookingPortalLayout } from "@/components/booking-portal/BookingPortalLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { supabase } from "@/integrations/supabase/client";
-import { CheckCircle2, Clock, Calendar, Users, Phone, Mail, Home, FileText, XCircle } from "lucide-react";
+import { NotificationService } from "@/lib/notification-service";
+import { CheckCircle2, Clock, Calendar, Users, Phone, Mail, Home, FileText, XCircle, Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 interface BookingRequest {
   id: string;
@@ -76,6 +78,41 @@ export default function RequestConfirmation() {
   const [request, setRequest] = useState<BookingRequest | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [sendingEmail, setSendingEmail] = useState(false);
+  const emailSentRef = useRef(false);
+
+  const sendConfirmationEmail = async (req: BookingRequest) => {
+    if (emailSentRef.current) return;
+    emailSentRef.current = true;
+    
+    const customerName = `${req.customer_data.firstName} ${req.customer_data.lastName}`;
+    const productName = req.type === "private" 
+      ? `Privatstunde ${req.sport_type === "ski" ? "Ski" : "Snowboard"}`
+      : `Gruppenkurs ${req.sport_type === "ski" ? "Ski" : "Snowboard"}`;
+    
+    await NotificationService.bookingRequestReceived(
+      req.customer_data.email,
+      customerName,
+      req.request_number,
+      format(new Date(req.requested_date), "dd.MM.yyyy", { locale: de }),
+      productName
+    );
+  };
+
+  const resendEmail = async () => {
+    if (!request) return;
+    setSendingEmail(true);
+    
+    try {
+      emailSentRef.current = false;
+      await sendConfirmationEmail(request);
+      toast.success("E-Mail wurde erneut gesendet");
+    } catch (err) {
+      toast.error("E-Mail konnte nicht gesendet werden");
+    } finally {
+      setSendingEmail(false);
+    }
+  };
 
   useEffect(() => {
     async function fetchRequest() {
@@ -101,6 +138,11 @@ export default function RequestConfirmation() {
           customer_data: (data.customer_data as unknown as BookingRequest['customer_data']) || { firstName: '', lastName: '', email: '' },
         };
         setRequest(transformedData);
+
+        // Send confirmation email for new pending requests
+        if (transformedData.status === "pending") {
+          sendConfirmationEmail(transformedData);
+        }
       } catch (err) {
         console.error("Error fetching request:", err);
         setError("Anfrage nicht gefunden");
@@ -301,7 +343,14 @@ export default function RequestConfirmation() {
             <Mail className="h-4 w-4" />
             <span>Bestätigung gesendet an: {request.customer_data.email}</span>
           </div>
-          <Button variant="link" size="sm" className="p-0 h-auto mt-1">
+          <Button 
+            variant="link" 
+            size="sm" 
+            className="p-0 h-auto mt-1"
+            onClick={resendEmail}
+            disabled={sendingEmail}
+          >
+            {sendingEmail && <Loader2 className="h-3 w-3 mr-1 animate-spin" />}
             Keine E-Mail erhalten? Erneut senden
           </Button>
         </CardContent>

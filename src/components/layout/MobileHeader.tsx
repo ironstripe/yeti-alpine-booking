@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Menu, Bell, User, X, LogOut, Loader2 } from "lucide-react";
+import { Menu, X, LogOut, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
+import { NotificationBell } from "@/components/notifications/NotificationBell";
 import {
   Home,
   Inbox,
@@ -170,10 +171,7 @@ export function MobileHeader() {
 
       {/* Right: Notifications & User */}
       <div className="flex items-center gap-1">
-        <Button variant="ghost" size="icon" className="h-10 w-10 relative">
-          <Bell className="h-5 w-5" />
-          <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-destructive" />
-        </Button>
+        <NotificationBell />
         <Button variant="ghost" size="icon" className="h-10 w-10">
           <div className="w-7 h-7 rounded-full bg-muted flex items-center justify-center">
             <span className="text-xs font-medium">{getUserInitials()}</span>
