@@ -20,10 +20,10 @@ import CustomerDetail from "./pages/CustomerDetail";
 import BookingWizard from "./pages/BookingWizard";
 import BookingDetail from "./pages/BookingDetail";
 import Scheduler from "./pages/Scheduler";
+import Reconciliation from "./pages/Reconciliation";
 
 const queryClient = new QueryClient();
 
-// Component to handle login route redirect for authenticated users
 function LoginRoute() {
   const { user, loading } = useAuth();
   
@@ -122,6 +122,14 @@ const AppRoutes = () => (
       element={
         <AppLayout>
           <Scheduler />
+        </AppLayout>
+      }
+    />
+    <Route
+      path="/reconciliation"
+      element={
+        <AppLayout>
+          <Reconciliation />
         </AppLayout>
       }
     />

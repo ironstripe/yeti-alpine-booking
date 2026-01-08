@@ -30,7 +30,7 @@ export function QuickActionsDropdown() {
     {
       label: "Tagesabschluss starten",
       icon: FileCheck,
-      onClick: () => console.log("Tagesabschluss - MVP placeholder"),
+      onClick: () => navigate("/reconciliation"),
     },
   ];
 
