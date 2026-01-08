@@ -1,6 +1,8 @@
 import { useState, useMemo } from "react";
 import { toast } from "sonner";
+import { ArrowLeft, Loader2 } from "lucide-react";
 
+import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
 
@@ -50,7 +52,7 @@ function check2x2hDiscount(
 }
 
 export function Step4Summary({ onEditStep }: Step4SummaryProps) {
-  const { state, resetWizard } = useBookingWizard();
+  const { state, setCurrentStep, resetWizard } = useBookingWizard();
   const createBooking = useCreateBooking();
 
   // Local state for Step 4 fields (not in context to keep it simpler)
@@ -212,6 +214,34 @@ export function Step4Summary({ onEditStep }: Step4SummaryProps) {
         <label htmlFor="create-another" className="cursor-pointer text-sm">
           Nach Abschluss weitere Buchung erstellen
         </label>
+      </div>
+
+      {/* Sticky Footer with action buttons */}
+      <div className="sticky bottom-0 -mx-4 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 p-4">
+        <div className="mx-auto flex max-w-5xl items-center justify-between gap-4">
+          <Button
+            variant="outline"
+            onClick={() => setCurrentStep(2)}
+          >
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Zurück
+          </Button>
+
+          <Button 
+            onClick={handleCreateBooking} 
+            disabled={createBooking.isPending}
+            className="min-w-[180px]"
+          >
+            {createBooking.isPending ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Wird erstellt...
+              </>
+            ) : (
+              "Buchung erstellen"
+            )}
+          </Button>
+        </div>
       </div>
 
       {/* Success Modal */}
