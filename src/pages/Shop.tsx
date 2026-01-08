@@ -80,22 +80,23 @@ export default function Shop() {
       <PageHeader
         title="Shop"
         description="Point of Sale und Artikelverwaltung"
-      >
-        <div className="flex gap-2">
-          <Button variant="outline" asChild>
-            <Link to="/shop/products">
-              <Package className="mr-2 h-4 w-4" />
-              Produkte verwalten
-            </Link>
-          </Button>
-          <Button asChild>
-            <Link to="/shop/products/new">
-              <Plus className="mr-2 h-4 w-4" />
-              Neuer Artikel
-            </Link>
-          </Button>
-        </div>
-      </PageHeader>
+        actions={
+          <div className="flex gap-2">
+            <Button variant="outline" asChild>
+              <Link to="/shop/products">
+                <Package className="mr-2 h-4 w-4" />
+                Produkte verwalten
+              </Link>
+            </Button>
+            <Button asChild>
+              <Link to="/shop/products/new">
+                <Plus className="mr-2 h-4 w-4" />
+                Neuer Artikel
+              </Link>
+            </Button>
+          </div>
+        }
+      />
 
       {/* KPI Cards */}
       <ShopKPICards
