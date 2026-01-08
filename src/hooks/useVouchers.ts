@@ -189,6 +189,7 @@ export function useCreateVoucher() {
       const { data, error } = await supabase
         .from("vouchers")
         .insert({
+          code: `TEMP-${Date.now()}`, // Will be replaced by trigger
           original_value: voucher.original_value!,
           remaining_balance: voucher.remaining_balance!,
           expiry_date: voucher.expiry_date!,
