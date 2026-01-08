@@ -140,3 +140,59 @@
     font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   }
 }
+
+/* Safe area insets for iOS */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  
+  .safe-area-inset-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  
+  .safe-area-inset-top {
+    padding-top: env(safe-area-inset-top);
+  }
+}
+
+/* Touch-friendly targets */
+@layer utilities {
+  .touch-target {
+    @apply min-h-[44px] min-w-[44px];
+  }
+  
+  .touch-button {
+    @apply min-h-[44px] min-w-[44px] p-3;
+  }
+}
+
+/* Responsive utilities */
+@layer utilities {
+  .hidden-mobile {
+    @apply hidden lg:block;
+  }
+  
+  .hidden-desktop {
+    @apply block lg:hidden;
+  }
+  
+  .responsive-padding {
+    @apply px-4 py-3 md:px-6 md:py-4 lg:px-8 lg:py-6;
+  }
+  
+  .responsive-grid {
+    @apply grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4;
+  }
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

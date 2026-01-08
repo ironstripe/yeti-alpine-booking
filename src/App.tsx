@@ -5,6 +5,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { AppLayout } from "@/components/layout";
+import { InstallBanner } from "@/components/pwa/InstallBanner";
+import { OfflineIndicator } from "@/components/pwa/OfflineIndicator";
 
 // Pages
 import Dashboard from "./pages/Index";
@@ -271,7 +273,9 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <AuthProvider>
+          <OfflineIndicator />
           <AppRoutes />
+          <InstallBanner />
         </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>
