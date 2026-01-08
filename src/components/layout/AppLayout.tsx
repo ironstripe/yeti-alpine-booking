@@ -5,6 +5,7 @@ import { AppSidebar } from "./AppSidebar";
 import { BottomNav } from "./BottomNav";
 import { MobileHeader } from "./MobileHeader";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
+import { ConnectionStatus } from "@/components/ui/connection-status";
 import { Loader2 } from "lucide-react";
 
 interface AppLayoutProps {
@@ -57,6 +58,9 @@ export function AppLayout({ children }: AppLayoutProps) {
 
       {/* Mobile Bottom Navigation */}
       <BottomNav />
+
+      {/* Connection Status Indicator */}
+      <ConnectionStatus />
     </div>
   );
 }

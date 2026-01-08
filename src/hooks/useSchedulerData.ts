@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import type { Tables } from "@/integrations/supabase/types";
@@ -8,6 +8,8 @@ import {
   type SchedulerBooking,
   type SchedulerAbsence 
 } from "@/lib/scheduler-utils";
+import { useRealtimeSubscription } from "./useRealtimeSubscription";
+import { toast } from "sonner";
 
 interface UseSchedulerDataOptions {
   startDate: Date;
@@ -16,8 +18,49 @@ interface UseSchedulerDataOptions {
 }
 
 export function useSchedulerData({ startDate, endDate, instructorId }: UseSchedulerDataOptions) {
+  const queryClient = useQueryClient();
   const startDateStr = format(startDate, "yyyy-MM-dd");
   const endDateStr = format(endDate, "yyyy-MM-dd");
+
+  // Realtime subscription for ticket_items (schedule changes)
+  useRealtimeSubscription<Tables<"ticket_items">>({
+    table: "ticket_items",
+    queryKey: ["scheduler-bookings", startDateStr, endDateStr],
+    onInsert: () => {
+      queryClient.invalidateQueries({ queryKey: ["scheduler-bookings", startDateStr, endDateStr] });
+      toast.info("Neue Buchung im Stundenplan");
+    },
+    onUpdate: () => {
+      queryClient.invalidateQueries({ queryKey: ["scheduler-bookings", startDateStr, endDateStr] });
+    },
+    onDelete: () => {
+      queryClient.invalidateQueries({ queryKey: ["scheduler-bookings", startDateStr, endDateStr] });
+    },
+  });
+
+  // Realtime subscription for instructor_absences
+  useRealtimeSubscription<Tables<"instructor_absences">>({
+    table: "instructor_absences",
+    queryKey: ["scheduler-absences", startDateStr, endDateStr],
+    onInsert: (absence) => {
+      queryClient.invalidateQueries({ queryKey: ["scheduler-absences", startDateStr, endDateStr] });
+      if (absence.status === "pending") {
+        toast.info("Neue Abwesenheitsanfrage");
+      }
+    },
+    onUpdate: () => {
+      queryClient.invalidateQueries({ queryKey: ["scheduler-absences", startDateStr, endDateStr] });
+    },
+    onDelete: () => {
+      queryClient.invalidateQueries({ queryKey: ["scheduler-absences", startDateStr, endDateStr] });
+    },
+  });
+
+  // Realtime subscription for groups
+  useRealtimeSubscription<Tables<"groups">>({
+    table: "groups",
+    queryKey: ["scheduler-groups", startDateStr, endDateStr],
+  });
 
   // Fetch instructors
   const instructorsQuery = useQuery({

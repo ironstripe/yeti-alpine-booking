@@ -1,6 +1,9 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
+import { useRealtimeSubscription } from "./useRealtimeSubscription";
+import { toast } from "sonner";
+import type { Tables } from "@/integrations/supabase/types";
 
 export interface DashboardStats {
   todayBookings: number;
@@ -13,7 +16,47 @@ export interface DashboardStats {
 }
 
 export function useDashboardStats() {
+  const queryClient = useQueryClient();
   const today = format(new Date(), "yyyy-MM-dd");
+
+  // Realtime subscription for new bookings
+  useRealtimeSubscription<Tables<"ticket_items">>({
+    table: "ticket_items",
+    event: "INSERT",
+    queryKey: ["dashboard-stats", today],
+    onInsert: () => {
+      queryClient.invalidateQueries({ queryKey: ["dashboard-stats", today] });
+      toast.info("Neue Buchung erstellt");
+    },
+  });
+
+  // Realtime subscription for booking requests
+  useRealtimeSubscription<Tables<"booking_requests">>({
+    table: "booking_requests",
+    event: "INSERT",
+    queryKey: ["dashboard-stats", today],
+    onInsert: () => {
+      queryClient.invalidateQueries({ queryKey: ["dashboard-stats", today] });
+      toast.info("Neue Buchungsanfrage eingegangen");
+    },
+  });
+
+  // Realtime subscription for conversations
+  useRealtimeSubscription<Tables<"conversations">>({
+    table: "conversations",
+    event: "INSERT",
+    queryKey: ["dashboard-stats", today],
+    onInsert: () => {
+      queryClient.invalidateQueries({ queryKey: ["dashboard-stats", today] });
+    },
+  });
+
+  // Realtime subscription for instructor status changes
+  useRealtimeSubscription<Tables<"instructors">>({
+    table: "instructors",
+    event: "UPDATE",
+    queryKey: ["dashboard-stats", today],
+  });
 
   return useQuery({
     queryKey: ["dashboard-stats", today],
@@ -92,6 +135,7 @@ export function useDashboardStats() {
         averageRevenue,
       };
     },
-    refetchInterval: 60000, // Refresh every 60 seconds
+    staleTime: 30000, // Data considered fresh for 30 seconds (reduced from 60s since we have realtime)
+    refetchInterval: 120000, // Fallback refetch every 2 minutes
   });
 }
