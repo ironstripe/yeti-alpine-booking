@@ -41,6 +41,10 @@ import InstructorDashboard from "./pages/InstructorDashboard";
 import InstructorSchedule from "./pages/InstructorSchedule";
 import InstructorAvailability from "./pages/InstructorAvailability";
 import InstructorProfile from "./pages/InstructorProfile";
+import BookingLanding from "./pages/booking-portal/BookingLanding";
+import PrivateBookingForm from "./pages/booking-portal/PrivateBookingForm";
+import GroupBookingForm from "./pages/booking-portal/GroupBookingForm";
+import RequestConfirmation from "./pages/booking-portal/RequestConfirmation";
 
 const queryClient = new QueryClient();
 
@@ -270,6 +274,11 @@ const AppRoutes = () => (
     <Route path="/instructor/schedule" element={<InstructorSchedule />} />
     <Route path="/instructor/availability" element={<InstructorAvailability />} />
     <Route path="/instructor/profile" element={<InstructorProfile />} />
+    {/* Public Booking Portal Routes */}
+    <Route path="/book" element={<BookingLanding />} />
+    <Route path="/book/private" element={<PrivateBookingForm />} />
+    <Route path="/book/group" element={<GroupBookingForm />} />
+    <Route path="/book/request/:token" element={<RequestConfirmation />} />
     {/* Catch-all route */}
     <Route path="*" element={<NotFound />} />
   </Routes>
