@@ -11,6 +11,7 @@ import { OfflineIndicator } from "@/components/pwa/OfflineIndicator";
 // Pages
 import Dashboard from "./pages/Index";
 import Inbox from "./pages/Inbox";
+import InboxDetail from "./pages/InboxDetail";
 import Bookings from "./pages/Bookings";
 import Customers from "./pages/Customers";
 import Instructors from "./pages/Instructors";
@@ -91,6 +92,14 @@ const AppRoutes = () => (
       element={
         <AppLayout>
           <Inbox />
+        </AppLayout>
+      }
+    />
+    <Route
+      path="/inbox/:id"
+      element={
+        <AppLayout>
+          <InboxDetail />
         </AppLayout>
       }
     />
