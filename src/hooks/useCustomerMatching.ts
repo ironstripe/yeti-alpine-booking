@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { normalizePhoneNumber } from "@/lib/phone-utils";
 
 export interface CustomerMatch {
   customer: {
@@ -12,28 +13,6 @@ export interface CustomerMatch {
   matchType: "exact_email" | "exact_phone" | "fuzzy_name";
   confidence: number;
   previousBookings: number;
-}
-
-function normalizePhoneNumber(phone: string | null | undefined): string | null {
-  if (!phone) return null;
-  
-  // Remove spaces, dashes, parentheses
-  let cleaned = phone.replace(/[\s\-\(\)\.]/g, "");
-  
-  // Convert 0041 to +41
-  if (cleaned.startsWith("0041")) {
-    cleaned = "+41" + cleaned.slice(4);
-  }
-  // Convert 00423 to +423
-  if (cleaned.startsWith("00423")) {
-    cleaned = "+423" + cleaned.slice(5);
-  }
-  // Convert leading 0 to +41 (Swiss default)
-  if (cleaned.startsWith("0") && !cleaned.startsWith("00")) {
-    cleaned = "+41" + cleaned.slice(1);
-  }
-  
-  return cleaned;
 }
 
 function calculateNameSimilarity(name1: string, name2: string): number {
@@ -112,7 +91,7 @@ export function useCustomerMatching(
           
           if (phoneMatches) {
             for (const customer of phoneMatches) {
-              const customerNormalized = normalizePhoneNumber(customer.phone);
+              const customerNormalized = normalizePhoneNumber(customer.phone || "");
               if (customerNormalized === normalizedPhone) {
                 matches.push({
                   customer,
