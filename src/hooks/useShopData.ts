@@ -1,6 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useRealtimeSubscription } from "./useRealtimeSubscription";
+import type { Tables } from "@/integrations/supabase/types";
 
 export interface ShopArticle {
   id: string;
@@ -61,8 +63,27 @@ export interface CartItem {
   quantity: number;
 }
 
-// Fetch all articles
+// Fetch all articles with realtime updates
 export function useShopArticles(category?: string, status?: string) {
+  const queryClient = useQueryClient();
+
+  // Realtime subscription for stock updates
+  useRealtimeSubscription<Tables<"shop_articles">>({
+    table: "shop_articles",
+    event: "UPDATE",
+    queryKey: ["shop-articles", category, status],
+    onUpdate: (article) => {
+      queryClient.invalidateQueries({ queryKey: ["shop-articles"] });
+      if (article.stock_quantity <= article.min_stock && article.stock_quantity > 0) {
+        toast.warning(`Niedriger Bestand: ${article.name}`, {
+          description: `Nur noch ${article.stock_quantity} Stück`,
+        });
+      } else if (article.stock_quantity === 0) {
+        toast.error(`Ausverkauft: ${article.name}`);
+      }
+    },
+  });
+
   return useQuery({
     queryKey: ["shop-articles", category, status],
     queryFn: async () => {
