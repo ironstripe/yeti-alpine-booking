@@ -27,6 +27,9 @@ import ShopProducts from "./pages/ShopProducts";
 import ShopProductDetail from "./pages/ShopProductDetail";
 import ShopInventory from "./pages/ShopInventory";
 import ShopTransactions from "./pages/ShopTransactions";
+import Vouchers from "./pages/Vouchers";
+import VoucherNew from "./pages/VoucherNew";
+import VoucherDetail from "./pages/VoucherDetail";
 
 const queryClient = new QueryClient();
 
@@ -184,6 +187,30 @@ const AppRoutes = () => (
       element={
         <AppLayout>
           <ShopTransactions />
+        </AppLayout>
+      }
+    />
+    <Route
+      path="/vouchers"
+      element={
+        <AppLayout>
+          <Vouchers />
+        </AppLayout>
+      }
+    />
+    <Route
+      path="/vouchers/new"
+      element={
+        <AppLayout>
+          <VoucherNew />
+        </AppLayout>
+      }
+    />
+    <Route
+      path="/vouchers/:id"
+      element={
+        <AppLayout>
+          <VoucherDetail />
         </AppLayout>
       }
     />
