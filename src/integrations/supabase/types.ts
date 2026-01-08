@@ -1254,6 +1254,125 @@ export type Database = {
         }
         Relationships: []
       }
+      voucher_redemptions: {
+        Row: {
+          amount: number
+          balance_after: number
+          id: string
+          reason: string | null
+          redeemed_at: string
+          redeemed_by: string | null
+          ticket_id: string | null
+          voucher_id: string
+        }
+        Insert: {
+          amount: number
+          balance_after: number
+          id?: string
+          reason?: string | null
+          redeemed_at?: string
+          redeemed_by?: string | null
+          ticket_id?: string | null
+          voucher_id: string
+        }
+        Update: {
+          amount?: number
+          balance_after?: number
+          id?: string
+          reason?: string | null
+          redeemed_at?: string
+          redeemed_by?: string | null
+          ticket_id?: string | null
+          voucher_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "voucher_redemptions_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "tickets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "voucher_redemptions_voucher_id_fkey"
+            columns: ["voucher_id"]
+            isOneToOne: false
+            referencedRelation: "vouchers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vouchers: {
+        Row: {
+          buyer_customer_id: string | null
+          buyer_email: string | null
+          buyer_name: string | null
+          buyer_phone: string | null
+          code: string
+          created_at: string
+          created_by: string | null
+          expiry_date: string
+          id: string
+          internal_note: string | null
+          is_paid: boolean | null
+          original_value: number
+          payment_method: string | null
+          recipient_message: string | null
+          recipient_name: string | null
+          remaining_balance: number
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          buyer_customer_id?: string | null
+          buyer_email?: string | null
+          buyer_name?: string | null
+          buyer_phone?: string | null
+          code: string
+          created_at?: string
+          created_by?: string | null
+          expiry_date: string
+          id?: string
+          internal_note?: string | null
+          is_paid?: boolean | null
+          original_value: number
+          payment_method?: string | null
+          recipient_message?: string | null
+          recipient_name?: string | null
+          remaining_balance: number
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          buyer_customer_id?: string | null
+          buyer_email?: string | null
+          buyer_name?: string | null
+          buyer_phone?: string | null
+          code?: string
+          created_at?: string
+          created_by?: string | null
+          expiry_date?: string
+          id?: string
+          internal_note?: string | null
+          is_paid?: boolean | null
+          original_value?: number
+          payment_method?: string | null
+          recipient_message?: string | null
+          recipient_name?: string | null
+          remaining_balance?: number
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vouchers_buyer_customer_id_fkey"
+            columns: ["buyer_customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
