@@ -136,7 +136,7 @@ export function BookingSummaryCards({ onEditStep }: BookingSummaryCardsProps) {
           <CardTitle className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
             Skilehrer & Details
           </CardTitle>
-          <Button variant="ghost" size="sm" onClick={() => onEditStep(3)}>
+          <Button variant="ghost" size="sm" onClick={() => onEditStep(2)}>
             Ändern
           </Button>
         </CardHeader>

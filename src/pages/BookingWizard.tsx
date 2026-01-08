@@ -132,26 +132,28 @@ function BookingWizardContent() {
         {state.currentStep === 3 && <Step4Summary onEditStep={setCurrentStep} />}
       </main>
 
-      {/* Sticky Footer */}
-      <footer className="sticky bottom-0 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 p-3">
-        <div className="mx-auto flex max-w-5xl items-center justify-between gap-4">
-          {state.currentStep > 1 ? (
-            <Button
-              variant="outline"
-              onClick={() => setCurrentStep((state.currentStep - 1) as 1 | 2 | 3)}
-            >
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Zurück
-            </Button>
-          ) : (
-            <div />
-          )}
+      {/* Sticky Footer - Only show for steps 1 and 2 */}
+      {state.currentStep < 3 && (
+        <footer className="sticky bottom-0 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 p-3">
+          <div className="mx-auto flex max-w-5xl items-center justify-between gap-4">
+            {state.currentStep > 1 ? (
+              <Button
+                variant="outline"
+                onClick={() => setCurrentStep((state.currentStep - 1) as 1 | 2 | 3)}
+              >
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Zurück
+              </Button>
+            ) : (
+              <div />
+            )}
 
-          <Button onClick={handleNext} disabled={!canProceed()}>
-            {state.currentStep === 3 ? "Buchung erstellen" : "Weiter"}
-          </Button>
-        </div>
-      </footer>
+            <Button onClick={handleNext} disabled={!canProceed()}>
+              Weiter
+            </Button>
+          </div>
+        </footer>
+      )}
     </div>
   );
 }

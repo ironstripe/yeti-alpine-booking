@@ -85,14 +85,25 @@ export function useCreateBooking() {
         }
       }
 
-      // Add lunch cost if selected
+      // Calculate lunch cost from lunchSelections (for groups) or includeLunch (for private)
       let lunchTotal = 0;
       const lunchProduct = products?.find((p) => p.type === "lunch");
-      if (state.includeLunch && lunchProduct) {
+      const lunchPricePerDay = lunchProduct ? Number(lunchProduct.price) : 25;
+      
+      if (state.productType === "group" && Object.keys(state.lunchSelections).length > 0) {
+        const totalLunchDays = Object.values(state.lunchSelections)
+          .reduce((sum, days) => sum + days.length, 0);
+        lunchTotal = totalLunchDays * lunchPricePerDay;
+      } else if (state.includeLunch && lunchProduct) {
         lunchTotal = Number(lunchProduct.price) * daysCount;
       }
       
-      const totalAmount = (state.productType === "private" ? unitPrice * daysCount : unitPrice) + lunchTotal;
+      // Calculate base total
+      const baseTotal = state.productType === "private" ? unitPrice * daysCount : unitPrice;
+      
+      // Apply discount
+      const discountAmount = (baseTotal + lunchTotal) * (state.discountPercent / 100);
+      const totalAmount = baseTotal + lunchTotal - discountAmount;
 
       // Create ticket (without notes - they go to ticket_comments now)
       const { data: ticket, error: ticketError } = await supabase
@@ -113,30 +124,51 @@ export function useCreateBooking() {
 
       if (ticketError) throw ticketError;
 
-      // Create ticket items for each selected date
+      // Create ticket items for each participant + date combination
       if (!productId) {
         throw new Error("No product selected");
       }
 
-      const ticketItems = state.selectedDates.map((dateStr) => ({
-        ticket_id: ticket.id,
-        product_id: productId,
-        date: dateStr,
-        time_start: state.timeSlot?.split(" - ")[0] || "10:00",
-        time_end: state.timeSlot?.split(" - ")[1] || "12:00",
-        unit_price: unitPrice,
-        quantity: 1,
-        line_total: unitPrice,
-        instructor_id: state.instructorId,
-        participant_id: state.selectedParticipants[0]?.id.startsWith("guest-") 
-          ? null 
-          : state.selectedParticipants[0]?.id || null,
-        meeting_point: state.meetingPoint,
-        instructor_notes: null, // Moved to ticket_comments
-        internal_notes: null, // Moved to ticket_comments
-        status: "booked",
-        instructor_confirmation: state.instructorId ? "pending" : null,
-      }));
+      const ticketItems: Array<{
+        ticket_id: string;
+        product_id: string;
+        date: string;
+        time_start: string;
+        time_end: string;
+        unit_price: number;
+        quantity: number;
+        line_total: number;
+        instructor_id: string | null;
+        participant_id: string | null;
+        meeting_point: string | null;
+        instructor_notes: string | null;
+        internal_notes: string | null;
+        status: string;
+        instructor_confirmation: string | null;
+      }> = [];
+
+      // For each participant, create entries for each date
+      for (const participant of state.selectedParticipants) {
+        for (const dateStr of state.selectedDates) {
+          ticketItems.push({
+            ticket_id: ticket.id,
+            product_id: productId,
+            date: dateStr,
+            time_start: state.timeSlot?.split(" - ")[0] || "10:00",
+            time_end: state.timeSlot?.split(" - ")[1] || "12:00",
+            unit_price: unitPrice,
+            quantity: 1,
+            line_total: unitPrice,
+            instructor_id: state.instructorId,
+            participant_id: participant.id.startsWith("guest-") ? null : participant.id,
+            meeting_point: state.meetingPoint,
+            instructor_notes: null,
+            internal_notes: null,
+            status: "booked",
+            instructor_confirmation: state.instructorId ? "pending" : null,
+          });
+        }
+      }
 
       const { error: itemsError } = await supabase
         .from("ticket_items")

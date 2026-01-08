@@ -65,10 +65,19 @@ export function PriceBreakdown({
     productName = product?.name || `Gruppenkurs ${daysCount} Tag(e)`;
   }
 
-  // Add lunch if selected
+  // Calculate lunch from lunchSelections (for group courses) or includeLunch (for private)
   const lunchProduct = products.find((p) => p.type === "lunch");
-  const lunchTotal =
-    state.includeLunch && lunchProduct ? lunchProduct.price * daysCount : 0;
+  const lunchPricePerDay = lunchProduct?.price || 25;
+  
+  let lunchTotal = 0;
+  if (productType === "group" && Object.keys(state.lunchSelections).length > 0) {
+    // Sum up all lunch days across all participants
+    const totalLunchDays = Object.values(state.lunchSelections)
+      .reduce((sum, days) => sum + days.length, 0);
+    lunchTotal = totalLunchDays * lunchPricePerDay;
+  } else if (state.includeLunch && lunchProduct) {
+    lunchTotal = lunchProduct.price * daysCount;
+  }
 
   // Combine manual and auto discounts
   const totalDiscountPercent = discountPercent + autoDiscountPercent;
@@ -127,13 +136,15 @@ export function PriceBreakdown({
             </span>
           </div>
 
-          {state.includeLunch && lunchProduct && (
+          {lunchTotal > 0 && (
             <div className="flex justify-between">
               <div>
-                <p className="font-medium">{lunchProduct.name}</p>
+                <p className="font-medium">Mittagsbetreuung</p>
                 <p className="text-sm text-muted-foreground">
-                  {daysCount} Tag{daysCount > 1 ? "e" : ""} ×{" "}
-                  {formatCurrency(lunchProduct.price)}
+                  {productType === "group" && Object.keys(state.lunchSelections).length > 0
+                    ? `${Object.values(state.lunchSelections).reduce((sum, days) => sum + days.length, 0)} Tag(e) × ${formatCurrency(lunchPricePerDay)}`
+                    : `${daysCount} Tag${daysCount > 1 ? "e" : ""} × ${formatCurrency(lunchPricePerDay)}`
+                  }
                 </p>
               </div>
               <span className="font-medium">{formatCurrency(lunchTotal)}</span>
