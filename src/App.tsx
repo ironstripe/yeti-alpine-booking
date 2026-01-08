@@ -45,6 +45,9 @@ import BookingLanding from "./pages/booking-portal/BookingLanding";
 import PrivateBookingForm from "./pages/booking-portal/PrivateBookingForm";
 import GroupBookingForm from "./pages/booking-portal/GroupBookingForm";
 import RequestConfirmation from "./pages/booking-portal/RequestConfirmation";
+import Settings from "./pages/Settings";
+import SettingsEmailTemplates from "./pages/SettingsEmailTemplates";
+import SettingsEmailTemplateEdit from "./pages/SettingsEmailTemplateEdit";
 
 const queryClient = new QueryClient();
 
@@ -279,6 +282,10 @@ const AppRoutes = () => (
     <Route path="/book/private" element={<PrivateBookingForm />} />
     <Route path="/book/group" element={<GroupBookingForm />} />
     <Route path="/book/request/:token" element={<RequestConfirmation />} />
+    {/* Settings Routes */}
+    <Route path="/settings" element={<Settings />} />
+    <Route path="/settings/emails" element={<SettingsEmailTemplates />} />
+    <Route path="/settings/emails/:id" element={<SettingsEmailTemplateEdit />} />
     {/* Catch-all route */}
     <Route path="*" element={<NotFound />} />
   </Routes>
