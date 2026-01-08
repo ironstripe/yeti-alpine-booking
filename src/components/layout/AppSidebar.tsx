@@ -12,6 +12,8 @@ import {
   ChevronRight,
   LogOut,
   Loader2,
+  FileText,
+  Calculator,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -26,6 +28,8 @@ const navItems = [
   { title: "Scheduler", url: "/scheduler", icon: LayoutGrid },
   { title: "Customers", url: "/customers", icon: Users },
   { title: "Instructors", url: "/instructors", icon: UserCheck },
+  { title: "Listen", url: "/lists", icon: FileText },
+  { title: "Tagesabschluss", url: "/reconciliation", icon: Calculator },
   { title: "Trainings", url: "/trainings", icon: GraduationCap },
 ];
 
