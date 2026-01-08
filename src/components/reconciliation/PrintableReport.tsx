@@ -32,12 +32,16 @@ export const PrintableReport = forwardRef<HTMLDivElement, PrintableReportProps>(
       gutschein: "Gutschein",
     };
 
-    const reconcilableExpected = 
-      (summary.paymentBreakdown.find((p) => p.method === "bar")?.total || 0) +
-      (summary.paymentBreakdown.find((p) => p.method === "karte")?.total || 0) +
-      (summary.paymentBreakdown.find((p) => p.method === "twint")?.total || 0);
+    // Calculate combined expected from bookings + shop
+    const getExpected = (method: string) => {
+      const bookingAmount = summary.paymentBreakdown.find((p) => p.method === method)?.total || 0;
+      const shopAmount = summary.shopPaymentBreakdown?.find((p) => p.method === method)?.total || 0;
+      return bookingAmount + shopAmount;
+    };
 
+    const reconcilableExpected = getExpected("bar") + getExpected("karte") + getExpected("twint");
     const actualTotal = cashActual + cardActual + twintActual;
+    const bookingRevenue = summary.totalRevenue - (summary.shopRevenue || 0);
 
     return (
       <div ref={ref} className="print-report p-8 bg-white text-black text-sm hidden print:block">
@@ -75,13 +79,29 @@ export const PrintableReport = forwardRef<HTMLDivElement, PrintableReportProps>(
           <table>
             <tbody>
               <tr>
-                <td>Tagesumsatz:</td>
+                <td>Tagesumsatz gesamt:</td>
                 <td className="text-right">{formatCurrency(summary.totalRevenue)}</td>
               </tr>
+              <tr>
+                <td>• davon Buchungen:</td>
+                <td className="text-right">{formatCurrency(bookingRevenue)}</td>
+              </tr>
+              {(summary.shopRevenue || 0) > 0 && (
+                <tr>
+                  <td>• davon Shop:</td>
+                  <td className="text-right">{formatCurrency(summary.shopRevenue)}</td>
+                </tr>
+              )}
               <tr>
                 <td>Buchungen:</td>
                 <td className="text-right">{summary.totalBookings}</td>
               </tr>
+              {(summary.shopSales?.length || 0) > 0 && (
+                <tr>
+                  <td>Shop-Verkäufe:</td>
+                  <td className="text-right">{summary.shopSales.length}</td>
+                </tr>
+              )}
               <tr>
                 <td>Skilehrer im Einsatz:</td>
                 <td className="text-right">{summary.totalInstructors}</td>
@@ -94,9 +114,9 @@ export const PrintableReport = forwardRef<HTMLDivElement, PrintableReportProps>(
           </table>
         </div>
 
-        {/* Payments Section */}
+        {/* Payments Section - Bookings */}
         <div className="section">
-          <div className="section-title">ZAHLUNGEN</div>
+          <div className="section-title">ZAHLUNGEN BUCHUNGEN</div>
           <table>
             <tbody>
               {summary.paymentBreakdown.map((payment) => (
@@ -107,6 +127,42 @@ export const PrintableReport = forwardRef<HTMLDivElement, PrintableReportProps>(
                 </tr>
               ))}
               <tr style={{ borderTop: "2px solid #333" }}>
+                <td><strong>Subtotal Buchungen:</strong></td>
+                <td></td>
+                <td className="text-right"><strong>{formatCurrency(bookingRevenue)}</strong></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        {/* Payments Section - Shop */}
+        {(summary.shopSales?.length || 0) > 0 && (
+          <div className="section">
+            <div className="section-title">ZAHLUNGEN SHOP</div>
+            <table>
+              <tbody>
+                {summary.shopPaymentBreakdown.map((payment) => (
+                  <tr key={payment.method}>
+                    <td>{paymentLabels[payment.method] || payment.method}:</td>
+                    <td className="text-right">{payment.count} ×</td>
+                    <td className="text-right">{formatCurrency(payment.total)}</td>
+                  </tr>
+                ))}
+                <tr style={{ borderTop: "2px solid #333" }}>
+                  <td><strong>Subtotal Shop:</strong></td>
+                  <td></td>
+                  <td className="text-right"><strong>{formatCurrency(summary.shopRevenue)}</strong></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* Combined Total */}
+        <div className="section">
+          <table>
+            <tbody>
+              <tr style={{ borderTop: "3px solid #333" }}>
                 <td><strong>TOTAL:</strong></td>
                 <td></td>
                 <td className="text-right"><strong>{formatCurrency(summary.totalRevenue)}</strong></td>
@@ -167,6 +223,35 @@ export const PrintableReport = forwardRef<HTMLDivElement, PrintableReportProps>(
             </tbody>
           </table>
         </div>
+
+        {/* Shop Sales Section */}
+        {(summary.shopSales?.length || 0) > 0 && (
+          <div className="section">
+            <div className="section-title">SHOP-VERKÄUFE</div>
+            <table>
+              <thead>
+                <tr>
+                  <th>Beleg</th>
+                  <th>Zeit</th>
+                  <th>Artikel</th>
+                  <th>Zahlung</th>
+                  <th className="text-right">CHF</th>
+                </tr>
+              </thead>
+              <tbody>
+                {summary.shopSales.map((sale) => (
+                  <tr key={sale.id}>
+                    <td>{sale.transaction_number}</td>
+                    <td>{format(new Date(sale.created_at), "HH:mm")}</td>
+                    <td>{sale.items_count} Stk.</td>
+                    <td>{paymentLabels[sale.payment_method] || sale.payment_method}</td>
+                    <td className="text-right">{sale.total.toFixed(2)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
 
         {/* Footer */}
         <div className="mt-12">
