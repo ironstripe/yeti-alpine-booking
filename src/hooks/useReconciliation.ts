@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { format } from "date-fns";
+import { format, startOfDay, endOfDay } from "date-fns";
 import { toast } from "sonner";
 
 export interface ReconciliationData {
@@ -30,6 +30,7 @@ export interface DayPaymentBreakdown {
   method: string;
   count: number;
   total: number;
+  source: "bookings" | "shop" | "combined";
 }
 
 export interface DayBooking {
@@ -39,6 +40,15 @@ export interface DayBooking {
   product_name: string;
   payment_method: string | null;
   total: number;
+}
+
+export interface ShopSale {
+  id: string;
+  transaction_number: string;
+  items_count: number;
+  payment_method: string;
+  total: number;
+  created_at: string;
 }
 
 export interface InstructorHours {
@@ -58,6 +68,10 @@ export interface DaySummary {
   paymentBreakdown: DayPaymentBreakdown[];
   bookings: DayBooking[];
   instructorHours: InstructorHours[];
+  // Shop data
+  shopRevenue: number;
+  shopSales: ShopSale[];
+  shopPaymentBreakdown: DayPaymentBreakdown[];
 }
 
 // Fetch or create reconciliation record for a date
@@ -93,7 +107,7 @@ export function useDaySummary(date: Date) {
   return useQuery({
     queryKey: ["day-summary", dateStr],
     queryFn: async (): Promise<DaySummary> => {
-      // Fetch payments made on this date
+      // Fetch payments made on this date (bookings)
       const { data: payments, error: paymentsError } = await supabase
         .from("payments")
         .select(`
@@ -147,7 +161,29 @@ export function useDaySummary(date: Date) {
 
       if (itemsError) throw itemsError;
 
-      // Calculate payment breakdown from payments table
+      // Fetch shop transactions for this date
+      const dayStart = startOfDay(date).toISOString();
+      const dayEnd = endOfDay(date).toISOString();
+      
+      const { data: shopTransactions, error: shopError } = await supabase
+        .from("shop_transactions")
+        .select(`
+          id,
+          transaction_number,
+          total,
+          payment_method,
+          created_at,
+          shop_transaction_items (
+            id,
+            quantity
+          )
+        `)
+        .gte("date", dayStart)
+        .lte("date", dayEnd);
+
+      if (shopError) throw shopError;
+
+      // Calculate payment breakdown from payments table (bookings only)
       const paymentMethodTotals: Record<string, { count: number; total: number }> = {};
       (payments || []).forEach((p) => {
         const method = p.payment_method || "other";
@@ -163,11 +199,44 @@ export function useDaySummary(date: Date) {
           method,
           count: data.count,
           total: data.total,
+          source: "bookings" as const,
         })
       );
 
+      // Calculate shop payment breakdown
+      const shopPaymentTotals: Record<string, { count: number; total: number }> = {};
+      (shopTransactions || []).forEach((t) => {
+        const method = t.payment_method || "other";
+        if (!shopPaymentTotals[method]) {
+          shopPaymentTotals[method] = { count: 0, total: 0 };
+        }
+        shopPaymentTotals[method].count += 1;
+        shopPaymentTotals[method].total += t.total || 0;
+      });
+
+      const shopPaymentBreakdown: DayPaymentBreakdown[] = Object.entries(shopPaymentTotals).map(
+        ([method, data]) => ({
+          method,
+          count: data.count,
+          total: data.total,
+          source: "shop" as const,
+        })
+      );
+
+      // Calculate shop sales list
+      const shopSales: ShopSale[] = (shopTransactions || []).map((t) => ({
+        id: t.id,
+        transaction_number: t.transaction_number,
+        items_count: (t.shop_transaction_items as any[])?.reduce((sum, item) => sum + (item.quantity || 1), 0) || 0,
+        payment_method: t.payment_method,
+        total: t.total,
+        created_at: t.created_at,
+      }));
+
       // Calculate total revenue from payments
-      const totalRevenue = paymentBreakdown.reduce((sum, p) => sum + p.total, 0);
+      const bookingRevenue = paymentBreakdown.reduce((sum, p) => sum + p.total, 0);
+      const shopRevenue = shopPaymentBreakdown.reduce((sum, p) => sum + p.total, 0);
+      const totalRevenue = bookingRevenue + shopRevenue;
 
       // Build unique bookings list from items
       const bookingsMap = new Map<string, DayBooking>();
@@ -230,6 +299,10 @@ export function useDaySummary(date: Date) {
         paymentBreakdown,
         bookings: Array.from(bookingsMap.values()),
         instructorHours: Array.from(instructorMap.values()),
+        // Shop data
+        shopRevenue,
+        shopSales,
+        shopPaymentBreakdown,
       };
     },
   });

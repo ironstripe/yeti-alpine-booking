@@ -18,6 +18,7 @@ import { DayBookingsTable } from "@/components/reconciliation/DayBookingsTable";
 import { InstructorHoursTable } from "@/components/reconciliation/InstructorHoursTable";
 import { ReconciliationActions } from "@/components/reconciliation/ReconciliationActions";
 import { PrintableReport } from "@/components/reconciliation/PrintableReport";
+import { ShopSalesTable } from "@/components/reconciliation/ShopSalesTable";
 import { useReactToPrint } from "react-to-print";
 import { useDebounce } from "@/hooks/useDebounce";
 
@@ -40,10 +41,16 @@ export default function Reconciliation() {
   const saveReconciliation = useSaveReconciliation();
   const closeReconciliation = useCloseReconciliation();
 
-  // Calculate expected amounts
-  const cashExpected = summary?.paymentBreakdown.find((p) => p.method === "bar")?.total || 0;
-  const cardExpected = summary?.paymentBreakdown.find((p) => p.method === "karte")?.total || 0;
-  const twintExpected = summary?.paymentBreakdown.find((p) => p.method === "twint")?.total || 0;
+  // Calculate expected amounts (bookings + shop combined)
+  const getExpected = (method: string) => {
+    const bookingAmount = summary?.paymentBreakdown.find((p) => p.method === method)?.total || 0;
+    const shopAmount = summary?.shopPaymentBreakdown?.find((p) => p.method === method)?.total || 0;
+    return bookingAmount + shopAmount;
+  };
+
+  const cashExpected = getExpected("bar");
+  const cardExpected = getExpected("karte");
+  const twintExpected = getExpected("twint");
 
   const totalExpected = cashExpected + cardExpected + twintExpected;
   const totalActual = (cashActual ?? 0) + (cardActual ?? 0) + (twintActual ?? 0);
@@ -211,6 +218,7 @@ export default function Reconciliation() {
           {/* Payment Breakdown */}
           <PaymentBreakdownTable
             breakdown={summary?.paymentBreakdown || []}
+            shopBreakdown={summary?.shopPaymentBreakdown || []}
             cashActual={cashActual}
             cardActual={cardActual}
             twintActual={twintActual}
@@ -232,6 +240,15 @@ export default function Reconciliation() {
             isLocked={isLocked}
           />
         </div>
+
+        {/* Shop Sales - separate section */}
+        {(summary?.shopSales?.length || 0) > 0 && (
+          <ShopSalesTable
+            sales={summary?.shopSales || []}
+            breakdown={summary?.shopPaymentBreakdown || []}
+            totalRevenue={summary?.shopRevenue || 0}
+          />
+        )}
 
         {/* Bookings Table */}
         <DayBookingsTable bookings={summary?.bookings || []} />
@@ -256,7 +273,7 @@ export default function Reconciliation() {
       <PrintableReport
         ref={printRef}
         date={selectedDate}
-        summary={summary || { totalRevenue: 0, totalBookings: 0, totalInstructors: 0, totalHours: 0, paymentBreakdown: [], bookings: [], instructorHours: [] }}
+        summary={summary || { totalRevenue: 0, totalBookings: 0, totalInstructors: 0, totalHours: 0, paymentBreakdown: [], bookings: [], instructorHours: [], shopRevenue: 0, shopSales: [], shopPaymentBreakdown: [] }}
         reconciliation={reconciliation}
         cashActual={cashActual ?? 0}
         cardActual={cardActual ?? 0}
