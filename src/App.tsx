@@ -37,6 +37,10 @@ import ReportsRevenue from "./pages/ReportsRevenue";
 import ReportsInstructors from "./pages/ReportsInstructors";
 import ReportsBookings from "./pages/ReportsBookings";
 import ReportsCustomers from "./pages/ReportsCustomers";
+import InstructorDashboard from "./pages/InstructorDashboard";
+import InstructorSchedule from "./pages/InstructorSchedule";
+import InstructorAvailability from "./pages/InstructorAvailability";
+import InstructorProfile from "./pages/InstructorProfile";
 
 const queryClient = new QueryClient();
 
@@ -261,6 +265,11 @@ const AppRoutes = () => (
         </AppLayout>
       }
     />
+    {/* Instructor Portal Routes */}
+    <Route path="/instructor" element={<InstructorDashboard />} />
+    <Route path="/instructor/schedule" element={<InstructorSchedule />} />
+    <Route path="/instructor/availability" element={<InstructorAvailability />} />
+    <Route path="/instructor/profile" element={<InstructorProfile />} />
     {/* Catch-all route */}
     <Route path="*" element={<NotFound />} />
   </Routes>
