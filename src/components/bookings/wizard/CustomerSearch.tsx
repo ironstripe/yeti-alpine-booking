@@ -59,6 +59,9 @@ export function CustomerSearch({
       holiday_address: "",
       additional_phones: [],
       additional_emails: [],
+      customer_type: "private",
+      organization_name: null,
+      billing_email: null,
     };
     onSelect(fullCustomer);
     setSearchQuery("");
