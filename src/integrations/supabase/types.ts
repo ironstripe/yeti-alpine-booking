@@ -298,6 +298,53 @@ export type Database = {
           },
         ]
       }
+      customer_contacts: {
+        Row: {
+          created_at: string | null
+          customer_id: string
+          email: string | null
+          id: string
+          is_primary: boolean | null
+          name: string
+          phone: string
+          role: string | null
+          sort_order: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          customer_id: string
+          email?: string | null
+          id?: string
+          is_primary?: boolean | null
+          name: string
+          phone: string
+          role?: string | null
+          sort_order?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          customer_id?: string
+          email?: string | null
+          id?: string
+          is_primary?: boolean | null
+          name?: string
+          phone?: string
+          role?: string | null
+          sort_order?: number | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_contacts_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       customer_participants: {
         Row: {
           birth_date: string
@@ -349,9 +396,11 @@ export type Database = {
         Row: {
           additional_emails: Json | null
           additional_phones: Json | null
+          billing_email: string | null
           city: string | null
           country: string | null
           created_at: string
+          customer_type: string | null
           email: string
           first_name: string | null
           holiday_address: string
@@ -361,6 +410,7 @@ export type Database = {
           last_name: string
           marketing_consent: boolean | null
           notes: string | null
+          organization_name: string | null
           phone: string | null
           preferred_channel: string | null
           street: string | null
@@ -369,9 +419,11 @@ export type Database = {
         Insert: {
           additional_emails?: Json | null
           additional_phones?: Json | null
+          billing_email?: string | null
           city?: string | null
           country?: string | null
           created_at?: string
+          customer_type?: string | null
           email: string
           first_name?: string | null
           holiday_address?: string
@@ -381,6 +433,7 @@ export type Database = {
           last_name: string
           marketing_consent?: boolean | null
           notes?: string | null
+          organization_name?: string | null
           phone?: string | null
           preferred_channel?: string | null
           street?: string | null
@@ -389,9 +442,11 @@ export type Database = {
         Update: {
           additional_emails?: Json | null
           additional_phones?: Json | null
+          billing_email?: string | null
           city?: string | null
           country?: string | null
           created_at?: string
+          customer_type?: string | null
           email?: string
           first_name?: string | null
           holiday_address?: string
@@ -401,6 +456,7 @@ export type Database = {
           last_name?: string
           marketing_consent?: boolean | null
           notes?: string | null
+          organization_name?: string | null
           phone?: string | null
           preferred_channel?: string | null
           street?: string | null
@@ -1411,6 +1467,7 @@ export type Database = {
           name: string
           office_hours: Json | null
           phone: string | null
+          school_tariff: Json | null
           slogan: string | null
           street: string | null
           updated_at: string | null
@@ -1433,6 +1490,7 @@ export type Database = {
           name?: string
           office_hours?: Json | null
           phone?: string | null
+          school_tariff?: Json | null
           slogan?: string | null
           street?: string | null
           updated_at?: string | null
@@ -1455,6 +1513,7 @@ export type Database = {
           name?: string
           office_hours?: Json | null
           phone?: string | null
+          school_tariff?: Json | null
           slogan?: string | null
           street?: string | null
           updated_at?: string | null
@@ -1797,20 +1856,26 @@ export type Database = {
         Row: {
           actual_duration_minutes: number | null
           created_at: string
+          custom_end_time: string | null
+          custom_start_time: string | null
           date: string
           discount_percent: number | null
           discount_reason: string | null
+          group_name: string | null
+          group_participant_count: number | null
           id: string
           instructor_confirmation: string | null
           instructor_confirmed_at: string | null
           instructor_id: string | null
           instructor_notes: string | null
           internal_notes: string | null
+          item_type: string | null
           line_total: number | null
           meeting_point: string | null
           participant_id: string | null
           product_id: string
           quantity: number | null
+          skill_level: string | null
           status: string | null
           ticket_id: string
           time_end: string | null
@@ -1820,20 +1885,26 @@ export type Database = {
         Insert: {
           actual_duration_minutes?: number | null
           created_at?: string
+          custom_end_time?: string | null
+          custom_start_time?: string | null
           date: string
           discount_percent?: number | null
           discount_reason?: string | null
+          group_name?: string | null
+          group_participant_count?: number | null
           id?: string
           instructor_confirmation?: string | null
           instructor_confirmed_at?: string | null
           instructor_id?: string | null
           instructor_notes?: string | null
           internal_notes?: string | null
+          item_type?: string | null
           line_total?: number | null
           meeting_point?: string | null
           participant_id?: string | null
           product_id: string
           quantity?: number | null
+          skill_level?: string | null
           status?: string | null
           ticket_id: string
           time_end?: string | null
@@ -1843,20 +1914,26 @@ export type Database = {
         Update: {
           actual_duration_minutes?: number | null
           created_at?: string
+          custom_end_time?: string | null
+          custom_start_time?: string | null
           date?: string
           discount_percent?: number | null
           discount_reason?: string | null
+          group_name?: string | null
+          group_participant_count?: number | null
           id?: string
           instructor_confirmation?: string | null
           instructor_confirmed_at?: string | null
           instructor_id?: string | null
           instructor_notes?: string | null
           internal_notes?: string | null
+          item_type?: string | null
           line_total?: number | null
           meeting_point?: string | null
           participant_id?: string | null
           product_id?: string
           quantity?: number | null
+          skill_level?: string | null
           status?: string | null
           ticket_id?: string
           time_end?: string | null
@@ -1896,48 +1973,66 @@ export type Database = {
       }
       tickets: {
         Row: {
+          camp_end_date: string | null
+          camp_start_date: string | null
           created_at: string
           created_by: string | null
           customer_id: string
           id: string
           internal_notes: string | null
           notes: string | null
+          notes_for_instructors: string | null
           paid_amount: number | null
           payment_due_date: string | null
           payment_method: string | null
+          skip_documents: boolean | null
           status: string | null
           ticket_number: string
+          ticket_type: string | null
           total_amount: number | null
+          total_participants: number | null
           updated_at: string
         }
         Insert: {
+          camp_end_date?: string | null
+          camp_start_date?: string | null
           created_at?: string
           created_by?: string | null
           customer_id: string
           id?: string
           internal_notes?: string | null
           notes?: string | null
+          notes_for_instructors?: string | null
           paid_amount?: number | null
           payment_due_date?: string | null
           payment_method?: string | null
+          skip_documents?: boolean | null
           status?: string | null
           ticket_number: string
+          ticket_type?: string | null
           total_amount?: number | null
+          total_participants?: number | null
           updated_at?: string
         }
         Update: {
+          camp_end_date?: string | null
+          camp_start_date?: string | null
           created_at?: string
           created_by?: string | null
           customer_id?: string
           id?: string
           internal_notes?: string | null
           notes?: string | null
+          notes_for_instructors?: string | null
           paid_amount?: number | null
           payment_due_date?: string | null
           payment_method?: string | null
+          skip_documents?: boolean | null
           status?: string | null
           ticket_number?: string
+          ticket_type?: string | null
           total_amount?: number | null
+          total_participants?: number | null
           updated_at?: string
         }
         Relationships: [

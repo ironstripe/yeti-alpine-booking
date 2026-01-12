@@ -25,6 +25,7 @@ import NotFound from "./pages/NotFound";
 import CustomerDetail from "./pages/CustomerDetail";
 import BookingWizard from "./pages/BookingWizard";
 import BookingDetail from "./pages/BookingDetail";
+import SchoolCampBooking from "./pages/SchoolCampBooking";
 import Scheduler from "./pages/Scheduler";
 import Reconciliation from "./pages/Reconciliation";
 import Lists from "./pages/Lists";
@@ -115,6 +116,7 @@ const AppRoutes = () => (
       }
     />
     <Route path="/bookings/new" element={<BookingWizard />} />
+    <Route path="/bookings/new/school-camp" element={<SchoolCampBooking />} />
     <Route
       path="/bookings/:id"
       element={

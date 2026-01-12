@@ -21,6 +21,7 @@ import {
   useUpdatePricingRule,
   useDeletePricingRule,
 } from "@/hooks/usePricingRules";
+import { SchoolTariffCard } from "@/components/settings/SchoolTariffCard";
 
 const typeLabels: Record<string, string> = {
   volume: "Mengenrabatt",
@@ -86,6 +87,7 @@ export default function SettingsPricing() {
   return (
     <SettingsLayout title="Preise" description="Rabatte, Zuschläge und Sonderkonditionen">
       <div className="space-y-6">
+        {/* School Tariff */}
         {/* Pricing Rules */}
         <Card>
           <CardHeader>
