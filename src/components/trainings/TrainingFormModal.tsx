@@ -27,8 +27,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2, Info, Loader2 } from 'lucide-react';
 import { useCreateGroupCourse, useUpdateGroupCourse } from '@/hooks/useGroupCourses';
+import { useTrainingProducts } from '@/hooks/useProducts';
 import type { GroupCourseWithSchedules, GroupCourseFormData } from '@/types/group-courses';
 import { SKILL_LEVELS, DISCIPLINES, DAYS_OF_WEEK, COURSE_COLORS } from '@/types/group-courses';
 
@@ -40,8 +41,7 @@ const formSchema = z.object({
   min_age: z.number().nullable(),
   max_age: z.number().nullable(),
   max_participants: z.number().min(1).max(20),
-  price_per_day: z.number().min(0),
-  price_full_week: z.number().nullable(),
+  product_id: z.string().nullable(),
   meeting_point: z.string().optional(),
   color: z.string(),
   is_active: z.boolean(),
@@ -56,6 +56,7 @@ interface TrainingFormModalProps {
 export function TrainingFormModal({ open, onOpenChange, course }: TrainingFormModalProps) {
   const createCourse = useCreateGroupCourse();
   const updateCourse = useUpdateGroupCourse();
+  const { data: trainingProducts, isLoading: productsLoading } = useTrainingProducts();
   const isEditing = !!course;
 
   // Separate state for schedule configuration
@@ -74,8 +75,7 @@ export function TrainingFormModal({ open, onOpenChange, course }: TrainingFormMo
       min_age: null,
       max_age: null,
       max_participants: 8,
-      price_per_day: 85,
-      price_full_week: null,
+      product_id: null,
       meeting_point: '',
       color: '#3B82F6',
       is_active: true,
@@ -93,8 +93,7 @@ export function TrainingFormModal({ open, onOpenChange, course }: TrainingFormMo
         min_age: course.min_age,
         max_age: course.max_age,
         max_participants: course.max_participants,
-        price_per_day: Number(course.price_per_day),
-        price_full_week: course.price_full_week ? Number(course.price_full_week) : null,
+        product_id: course.product_id,
         meeting_point: course.meeting_point || '',
         color: course.color,
         is_active: course.is_active,
@@ -148,8 +147,7 @@ export function TrainingFormModal({ open, onOpenChange, course }: TrainingFormMo
       min_age: values.min_age,
       max_age: values.max_age,
       max_participants: values.max_participants,
-      price_per_day: values.price_per_day,
-      price_full_week: values.price_full_week,
+      product_id: values.product_id,
       meeting_point: values.meeting_point || '',
       color: values.color,
       is_active: values.is_active,
@@ -172,6 +170,8 @@ export function TrainingFormModal({ open, onOpenChange, course }: TrainingFormMo
   };
 
   const isPending = createCourse.isPending || updateCourse.isPending;
+  const selectedProductId = form.watch('product_id');
+  const selectedProduct = trainingProducts?.find(p => p.id === selectedProductId);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -375,51 +375,72 @@ export function TrainingFormModal({ open, onOpenChange, course }: TrainingFormMo
               </div>
             </div>
 
-            {/* Pricing */}
+            {/* Product Selection (replaces price fields) */}
             <div className="space-y-4">
-              <h4 className="font-medium text-sm text-muted-foreground">Preise</h4>
+              <h4 className="font-medium text-sm text-muted-foreground">Verknüpftes Produkt</h4>
               
-              <div className="grid grid-cols-2 gap-4">
+              <div className="p-4 border rounded-lg bg-muted/30">
                 <FormField
                   control={form.control}
-                  name="price_per_day"
+                  name="product_id"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Preis pro Tag (CHF) *</FormLabel>
-                      <FormControl>
-                        <Input 
-                          type="number" 
-                          min={0}
-                          step={5}
-                          {...field}
-                          onChange={e => field.onChange(parseFloat(e.target.value) || 0)}
-                        />
-                      </FormControl>
+                      <FormLabel>Produkt für Preisberechnung</FormLabel>
+                      <Select 
+                        value={field.value || ''} 
+                        onValueChange={(v) => field.onChange(v || null)}
+                        disabled={productsLoading}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            {productsLoading ? (
+                              <div className="flex items-center gap-2">
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                                <span>Laden...</span>
+                              </div>
+                            ) : (
+                              <SelectValue placeholder="Produkt auswählen..." />
+                            )}
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {trainingProducts?.map(product => (
+                            <SelectItem key={product.id} value={product.id}>
+                              <div className="flex justify-between items-center w-full gap-4">
+                                <span>{product.name}</span>
+                                <span className="text-muted-foreground">
+                                  CHF {product.price.toFixed(2)}
+                                </span>
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
-
-                <FormField
-                  control={form.control}
-                  name="price_full_week"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Preis Woche (CHF)</FormLabel>
-                      <FormControl>
-                        <Input 
-                          type="number" 
-                          min={0}
-                          step={5}
-                          placeholder="Optional"
-                          value={field.value ?? ''}
-                          onChange={e => field.onChange(e.target.value ? parseFloat(e.target.value) : null)}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                
+                {selectedProduct && (
+                  <div className="mt-3 flex items-start gap-2 text-sm text-muted-foreground">
+                    <Info className="h-4 w-4 mt-0.5 shrink-0" />
+                    <span>
+                      Der Preis von <strong>CHF {selectedProduct.price.toFixed(2)}</strong> wird 
+                      automatisch vom Produkt "{selectedProduct.name}" übernommen. 
+                      Preisänderungen können unter Einstellungen → Produkte vorgenommen werden.
+                    </span>
+                  </div>
+                )}
+                
+                {!selectedProduct && !productsLoading && trainingProducts?.length === 0 && (
+                  <div className="mt-3 flex items-start gap-2 text-sm text-amber-600">
+                    <Info className="h-4 w-4 mt-0.5 shrink-0" />
+                    <span>
+                      Keine Produkte für Trainings verfügbar. Bitte erstelle zuerst ein Gruppenkurs-Produkt 
+                      unter Einstellungen → Produkte und aktiviere "Für Trainings verfügbar".
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
 

@@ -828,6 +828,7 @@ export type Database = {
           name: string
           price_full_week: number | null
           price_per_day: number
+          product_id: string | null
           skill_level: string
           updated_at: string | null
         }
@@ -845,6 +846,7 @@ export type Database = {
           name: string
           price_full_week?: number | null
           price_per_day: number
+          product_id?: string | null
           skill_level?: string
           updated_at?: string | null
         }
@@ -862,10 +864,19 @@ export type Database = {
           name?: string
           price_full_week?: number | null
           price_per_day?: number
+          product_id?: string | null
           skill_level?: string
           updated_at?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "group_courses_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       groups: {
         Row: {
@@ -1417,6 +1428,7 @@ export type Database = {
           duration_minutes: number | null
           id: string
           is_active: boolean | null
+          is_training_product: boolean | null
           name: string
           price: number
           sort_order: number | null
@@ -1430,6 +1442,7 @@ export type Database = {
           duration_minutes?: number | null
           id?: string
           is_active?: boolean | null
+          is_training_product?: boolean | null
           name: string
           price: number
           sort_order?: number | null
@@ -1443,6 +1456,7 @@ export type Database = {
           duration_minutes?: number | null
           id?: string
           is_active?: boolean | null
+          is_training_product?: boolean | null
           name?: string
           price?: number
           sort_order?: number | null

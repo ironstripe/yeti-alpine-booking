@@ -11,11 +11,19 @@ export interface GroupCourse {
   max_participants: number;
   price_per_day: number;
   price_full_week: number | null;
+  product_id: string | null;
   meeting_point: string | null;
   color: string;
   is_active: boolean;
   created_at: string;
   updated_at: string;
+}
+
+export interface LinkedProduct {
+  id: string;
+  name: string;
+  price: number;
+  type: string;
 }
 
 export interface GroupCourseSchedule {
@@ -75,6 +83,7 @@ export interface GroupCourseEnrollment {
 
 export interface GroupCourseWithSchedules extends GroupCourse {
   schedules: GroupCourseSchedule[];
+  product?: LinkedProduct | null;
   this_week_participants?: number;
   this_week_max_spots?: number;
   assigned_instructor?: {
@@ -92,8 +101,7 @@ export interface GroupCourseFormData {
   min_age: number | null;
   max_age: number | null;
   max_participants: number;
-  price_per_day: number;
-  price_full_week: number | null;
+  product_id: string | null;
   meeting_point: string;
   color: string;
   is_active: boolean;
