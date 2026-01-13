@@ -10,14 +10,17 @@ import type {
   GroupCourseFormData 
 } from '@/types/group-courses';
 
-// Fetch all group courses with their schedules
+// Fetch all group courses with their schedules and linked products
 export function useGroupCourses(options?: { activeOnly?: boolean }) {
   return useQuery({
     queryKey: ['group-courses', options?.activeOnly],
     queryFn: async (): Promise<GroupCourseWithSchedules[]> => {
       let query = supabase
         .from('group_courses')
-        .select('*')
+        .select(`
+          *,
+          product:product_id(id, name, price, type)
+        `)
         .order('name');
 
       if (options?.activeOnly) {
@@ -64,6 +67,7 @@ export function useGroupCourses(options?: { activeOnly?: boolean }) {
 
         return {
           ...course,
+          product: course.product as any,
           schedules: courseSchedules,
           this_week_participants: thisWeekParticipants,
           this_week_max_spots: thisWeekMaxSpots,
@@ -141,23 +145,25 @@ export function useCreateGroupCourse() {
 
   return useMutation({
     mutationFn: async (formData: GroupCourseFormData) => {
-      // Create course
+      // Create course with product_id instead of prices
+      const insertData: Record<string, unknown> = {
+        name: formData.name,
+        description: formData.description || null,
+        skill_level: formData.skill_level,
+        discipline: formData.discipline,
+        min_age: formData.min_age,
+        max_age: formData.max_age,
+        max_participants: formData.max_participants,
+        product_id: formData.product_id,
+        meeting_point: formData.meeting_point || null,
+        color: formData.color,
+        is_active: formData.is_active,
+        price_per_day: 0, // Legacy field, price now comes from product
+      };
+
       const { data: course, error: courseError } = await supabase
         .from('group_courses')
-        .insert({
-          name: formData.name,
-          description: formData.description || null,
-          skill_level: formData.skill_level,
-          discipline: formData.discipline,
-          min_age: formData.min_age,
-          max_age: formData.max_age,
-          max_participants: formData.max_participants,
-          price_per_day: formData.price_per_day,
-          price_full_week: formData.price_full_week,
-          meeting_point: formData.meeting_point || null,
-          color: formData.color,
-          is_active: formData.is_active,
-        })
+        .insert(insertData as any)
         .select()
         .single();
 

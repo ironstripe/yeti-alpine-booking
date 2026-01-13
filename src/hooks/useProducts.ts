@@ -7,19 +7,37 @@ export type Product = Tables<"products">;
 export type ProductInsert = TablesInsert<"products">;
 export type ProductUpdate = TablesUpdate<"products">;
 
-export function useProducts() {
+interface UseProductsOptions {
+  isTrainingProduct?: boolean;
+  isActive?: boolean;
+}
+
+export function useProducts(options?: UseProductsOptions) {
   return useQuery({
-    queryKey: ["products"],
+    queryKey: ["products", options],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from("products")
         .select("*")
         .order("sort_order", { ascending: true });
 
+      if (options?.isTrainingProduct !== undefined) {
+        query = query.eq("is_training_product", options.isTrainingProduct);
+      }
+      if (options?.isActive !== undefined) {
+        query = query.eq("is_active", options.isActive);
+      }
+
+      const { data, error } = await query;
       if (error) throw error;
       return data;
     },
   });
+}
+
+// Helper hook for training products only
+export function useTrainingProducts() {
+  return useProducts({ isTrainingProduct: true, isActive: true });
 }
 
 export function useProduct(id: string | undefined) {

@@ -1,7 +1,7 @@
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Loader2 } from "lucide-react";
+import { Loader2, Info } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -20,6 +20,7 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  FormDescription,
 } from "@/components/ui/form";
 import {
   Select,
@@ -38,6 +39,7 @@ const formSchema = z.object({
   price: z.coerce.number().min(0, "Preis muss positiv sein"),
   duration_minutes: z.coerce.number().min(0).optional(),
   is_active: z.boolean(),
+  is_training_product: z.boolean(),
 });
 
 type FormData = z.infer<typeof formSchema>;
@@ -62,8 +64,11 @@ export function ProductFormModal({ open, onOpenChange, product }: ProductFormMod
       price: 0,
       duration_minutes: 60,
       is_active: true,
+      is_training_product: false,
     },
   });
+
+  const productType = form.watch("type");
 
   useEffect(() => {
     if (product) {
@@ -74,6 +79,7 @@ export function ProductFormModal({ open, onOpenChange, product }: ProductFormMod
         price: product.price,
         duration_minutes: product.duration_minutes || 60,
         is_active: product.is_active ?? true,
+        is_training_product: (product as any).is_training_product ?? false,
       });
     } else {
       form.reset({
@@ -83,34 +89,37 @@ export function ProductFormModal({ open, onOpenChange, product }: ProductFormMod
         price: 0,
         duration_minutes: 60,
         is_active: true,
+        is_training_product: false,
       });
     }
   }, [product, form]);
 
+  // Auto-suggest training product for group types
+  useEffect(() => {
+    if (!isEditing && productType === "group") {
+      form.setValue("is_training_product", true);
+    }
+  }, [productType, isEditing, form]);
+
   const onSubmit = (data: FormData) => {
+    const payload = {
+      name: data.name,
+      type: data.type,
+      description: data.description || null,
+      price: data.price,
+      duration_minutes: data.duration_minutes || null,
+      is_active: data.is_active,
+      is_training_product: data.is_training_product,
+    };
+
     if (isEditing) {
       updateProduct.mutate(
-        {
-          id: product.id,
-          name: data.name,
-          type: data.type,
-          description: data.description || null,
-          price: data.price,
-          duration_minutes: data.duration_minutes || null,
-          is_active: data.is_active,
-        },
+        { id: product.id, ...payload } as any,
         { onSuccess: () => onOpenChange(false) }
       );
     } else {
       createProduct.mutate(
-        {
-          name: data.name,
-          type: data.type,
-          description: data.description || null,
-          price: data.price,
-          duration_minutes: data.duration_minutes || null,
-          is_active: data.is_active,
-        },
+        payload as any,
         { onSuccess: () => onOpenChange(false) }
       );
     }
@@ -209,14 +218,44 @@ export function ProductFormModal({ open, onOpenChange, product }: ProductFormMod
 
             <FormField
               control={form.control}
+              name="is_training_product"
+              render={({ field }) => (
+                <FormItem className="flex items-center justify-between rounded-lg border p-3">
+                  <div className="space-y-0.5">
+                    <FormLabel className="text-base flex items-center gap-2">
+                      🔗 Für Trainings verfügbar
+                    </FormLabel>
+                    <FormDescription>
+                      Dieses Produkt kann mit Trainings verknüpft werden
+                    </FormDescription>
+                  </div>
+                  <FormControl>
+                    <Switch checked={field.value} onCheckedChange={field.onChange} />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+
+            {form.watch("is_training_product") && (
+              <div className="flex items-start gap-2 text-sm text-muted-foreground bg-muted/50 p-3 rounded-lg">
+                <Info className="h-4 w-4 mt-0.5 shrink-0" />
+                <span>
+                  Wenn dieses Produkt mit Trainings verknüpft ist, wird der hier definierte Preis 
+                  automatisch für alle verknüpften Trainings verwendet.
+                </span>
+              </div>
+            )}
+
+            <FormField
+              control={form.control}
               name="is_active"
               render={({ field }) => (
                 <FormItem className="flex items-center justify-between rounded-lg border p-3">
                   <div className="space-y-0.5">
                     <FormLabel className="text-base">Aktiv</FormLabel>
-                    <p className="text-sm text-muted-foreground">
+                    <FormDescription>
                       Produkt kann gebucht werden
-                    </p>
+                    </FormDescription>
                   </div>
                   <FormControl>
                     <Switch checked={field.value} onCheckedChange={field.onChange} />

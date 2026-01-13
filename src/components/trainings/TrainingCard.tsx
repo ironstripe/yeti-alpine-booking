@@ -8,7 +8,8 @@ import {
   MapPin, 
   Edit, 
   List,
-  Snowflake
+  Snowflake,
+  AlertTriangle
 } from 'lucide-react';
 import type { GroupCourseWithSchedules } from '@/types/group-courses';
 import { SKILL_LEVELS, DISCIPLINES, DAYS_OF_WEEK } from '@/types/group-courses';
@@ -39,6 +40,10 @@ export function TrainingCard({ course, onEdit, onViewInstances }: TrainingCardPr
   const participationPercent = course.this_week_max_spots 
     ? Math.round((course.this_week_participants || 0) / course.this_week_max_spots * 100)
     : 0;
+
+  // Get price from linked product or fallback to legacy price_per_day
+  const hasLinkedProduct = !!course.product;
+  const displayPrice = hasLinkedProduct ? course.product!.price : course.price_per_day;
 
   return (
     <Card className="overflow-hidden hover:shadow-md transition-shadow">
@@ -94,12 +99,17 @@ export function TrainingCard({ course, onEdit, onViewInstances }: TrainingCardPr
           </div>
         )}
 
-        {/* Price */}
-        <div className="text-sm font-medium">
-          CHF {course.price_per_day.toFixed(0)}/Tag
-          {course.price_full_week && (
-            <span className="text-muted-foreground font-normal">
-              {' '}• CHF {course.price_full_week.toFixed(0)}/Woche
+        {/* Price - from linked product or legacy */}
+        <div className="text-sm">
+          <span className="font-medium">CHF {displayPrice.toFixed(0)}/Tag</span>
+          {hasLinkedProduct ? (
+            <span className="text-muted-foreground font-normal ml-1">
+              via {course.product!.name}
+            </span>
+          ) : (
+            <span className="text-amber-600 font-normal ml-1 flex items-center gap-1 inline-flex">
+              <AlertTriangle className="h-3 w-3" />
+              Kein Produkt verknüpft
             </span>
           )}
         </div>
