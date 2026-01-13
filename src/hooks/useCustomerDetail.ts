@@ -13,6 +13,17 @@ export interface Participant {
   created_at: string;
 }
 
+export interface CustomerContact {
+  id: string;
+  customer_id: string;
+  name: string;
+  role: string | null;
+  phone: string;
+  email: string | null;
+  is_primary: boolean | null;
+  sort_order: number | null;
+}
+
 export interface CustomerDetail {
   id: string;
   first_name: string | null;
@@ -33,6 +44,11 @@ export interface CustomerDetail {
   additional_phones: { label: string; number: string }[] | null;
   additional_emails: { label: string; email: string }[] | null;
   participants: Participant[];
+  // School/Organization fields
+  customer_type: string | null;
+  organization_name: string | null;
+  billing_email: string | null;
+  contacts: CustomerContact[];
 }
 
 export function useCustomerDetail(customerId: string | undefined) {
@@ -45,7 +61,8 @@ export function useCustomerDetail(customerId: string | undefined) {
         .from("customers")
         .select(`
           *,
-          customer_participants(*)
+          customer_participants(*),
+          customer_contacts(*)
         `)
         .eq("id", customerId)
         .maybeSingle();
@@ -58,6 +75,10 @@ export function useCustomerDetail(customerId: string | undefined) {
         additional_phones: data.additional_phones as { label: string; number: string }[] | null,
         additional_emails: data.additional_emails as { label: string; email: string }[] | null,
         participants: data.customer_participants || [],
+        customer_type: data.customer_type || 'private',
+        organization_name: data.organization_name || null,
+        billing_email: data.billing_email || null,
+        contacts: (data.customer_contacts || []) as CustomerContact[],
       };
     },
     enabled: !!customerId,

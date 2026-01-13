@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Loader2, Plus, Trash2 } from "lucide-react";
+import { Loader2, Plus, Trash2, Star, Building2, User } from "lucide-react";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 
@@ -41,18 +41,33 @@ import { CityAutocomplete } from "@/components/ui/city-autocomplete";
 
 const PHONE_LABELS = ["Mutter", "Vater", "Arbeit", "Notfall", "Sonstige"] as const;
 const EMAIL_LABELS = ["Mutter", "Vater", "Arbeit", "Sonstige"] as const;
+const CONTACT_ROLES = ["Hauptkontakt", "Klassenlehrer/in", "Begleitlehrer/in", "Schulleitung", "Notfallkontakt"] as const;
+
+const contactSchema = z.object({
+  name: z.string().min(1, "Name ist erforderlich"),
+  role: z.string().default("Begleitlehrer/in"),
+  phone: z.string().min(1, "Telefon ist erforderlich"),
+  email: z.string().email("Ungültige E-Mail").optional().or(z.literal("")),
+  is_primary: z.boolean().default(false),
+});
 
 const customerSchema = z.object({
+  customer_type: z.enum(["private", "school"]).default("private"),
+  // Private customer fields
   salutation: z.string().optional(),
   first_name: z.string().max(100).optional(),
   last_name: z.string().min(1, "Nachname ist erforderlich").max(100),
+  // School fields
+  organization_name: z.string().max(200).optional(),
+  billing_email: z.string().email("Ungültige E-Mail").optional().or(z.literal("")),
+  // Common fields
   email: z.string().email("Ungültige E-Mail-Adresse").max(255),
   phone: z.string().max(50).optional(),
   street: z.string().max(200).optional(),
   zip: z.string().max(10).optional(),
   city: z.string().max(100).optional(),
   country: z.string().default("LI"),
-  holiday_address: z.string().min(1, "Ferienadresse ist erforderlich").max(200),
+  holiday_address: z.string().max(200).optional(),
   additional_phones: z.array(z.object({
     label: z.string(),
     number: z.string().max(50),
@@ -65,6 +80,19 @@ const customerSchema = z.object({
   language: z.string().default("de"),
   marketing_consent: z.boolean().default(false),
   notes: z.string().max(1000).optional(),
+  // Contacts for schools
+  contacts: z.array(contactSchema).default([]),
+}).refine((data) => {
+  if (data.customer_type === "private") {
+    return true; // last_name is already required
+  }
+  if (data.customer_type === "school") {
+    return !!data.organization_name && data.organization_name.length > 0;
+  }
+  return true;
+}, {
+  message: "Organisationsname ist erforderlich",
+  path: ["organization_name"],
 });
 
 type CustomerFormData = z.infer<typeof customerSchema>;
@@ -82,9 +110,12 @@ export function NewCustomerModal({ open, onOpenChange }: NewCustomerModalProps) 
   const form = useForm<CustomerFormData>({
     resolver: zodResolver(customerSchema),
     defaultValues: {
+      customer_type: "private",
       salutation: "",
       first_name: "",
       last_name: "",
+      organization_name: "",
+      billing_email: "",
       email: "",
       phone: "",
       street: "",
@@ -98,8 +129,11 @@ export function NewCustomerModal({ open, onOpenChange }: NewCustomerModalProps) 
       language: "de",
       marketing_consent: false,
       notes: "",
+      contacts: [],
     },
   });
+
+  const customerType = form.watch("customer_type");
 
   const { fields: phoneFields, append: appendPhone, remove: removePhone } = useFieldArray({
     control: form.control,
@@ -109,6 +143,11 @@ export function NewCustomerModal({ open, onOpenChange }: NewCustomerModalProps) 
   const { fields: emailFields, append: appendEmail, remove: removeEmail } = useFieldArray({
     control: form.control,
     name: "additional_emails",
+  });
+
+  const { fields: contactFields, append: appendContact, remove: removeContact, update: updateContact } = useFieldArray({
+    control: form.control,
+    name: "contacts",
   });
 
   const { isDirty } = form.formState;
@@ -169,24 +208,49 @@ export function NewCustomerModal({ open, onOpenChange }: NewCustomerModalProps) 
     }
   };
 
+  const handleContactPhoneBlur = (index: number) => (e: React.FocusEvent<HTMLInputElement>) => {
+    const normalized = normalizePhoneNumber(e.target.value);
+    if (normalized !== e.target.value) {
+      form.setValue(`contacts.${index}.phone`, normalized);
+    }
+  };
+
+  const setPrimaryContact = (index: number) => {
+    contactFields.forEach((_, i) => {
+      form.setValue(`contacts.${i}.is_primary`, i === index);
+    });
+  };
+
   const onSubmit = async (data: CustomerFormData) => {
     try {
+      const isSchool = data.customer_type === "school";
+      
       const customerData = {
-        first_name: data.first_name || null,
+        customer_type: data.customer_type,
+        first_name: isSchool ? null : (data.first_name || null),
         last_name: data.last_name,
+        organization_name: isSchool ? data.organization_name : null,
+        billing_email: isSchool && data.billing_email ? data.billing_email : null,
         email: data.email,
         phone: data.phone || null,
         street: data.street || null,
         zip: data.zip || null,
         city: data.city || null,
         country: data.country,
-        holiday_address: data.holiday_address,
+        holiday_address: data.holiday_address || "",
         additional_phones: data.additional_phones.length > 0 ? data.additional_phones : null,
         additional_emails: data.additional_emails.length > 0 ? data.additional_emails : null,
         preferred_channel: data.preferred_channel,
         language: data.language,
         marketing_consent: data.marketing_consent,
         notes: data.notes || null,
+        contacts: isSchool ? data.contacts.map((c, i) => ({
+          name: c.name,
+          role: c.role,
+          phone: c.phone,
+          email: c.email || undefined,
+          is_primary: c.is_primary ?? i === 0,
+        })) : undefined,
       };
 
       const newCustomer = await createCustomer.mutateAsync(customerData);
@@ -195,8 +259,11 @@ export function NewCustomerModal({ open, onOpenChange }: NewCustomerModalProps) 
       setHasUnsavedChanges(false);
       onOpenChange(false);
       
-      toast.success("Kunde erfolgreich erstellt", {
-        action: {
+      toast.success(isSchool ? "Schule erfolgreich erstellt" : "Kunde erfolgreich erstellt", {
+        action: isSchool ? {
+          label: "Skilager buchen",
+          onClick: () => navigate(`/bookings/new/school-camp?customer=${newCustomer.id}`),
+        } : {
           label: "Teilnehmer hinzufügen",
           onClick: () => navigate(`/customers/${newCustomer.id}`),
         },
@@ -216,72 +283,157 @@ export function NewCustomerModal({ open, onOpenChange }: NewCustomerModalProps) 
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-            {/* Kontaktdaten Section */}
+            {/* Customer Type Selector */}
             <div className="space-y-4">
-              <h3 className="text-sm font-medium text-muted-foreground">Kontaktdaten</h3>
-              
+              <h3 className="text-sm font-medium text-muted-foreground">Kundentyp</h3>
               <FormField
                 control={form.control}
-                name="salutation"
+                name="customer_type"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Anrede</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Auswählen..." />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="herr">Herr</SelectItem>
-                        <SelectItem value="frau">Frau</SelectItem>
-                        <SelectItem value="familie">Familie</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <FormControl>
+                      <RadioGroup
+                        onValueChange={field.onChange}
+                        value={field.value}
+                        className="flex gap-4"
+                      >
+                        <div className="flex items-center space-x-2 border rounded-lg p-3 flex-1 cursor-pointer hover:bg-muted/50" onClick={() => field.onChange("private")}>
+                          <RadioGroupItem value="private" id="type_private" />
+                          <User className="h-4 w-4 text-muted-foreground" />
+                          <label htmlFor="type_private" className="text-sm cursor-pointer">Privatkunde</label>
+                        </div>
+                        <div className="flex items-center space-x-2 border rounded-lg p-3 flex-1 cursor-pointer hover:bg-muted/50" onClick={() => field.onChange("school")}>
+                          <RadioGroupItem value="school" id="type_school" />
+                          <Building2 className="h-4 w-4 text-orange-500" />
+                          <label htmlFor="type_school" className="text-sm cursor-pointer">Schule / Organisation</label>
+                        </div>
+                      </RadioGroup>
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
+            </div>
 
-              <div className="grid grid-cols-2 gap-4">
+            <Separator />
+
+            {/* Kontaktdaten Section */}
+            <div className="space-y-4">
+              <h3 className="text-sm font-medium text-muted-foreground">Kontaktdaten</h3>
+              
+              {/* School: Organization Name */}
+              {customerType === "school" && (
                 <FormField
                   control={form.control}
-                  name="first_name"
+                  name="organization_name"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Vorname</FormLabel>
+                      <FormLabel>
+                        Organisationsname <span className="text-destructive">*</span>
+                      </FormLabel>
                       <FormControl>
                         <Input
                           {...field}
-                          onBlur={handleNameBlur("first_name")}
-                          placeholder="Max"
+                          placeholder="z.B. Realschule Vaduz"
                         />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
+              )}
 
+              {/* Private: Salutation */}
+              {customerType === "private" && (
+                <FormField
+                  control={form.control}
+                  name="salutation"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Anrede</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Auswählen..." />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="herr">Herr</SelectItem>
+                          <SelectItem value="frau">Frau</SelectItem>
+                          <SelectItem value="familie">Familie</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+
+              {/* Private: First/Last Name */}
+              {customerType === "private" && (
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="first_name"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Vorname</FormLabel>
+                        <FormControl>
+                          <Input
+                            {...field}
+                            onBlur={handleNameBlur("first_name")}
+                            placeholder="Max"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="last_name"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>
+                          Nachname <span className="text-destructive">*</span>
+                        </FormLabel>
+                        <FormControl>
+                          <Input
+                            {...field}
+                            onBlur={handleNameBlur("last_name")}
+                            placeholder="Mustermann"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              )}
+
+              {/* School: Last Name (Contact Family Name) */}
+              {customerType === "school" && (
                 <FormField
                   control={form.control}
                   name="last_name"
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>
-                        Nachname <span className="text-destructive">*</span>
+                        Kontaktname <span className="text-destructive">*</span>
                       </FormLabel>
                       <FormControl>
                         <Input
                           {...field}
                           onBlur={handleNameBlur("last_name")}
-                          placeholder="Mustermann"
+                          placeholder="Müller (Ansprechpartner)"
                         />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
-              </div>
+              )}
 
               <FormField
                 control={form.control}
@@ -295,13 +447,34 @@ export function NewCustomerModal({ open, onOpenChange }: NewCustomerModalProps) 
                       <Input
                         {...field}
                         type="email"
-                        placeholder="max@beispiel.ch"
+                        placeholder={customerType === "school" ? "sekretariat@schule.ch" : "max@beispiel.ch"}
                       />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
+
+              {/* School: Billing Email */}
+              {customerType === "school" && (
+                <FormField
+                  control={form.control}
+                  name="billing_email"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Rechnungs-E-Mail</FormLabel>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          type="email"
+                          placeholder="buchhaltung@schule.ch"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
 
               <FormField
                 control={form.control}
@@ -325,137 +498,271 @@ export function NewCustomerModal({ open, onOpenChange }: NewCustomerModalProps) 
 
             <Separator />
 
-            {/* Weitere Kontakte Section */}
-            <div className="space-y-4">
-              <h3 className="text-sm font-medium text-muted-foreground">Weitere Kontakte</h3>
-              
-              {/* Additional Phones */}
-              <div className="space-y-3">
-                {phoneFields.map((field, index) => (
-                  <div key={field.id} className="flex items-end gap-2">
-                    <FormField
-                      control={form.control}
-                      name={`additional_phones.${index}.label`}
-                      render={({ field }) => (
-                        <FormItem className="w-[120px]">
-                          <Select onValueChange={field.onChange} value={field.value}>
+            {/* Private: Weitere Kontakte Section */}
+            {customerType === "private" && (
+              <div className="space-y-4">
+                <h3 className="text-sm font-medium text-muted-foreground">Weitere Kontakte</h3>
+                
+                {/* Additional Phones */}
+                <div className="space-y-3">
+                  {phoneFields.map((field, index) => (
+                    <div key={field.id} className="flex items-end gap-2">
+                      <FormField
+                        control={form.control}
+                        name={`additional_phones.${index}.label`}
+                        render={({ field }) => (
+                          <FormItem className="w-[120px]">
+                            <Select onValueChange={field.onChange} value={field.value}>
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Label" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                {PHONE_LABELS.map((label) => (
+                                  <SelectItem key={label} value={label}>
+                                    {label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name={`additional_phones.${index}.number`}
+                        render={({ field }) => (
+                          <FormItem className="flex-1">
                             <FormControl>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Label" />
-                              </SelectTrigger>
+                              <Input
+                                {...field}
+                                type="tel"
+                                placeholder="+41 79 xxx xx xx"
+                                onBlur={handleAdditionalPhoneBlur(index)}
+                              />
                             </FormControl>
-                            <SelectContent>
-                              {PHONE_LABELS.map((label) => (
-                                <SelectItem key={label} value={label}>
-                                  {label}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name={`additional_phones.${index}.number`}
-                      render={({ field }) => (
-                        <FormItem className="flex-1">
-                          <FormControl>
-                            <Input
-                              {...field}
-                              type="tel"
-                              placeholder="+41 79 xxx xx xx"
-                              onBlur={handleAdditionalPhoneBlur(index)}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => removePhone(index)}
-                    >
-                      <Trash2 className="h-4 w-4 text-muted-foreground" />
-                    </Button>
-                  </div>
-                ))}
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => appendPhone({ label: "Mutter", number: "" })}
-                >
-                  <Plus className="mr-2 h-4 w-4" />
-                  Telefon hinzufügen
-                </Button>
-              </div>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => removePhone(index)}
+                      >
+                        <Trash2 className="h-4 w-4 text-muted-foreground" />
+                      </Button>
+                    </div>
+                  ))}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => appendPhone({ label: "Mutter", number: "" })}
+                  >
+                    <Plus className="mr-2 h-4 w-4" />
+                    Telefon hinzufügen
+                  </Button>
+                </div>
 
-              {/* Additional Emails */}
-              <div className="space-y-3">
-                {emailFields.map((field, index) => (
-                  <div key={field.id} className="flex items-end gap-2">
-                    <FormField
-                      control={form.control}
-                      name={`additional_emails.${index}.label`}
-                      render={({ field }) => (
-                        <FormItem className="w-[120px]">
-                          <Select onValueChange={field.onChange} value={field.value}>
+                {/* Additional Emails */}
+                <div className="space-y-3">
+                  {emailFields.map((field, index) => (
+                    <div key={field.id} className="flex items-end gap-2">
+                      <FormField
+                        control={form.control}
+                        name={`additional_emails.${index}.label`}
+                        render={({ field }) => (
+                          <FormItem className="w-[120px]">
+                            <Select onValueChange={field.onChange} value={field.value}>
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Label" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                {EMAIL_LABELS.map((label) => (
+                                  <SelectItem key={label} value={label}>
+                                    {label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name={`additional_emails.${index}.email`}
+                        render={({ field }) => (
+                          <FormItem className="flex-1">
                             <FormControl>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Label" />
-                              </SelectTrigger>
+                              <Input
+                                {...field}
+                                type="email"
+                                placeholder="email@beispiel.ch"
+                              />
                             </FormControl>
-                            <SelectContent>
-                              {EMAIL_LABELS.map((label) => (
-                                <SelectItem key={label} value={label}>
-                                  {label}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name={`additional_emails.${index}.email`}
-                      render={({ field }) => (
-                        <FormItem className="flex-1">
-                          <FormControl>
-                            <Input
-                              {...field}
-                              type="email"
-                              placeholder="email@beispiel.ch"
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => removeEmail(index)}
-                    >
-                      <Trash2 className="h-4 w-4 text-muted-foreground" />
-                    </Button>
-                  </div>
-                ))}
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => appendEmail({ label: "Mutter", email: "" })}
-                >
-                  <Plus className="mr-2 h-4 w-4" />
-                  E-Mail hinzufügen
-                </Button>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => removeEmail(index)}
+                      >
+                        <Trash2 className="h-4 w-4 text-muted-foreground" />
+                      </Button>
+                    </div>
+                  ))}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => appendEmail({ label: "Mutter", email: "" })}
+                  >
+                    <Plus className="mr-2 h-4 w-4" />
+                    E-Mail hinzufügen
+                  </Button>
+                </div>
               </div>
-            </div>
+            )}
+
+            {/* School: Ansprechpartner Section */}
+            {customerType === "school" && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-sm font-medium text-muted-foreground">Ansprechpartner</h3>
+                    <p className="text-xs text-muted-foreground">Begleitlehrer und Kontaktpersonen mit Mobilnummer</p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => appendContact({
+                      name: "",
+                      role: "Begleitlehrer/in",
+                      phone: "",
+                      email: "",
+                      is_primary: contactFields.length === 0,
+                    })}
+                  >
+                    <Plus className="mr-2 h-4 w-4" />
+                    Hinzufügen
+                  </Button>
+                </div>
+
+                {contactFields.length === 0 ? (
+                  <div className="text-center py-6 text-muted-foreground border rounded-lg border-dashed">
+                    <Building2 className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                    <p className="text-sm">Noch keine Ansprechpartner erfasst</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {contactFields.map((field, index) => (
+                      <div key={field.id} className="border rounded-lg p-4 space-y-3 bg-muted/30">
+                        <div className="flex items-start gap-2">
+                          {/* Primary star */}
+                          <button
+                            type="button"
+                            onClick={() => setPrimaryContact(index)}
+                            className={`mt-2 ${
+                              form.watch(`contacts.${index}.is_primary`)
+                                ? "text-yellow-500"
+                                : "text-muted-foreground hover:text-yellow-400"
+                            }`}
+                            title={form.watch(`contacts.${index}.is_primary`) ? "Hauptkontakt" : "Als Hauptkontakt setzen"}
+                          >
+                            <Star className="h-4 w-4" fill={form.watch(`contacts.${index}.is_primary`) ? "currentColor" : "none"} />
+                          </button>
+
+                          <div className="flex-1 grid grid-cols-2 gap-3">
+                            <FormField
+                              control={form.control}
+                              name={`contacts.${index}.name`}
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormControl>
+                                    <Input {...field} placeholder="Name *" />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={form.control}
+                              name={`contacts.${index}.role`}
+                              render={({ field }) => (
+                                <FormItem>
+                                  <Select onValueChange={field.onChange} value={field.value}>
+                                    <FormControl>
+                                      <SelectTrigger>
+                                        <SelectValue placeholder="Rolle" />
+                                      </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                      {CONTACT_ROLES.map((role) => (
+                                        <SelectItem key={role} value={role}>
+                                          {role}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={form.control}
+                              name={`contacts.${index}.phone`}
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormControl>
+                                    <Input
+                                      {...field}
+                                      type="tel"
+                                      placeholder="Telefon *"
+                                      onBlur={handleContactPhoneBlur(index)}
+                                    />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={form.control}
+                              name={`contacts.${index}.email`}
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormControl>
+                                    <Input {...field} type="email" placeholder="E-Mail (optional)" />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                          </div>
+
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="mt-1"
+                            onClick={() => removeContact(index)}
+                          >
+                            <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
             <Separator />
 
