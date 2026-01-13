@@ -15,6 +15,7 @@ export function Step1CustomerParticipant() {
     toggleParticipant, 
     addGuestParticipant,
     setLunchDaysForParticipant,
+    setVegetarianForParticipant,
   } = useBookingWizard();
   const [isCreatingCustomer, setIsCreatingCustomer] = useState(false);
   
@@ -87,6 +88,8 @@ export function Step1CustomerParticipant() {
             selectedDates={state.selectedDates}
             lunchSelections={state.lunchSelections}
             onLunchDaysChange={setLunchDaysForParticipant}
+            vegetarianSelections={state.vegetarianSelections}
+            onVegetarianChange={setVegetarianForParticipant}
           />
         </CardContent>
       </Card>
