@@ -11,6 +11,7 @@ export interface LunchChild {
   allergies: string | null;
   emergencyContact: string | null;
   groupName: string | null;
+  isVegetarian: boolean;
 }
 
 export interface GroupParticipant {
@@ -100,6 +101,7 @@ export function useLunchChildren(date: Date) {
         .from("ticket_items")
         .select(`
           id,
+          is_vegetarian,
           participant:customer_participants!ticket_items_participant_id_fkey (
             id,
             first_name,
@@ -147,6 +149,7 @@ export function useLunchChildren(date: Date) {
           allergies: participant.notes, // Using notes as allergies placeholder
           emergencyContact: customer?.phone || null,
           groupName: null,
+          isVegetarian: (item as any).is_vegetarian || false,
         });
       });
 

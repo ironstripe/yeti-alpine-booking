@@ -1869,6 +1869,7 @@ export type Database = {
           instructor_id: string | null
           instructor_notes: string | null
           internal_notes: string | null
+          is_vegetarian: boolean | null
           item_type: string | null
           line_total: number | null
           meeting_point: string | null
@@ -1898,6 +1899,7 @@ export type Database = {
           instructor_id?: string | null
           instructor_notes?: string | null
           internal_notes?: string | null
+          is_vegetarian?: boolean | null
           item_type?: string | null
           line_total?: number | null
           meeting_point?: string | null
@@ -1927,6 +1929,7 @@ export type Database = {
           instructor_id?: string | null
           instructor_notes?: string | null
           internal_notes?: string | null
+          is_vegetarian?: boolean | null
           item_type?: string | null
           line_total?: number | null
           meeting_point?: string | null

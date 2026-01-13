@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { Printer, Download } from "lucide-react";
+import { Printer, Download, Leaf } from "lucide-react";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import { useReactToPrint } from "react-to-print";
@@ -43,6 +43,8 @@ export function LunchListPreview({
 
   const dateDisplay = format(date, "EEEE, d. MMMM yyyy", { locale: de });
   const childrenWithAllergies = children.filter((c) => c.allergies && c.allergies.trim() !== "");
+  const vegetarianCount = children.filter((c) => c.isVegetarian).length;
+  const normalCount = children.length - vegetarianCount;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -103,6 +105,7 @@ export function LunchListPreview({
                   <th className="text-left py-2 px-2 w-10">Nr</th>
                   <th className="text-left py-2 px-2">Name</th>
                   <th className="text-center py-2 px-2 w-16">Alter</th>
+                  <th className="text-center py-2 px-2 w-24">Verpflegung</th>
                   {showAllergies && <th className="text-left py-2 px-2">Allergien</th>}
                   {showEmergencyContact && <th className="text-left py-2 px-2">Notfall</th>}
                   {showGroup && <th className="text-left py-2 px-2">Gruppe</th>}
@@ -116,6 +119,16 @@ export function LunchListPreview({
                       {child.firstName} {child.lastName || ""}
                     </td>
                     <td className="py-2 px-2 text-center">{child.age}</td>
+                    <td className="py-2 px-2 text-center">
+                      {child.isVegetarian ? (
+                        <span className="inline-flex items-center gap-1 text-green-700 font-medium">
+                          <Leaf className="h-3.5 w-3.5" />
+                          Veg.
+                        </span>
+                      ) : (
+                        "—"
+                      )}
+                    </td>
                     {showAllergies && (
                       <td className="py-2 px-2">
                         {child.allergies ? (
@@ -139,9 +152,16 @@ export function LunchListPreview({
             </table>
 
             <div className="mt-6 pt-4 border-t text-sm text-muted-foreground">
-              <p>Total: {children.length} Kinder</p>
+              <div className="flex flex-wrap gap-6">
+                <p>Total: <span className="font-semibold text-foreground">{children.length}</span> Kinder</p>
+                <p>Normal: <span className="font-semibold text-foreground">{normalCount}</span></p>
+                <p className="inline-flex items-center gap-1">
+                  <Leaf className="h-3.5 w-3.5 text-green-600" />
+                  Vegetarisch: <span className="font-semibold text-foreground">{vegetarianCount}</span>
+                </p>
+              </div>
               {showAllergies && childrenWithAllergies.length > 0 && (
-                <p>Allergien: {childrenWithAllergies.length} Kinder (siehe Markierung)</p>
+                <p className="mt-2">Allergien: {childrenWithAllergies.length} Kinder (siehe Markierung)</p>
               )}
               <p className="mt-2">
                 Erstellt: {format(new Date(), "dd.MM.yyyy, HH:mm", { locale: de })} Uhr

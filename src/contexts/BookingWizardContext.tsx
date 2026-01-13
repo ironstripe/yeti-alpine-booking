@@ -41,6 +41,7 @@ export interface BookingWizardState {
   selectedGroupId: string | null;
   groupCourseType: "windel_wedelkurs" | "kids_village" | "standard" | null;
   lunchSelections: Record<string, string[]>; // { participantId: ['2026-01-06', ...] }
+  vegetarianSelections: Record<string, boolean>; // { participantId: true/false }
   
   // New: Variable appointments (from scheduler multi-slot selection)
   appointments: AppointmentSlot[] | null;
@@ -91,6 +92,7 @@ interface BookingWizardContextType {
   setSelectedGroupId: (id: string | null) => void;
   setGroupCourseType: (type: "windel_wedelkurs" | "kids_village" | "standard" | null) => void;
   setLunchDaysForParticipant: (participantId: string, days: string[]) => void;
+  setVegetarianForParticipant: (participantId: string, isVegetarian: boolean) => void;
   // Step 3 setters
   setInstructor: (instructor: Tables<"instructors"> | null) => void;
   setAssignLater: (assignLater: boolean) => void;
@@ -126,6 +128,7 @@ const initialState: BookingWizardState = {
   selectedGroupId: null,
   groupCourseType: null,
   lunchSelections: {},
+  vegetarianSelections: {},
   appointments: null,
   instructorId: null,
   instructor: null,
@@ -278,6 +281,16 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
     }));
   };
 
+  const setVegetarianForParticipant = (participantId: string, isVegetarian: boolean) => {
+    setState((prev) => ({
+      ...prev,
+      vegetarianSelections: {
+        ...prev.vegetarianSelections,
+        [participantId]: isVegetarian,
+      },
+    }));
+  };
+
   const prefillFromScheduler = (instructorId: string, appointments: AppointmentSlot[]) => {
     const dates = [...new Set(appointments.map((a) => a.date))];
     setState((prev) => ({
@@ -401,6 +414,7 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
         setSelectedGroupId,
         setGroupCourseType,
         setLunchDaysForParticipant,
+        setVegetarianForParticipant,
         setInstructor,
         setAssignLater,
         setMeetingPoint,
