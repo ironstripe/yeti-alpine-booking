@@ -51,7 +51,7 @@ export function useConversations({ filter, search, limit = 50 }: UseConversation
           customer_id,
           ai_extracted_data,
           ai_confidence_score,
-          customers (
+          customers!customer_id (
             first_name,
             last_name
           )

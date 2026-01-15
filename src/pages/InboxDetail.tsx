@@ -48,7 +48,7 @@ export default function InboxDetail() {
         .from("conversations")
         .select(`
           *,
-          customers (
+          customers!customer_id (
             id,
             first_name,
             last_name,
@@ -136,20 +136,56 @@ export default function InboxDetail() {
   const extractedData = conversation.ai_extracted_data as unknown as ExtractedData | null;
   const hasExtraction = extractedData && extractedData.is_booking_request;
 
-  // Mock data for classification and AI reply (to be replaced with real API later)
-  const mockClassification: MessageClassification = "new_booking";
-  const mockSuggestedReply = {
+  // Use real classification from database, fallback to extracted data or 'other'
+  const classification = (conversation.classification || extractedData?.classification || "other") as MessageClassification;
+  
+  // Build dynamic suggested reply based on missing information
+  const missingInfo = (extractedData as any)?.missing_information as string[] | undefined;
+  const detectedLanguage = (conversation as any).detected_language || "de";
+  
+  const buildMissingInfoText = () => {
+    if (!missingInfo || missingInfo.length === 0) return "";
+    
+    const infoLabels: Record<string, string> = {
+      start_date: "Gewünschtes Startdatum",
+      end_date: "Enddatum",
+      number_of_participants: "Anzahl der Teilnehmer",
+      participant_ages: "Alter der Teilnehmer",
+      skill_level: "Kenntnisstand (Anfänger/Fortgeschritten)",
+      contact_phone: "Telefonnummer für Rückfragen",
+      preferred_time: "Bevorzugte Tageszeit",
+      discipline: "Sportart (Ski/Snowboard)",
+    };
+    
+    return missingInfo
+      .map(info => infoLabels[info] || info)
+      .map(label => `- ${label}`)
+      .join("\n");
+  };
+
+  const suggestedReply = {
     to: conversation.contact_identifier,
     subject: `Re: ${conversation.subject || "Ihre Anfrage"}`,
-    body: `Guten Tag${extractedData?.customer?.name ? ` ${extractedData.customer.name.split(' ')[0]}` : ""},
+    body: detectedLanguage === "en" 
+      ? `Dear ${extractedData?.customer?.name?.split(' ')[0] || "Guest"},
+
+Thank you for your inquiry. We are happy to check availability for your requested dates.
+
+${missingInfo && missingInfo.length > 0 ? `To prepare the booking for you, could you please confirm the following information?
+${buildMissingInfoText()}
+
+` : ""}We will get back to you shortly with a concrete proposal.
+
+Best regards,
+Your Yeti Team`
+      : `Guten Tag${extractedData?.customer?.name ? ` ${extractedData.customer.name.split(' ')[0]}` : ""},
 
 Vielen Dank für Ihre Anfrage. Gerne prüfen wir die Verfügbarkeit für Ihren gewünschten Termin.
 
-Um die Buchung für Sie optimal vorzubereiten, könnten Sie uns bitte noch folgende Informationen bestätigen?
-- Anzahl und Alter der Teilnehmer
-- Gewünschte Daten und Uhrzeiten
+${missingInfo && missingInfo.length > 0 ? `Um die Buchung für Sie optimal vorzubereiten, könnten Sie uns bitte noch folgende Informationen bestätigen?
+${buildMissingInfoText()}
 
-Wir melden uns in Kürze mit einem konkreten Vorschlag.
+` : ""}Wir melden uns in Kürze mit einem konkreten Vorschlag.
 
 Freundliche Grüsse,
 Ihr Yeti Team`,
@@ -287,7 +323,7 @@ Ihr Yeti Team`,
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-lg">KI-Extraktion</CardTitle>
                     <div className="flex items-center gap-2">
-                      <ClassificationBadge classification={mockClassification} />
+                      <ClassificationBadge classification={classification} />
                       <Badge variant="outline" className="bg-primary/10">
                         {Math.round((conversation.ai_confidence_score || 0) * 100)}% Konfidenz
                       </Badge>
@@ -309,7 +345,7 @@ Ihr Yeti Team`,
 
               {/* AI Reply Assistant */}
               <AIReplyAssistant
-                suggestedReply={mockSuggestedReply}
+                suggestedReply={suggestedReply}
                 onMarkAsDone={handleMarkAsDone}
               />
             </>

@@ -30,6 +30,12 @@ export interface ExtractedData {
   confidence: number;
   notes?: string;
   is_booking_request?: boolean;
+  // New fields from enhanced extraction
+  classification?: "new_booking" | "cancellation" | "modification" | "general_inquiry" | "complaint" | "other";
+  detected_language?: "de" | "en";
+  missing_information?: string[];
+  matched_customer_id?: string | null;
+  is_existing_customer?: boolean;
 }
 
 export function useTriggerAIExtraction() {

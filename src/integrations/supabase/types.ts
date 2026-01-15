@@ -232,13 +232,16 @@ export type Database = {
           ai_extracted_data: Json | null
           assigned_to: string | null
           channel: string
+          classification: string | null
           contact_identifier: string
           contact_name: string | null
           content: string
           created_at: string
           customer_id: string | null
+          detected_language: string | null
           direction: string
           id: string
+          matched_customer_id: string | null
           notes: string | null
           processed_at: string | null
           related_ticket_id: string | null
@@ -250,13 +253,16 @@ export type Database = {
           ai_extracted_data?: Json | null
           assigned_to?: string | null
           channel: string
+          classification?: string | null
           contact_identifier: string
           contact_name?: string | null
           content: string
           created_at?: string
           customer_id?: string | null
+          detected_language?: string | null
           direction?: string
           id?: string
+          matched_customer_id?: string | null
           notes?: string | null
           processed_at?: string | null
           related_ticket_id?: string | null
@@ -268,13 +274,16 @@ export type Database = {
           ai_extracted_data?: Json | null
           assigned_to?: string | null
           channel?: string
+          classification?: string | null
           contact_identifier?: string
           contact_name?: string | null
           content?: string
           created_at?: string
           customer_id?: string | null
+          detected_language?: string | null
           direction?: string
           id?: string
+          matched_customer_id?: string | null
           notes?: string | null
           processed_at?: string | null
           related_ticket_id?: string | null
@@ -285,6 +294,13 @@ export type Database = {
           {
             foreignKeyName: "conversations_customer_id_fkey"
             columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversations_matched_customer_id_fkey"
+            columns: ["matched_customer_id"]
             isOneToOne: false
             referencedRelation: "customers"
             referencedColumns: ["id"]
