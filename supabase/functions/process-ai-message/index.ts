@@ -261,10 +261,12 @@ serve(async (req) => {
     cleanedData.matched_customer_id = matchedCustomerId;
     cleanedData.is_existing_customer = isExistingCustomer;
 
-    // 6. Update conversation with AI data and new columns
+    // 6. Update conversation with AI data and new rule-based scores
     const updateData: Record<string, unknown> = {
       ai_extracted_data: cleanedData,
-      ai_confidence_score: cleanedData.confidence || 0.5,
+      ai_confidence_score: cleanedData.data_completeness || 0, // Rule-based completeness
+      data_completeness: cleanedData.data_completeness || 0,
+      booking_ready: cleanedData.booking_ready || false,
       notes: cleanedData.notes,
       classification: cleanedData.classification || "other",
       detected_language: cleanedData.detected_language || "de",
@@ -337,10 +339,108 @@ function validateAndCleanExtraction(data: Record<string, unknown>): Record<strin
     customer.phone = normalizePhoneNumber(customer.phone);
   }
 
-  // Ensure confidence is between 0 and 1
-  data.confidence = Math.max(0, Math.min(1, (data.confidence as number) || 0.5));
+  // Calculate rule-based confidence instead of using AI self-reported value
+  const dataCompleteness = calculateDataCompleteness(data);
+  const bookingReady = isBookingReady(data);
+  
+  // Store both the AI's original confidence and the calculated completeness
+  data.ai_original_confidence = data.confidence;
+  data.confidence = dataCompleteness; // Use rule-based score as main confidence
+  data.data_completeness = dataCompleteness;
+  data.booking_ready = bookingReady;
 
   return data;
+}
+
+// Rule-based data completeness calculation (0-1 scale)
+function calculateDataCompleteness(data: Record<string, unknown>): number {
+  let score = 0;
+  
+  const booking = data.booking as Record<string, unknown> | undefined || {};
+  const participants = (data.participants as Array<Record<string, unknown>>) || [];
+  const customer = data.customer as Record<string, unknown> | undefined || {};
+  
+  // Required fields (60%)
+  // Start date (15%)
+  const bookingDates = booking.dates as Array<{ date: string }> | undefined;
+  if (booking.start_date || (bookingDates && bookingDates.length > 0)) {
+    score += 15;
+  }
+  
+  // Has participants (15%)
+  if (participants.length > 0) {
+    score += 15;
+  }
+  
+  // Has real participant names - not just "Teilnehmer 1" (15%)
+  const hasRealNames = participants.some((p) => {
+    const name = p.name as string | undefined;
+    return name && !name.match(/^Teilnehmer \d+$/i);
+  });
+  if (hasRealNames) {
+    score += 15;
+  }
+  
+  // Has contact info (15%)
+  if (customer.email || customer.phone) {
+    score += 15;
+  }
+  
+  // Important fields (30%)
+  // Participant ages (10%)
+  if (participants.some((p) => {
+    const age = p.age as number | undefined;
+    return age && age > 0;
+  })) {
+    score += 10;
+  }
+  
+  // Skill levels (10%)
+  if (participants.some((p) => {
+    const level = p.skill_level as string | undefined;
+    return level && level !== "unknown";
+  })) {
+    score += 10;
+  }
+  
+  // Course type (10%)
+  if (booking.product_type && booking.product_type !== "unknown") {
+    score += 10;
+  }
+  
+  // Nice-to-have fields (10%)
+  // Duration / multiple dates (5%)
+  if ((bookingDates && bookingDates.length > 1) || booking.end_date) {
+    score += 5;
+  }
+  
+  // Sport type (5%)
+  if (participants.some((p) => {
+    const discipline = p.discipline as string | undefined;
+    return discipline && discipline !== "unknown";
+  })) {
+    score += 5;
+  }
+  
+  return score / 100; // Return as 0-1 scale
+}
+
+// Check if booking is ready (all required fields present)
+function isBookingReady(data: Record<string, unknown>): boolean {
+  const booking = data.booking as Record<string, unknown> | undefined || {};
+  const participants = (data.participants as Array<Record<string, unknown>>) || [];
+  const customer = data.customer as Record<string, unknown> | undefined || {};
+  
+  const bookingDates = booking.dates as Array<{ date: string }> | undefined;
+  const hasStartDate = !!(booking.start_date || (bookingDates && bookingDates.length > 0));
+  const hasParticipants = participants.length > 0;
+  const hasRealNames = participants.some((p) => {
+    const name = p.name as string | undefined;
+    return name && !name.match(/^Teilnehmer \d+$/i);
+  });
+  const hasContact = !!(customer.email || customer.phone);
+  
+  return hasStartDate && hasParticipants && hasRealNames && hasContact;
 }
 
 function normalizePhoneNumber(phone: string): string {

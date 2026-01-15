@@ -20,6 +20,7 @@ import { format, isToday, isYesterday, parseISO } from "date-fns";
 import { de } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { ConfidenceIndicator } from "./ConfidenceIndicator";
+import { BookingReadyBadge, calculateDataCompleteness, isBookingReady, getMissingRequiredFields } from "./BookingReadyBadge";
 import { useState } from "react";
 import type { ExtractedData } from "@/hooks/useAIExtraction";
 
@@ -109,9 +110,12 @@ export function EnhancedConversationCard({
 
   const displayName = conversation.contact_name || conversation.contact_identifier;
   const extractedData = conversation.ai_extracted_data as ExtractedData | null;
-  const confidence = conversation.ai_confidence_score || extractedData?.confidence || 0;
+  
+  // Use rule-based completeness score
+  const completeness = extractedData?.data_completeness ?? calculateDataCompleteness(extractedData);
+  const bookingReady = extractedData?.booking_ready ?? isBookingReady(extractedData);
   const hasExtraction = extractedData?.is_booking_request;
-  const canQuickBook = hasExtraction && confidence >= 0.7;
+  const canQuickBook = hasExtraction && bookingReady; // Use bookingReady instead of confidence threshold
 
   const participantCount = extractedData?.participants?.length || 0;
   const dateCount = extractedData?.booking?.dates?.length || 0;
@@ -151,7 +155,13 @@ export function EnhancedConversationCard({
             </div>
             <div className="flex items-center gap-2 shrink-0">
               {hasExtraction && (
-                <ConfidenceIndicator confidence={confidence} showLabel={false} size="sm" />
+                <>
+                  <BookingReadyBadge 
+                    isReady={bookingReady} 
+                    missingFields={getMissingRequiredFields(extractedData)}
+                  />
+                  <ConfidenceIndicator completeness={completeness} showLabel={false} size="sm" />
+                </>
               )}
               <span className="text-xs text-muted-foreground">
                 {formatTimestamp(conversation.created_at)}

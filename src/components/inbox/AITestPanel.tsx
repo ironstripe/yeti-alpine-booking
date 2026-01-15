@@ -204,7 +204,7 @@ export function AITestPanel({ open, onOpenChange }: AITestPanelProps) {
                       : "Keine Buchungsanfrage"}
                   </Badge>
                   {extractionResult.confidence !== undefined && (
-                    <ConfidenceIndicator confidence={extractionResult.confidence} />
+                    <ConfidenceIndicator completeness={extractionResult.confidence} />
                   )}
                 </div>
 
