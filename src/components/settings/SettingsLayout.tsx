@@ -2,7 +2,6 @@ import { ReactNode } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { Building2, Package, DollarSign, CalendarDays, Users, Mail, Bell, Settings2, Brain } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { AppLayout } from "@/components/layout";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
@@ -28,52 +27,50 @@ export function SettingsLayout({ children, title, description }: SettingsLayoutP
   const location = useLocation();
 
   return (
-    <AppLayout>
-      <div className="space-y-6">
-        <PageHeader title="Einstellungen" />
+    <div className="space-y-6">
+      <PageHeader title="Einstellungen" />
 
-        <div className="flex flex-col lg:flex-row gap-6">
-          {/* Sidebar Navigation */}
-          <nav className="lg:w-56 shrink-0">
-            <div className="bg-card rounded-lg border border-border">
-              <ScrollArea className="h-auto lg:h-[calc(100vh-12rem)]">
-                <div className="p-2 space-y-1">
-                  {settingsNav.map((item) => {
-                    const isActive = location.pathname === item.url || 
-                      (item.url !== "/settings/school" && location.pathname.startsWith(item.url));
-                    return (
-                      <NavLink
-                        key={item.url}
-                        to={item.url}
-                        className={cn(
-                          "flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-colors",
-                          isActive
-                            ? "bg-primary/10 text-primary"
-                            : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                        )}
-                      >
-                        <item.icon className="h-4 w-4" />
-                        {item.title}
-                      </NavLink>
-                    );
-                  })}
-                </div>
-              </ScrollArea>
-            </div>
-          </nav>
-
-          {/* Content Area */}
-          <div className="flex-1 min-w-0">
-            <div className="mb-6">
-              <h2 className="text-xl font-semibold">{title}</h2>
-              {description && (
-                <p className="text-sm text-muted-foreground mt-1">{description}</p>
-              )}
-            </div>
-            {children}
+      <div className="flex flex-col lg:flex-row gap-6">
+        {/* Sidebar Navigation */}
+        <nav className="lg:w-56 shrink-0">
+          <div className="bg-card rounded-lg border border-border">
+            <ScrollArea className="h-auto lg:h-[calc(100vh-12rem)]">
+              <div className="p-2 space-y-1">
+                {settingsNav.map((item) => {
+                  const isActive = location.pathname === item.url || 
+                    (item.url !== "/settings/school" && location.pathname.startsWith(item.url));
+                  return (
+                    <NavLink
+                      key={item.url}
+                      to={item.url}
+                      className={cn(
+                        "flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-colors",
+                        isActive
+                          ? "bg-primary/10 text-primary"
+                          : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                      )}
+                    >
+                      <item.icon className="h-4 w-4" />
+                      {item.title}
+                    </NavLink>
+                  );
+                })}
+              </div>
+            </ScrollArea>
           </div>
+        </nav>
+
+        {/* Content Area */}
+        <div className="flex-1 min-w-0">
+          <div className="mb-6">
+            <h2 className="text-xl font-semibold">{title}</h2>
+            {description && (
+              <p className="text-sm text-muted-foreground mt-1">{description}</p>
+            )}
+          </div>
+          {children}
         </div>
       </div>
-    </AppLayout>
+    </div>
   );
 }
