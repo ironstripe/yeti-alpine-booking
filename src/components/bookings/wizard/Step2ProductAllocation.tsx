@@ -81,8 +81,22 @@ export function Step2ProductAllocation() {
   } = useBookingWizard();
 
   const [selectedMonth, setSelectedMonth] = useState<Date>(new Date());
-  const [startTime, setStartTime] = useState<string | null>(null);
-  const [endTime, setEndTime] = useState<string | null>(null);
+  const [startTime, setStartTime] = useState<string | null>(() => {
+    // Initialize from context if timeSlot is already set (from prefill)
+    if (state.timeSlot) {
+      const parts = state.timeSlot.split(" - ");
+      return parts[0] || null;
+    }
+    return null;
+  });
+  const [endTime, setEndTime] = useState<string | null>(() => {
+    // Initialize from context if timeSlot is already set (from prefill)
+    if (state.timeSlot) {
+      const parts = state.timeSlot.split(" - ");
+      return parts[1] || null;
+    }
+    return null;
+  });
   const [preferredTeacher, setPreferredTeacher] = useState("");
 
   // Analyze participants for group course recommendations
@@ -122,6 +136,18 @@ export function Step2ProductAllocation() {
       }
     }
   }, [startTime, endTime, calculatedDuration, setTimeSlot, setDuration]);
+
+  // Sync local state from context timeSlot (for prefilled values)
+  useEffect(() => {
+    if (state.timeSlot && !startTime && !endTime) {
+      const parts = state.timeSlot.split(" - ");
+      if (parts.length === 2) {
+        setStartTime(parts[0]);
+        setEndTime(parts[1]);
+        console.log("Step2: Synced time from context:", parts[0], "-", parts[1]);
+      }
+    }
+  }, [state.timeSlot, startTime, endTime]);
 
   // Filter end times to be after start time
   const availableEndTimes = useMemo(() => {
