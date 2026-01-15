@@ -102,17 +102,26 @@ export default function InboxDetail() {
     queryFn: async () => {
       if (!id) throw new Error("No ID provided");
 
+      console.log("Calling generate-reply for conversation:", id);
+      console.log("Extracted data available:", !!extractedDataForQuery);
+
       const { data, error } = await supabase.functions.invoke("generate-reply", {
         body: { conversationId: id },
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error("generate-reply error:", error);
+        throw error;
+      }
+      
+      console.log("generate-reply response:", data);
       return data as { suggested_reply: SuggestedReply };
     },
-    // Only fetch if we have the conversation AND it has extracted data
-    enabled: !!id && !!extractedDataForQuery,
+    // Fetch when we have a conversation (with or without extraction data)
+    enabled: !!id && !!conversation,
     refetchOnWindowFocus: false,
     staleTime: 5 * 60 * 1000,
+    retry: 1,
   });
 
   const handleReprocess = async () => {
@@ -344,6 +353,15 @@ export default function InboxDetail() {
               )}
 
               {/* AI Reply Assistant */}
+              {replyError && (
+                <Card className="border-destructive">
+                  <CardContent className="py-4">
+                    <p className="text-sm text-destructive">
+                      Fehler beim Generieren der Antwort: {replyError instanceof Error ? replyError.message : 'Unbekannter Fehler'}
+                    </p>
+                  </CardContent>
+                </Card>
+              )}
               <AIReplyAssistant
                 suggestedReply={suggestedReply}
                 onMarkAsDone={handleMarkAsDone}
