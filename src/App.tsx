@@ -166,14 +166,8 @@ const AppRoutes = () => (
         </AppLayout>
       }
     />
-    <Route
-      path="/scheduler"
-      element={
-        <AppLayout>
-          <Scheduler />
-        </AppLayout>
-      }
-    />
+    {/* Public scheduler route for testing */}
+    <Route path="/scheduler" element={<Scheduler />} />
     <Route
       path="/reconciliation"
       element={
