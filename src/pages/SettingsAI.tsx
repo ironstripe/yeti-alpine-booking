@@ -95,6 +95,13 @@ function KnowledgeBaseTab() {
     return <FileText className="h-5 w-5 text-blue-500" />;
   };
 
+  const formatFileSize = (bytes: number | null) => {
+    if (!bytes) return "";
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
   return (
     <div className="space-y-6">
       {/* Upload Card */}
@@ -196,6 +203,7 @@ function KnowledgeBaseTab() {
                       {doc.file_name}
                     </p>
                     <p className="text-xs text-muted-foreground">
+                      {doc.file_size ? `${formatFileSize(doc.file_size)} • ` : ""}
                       Hochgeladen am{" "}
                       {format(new Date(doc.created_at), "dd.MM.yyyy", {
                         locale: de,
