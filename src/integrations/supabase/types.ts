@@ -279,6 +279,7 @@ export type Database = {
           ai_confidence_score: number | null
           ai_extracted_data: Json | null
           assigned_to: string | null
+          booking_ready: boolean | null
           channel: string
           classification: string | null
           contact_identifier: string
@@ -286,6 +287,7 @@ export type Database = {
           content: string
           created_at: string
           customer_id: string | null
+          data_completeness: number | null
           detected_language: string | null
           direction: string
           id: string
@@ -300,6 +302,7 @@ export type Database = {
           ai_confidence_score?: number | null
           ai_extracted_data?: Json | null
           assigned_to?: string | null
+          booking_ready?: boolean | null
           channel: string
           classification?: string | null
           contact_identifier: string
@@ -307,6 +310,7 @@ export type Database = {
           content: string
           created_at?: string
           customer_id?: string | null
+          data_completeness?: number | null
           detected_language?: string | null
           direction?: string
           id?: string
@@ -321,6 +325,7 @@ export type Database = {
           ai_confidence_score?: number | null
           ai_extracted_data?: Json | null
           assigned_to?: string | null
+          booking_ready?: boolean | null
           channel?: string
           classification?: string | null
           contact_identifier?: string
@@ -328,6 +333,7 @@ export type Database = {
           content?: string
           created_at?: string
           customer_id?: string | null
+          data_completeness?: number | null
           detected_language?: string | null
           direction?: string
           id?: string

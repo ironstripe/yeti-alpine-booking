@@ -24,6 +24,8 @@ import { ExtractionPanel } from "@/components/inbox/ExtractionPanel";
 import { ConvertToBookingButton } from "@/components/inbox/ConvertToBookingButton";
 import { ClassificationBadge, type MessageClassification } from "@/components/inbox/ClassificationBadge";
 import { AIReplyAssistant } from "@/components/inbox/AIReplyAssistant";
+import { ConfidenceIndicator } from "@/components/inbox/ConfidenceIndicator";
+import { BookingReadyBadge, getMissingRequiredFields, calculateDataCompleteness, isBookingReady } from "@/components/inbox/BookingReadyBadge";
 import { useTriggerAIExtraction, type ExtractedData } from "@/hooks/useAIExtraction";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -325,7 +327,7 @@ export default function InboxDetail() {
                 <CardHeader className="pb-3">
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-lg">KI-Extraktion</CardTitle>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <ClassificationBadge classification={classification} />
                       {detectedLanguage && (
                         <Badge variant="outline" className="flex items-center gap-1">
@@ -333,10 +335,19 @@ export default function InboxDetail() {
                           {detectedLanguage === "de" ? "DE" : "EN"}
                         </Badge>
                       )}
-                      <Badge variant="outline" className="bg-primary/10">
-                        {Math.round((conversation.ai_confidence_score || 0) * 100)}% Konfidenz
-                      </Badge>
                     </div>
+                  </div>
+                  {/* Rule-based confidence and booking ready indicators */}
+                  <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t">
+                    <BookingReadyBadge 
+                      isReady={extractedData?.booking_ready ?? isBookingReady(extractedData)} 
+                      missingFields={getMissingRequiredFields(extractedData)}
+                    />
+                    <ConfidenceIndicator 
+                      completeness={extractedData?.data_completeness ?? calculateDataCompleteness(extractedData)} 
+                      showLabel={true}
+                      size="md"
+                    />
                   </div>
                 </CardHeader>
                 <CardContent>

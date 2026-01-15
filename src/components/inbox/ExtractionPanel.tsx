@@ -48,6 +48,9 @@ interface ExtractedData {
   classification?: string;
   detected_language?: string;
   missing_information?: string[];
+  // New fields for rule-based confidence
+  data_completeness?: number;
+  booking_ready?: boolean;
 }
 
 const missingFieldLabels: Record<string, string> = {
@@ -306,7 +309,7 @@ export function ExtractionPanel({ data, onEdit, showHeader = true }: ExtractionP
             KI-Extraktion
           </CardTitle>
           <div className="flex items-center gap-2">
-            <ConfidenceIndicator confidence={data.confidence} />
+            <ConfidenceIndicator completeness={data.data_completeness ?? data.confidence ?? 0} />
             {onEdit && (
               <Button variant="ghost" size="sm" onClick={onEdit}>
                 <Pencil className="h-4 w-4 mr-1" />

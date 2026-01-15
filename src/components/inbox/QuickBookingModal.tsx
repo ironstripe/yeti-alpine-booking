@@ -203,7 +203,7 @@ export function QuickBookingModal({
           <DialogTitle>Schnellbuchung bestätigen</DialogTitle>
           <DialogDescription className="flex items-center gap-2">
             <span>Die KI hat diese Anfrage mit hoher Sicherheit extrahiert.</span>
-            <ConfidenceIndicator confidence={extractedData.confidence} size="sm" />
+            <ConfidenceIndicator completeness={extractedData.data_completeness ?? extractedData.confidence ?? 0} size="sm" />
           </DialogDescription>
         </DialogHeader>
 

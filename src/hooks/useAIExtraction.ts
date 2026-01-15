@@ -22,6 +22,8 @@ export interface ExtractedData {
     product_type?: string;
     dates?: Array<{ date: string; time_preference?: string }>;
     date_range?: { start?: string; end?: string };
+    start_date?: string;
+    end_date?: string;
     flexibility?: string;
     instructor_preference?: string;
     lunch_supervision?: boolean;
@@ -30,12 +32,16 @@ export interface ExtractedData {
   confidence: number;
   notes?: string;
   is_booking_request?: boolean;
-  // New fields from enhanced extraction
+  // Classification and language fields
   classification?: "new_booking" | "cancellation" | "modification" | "general_inquiry" | "complaint" | "other";
   detected_language?: "de" | "en";
   missing_information?: string[];
   matched_customer_id?: string | null;
   is_existing_customer?: boolean;
+  // New fields for rule-based confidence
+  data_completeness?: number;  // 0-1, calculated completeness score
+  booking_ready?: boolean;     // Can a booking be created?
+  ai_original_confidence?: number; // Original AI-reported confidence (for reference)
 }
 
 export function useTriggerAIExtraction() {
