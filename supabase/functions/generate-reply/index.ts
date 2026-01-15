@@ -76,7 +76,47 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Step 1: Fetch conversation data
+    // Step 1A: Fetch AI Configuration
+    const { data: configData, error: configError } = await supabase
+      .from("ai_configuration")
+      .select("key, value");
+
+    if (configError) {
+      console.error("Error fetching AI configuration:", configError);
+    }
+
+    const tonalityPrompt = configData?.find((c: { key: string; value: string }) => c.key === "tonality_prompt")?.value || 
+      "Antworte professionell, aber herzlich und nahbar. Kunden immer mit 'Sie' ansprechen. Positive und lösungsorientierte Sprache verwenden.";
+    const signaturePrompt = configData?.find((c: { key: string; value: string }) => c.key === "signature_prompt")?.value || 
+      "Freundliche Grüsse aus dem verschneiten Malbun,\nIhr Yeti Team";
+
+    // Step 1B: Fetch and read Knowledge Documents
+    const { data: documents, error: docError } = await supabase
+      .from("ai_knowledge_documents")
+      .select("storage_path, file_name");
+
+    let knowledgeBaseContent = "";
+    if (documents && documents.length > 0 && !docError) {
+      console.log(`Found ${documents.length} knowledge documents`);
+      for (const doc of documents) {
+        try {
+          const { data: fileContent, error: fileError } = await supabase.storage
+            .from("ai_knowledge_base")
+            .download(doc.storage_path);
+
+          if (fileContent && !fileError) {
+            const textContent = await fileContent.text();
+            if (textContent.trim()) {
+              knowledgeBaseContent += `\n\n--- WISSENSDOKUMENT: ${doc.file_name} ---\n${textContent}\n--- ENDE WISSENSDOKUMENT ---`;
+            }
+          }
+        } catch (e) {
+          console.error(`Error reading document ${doc.file_name}:`, e);
+        }
+      }
+    }
+
+    // Step 2: Fetch conversation data
     const { data: conversation, error: convError } = await supabase
       .from("conversations")
       .select("*")
@@ -97,7 +137,7 @@ serve(async (req) => {
     const detectedLanguage = conv.detected_language || extractedData.detected_language || "de";
     const missingInfo = extractedData.missing_information || [];
 
-    // Step 2: Fetch customer context if available
+    // Step 3: Fetch customer context if available
     let customerName = conv.contact_name || "";
     let isExistingCustomer = false;
     let bookingHistory = "";
@@ -140,13 +180,19 @@ serve(async (req) => {
       ? missingInfo.join(", ") 
       : "Keine fehlenden Informationen erkannt";
 
-    // Step 3: Construct the dynamic system prompt
+    // Step 4: Construct the dynamic system prompt with AI configuration
     const systemPrompt = `Du bist ein freundlicher und effizienter Assistent für die Yeti Skischule in Malbun, Liechtenstein.
 Deine Aufgabe ist es, eine passende Antwort auf eine Kundenanfrage zu formulieren.
 
+**GLOBALE ANWEISUNGEN ZUR TONALITÄT:**
+${tonalityPrompt}
+
+**WISSENSDATENBANK (nutze dieses Wissen für allgemeine Fragen):**
+${knowledgeBaseContent || "Kein Zusatzwissen vorhanden."}
+
 **Anweisungen:**
 1.  **Sprache:** Formuliere die Antwort in ${detectedLanguage === "en" ? "Englisch" : "Deutsch"}.
-2.  **Ton:** Immer professionell, hilfsbereit und leicht herzlich. Sprich den Kunden mit Namen an, falls bekannt.
+2.  **Ton:** Halte dich an die globalen Anweisungen zur Tonalität. Sprich den Kunden mit Namen an, falls bekannt.
 3.  **Kontext beachten:**
     - **Klassifizierung:** Die Anfrage wurde als "${getClassificationLabel(classification)}" klassifiziert.
     - **Bestandskunde:** ${isExistingCustomer ? "Ja, Bestandskunde" : "Nein, Neukunde"}. ${isExistingCustomer ? "Bedanke dich für die erneute Kontaktaufnahme." : ""}${bookingHistory}
@@ -156,14 +202,17 @@ Deine Aufgabe ist es, eine passende Antwort auf eine Kundenanfrage zu formuliere
     - **Bei fehlenden Informationen (${missingInfoFormatted}):** Formuliere höfliche und klare Rückfragen, um die fehlenden Details zu erhalten.
     - **Bei vollständigen Informationen:** Bestätige die Anfrage und informiere über die nächsten Schritte (z.B. "Wir prüfen die Verfügbarkeit und senden Ihnen in Kürze eine Bestätigung.").
     - **Bei Storno/Umbuchung:** Zeige Verständnis und frage nach der Buchungsnummer, falls diese fehlt.
-    - **Bei Allgemeiner Anfrage:** Beantworte die Frage direkt, falls möglich.
+    - **Bei Allgemeiner Anfrage:** Beantworte die Frage direkt, falls möglich. Nutze das Wissen aus der Wissensdatenbank.
 
 **Beispiel-Struktur:**
 1.  Freundliche Anrede (mit Namen, falls bekannt).
 2.  Dank für die Anfrage.
 3.  Zusammenfassung des erkannten Anliegens (z.B. "Gerne prüfe ich Ihre Anfrage für einen Privatkurs...").
 4.  Gezielte Rückfragen für die fehlenden Informationen (falls zutreffend).
-5.  Abschliessende, freundliche Grussformel mit "Ihr Yeti Team".
+5.  Abschliessende, freundliche Grussformel gemäss Vorgabe.
+
+**VORGEGEBENE GRUSSFORMEL:**
+${signaturePrompt}
 
 Formuliere nur die Antwort. Keine zusätzlichen Kommentare.`;
 
