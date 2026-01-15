@@ -163,37 +163,50 @@ export default function InboxDetail() {
     if (!id) return;
     
     setIsCreatingBooking(true);
+    toast.info("Erstelle Buchung...");
 
     try {
+      console.log("Calling create-booking-from-extraction with:", {
+        conversationId: id,
+        customerId: conversation?.matched_customer_id || null,
+      });
+
       const { data, error } = await supabase.functions.invoke(
         "create-booking-from-extraction",
         {
           body: {
             conversationId: id,
-            customerId: (conversation as any)?.matched_customer_id || null,
+            customerId: conversation?.matched_customer_id || null,
             sendConfirmationAfterApproval: true,
           },
         }
       );
 
-      if (error) throw error;
+      console.log("Edge function response:", { data, error });
 
-      if (data.success) {
-        setCreatedTicket({
-          id: data.ticket.id,
-          ticket_number: data.ticket.ticket_number,
-        });
-        toast.success(
-          `Buchung ${data.ticket.ticket_number} erstellt. Wartet auf Bestätigung.`
-        );
-        queryClient.invalidateQueries({ queryKey: ["pending-confirmations"] });
-        refetch();
-      } else {
-        throw new Error(data.error);
+      if (error) {
+        console.error("Edge function invocation error:", error);
+        throw new Error(error.message || "Fehler bei der Funktionsaufruf");
       }
+
+      if (!data.success) {
+        console.error("Booking creation failed:", data);
+        throw new Error(data.error || "Buchung konnte nicht erstellt werden");
+      }
+
+      setCreatedTicket({
+        id: data.ticket.id,
+        ticket_number: data.ticket.ticket_number,
+      });
+      toast.success(
+        `Buchung ${data.ticket.ticket_number} erstellt. Wartet auf Bestätigung.`
+      );
+      queryClient.invalidateQueries({ queryKey: ["pending-confirmations"] });
+      refetch();
     } catch (error) {
       console.error("Error creating booking:", error);
-      toast.error(error instanceof Error ? error.message : "Fehler beim Erstellen der Buchung");
+      const message = error instanceof Error ? error.message : "Fehler beim Erstellen der Buchung";
+      toast.error(message);
     } finally {
       setIsCreatingBooking(false);
     }
@@ -427,6 +440,7 @@ export default function InboxDetail() {
                   <ConvertToBookingButton
                     conversationId={conversation.id}
                     extractedData={extractedData}
+                    matchedCustomerId={conversation.matched_customer_id}
                     className="flex-1"
                   />
                 </div>

@@ -44,6 +44,12 @@ interface ExtractedBooking {
     end_time?: string;
     time_preference?: string;
   }>;
+  date_range?: {
+    start?: string;
+    end?: string;
+  };
+  start_date?: string;
+  end_date?: string;
   vegetarian?: boolean;
   special_requests?: string;
 }
@@ -53,6 +59,61 @@ interface ExtractedData {
   participants?: ExtractedParticipant[];
   booking?: ExtractedBooking;
   booking_ready?: boolean;
+  is_booking_request?: boolean;
+}
+
+// Check minimum viable fields for booking creation
+function checkBookingReadiness(data: ExtractedData, contactIdentifier: string): { ready: boolean; missingFields: string[] } {
+  const missingFields: string[] = [];
+
+  // 1. Must be a booking request
+  if (!data.is_booking_request) {
+    missingFields.push("booking_intent");
+  }
+
+  // 2. Customer contact - need at least one way to reach them
+  const hasCustomerContact = 
+    data.customer?.email || 
+    data.customer?.phone || 
+    contactIdentifier;
+  if (!hasCustomerContact) {
+    missingFields.push("customer_contact");
+  }
+
+  // 3. Customer name (at least last name or full name)
+  const hasCustomerName = 
+    data.customer?.last_name || 
+    data.customer?.name ||
+    data.customer?.first_name;
+  if (!hasCustomerName) {
+    missingFields.push("customer_name");
+  }
+
+  // 4. At least one participant
+  const hasParticipants = data.participants && data.participants.length > 0;
+  if (!hasParticipants) {
+    missingFields.push("participants");
+  } else {
+    // Check if participants have names
+    const hasParticipantNames = data.participants!.some(p => p.name || p.first_name);
+    if (!hasParticipantNames) {
+      missingFields.push("participant_names");
+    }
+  }
+
+  // 5. At least one date or date range
+  const hasDates = 
+    (data.booking?.dates && data.booking.dates.length > 0) ||
+    data.booking?.date_range?.start ||
+    data.booking?.start_date;
+  if (!hasDates) {
+    missingFields.push("booking_dates");
+  }
+
+  return {
+    ready: missingFields.length === 0,
+    missingFields,
+  };
 }
 
 serve(async (req) => {
@@ -78,6 +139,8 @@ serve(async (req) => {
     const { conversationId, customerId, sendConfirmationAfterApproval = true } = 
       await req.json() as CreateBookingRequest;
 
+    console.log("Creating booking from conversation:", conversationId);
+
     // 1. Load conversation with extracted data
     const { data: conversation, error: convError } = await supabase
       .from("conversations")
@@ -86,18 +149,59 @@ serve(async (req) => {
       .single();
 
     if (convError || !conversation) {
-      throw new Error("Conversation not found");
+      console.error("Conversation not found:", convError);
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: "Konversation nicht gefunden",
+          code: "CONVERSATION_NOT_FOUND"
+        }),
+        { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
     const extractedData = conversation.ai_extracted_data as ExtractedData;
     if (!extractedData) {
-      throw new Error("No extracted data available");
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: "Keine extrahierten Daten verfügbar. Bitte zuerst KI-Analyse durchführen.",
+          code: "NO_EXTRACTED_DATA"
+        }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
-    // 2. Check if booking is ready
-    if (!conversation.booking_ready && !extractedData.booking_ready) {
-      throw new Error("Booking data is incomplete. Please collect missing information first.");
+    // 2. Check if booking is ready using robust field validation
+    const readinessCheck = checkBookingReadiness(extractedData, conversation.contact_identifier);
+    
+    // If explicitly marked as ready in DB, trust that
+    const isReady = conversation.booking_ready || extractedData.booking_ready || readinessCheck.ready;
+    
+    if (!isReady) {
+      const missingFieldsDE: Record<string, string> = {
+        booking_intent: "Buchungsanfrage",
+        customer_contact: "Kontaktdaten (E-Mail/Telefon)",
+        customer_name: "Kundenname",
+        participants: "Teilnehmer",
+        participant_names: "Teilnehmernamen",
+        booking_dates: "Buchungsdaten",
+      };
+      
+      const missingReadable = readinessCheck.missingFields.map(f => missingFieldsDE[f] || f);
+      
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: `Buchungsdaten unvollständig. Fehlend: ${missingReadable.join(", ")}`,
+          code: "INCOMPLETE_DATA",
+          missingFields: readinessCheck.missingFields,
+        }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
+
+    console.log("Booking readiness check passed");
 
     // 3. Get or create customer
     let finalCustomerId = customerId;
@@ -106,32 +210,46 @@ serve(async (req) => {
       // Check for matched customer
       if (conversation.matched_customer_id) {
         finalCustomerId = conversation.matched_customer_id;
+        console.log("Using matched customer:", finalCustomerId);
       } else {
         // Create new customer
         const customerData = extractedData.customer || {};
         const nameParts = (customerData.name || "").split(" ");
         
+        const newCustomerData = {
+          first_name: customerData.first_name || nameParts[0] || "",
+          last_name: customerData.last_name || nameParts.slice(1).join(" ") || "Unbekannt",
+          email: customerData.email || conversation.contact_identifier || "unknown@example.com",
+          phone: customerData.phone || "",
+          street: customerData.address?.street || "",
+          zip: customerData.address?.zip || "",
+          city: customerData.address?.city || "",
+          country: customerData.address?.country || "CH",
+          holiday_address: "",
+        };
+        
+        console.log("Creating new customer:", newCustomerData);
+        
         const { data: newCustomer, error: customerError } = await supabase
           .from("customers")
-          .insert({
-            first_name: customerData.first_name || nameParts[0] || "",
-            last_name: customerData.last_name || nameParts.slice(1).join(" ") || "Unbekannt",
-            email: customerData.email || conversation.contact_identifier || "unknown@example.com",
-            phone: customerData.phone || "",
-            street: customerData.address?.street || "",
-            zip: customerData.address?.zip || "",
-            city: customerData.address?.city || "",
-            country: customerData.address?.country || "LI",
-            holiday_address: "",
-          })
+          .insert(newCustomerData)
           .select()
           .single();
 
         if (customerError) {
-          throw new Error(`Failed to create customer: ${customerError.message}`);
+          console.error("Failed to create customer:", customerError);
+          return new Response(
+            JSON.stringify({ 
+              success: false, 
+              error: `Kunde konnte nicht erstellt werden: ${customerError.message}`,
+              code: "CUSTOMER_CREATE_FAILED"
+            }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
         }
         
         finalCustomerId = newCustomer.id;
+        console.log("Created new customer:", finalCustomerId);
       }
     }
 
@@ -152,6 +270,7 @@ serve(async (req) => {
 
       if (existingParticipant) {
         participantIds.push(existingParticipant.id);
+        console.log("Found existing participant:", existingParticipant.id);
       } else {
         // Calculate birth date from age if needed
         let birthDate = participant.birth_date;
@@ -160,7 +279,7 @@ serve(async (req) => {
           birthDate = `${year}-01-01`;
         }
         if (!birthDate) {
-          birthDate = "2010-01-01"; // Default
+          birthDate = "2015-01-01"; // Default
         }
 
         // Create new participant
@@ -183,6 +302,7 @@ serve(async (req) => {
         }
         
         participantIds.push(newParticipant.id);
+        console.log("Created new participant:", newParticipant.id);
       }
     }
 
@@ -190,7 +310,7 @@ serve(async (req) => {
     const bookingData = extractedData.booking || {};
     const productType = bookingData.product_type || "private";
     
-    const { data: product, error: productError } = await supabase
+    const { data: product } = await supabase
       .from("products")
       .select("id, price, name, type")
       .eq("type", productType)
@@ -211,26 +331,56 @@ serve(async (req) => {
     }
 
     if (!selectedProduct) {
-      throw new Error(`No active product found`);
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: "Kein aktives Produkt gefunden",
+          code: "NO_PRODUCT"
+        }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
     // 6. Generate ticket number
     const ticketNumber = `T-${new Date().getFullYear()}-${Date.now().toString().slice(-6)}`;
 
-    // 7. Calculate totals
-    const dates = bookingData.dates || [];
+    // 7. Parse dates from various formats
+    let dates: Array<{ date: string; start_time?: string; end_time?: string }> = [];
+    
+    if (bookingData.dates && bookingData.dates.length > 0) {
+      dates = bookingData.dates;
+    } else if (bookingData.date_range?.start) {
+      // Generate dates from range
+      const startDate = new Date(bookingData.date_range.start);
+      const endDate = bookingData.date_range.end ? new Date(bookingData.date_range.end) : startDate;
+      
+      for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+        dates.push({ date: d.toISOString().split("T")[0] });
+      }
+    } else if (bookingData.start_date) {
+      const startDate = new Date(bookingData.start_date);
+      const endDate = bookingData.end_date ? new Date(bookingData.end_date) : startDate;
+      
+      for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+        dates.push({ date: d.toISOString().split("T")[0] });
+      }
+    }
+
+    // 8. Calculate totals
     const unitPrice = selectedProduct.price || 0;
     const participantCount = participantIds.length || 1;
     const dateCount = dates.length || 1;
     const totalAmount = participantCount * dateCount * unitPrice;
 
-    // 8. Create ticket with pending_confirmation status
+    console.log("Creating ticket:", { ticketNumber, totalAmount, participantCount, dateCount });
+
+    // 9. Create ticket with pending_confirmation status
     const { data: ticket, error: ticketError } = await supabase
       .from("tickets")
       .insert({
         ticket_number: ticketNumber,
         customer_id: finalCustomerId,
-        status: "pending_confirmation", // Human-in-the-loop: requires approval
+        status: "pending_confirmation",
         total_amount: totalAmount,
         total_participants: participantCount,
         notes: bookingData.special_requests || "",
@@ -241,10 +391,18 @@ serve(async (req) => {
       .single();
 
     if (ticketError) {
-      throw new Error(`Failed to create ticket: ${ticketError.message}`);
+      console.error("Failed to create ticket:", ticketError);
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: `Buchung konnte nicht erstellt werden: ${ticketError.message}`,
+          code: "TICKET_CREATE_FAILED"
+        }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
-    // 9. Create ticket items for each date and participant
+    // 10. Create ticket items for each date and participant
     const ticketItems = [];
     
     if (dates.length > 0 && participantIds.length > 0) {
@@ -289,10 +447,12 @@ serve(async (req) => {
 
       if (itemsError) {
         console.error("Failed to create ticket items:", itemsError);
+      } else {
+        console.log("Created", ticketItems.length, "ticket items");
       }
     }
 
-    // 10. Link conversation to ticket
+    // 11. Link conversation to ticket
     await supabase
       .from("conversations")
       .update({ 
@@ -301,7 +461,7 @@ serve(async (req) => {
       })
       .eq("id", conversationId);
 
-    // 11. Return success with ticket details
+    // 12. Return success with ticket details
     return new Response(
       JSON.stringify({
         success: true,
@@ -325,7 +485,8 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({ 
         success: false, 
-        error: errorMessage 
+        error: errorMessage,
+        code: "UNKNOWN_ERROR"
       }),
       { 
         status: 400, 
