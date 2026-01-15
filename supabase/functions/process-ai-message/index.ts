@@ -688,8 +688,14 @@ function extractBookingDataFallback(
   content: string,
   extractedData: Record<string, unknown>
 ): Record<string, unknown> {
+  console.log("=== extractBookingDataFallback START ===");
+  console.log("Content length:", content.length);
+  
   const booking = (extractedData.booking || {}) as Record<string, unknown>;
   const dates = ((booking.dates || []) as Array<Record<string, unknown>>).slice();
+  
+  console.log("Existing dates before fallback:", JSON.stringify(dates));
+  console.log("Existing product_type:", booking.product_type);
   
   // If no dates extracted, try to parse from content
   if (dates.length === 0) {
@@ -704,6 +710,7 @@ function extractBookingDataFallback(
       // Avoid duplicates
       if (!dates.some(d => d.date === isoDate)) {
         dates.push({ date: isoDate });
+        console.log("Fallback: Extracted date", isoDate);
       }
     }
     
@@ -717,21 +724,46 @@ function extractBookingDataFallback(
       const isoDate = `${year}-${month}-${day}`;
       if (!dates.some(d => d.date === isoDate)) {
         dates.push({ date: isoDate });
+        console.log("Fallback: Extracted named date", isoDate);
       }
     }
   }
   
-  // Extract times: "10-11h", "12:00 - 13:00", "10 - 11 Uhr"
-  const timeRegex = /(\d{1,2})(?::(\d{2}))?\s*[-–]\s*(\d{1,2})(?::(\d{2}))?\s*(?:Uhr|h)?/gi;
-  const timeMatch = content.match(timeRegex);
+  // Extract times with multiple patterns - handles various formats
+  // "10-11h", "12 - 13h", "12:00 - 13:00", "10 - 11 Uhr", "12–13h" (en-dash)
+  let extractedTime: { start: string; end: string } | null = null;
   
-  if (timeMatch && dates.length > 0) {
-    const firstDate = dates[0];
-    if (!firstDate.start_time) {
-      const parsed = timeMatch[0].match(/(\d{1,2})(?::(\d{2}))?\s*[-–]\s*(\d{1,2})(?::(\d{2}))?/);
+  // Pattern 1: Time with h/Uhr suffix - most specific
+  const timePatterns = [
+    /(\d{1,2})(?::(\d{2}))?\s*[-–]\s*(\d{1,2})(?::(\d{2}))?\s*h\b/gi,    // "12 - 13h", "10-11h"
+    /(\d{1,2})(?::(\d{2}))?\s*[-–]\s*(\d{1,2})(?::(\d{2}))?\s*Uhr/gi,    // "12 - 13 Uhr"
+    /(\d{1,2}):(\d{2})\s*[-–]\s*(\d{1,2}):(\d{2})/g,                      // "12:00 - 13:00"
+  ];
+  
+  for (const regex of timePatterns) {
+    const match = content.match(regex);
+    if (match && match[0]) {
+      console.log("Fallback: Found time match:", match[0]);
+      // Parse the matched string more carefully
+      const parsed = match[0].match(/(\d{1,2})(?::(\d{2}))?\s*[-–]\s*(\d{1,2})(?::(\d{2}))?/);
       if (parsed) {
-        firstDate.start_time = `${parsed[1].padStart(2, '0')}:${parsed[2] || '00'}`;
-        firstDate.end_time = `${parsed[3].padStart(2, '0')}:${parsed[4] || '00'}`;
+        extractedTime = {
+          start: `${parsed[1].padStart(2, '0')}:${parsed[2] || '00'}`,
+          end: `${parsed[3].padStart(2, '0')}:${parsed[4] || '00'}`
+        };
+        console.log("Fallback: Parsed time as", extractedTime.start, "-", extractedTime.end);
+        break;
+      }
+    }
+  }
+  
+  // Apply extracted time to ALL dates that don't have times yet
+  if (extractedTime && dates.length > 0) {
+    for (const d of dates) {
+      if (!d.start_time) {
+        d.start_time = extractedTime.start;
+        d.end_time = extractedTime.end;
+        console.log("Fallback: Applied time to date", d.date);
       }
     }
   }
@@ -740,8 +772,10 @@ function extractBookingDataFallback(
   if (!booking.product_type || booking.product_type === "unknown") {
     if (/privat|private|einzelstunde|einzelunterricht/i.test(content)) {
       booking.product_type = "private";
+      console.log("Fallback: Detected product_type = private");
     } else if (/gruppe|gruppenkurs|kinderskikurs|skikurs|snowli/i.test(content)) {
       booking.product_type = "group";
+      console.log("Fallback: Detected product_type = group");
     }
   }
 
@@ -752,12 +786,24 @@ function extractBookingDataFallback(
       const parsed = parseAddressString(customer.address);
       if (parsed) {
         customer.address = parsed;
+        console.log("Fallback: Parsed address:", JSON.stringify(parsed));
       }
     }
   }
   
+  // Extract participant count if mentioned
+  const participantMatch = content.match(/(?:für\s+)?(\d+)\s*(?:Person(?:en)?|Teilnehmer|Kind(?:er)?)/i);
+  if (participantMatch && !booking.participant_count) {
+    booking.participant_count = parseInt(participantMatch[1]);
+    console.log("Fallback: Detected participant count:", booking.participant_count);
+  }
+  
   booking.dates = dates;
   extractedData.booking = booking;
+  
+  console.log("=== extractBookingDataFallback END ===");
+  console.log("Final dates:", JSON.stringify(dates));
+  console.log("Final product_type:", booking.product_type);
   
   return extractedData;
 }
