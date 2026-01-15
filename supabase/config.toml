@@ -17,3 +17,9 @@ verify_jwt = false
 
 [functions.generate-reply]
 verify_jwt = false
+
+[functions.create-booking-from-extraction]
+verify_jwt = false
+
+[functions.approve-booking-confirmation]
+verify_jwt = false
