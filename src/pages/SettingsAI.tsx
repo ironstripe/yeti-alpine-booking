@@ -5,9 +5,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Upload, FileText, FileType, Trash2, Save, Loader2 } from "lucide-react";
+import { Upload, FileText, FileType, Trash2, Save, Loader2, AlertCircle } from "lucide-react";
 import { useUserRole } from "@/hooks/useUserRole";
-import { Navigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import {
   useAIConfiguration,
   useUpdateAIConfiguration,
@@ -22,10 +22,43 @@ import { cn } from "@/lib/utils";
 
 export default function SettingsAI() {
   const { isAdmin, loading: roleLoading } = useUserRole();
+  const navigate = useNavigate();
 
-  // Redirect non-admins
-  if (!roleLoading && !isAdmin) {
-    return <Navigate to="/settings" replace />;
+  // Show loading while checking roles
+  if (roleLoading) {
+    return (
+      <SettingsLayout
+        title="KI-Einstellungen"
+        description="Berechtigungen werden geprüft..."
+      >
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+      </SettingsLayout>
+    );
+  }
+
+  // Show access denied for non-admins
+  if (!isAdmin) {
+    return (
+      <SettingsLayout
+        title="KI-Einstellungen"
+        description="Diese Seite ist nur für Administratoren verfügbar."
+      >
+        <Card>
+          <CardContent className="py-12 text-center">
+            <AlertCircle className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+            <h3 className="text-lg font-medium mb-2">Zugriff verweigert</h3>
+            <p className="text-muted-foreground mb-4">
+              Diese Seite ist nur für Administratoren verfügbar.
+            </p>
+            <Button onClick={() => navigate("/settings/school")}>
+              Zurück zu Einstellungen
+            </Button>
+          </CardContent>
+        </Card>
+      </SettingsLayout>
+    );
   }
 
   return (
