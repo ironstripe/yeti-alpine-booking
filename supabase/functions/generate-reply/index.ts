@@ -62,6 +62,8 @@ serve(async (req) => {
   try {
     const { conversationId } = await req.json();
 
+    console.log("generate-reply called for conversationId:", conversationId);
+
     if (!conversationId) {
       return new Response(
         JSON.stringify({ error: "conversationId is required" }),
@@ -186,7 +188,7 @@ ${conv.content}`;
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
+        model: "google/gemini-2.5-flash",
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userMessage },
