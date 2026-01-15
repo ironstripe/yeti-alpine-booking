@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -27,6 +27,11 @@ export function AIReplyAssistant({
   isRegenerating = false,
 }: AIReplyAssistantProps) {
   const [replyBody, setReplyBody] = useState(suggestedReply.body);
+  
+  // Sync state when suggestedReply changes (e.g., after API call completes)
+  useEffect(() => {
+    setReplyBody(suggestedReply.body);
+  }, [suggestedReply.body]);
 
   const handleCopyReply = async () => {
     try {
