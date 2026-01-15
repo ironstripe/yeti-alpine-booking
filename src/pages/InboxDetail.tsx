@@ -87,6 +87,34 @@ export default function InboxDetail() {
     enabled: !!id && conversation?.status === "unread",
   });
 
+  // Pre-extract data for the query (needed before early returns)
+  const extractedDataForQuery = conversation?.ai_extracted_data as unknown as ExtractedData | null;
+
+  // Fetch AI-generated reply from the generate-reply Edge Function
+  // IMPORTANT: This hook must be before early returns to maintain consistent hook order
+  const { 
+    data: suggestedReplyData, 
+    isLoading: isReplyLoading,
+    refetch: refetchReply,
+    error: replyError
+  } = useQuery({
+    queryKey: ["generate-reply", id],
+    queryFn: async () => {
+      if (!id) throw new Error("No ID provided");
+
+      const { data, error } = await supabase.functions.invoke("generate-reply", {
+        body: { conversationId: id },
+      });
+
+      if (error) throw error;
+      return data as { suggested_reply: SuggestedReply };
+    },
+    // Only fetch if we have the conversation AND it has extracted data
+    enabled: !!id && !!extractedDataForQuery,
+    refetchOnWindowFocus: false,
+    staleTime: 5 * 60 * 1000,
+  });
+
   const handleReprocess = async () => {
     if (!id) return;
     await triggerExtraction.mutateAsync(id);
@@ -149,31 +177,6 @@ export default function InboxDetail() {
   // Get detected language from database
   const detectedLanguage = (conversation as any).detected_language || extractedData?.detected_language || "de";
 
-  // Fetch AI-generated reply from the generate-reply Edge Function
-  const { 
-    data: suggestedReplyData, 
-    isLoading: isReplyLoading,
-    refetch: refetchReply,
-    error: replyError
-  } = useQuery({
-    queryKey: ["generate-reply", id],
-    queryFn: async () => {
-      if (!id) throw new Error("No ID provided");
-
-      const { data, error } = await supabase.functions.invoke("generate-reply", {
-        body: { conversationId: id },
-      });
-
-      if (error) throw error;
-      return data as { suggested_reply: SuggestedReply };
-    },
-    // Only fetch if we have extracted data (i.e., the message has been processed)
-    enabled: !!id && !!extractedData,
-    // Don't refetch automatically on window focus
-    refetchOnWindowFocus: false,
-    // Cache for 5 minutes
-    staleTime: 5 * 60 * 1000,
-  });
 
   // Use real data if available, otherwise provide a fallback
   const suggestedReply: SuggestedReply = suggestedReplyData?.suggested_reply || {
