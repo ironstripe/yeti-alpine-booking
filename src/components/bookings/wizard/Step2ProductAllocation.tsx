@@ -157,6 +157,13 @@ export function Step2ProductAllocation() {
     }
   }, [allBeginnersOnly, state.meetingPoint, setMeetingPoint]);
 
+  // Auto-select "private" for adult participants when group is disabled
+  useEffect(() => {
+    if (groupRecommendation.hasAdults && !state.productType) {
+      setProductType("private");
+    }
+  }, [groupRecommendation.hasAdults, state.productType, setProductType]);
+
   // Warnings
   const warnings = useMemo<BookingWarning[]>(() => {
     const result: BookingWarning[] = [];
