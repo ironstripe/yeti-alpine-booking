@@ -13,6 +13,7 @@ export interface AIKnowledgeDocument {
   file_name: string;
   storage_path: string;
   file_type: string;
+  file_size: number | null;
   created_at: string;
 }
 
@@ -93,6 +94,7 @@ export function useUploadKnowledgeDocument() {
           file_name: file.name,
           storage_path: storagePath,
           file_type: file.type || "text/plain",
+          file_size: file.size,
         });
 
       if (dbError) {

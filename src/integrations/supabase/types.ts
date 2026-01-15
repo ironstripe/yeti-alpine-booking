@@ -98,21 +98,27 @@ export type Database = {
       ai_knowledge_documents: {
         Row: {
           created_at: string
+          created_by: string | null
           file_name: string
+          file_size: number | null
           file_type: string
           id: string
           storage_path: string
         }
         Insert: {
           created_at?: string
+          created_by?: string | null
           file_name: string
+          file_size?: number | null
           file_type: string
           id?: string
           storage_path: string
         }
         Update: {
           created_at?: string
+          created_by?: string | null
           file_name?: string
+          file_size?: number | null
           file_type?: string
           id?: string
           storage_path?: string
