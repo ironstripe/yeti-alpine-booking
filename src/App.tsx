@@ -305,17 +305,17 @@ const AppRoutes = () => (
     <Route path="/book/group" element={<GroupBookingForm />} />
     <Route path="/book/request/:token" element={<RequestConfirmation />} />
     {/* Settings Routes */}
-    <Route path="/settings" element={<Settings />} />
-    <Route path="/settings/school" element={<SettingsSchool />} />
-    <Route path="/settings/products" element={<SettingsProducts />} />
-    <Route path="/settings/pricing" element={<SettingsPricing />} />
-    <Route path="/settings/seasons" element={<SettingsSeasons />} />
-    <Route path="/settings/users" element={<SettingsUsers />} />
-    <Route path="/settings/emails" element={<SettingsEmailTemplates />} />
-    <Route path="/settings/emails/:id" element={<SettingsEmailTemplateEdit />} />
-    <Route path="/settings/notifications" element={<SettingsNotifications />} />
-    <Route path="/settings/ai" element={<SettingsAI />} />
-    <Route path="/settings/system" element={<SettingsSystem />} />
+    <Route path="/settings" element={<AppLayout><Settings /></AppLayout>} />
+    <Route path="/settings/school" element={<AppLayout><SettingsSchool /></AppLayout>} />
+    <Route path="/settings/products" element={<AppLayout><SettingsProducts /></AppLayout>} />
+    <Route path="/settings/pricing" element={<AppLayout><SettingsPricing /></AppLayout>} />
+    <Route path="/settings/seasons" element={<AppLayout><SettingsSeasons /></AppLayout>} />
+    <Route path="/settings/users" element={<AppLayout><SettingsUsers /></AppLayout>} />
+    <Route path="/settings/emails" element={<AppLayout><SettingsEmailTemplates /></AppLayout>} />
+    <Route path="/settings/emails/:id" element={<AppLayout><SettingsEmailTemplateEdit /></AppLayout>} />
+    <Route path="/settings/notifications" element={<AppLayout><SettingsNotifications /></AppLayout>} />
+    <Route path="/settings/ai" element={<AppLayout><SettingsAI /></AppLayout>} />
+    <Route path="/settings/system" element={<AppLayout><SettingsSystem /></AppLayout>} />
     {/* Catch-all route */}
     <Route path="*" element={<NotFound />} />
   </Routes>
