@@ -77,6 +77,48 @@ export type Database = {
           },
         ]
       }
+      ai_configuration: {
+        Row: {
+          key: string
+          updated_at: string
+          value: string
+        }
+        Insert: {
+          key: string
+          updated_at?: string
+          value: string
+        }
+        Update: {
+          key?: string
+          updated_at?: string
+          value?: string
+        }
+        Relationships: []
+      }
+      ai_knowledge_documents: {
+        Row: {
+          created_at: string
+          file_name: string
+          file_type: string
+          id: string
+          storage_path: string
+        }
+        Insert: {
+          created_at?: string
+          file_name: string
+          file_type: string
+          id?: string
+          storage_path: string
+        }
+        Update: {
+          created_at?: string
+          file_name?: string
+          file_type?: string
+          id?: string
+          storage_path?: string
+        }
+        Relationships: []
+      }
       booking_requests: {
         Row: {
           converted_ticket_id: string | null
