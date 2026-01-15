@@ -46,6 +46,22 @@ const EXTRACTION_PROMPT = `Du bist ein Experte für die Analyse von Buchungsanfr
    - Explizit erwähnt: "mit Mittagessen", "Mittagsbetreuung"
    - "Ganztags" impliziert oft Mittagsbetreuung
 
+7. **Adressen (CH/LI/AT/DE Format) - WICHTIG:**
+   - Erkenne Adressen auch OHNE explizite Labels wie "Adresse:"
+   - Typisches Format: "[Strasse] [Hausnummer]" gefolgt von "[PLZ] [Ort]" auf gleicher oder nächster Zeile
+   - Die Adresse kann direkt nach dem Namen stehen
+   - Beispiele die du erkennen MUSST:
+     * "Im Riet 58, 9495 Triesen" → street: "Im Riet 58", zip: "9495", city: "Triesen"
+     * "Julia Holste\\nIm Riet 58\\n9495 Triesen" → Vor-/Nachname + Adresse
+     * "Landstrasse 123, 9490 Vaduz" → street: "Landstrasse 123", zip: "9490", city: "Vaduz"
+     * "Hauptstrasse 1, CH-8000 Zürich" → street: "Hauptstrasse 1", zip: "8000", city: "Zürich", country: "CH"
+   - PLZ-Bereiche zur Landerkennung:
+     * 9490-9498: Liechtenstein (LI)
+     * 8000-8999, 9000-9499 (ausser 9490-9498): Schweiz (CH)
+     * 6800-6899: Österreich/Vorarlberg (AT)
+   - Wenn Adresse auf mehreren Zeilen steht, zusammenführen
+   - "country" ableiten aus PLZ wenn nicht explizit genannt
+
 **WICHTIG:**
 - Extrahiere ALLES was du findest, auch wenn es unvollständig ist
 - Markiere fehlende Pflichtfelder explizit in "missing_information"
@@ -102,11 +118,12 @@ const extractionTools = [
               phone: { type: "string", description: "Telefonnummer" },
               address: {
                 type: "object",
+                description: "Vollständige Adresse des Kunden. Erkenne CH/LI/AT Formate: Strasse + Hausnummer, dann PLZ + Ort",
                 properties: {
-                  street: { type: "string" },
-                  zip: { type: "string" },
-                  city: { type: "string" },
-                  country: { type: "string" },
+                  street: { type: "string", description: "Strasse und Hausnummer, z.B. 'Im Riet 58', 'Landstrasse 123'" },
+                  zip: { type: "string", description: "Postleitzahl, z.B. '9495', '8000'" },
+                  city: { type: "string", description: "Ort, z.B. 'Triesen', 'Vaduz', 'Zürich'" },
+                  country: { type: "string", description: "Ländercode ableiten aus PLZ: 9490-9498=LI, 8000-9489=CH, 6800-6899=AT" },
                 },
               },
               hotel: { type: "string", description: "Hotel/Unterkunft Name" },
@@ -499,11 +516,17 @@ function calculateDataCompleteness(
   }
 
   // Address (5 points) - only required for new customers
+  // FIXED: Check for street OR city with zip (more lenient)
   if (isExistingCustomer) {
     score += 5; // Existing customers get this for free
   } else {
     const address = customer.address as Record<string, unknown> | undefined;
-    if (address?.street && address?.city) {
+    const hasValidAddress = address && (
+      (address.street && address.zip) || 
+      (address.street && address.city) ||
+      (address.zip && address.city)
+    );
+    if (hasValidAddress) {
       score += 5;
     } else {
       missing.push("customer_address");

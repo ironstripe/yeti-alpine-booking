@@ -13,7 +13,8 @@ import {
   MessageSquare,
   Pencil,
   AlertTriangle,
-  Bot
+  Bot,
+  MapPin
 } from "lucide-react";
 import { ConfidenceIndicator } from "./ConfidenceIndicator";
 import { format, parseISO } from "date-fns";
@@ -22,9 +23,16 @@ import { de } from "date-fns/locale";
 interface ExtractedData {
   customer?: {
     name?: string;
+    first_name?: string;
+    last_name?: string;
     email?: string;
     phone?: string;
-    address?: string;
+    address?: string | {
+      street?: string;
+      zip?: string;
+      city?: string;
+      country?: string;
+    };
     hotel?: string;
   };
   participants?: Array<{
@@ -174,6 +182,20 @@ export function ExtractionPanel({ data, onEdit, showHeader = true }: ExtractionP
                 <p className="flex items-center gap-2 text-muted-foreground">
                   <Phone className="h-3 w-3" />
                   {data.customer.phone}
+                </p>
+              )}
+              {/* Address display - handle both string and object formats */}
+              {data.customer?.address && (
+                <p className="flex items-center gap-2 text-muted-foreground">
+                  <MapPin className="h-3 w-3" />
+                  {typeof data.customer.address === 'string' 
+                    ? data.customer.address 
+                    : [
+                        data.customer.address.street,
+                        [data.customer.address.zip, data.customer.address.city].filter(Boolean).join(' '),
+                        data.customer.address.country
+                      ].filter(Boolean).join(', ')
+                  }
                 </p>
               )}
               {data.customer?.hotel && (
@@ -357,6 +379,20 @@ export function ExtractionPanel({ data, onEdit, showHeader = true }: ExtractionP
                 <p className="flex items-center gap-2 text-muted-foreground">
                   <Phone className="h-3 w-3" />
                   {data.customer.phone}
+                </p>
+              )}
+              {/* Address display - handle both string and object formats */}
+              {data.customer?.address && (
+                <p className="flex items-center gap-2 text-muted-foreground">
+                  <MapPin className="h-3 w-3" />
+                  {typeof data.customer.address === 'string' 
+                    ? data.customer.address 
+                    : [
+                        data.customer.address.street,
+                        [data.customer.address.zip, data.customer.address.city].filter(Boolean).join(' '),
+                        data.customer.address.country
+                      ].filter(Boolean).join(', ')
+                  }
                 </p>
               )}
               {data.customer?.hotel && (
