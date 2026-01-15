@@ -205,15 +205,30 @@ serve(async (req) => {
 
     // 3. Get or create customer
     let finalCustomerId = customerId;
+    const customerData = extractedData.customer || {};
     
     if (!finalCustomerId) {
-      // Check for matched customer
+      // Check for matched customer from conversation
       if (conversation.matched_customer_id) {
         finalCustomerId = conversation.matched_customer_id;
-        console.log("Using matched customer:", finalCustomerId);
-      } else {
-        // Create new customer
-        const customerData = extractedData.customer || {};
+        console.log("Using matched customer from conversation:", finalCustomerId);
+      } 
+      // Try to find customer by email before creating (synchronized with ConvertToBookingButton)
+      else if (customerData.email) {
+        const { data: existingByEmail } = await supabase
+          .from("customers")
+          .select("id")
+          .eq("email", customerData.email)
+          .maybeSingle();
+        
+        if (existingByEmail) {
+          finalCustomerId = existingByEmail.id;
+          console.log("Found existing customer by email:", finalCustomerId);
+        }
+      }
+      
+      // If still no customer, create new one
+      if (!finalCustomerId) {
         const nameParts = (customerData.name || "").split(" ");
         
         const newCustomerData = {
@@ -230,13 +245,37 @@ serve(async (req) => {
         
         console.log("Creating new customer:", newCustomerData);
         
-        const { data: newCustomer, error: customerError } = await supabase
-          .from("customers")
-          .insert(newCustomerData)
-          .select()
-          .single();
+        try {
+          const { data: newCustomer, error: customerError } = await supabase
+            .from("customers")
+            .insert(newCustomerData)
+            .select()
+            .single();
 
-        if (customerError) {
+          if (customerError) {
+            // Handle duplicate email - try to fetch existing customer
+            if (customerError.code === "23505" && newCustomerData.email) {
+              console.log("Duplicate email detected, fetching existing customer:", newCustomerData.email);
+              const { data: existingCustomer } = await supabase
+                .from("customers")
+                .select("id")
+                .eq("email", newCustomerData.email)
+                .maybeSingle();
+              
+              if (existingCustomer) {
+                finalCustomerId = existingCustomer.id;
+                console.log("Found existing customer after duplicate error:", finalCustomerId);
+              } else {
+                throw customerError;
+              }
+            } else {
+              throw customerError;
+            }
+          } else {
+            finalCustomerId = newCustomer.id;
+            console.log("Created new customer:", finalCustomerId);
+          }
+        } catch (customerError: any) {
           console.error("Failed to create customer:", customerError);
           return new Response(
             JSON.stringify({ 
@@ -247,13 +286,10 @@ serve(async (req) => {
             { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
           );
         }
-        
-        finalCustomerId = newCustomer.id;
-        console.log("Created new customer:", finalCustomerId);
       }
     }
 
-    // 4. Create or match participants
+    // 4. Create or match participants (improved matching logic)
     const participantIds: string[] = [];
     const participants = extractedData.participants || [];
 
@@ -261,16 +297,30 @@ serve(async (req) => {
       const firstName = participant.first_name || participant.name?.split(" ")[0] || "Teilnehmer";
       
       // Check if participant already exists for this customer
-      const { data: existingParticipant } = await supabase
+      // Match by first name (case-insensitive) and optionally birth date
+      const { data: potentialMatches } = await supabase
         .from("customer_participants")
-        .select("id")
+        .select("id, first_name, birth_date")
         .eq("customer_id", finalCustomerId)
-        .ilike("first_name", firstName)
-        .maybeSingle();
+        .ilike("first_name", firstName);
+
+      let existingParticipant = null;
+      if (potentialMatches && potentialMatches.length > 0) {
+        // If we have birth date info, prefer exact match
+        if (participant.birth_date) {
+          existingParticipant = potentialMatches.find(
+            p => p.birth_date === participant.birth_date
+          );
+        }
+        // Otherwise take first match by name
+        if (!existingParticipant) {
+          existingParticipant = potentialMatches[0];
+        }
+      }
 
       if (existingParticipant) {
         participantIds.push(existingParticipant.id);
-        console.log("Found existing participant:", existingParticipant.id);
+        console.log("Found existing participant:", existingParticipant.id, firstName);
       } else {
         // Calculate birth date from age if needed
         let birthDate = participant.birth_date;
@@ -302,7 +352,7 @@ serve(async (req) => {
         }
         
         participantIds.push(newParticipant.id);
-        console.log("Created new participant:", newParticipant.id);
+        console.log("Created new participant:", newParticipant.id, firstName);
       }
     }
 

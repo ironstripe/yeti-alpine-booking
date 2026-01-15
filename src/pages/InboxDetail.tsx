@@ -158,7 +158,7 @@ export default function InboxDetail() {
     }
   };
 
-  // Quick create booking handler
+  // Quick create booking handler - synchronized with ConvertToBookingButton logic
   const handleQuickCreateBooking = async () => {
     if (!id) return;
     
@@ -166,9 +166,28 @@ export default function InboxDetail() {
     toast.info("Erstelle Buchung...");
 
     try {
+      // Resolve customer ID - same logic as ConvertToBookingButton
+      let resolvedCustomerId = conversation?.matched_customer_id || null;
+      const customerEmail = extractedDataForQuery?.customer?.email;
+      
+      // If no matched customer, try to find by email (same as ConvertToBookingButton)
+      if (!resolvedCustomerId && customerEmail) {
+        console.log("Looking up customer by email:", customerEmail);
+        const { data: existingCustomer } = await supabase
+          .from("customers")
+          .select("id")
+          .eq("email", customerEmail)
+          .maybeSingle();
+        
+        if (existingCustomer) {
+          console.log("Found existing customer by email:", existingCustomer.id);
+          resolvedCustomerId = existingCustomer.id;
+        }
+      }
+
       console.log("Calling create-booking-from-extraction with:", {
         conversationId: id,
-        customerId: conversation?.matched_customer_id || null,
+        customerId: resolvedCustomerId,
       });
 
       const { data, error } = await supabase.functions.invoke(
@@ -176,7 +195,7 @@ export default function InboxDetail() {
         {
           body: {
             conversationId: id,
-            customerId: conversation?.matched_customer_id || null,
+            customerId: resolvedCustomerId,
             sendConfirmationAfterApproval: true,
           },
         }
