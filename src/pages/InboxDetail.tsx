@@ -1,5 +1,5 @@
 import { useParams, useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { PageHeader } from "@/components/layout";
 import { Button } from "@/components/ui/button";
@@ -21,6 +21,8 @@ import { format, parseISO } from "date-fns";
 import { de } from "date-fns/locale";
 import { ExtractionPanel } from "@/components/inbox/ExtractionPanel";
 import { ConvertToBookingButton } from "@/components/inbox/ConvertToBookingButton";
+import { ClassificationBadge, type MessageClassification } from "@/components/inbox/ClassificationBadge";
+import { AIReplyAssistant } from "@/components/inbox/AIReplyAssistant";
 import { useTriggerAIExtraction, type ExtractedData } from "@/hooks/useAIExtraction";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -34,6 +36,7 @@ const channelConfig: Record<string, { icon: typeof Mail; label: string; color: s
 export default function InboxDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const triggerExtraction = useTriggerAIExtraction();
 
   const { data: conversation, isLoading, error, refetch } = useQuery({
@@ -132,6 +135,41 @@ export default function InboxDetail() {
   const ChannelIcon = channel.icon;
   const extractedData = conversation.ai_extracted_data as unknown as ExtractedData | null;
   const hasExtraction = extractedData && extractedData.is_booking_request;
+
+  // Mock data for classification and AI reply (to be replaced with real API later)
+  const mockClassification: MessageClassification = "new_booking";
+  const mockSuggestedReply = {
+    to: conversation.contact_identifier,
+    subject: `Re: ${conversation.subject || "Ihre Anfrage"}`,
+    body: `Guten Tag${extractedData?.customer?.name ? ` ${extractedData.customer.name.split(' ')[0]}` : ""},
+
+Vielen Dank für Ihre Anfrage. Gerne prüfen wir die Verfügbarkeit für Ihren gewünschten Termin.
+
+Um die Buchung für Sie optimal vorzubereiten, könnten Sie uns bitte noch folgende Informationen bestätigen?
+- Anzahl und Alter der Teilnehmer
+- Gewünschte Daten und Uhrzeiten
+
+Wir melden uns in Kürze mit einem konkreten Vorschlag.
+
+Freundliche Grüsse,
+Ihr Yeti Team`,
+  };
+
+  const handleMarkAsDone = async () => {
+    if (!id) return;
+    const { error } = await supabase
+      .from("conversations")
+      .update({ status: "processed", processed_at: new Date().toISOString() })
+      .eq("id", id);
+
+    if (error) {
+      toast.error("Fehler beim Markieren als erledigt");
+    } else {
+      queryClient.invalidateQueries({ queryKey: ["conversations"] });
+      queryClient.invalidateQueries({ queryKey: ["conversation-counts"] });
+      navigate("/inbox");
+    }
+  };
 
   return (
     <>
@@ -243,7 +281,23 @@ export default function InboxDetail() {
         <div className="space-y-4">
           {extractedData ? (
             <>
-              <ExtractionPanel data={extractedData} />
+              {/* Classification Badge added to ExtractionPanel header area */}
+              <Card>
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-lg">KI-Extraktion</CardTitle>
+                    <div className="flex items-center gap-2">
+                      <ClassificationBadge classification={mockClassification} />
+                      <Badge variant="outline" className="bg-primary/10">
+                        {Math.round((conversation.ai_confidence_score || 0) * 100)}% Konfidenz
+                      </Badge>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <ExtractionPanel data={extractedData} showHeader={false} />
+                </CardContent>
+              </Card>
               
               {hasExtraction && (
                 <ConvertToBookingButton
@@ -252,6 +306,12 @@ export default function InboxDetail() {
                   className="w-full"
                 />
               )}
+
+              {/* AI Reply Assistant */}
+              <AIReplyAssistant
+                suggestedReply={mockSuggestedReply}
+                onMarkAsDone={handleMarkAsDone}
+              />
             </>
           ) : (
             <Card className="border-dashed">
