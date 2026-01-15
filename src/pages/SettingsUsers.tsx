@@ -56,21 +56,32 @@ export default function SettingsUsers() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Benutzer-ID</TableHead>
+                    <TableHead>Benutzer</TableHead>
                     <TableHead>Rollen</TableHead>
-                    <TableHead>Verknüpfung</TableHead>
+                    <TableHead>Verknüpfter Lehrer</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {users.map((user) => (
                     <TableRow key={user.user_id}>
                       <TableCell>
-                        <div className="flex items-center gap-2">
-                          <code className="text-xs bg-muted px-2 py-1 rounded">
-                            {user.user_id.slice(0, 8)}...
-                          </code>
-                          {user.user_id === currentUser?.id && (
-                            <Badge variant="outline" className="text-xs">Du</Badge>
+                        <div className="flex flex-col gap-1">
+                          <div className="flex items-center gap-2">
+                            {user.email ? (
+                              <span className="font-medium text-sm">{user.email}</span>
+                            ) : (
+                              <code className="text-xs bg-muted px-2 py-1 rounded">
+                                {user.user_id.slice(0, 8)}...
+                              </code>
+                            )}
+                            {user.user_id === currentUser?.id && (
+                              <Badge variant="outline" className="text-xs">Du</Badge>
+                            )}
+                          </div>
+                          {user.email && (
+                            <code className="text-xs text-muted-foreground">
+                              ID: {user.user_id.slice(0, 8)}...
+                            </code>
                           )}
                         </div>
                       </TableCell>
