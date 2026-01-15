@@ -23,6 +23,22 @@ export function useSettingsUsers() {
 
       if (rolesError) throw rolesError;
 
+      // Get all instructors for email matching
+      const { data: instructors } = await supabase
+        .from("instructors")
+        .select("id, email, first_name, last_name");
+
+      // Create email lookup from instructors
+      const instructorByEmail = new Map<string, { id: string; name: string }>();
+      if (instructors) {
+        for (const instructor of instructors) {
+          instructorByEmail.set(instructor.email.toLowerCase(), {
+            id: instructor.id,
+            name: `${instructor.first_name} ${instructor.last_name}`,
+          });
+        }
+      }
+
       // Group by user_id
       const usersMap = new Map<string, UserWithRole>();
       
@@ -40,21 +56,20 @@ export function useSettingsUsers() {
         usersMap.get(role.user_id)!.roles.push(role.role as AppRole);
       }
 
-      // Get instructor info for teacher roles
-      const { data: instructors } = await supabase
-        .from("instructors")
-        .select("id, email, first_name, last_name");
-
-      if (instructors) {
-        for (const instructor of instructors) {
-          // Find user by matching instructor email
-          for (const [userId, user] of usersMap) {
-            // We'll need to match via email later, for now just return what we have
-            if (user.roles.includes("teacher")) {
-              user.instructor_id = instructor.id;
-              user.instructor_name = `${instructor.first_name} ${instructor.last_name}`;
-              break;
-            }
+      // Try to get current user's email (for display purposes)
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      
+      // For each user, try to find their email from instructors or current user
+      for (const [userId, user] of usersMap) {
+        // If this is the current user, we know their email
+        if (currentUser && currentUser.id === userId) {
+          user.email = currentUser.email || "";
+          
+          // Check if this user is linked to an instructor
+          const instructorInfo = instructorByEmail.get(user.email.toLowerCase());
+          if (instructorInfo) {
+            user.instructor_id = instructorInfo.id;
+            user.instructor_name = instructorInfo.name;
           }
         }
       }
