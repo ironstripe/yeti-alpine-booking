@@ -45,6 +45,28 @@ interface ExtractedData {
   confidence: number;
   notes?: string;
   is_booking_request?: boolean;
+  classification?: string;
+  detected_language?: string;
+  missing_information?: string[];
+}
+
+const missingFieldLabels: Record<string, string> = {
+  start_date: "Startdatum",
+  end_date: "Enddatum",
+  number_of_days: "Anzahl Tage",
+  number_of_participants: "Anzahl Teilnehmer",
+  participant_ages: "Alter der Teilnehmer",
+  participant_names: "Namen der Teilnehmer",
+  course_type: "Kurstyp (Privat/Gruppe)",
+  discipline: "Sportart (Ski/Snowboard)",
+  skill_level: "Kenntnisstand",
+  booking_reference: "Buchungsnummer",
+  contact_phone: "Telefonnummer",
+  preferred_time: "Bevorzugte Uhrzeit",
+};
+
+function formatMissingField(field: string): string {
+  return missingFieldLabels[field] || field.replace(/_/g, " ");
 }
 
 interface ExtractionPanelProps {
@@ -250,6 +272,27 @@ export function ExtractionPanel({ data, onEdit, showHeader = true }: ExtractionP
             </div>
           </>
         )}
+
+        {/* Missing Information */}
+        {data.missing_information && data.missing_information.length > 0 && (
+          <>
+            <Separator />
+            <div className="space-y-2">
+              <h4 className="text-sm font-medium flex items-center gap-2 text-orange-600">
+                <AlertTriangle className="h-4 w-4" />
+                Fehlende Informationen
+              </h4>
+              <div className="pl-6 space-y-1">
+                {data.missing_information.map((field, i) => (
+                  <div key={i} className="flex items-center gap-2 text-sm text-orange-600">
+                    <span className="w-1.5 h-1.5 rounded-full bg-orange-500" />
+                    {formatMissingField(field)}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
       </div>
     );
   }
@@ -409,6 +452,27 @@ export function ExtractionPanel({ data, onEdit, showHeader = true }: ExtractionP
             <div className="flex items-start gap-2 text-sm text-yellow-600 bg-yellow-50 p-2 rounded-md">
               <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
               <span>{data.notes}</span>
+            </div>
+          </>
+        )}
+
+        {/* Missing Information */}
+        {data.missing_information && data.missing_information.length > 0 && (
+          <>
+            <Separator />
+            <div className="space-y-2">
+              <h4 className="text-sm font-medium flex items-center gap-2 text-orange-600">
+                <AlertTriangle className="h-4 w-4" />
+                Fehlende Informationen
+              </h4>
+              <div className="pl-6 space-y-1">
+                {data.missing_information.map((field, i) => (
+                  <div key={i} className="flex items-center gap-2 text-sm text-orange-600">
+                    <span className="w-1.5 h-1.5 rounded-full bg-orange-500" />
+                    {formatMissingField(field)}
+                  </div>
+                ))}
+              </div>
             </div>
           </>
         )}

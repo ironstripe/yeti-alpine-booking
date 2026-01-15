@@ -15,7 +15,8 @@ import {
   Clock,
   RefreshCw,
   Trash2,
-  ExternalLink
+  ExternalLink,
+  Globe
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { de } from "date-fns/locale";
@@ -26,6 +27,12 @@ import { AIReplyAssistant } from "@/components/inbox/AIReplyAssistant";
 import { useTriggerAIExtraction, type ExtractedData } from "@/hooks/useAIExtraction";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+
+interface SuggestedReply {
+  to: string;
+  subject: string;
+  body: string;
+}
 
 const channelConfig: Record<string, { icon: typeof Mail; label: string; color: string }> = {
   email: { icon: Mail, label: "E-Mail", color: "text-blue-600" },
@@ -139,56 +146,40 @@ export default function InboxDetail() {
   // Use real classification from database, fallback to extracted data or 'other'
   const classification = (conversation.classification || extractedData?.classification || "other") as MessageClassification;
   
-  // Build dynamic suggested reply based on missing information
-  const missingInfo = (extractedData as any)?.missing_information as string[] | undefined;
-  const detectedLanguage = (conversation as any).detected_language || "de";
-  
-  const buildMissingInfoText = () => {
-    if (!missingInfo || missingInfo.length === 0) return "";
-    
-    const infoLabels: Record<string, string> = {
-      start_date: "Gewünschtes Startdatum",
-      end_date: "Enddatum",
-      number_of_participants: "Anzahl der Teilnehmer",
-      participant_ages: "Alter der Teilnehmer",
-      skill_level: "Kenntnisstand (Anfänger/Fortgeschritten)",
-      contact_phone: "Telefonnummer für Rückfragen",
-      preferred_time: "Bevorzugte Tageszeit",
-      discipline: "Sportart (Ski/Snowboard)",
-    };
-    
-    return missingInfo
-      .map(info => infoLabels[info] || info)
-      .map(label => `- ${label}`)
-      .join("\n");
-  };
+  // Get detected language from database
+  const detectedLanguage = (conversation as any).detected_language || extractedData?.detected_language || "de";
 
-  const suggestedReply = {
+  // Fetch AI-generated reply from the generate-reply Edge Function
+  const { 
+    data: suggestedReplyData, 
+    isLoading: isReplyLoading,
+    refetch: refetchReply,
+    error: replyError
+  } = useQuery({
+    queryKey: ["generate-reply", id],
+    queryFn: async () => {
+      if (!id) throw new Error("No ID provided");
+
+      const { data, error } = await supabase.functions.invoke("generate-reply", {
+        body: { conversationId: id },
+      });
+
+      if (error) throw error;
+      return data as { suggested_reply: SuggestedReply };
+    },
+    // Only fetch if we have extracted data (i.e., the message has been processed)
+    enabled: !!id && !!extractedData,
+    // Don't refetch automatically on window focus
+    refetchOnWindowFocus: false,
+    // Cache for 5 minutes
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Use real data if available, otherwise provide a fallback
+  const suggestedReply: SuggestedReply = suggestedReplyData?.suggested_reply || {
     to: conversation.contact_identifier,
     subject: `Re: ${conversation.subject || "Ihre Anfrage"}`,
-    body: detectedLanguage === "en" 
-      ? `Dear ${extractedData?.customer?.name?.split(' ')[0] || "Guest"},
-
-Thank you for your inquiry. We are happy to check availability for your requested dates.
-
-${missingInfo && missingInfo.length > 0 ? `To prepare the booking for you, could you please confirm the following information?
-${buildMissingInfoText()}
-
-` : ""}We will get back to you shortly with a concrete proposal.
-
-Best regards,
-Your Yeti Team`
-      : `Guten Tag${extractedData?.customer?.name ? ` ${extractedData.customer.name.split(' ')[0]}` : ""},
-
-Vielen Dank für Ihre Anfrage. Gerne prüfen wir die Verfügbarkeit für Ihren gewünschten Termin.
-
-${missingInfo && missingInfo.length > 0 ? `Um die Buchung für Sie optimal vorzubereiten, könnten Sie uns bitte noch folgende Informationen bestätigen?
-${buildMissingInfoText()}
-
-` : ""}Wir melden uns in Kürze mit einem konkreten Vorschlag.
-
-Freundliche Grüsse,
-Ihr Yeti Team`,
+    body: isReplyLoading ? "Antwort wird generiert..." : "Keine Antwort verfügbar. Klicken Sie auf 'Neu generieren'.",
   };
 
   const handleMarkAsDone = async () => {
@@ -324,6 +315,12 @@ Ihr Yeti Team`,
                     <CardTitle className="text-lg">KI-Extraktion</CardTitle>
                     <div className="flex items-center gap-2">
                       <ClassificationBadge classification={classification} />
+                      {detectedLanguage && (
+                        <Badge variant="outline" className="flex items-center gap-1">
+                          <Globe className="h-3 w-3" />
+                          {detectedLanguage === "de" ? "DE" : "EN"}
+                        </Badge>
+                      )}
                       <Badge variant="outline" className="bg-primary/10">
                         {Math.round((conversation.ai_confidence_score || 0) * 100)}% Konfidenz
                       </Badge>
@@ -347,6 +344,8 @@ Ihr Yeti Team`,
               <AIReplyAssistant
                 suggestedReply={suggestedReply}
                 onMarkAsDone={handleMarkAsDone}
+                onRegenerate={() => refetchReply()}
+                isRegenerating={isReplyLoading}
               />
             </>
           ) : (
