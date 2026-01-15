@@ -5,9 +5,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Upload, FileText, FileType, Trash2, Save, Loader2, AlertCircle } from "lucide-react";
+import { Upload, FileText, FileType, Trash2, Save, Loader2, AlertCircle, Mail, MessageCircle } from "lucide-react";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useNavigate } from "react-router-dom";
+import { ChannelSettingsTab } from "@/components/settings/ChannelSettingsTab";
 import {
   useAIConfiguration,
   useUpdateAIConfiguration,
@@ -67,13 +68,22 @@ export default function SettingsAI() {
       description="Verwalten Sie die Wissensdatenbank und das Antwortverhalten der KI."
     >
       <Tabs defaultValue="knowledge" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-2">
+        <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="knowledge">Wissensdatenbank</TabsTrigger>
-          <TabsTrigger value="config">Antwort-Konfiguration</TabsTrigger>
+          <TabsTrigger value="channels" className="flex items-center gap-1.5">
+            <Mail className="h-3.5 w-3.5" />
+            <MessageCircle className="h-3.5 w-3.5" />
+            Kanäle
+          </TabsTrigger>
+          <TabsTrigger value="config">Allgemein</TabsTrigger>
         </TabsList>
 
         <TabsContent value="knowledge">
           <KnowledgeBaseTab />
+        </TabsContent>
+
+        <TabsContent value="channels">
+          <ChannelSettingsTab />
         </TabsContent>
 
         <TabsContent value="config">

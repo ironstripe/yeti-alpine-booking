@@ -73,6 +73,44 @@ interface Customer {
   email: string;
 }
 
+interface ChannelConfig {
+  tonality: string;
+  signature: string;
+}
+
+// Get channel-specific configuration
+async function getChannelConfig(
+  supabase: any,
+  channel: string
+): Promise<ChannelConfig> {
+  const isWhatsApp = channel === "whatsapp";
+  const tonalityKey = isWhatsApp ? "tonality_whatsapp" : "tonality_email";
+  const signatureKey = isWhatsApp ? "signature_whatsapp" : "signature_email";
+
+  const { data } = await supabase
+    .from("ai_configuration")
+    .select("key, value")
+    .in("key", [tonalityKey, signatureKey]);
+
+  const configMap: Record<string, string> = {};
+  data?.forEach((item: { key: string; value: string }) => {
+    configMap[item.key] = item.value;
+  });
+
+  // Default values
+  const defaults: Record<string, string> = {
+    tonality_email: "Freundlich und professionell. Wir duzen unsere Gäste. Vollständige Sätze, klare Struktur.",
+    tonality_whatsapp: "Locker und herzlich. Wir duzen unsere Gäste. Kurz und prägnant, gerne mit 1-2 passenden Emojis (🎿⛷️❄️).",
+    signature_email: "Liebe Grüsse aus Malbun\nDein Yeti Team\n\nSchneesportschule Malbun\n+423 263 97 00\ninfo@schneesportschule.li",
+    signature_whatsapp: "Liebe Grüsse, dein Yeti Team 🎿",
+  };
+
+  return {
+    tonality: configMap[tonalityKey] || defaults[tonalityKey],
+    signature: configMap[signatureKey] || defaults[signatureKey],
+  };
+}
+
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
@@ -96,23 +134,29 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Step 1A: Fetch AI Configuration
-    const { data: configData, error: configError } = await supabase
-      .from("ai_configuration")
-      .select("key, value");
+    // Step 1: Fetch conversation data first to get channel
+    const { data: conversation, error: convError } = await supabase
+      .from("conversations")
+      .select("*")
+      .eq("id", conversationId)
+      .single();
 
-    if (configError) {
-      console.error("Error fetching AI configuration:", configError);
+    if (convError || !conversation) {
+      console.error("Error fetching conversation:", convError);
+      return new Response(
+        JSON.stringify({ error: "Conversation not found" }),
+        { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
-    const tonalityPrompt =
-      configData?.find((c: { key: string; value: string }) => c.key === "tonality_prompt")?.value ||
-      "Antworte professionell, aber herzlich und nahbar. Kunden immer mit 'Sie' ansprechen. Positive und lösungsorientierte Sprache verwenden.";
-    const signaturePrompt =
-      configData?.find((c: { key: string; value: string }) => c.key === "signature_prompt")?.value ||
-      "Freundliche Grüsse aus dem verschneiten Malbun,\nIhr Yeti Team";
+    const conv = conversation as Conversation;
+    const channel = conv.channel || "email";
 
-    // Step 1B: Fetch and read Knowledge Documents
+    // Step 2: Get channel-specific configuration
+    const channelConfig = await getChannelConfig(supabase, channel);
+    console.log(`Channel: ${channel}, using ${channel === "whatsapp" ? "WhatsApp" : "E-Mail"} tonality`);
+
+    // Step 3: Fetch and read Knowledge Documents
     const { data: documents, error: docError } = await supabase
       .from("ai_knowledge_documents")
       .select("storage_path, file_name");
@@ -138,29 +182,13 @@ serve(async (req) => {
       }
     }
 
-    // Step 2: Fetch conversation data
-    const { data: conversation, error: convError } = await supabase
-      .from("conversations")
-      .select("*")
-      .eq("id", conversationId)
-      .single();
-
-    if (convError || !conversation) {
-      console.error("Error fetching conversation:", convError);
-      return new Response(
-        JSON.stringify({ error: "Conversation not found" }),
-        { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    const conv = conversation as Conversation;
     const extractedData = (conv.ai_extracted_data || {}) as ExtractedData;
     const classification = conv.classification || extractedData.classification || "other";
     const detectedLanguage = conv.detected_language || extractedData.detected_language || "de";
     const missingInfo = extractedData.missing_information || [];
     const bookingReady = conv.booking_ready || extractedData.booking_ready || false;
 
-    // Step 3: Fetch customer context if available
+    // Step 4: Fetch customer context if available
     let customerName = conv.contact_name || "";
     let isExistingCustomer = false;
     let bookingHistory = "";
@@ -202,6 +230,7 @@ serve(async (req) => {
 
     // Build the intelligent system prompt
     const systemPrompt = buildReplySystemPrompt(
+      channel as "email" | "whatsapp",
       classification,
       detectedLanguage,
       isExistingCustomer,
@@ -210,20 +239,19 @@ serve(async (req) => {
       extractedData,
       bookingHistory,
       bookingReady,
-      tonalityPrompt,
-      signaturePrompt,
+      channelConfig,
       knowledgeBaseContent
     );
 
     const userMessage = `Bitte formuliere eine Antwort auf die folgende Kundenanfrage:
 
 Betreff: ${conv.subject || "Kein Betreff"}
-Kanal: ${conv.channel}
+Kanal: ${channel === "whatsapp" ? "WhatsApp" : "E-Mail"}
 
 Nachricht:
 ${conv.content}`;
 
-    // Step 4: Call Lovable AI Gateway
+    // Step 5: Call Lovable AI Gateway
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) {
       throw new Error("LOVABLE_API_KEY is not configured");
@@ -269,7 +297,7 @@ ${conv.content}`;
     const aiData = await aiResponse.json();
     const generatedReply = aiData.choices?.[0]?.message?.content || "";
 
-    // Step 5: Construct and return the response
+    // Step 6: Construct and return the response
     const subject = conv.subject ? `Re: ${conv.subject}` : `Re: Ihre Anfrage bei der Yeti Skischule`;
 
     return new Response(
@@ -292,6 +320,7 @@ ${conv.content}`;
 });
 
 function buildReplySystemPrompt(
+  channel: "email" | "whatsapp",
   classification: string,
   detectedLanguage: string,
   isExistingCustomer: boolean,
@@ -300,10 +329,56 @@ function buildReplySystemPrompt(
   extractedData: ExtractedData,
   bookingHistory: string,
   bookingReady: boolean,
-  tonalityPrompt: string,
-  signaturePrompt: string,
+  channelConfig: ChannelConfig,
   knowledgeBaseContent: string
 ): string {
+  // Channel-specific instructions
+  const channelInstructions = channel === "whatsapp"
+    ? `
+**WHATSAPP-SPEZIFISCH:**
+- Halte die Nachricht KURZ (max. 3-4 kurze Absätze)
+- Verwende 1-2 passende Emojis (🎿 ⛷️ ❄️ ☀️ 👋) - nicht übertreiben!
+- Keine formelle Anrede, direkt "Hoi ${customerName || "[Name]"}" oder "Hey ${customerName || "[Name]"}"
+- Keine Kontaktdaten in der Signatur
+- Lockerer, persönlicher Ton
+- Fragen können in einem Satz gebündelt werden
+
+**BEISPIEL WHATSAPP:**
+"Hoi Julia! 👋
+
+Danke für deine Anfrage! Privatstunde am Samstag 12-13h klingt super ⛷️
+
+Für die Buchung bräuchte ich noch kurz deine Adresse (für die Rechnung) und das Geburtsdatum.
+
+Liebe Grüsse, dein Yeti Team 🎿"
+`
+    : `
+**E-MAIL-SPEZIFISCH:**
+- Ausführlichere Antwort mit klarer Struktur
+- Keine Emojis (oder maximal 1 in der Signatur)
+- Freundliche Anrede: "Hallo ${customerName || "[Name]"}" oder "Liebe/r ${customerName || "[Name]"}"
+- Vollständige Signatur mit Kontaktdaten
+- Absätze für bessere Lesbarkeit
+- Fragen können als kurze Liste formatiert werden
+
+**BEISPIEL E-MAIL:**
+"Hallo Julia,
+
+vielen Dank für deine Anfrage! Gerne bestätigen wir dir die Privatstunde am Samstag, 17. Januar, von 12:00 bis 13:00 Uhr.
+
+Für die Buchungsbestätigung mit QR-Rechnung benötigen wir noch folgende Angaben:
+- Deine vollständige Adresse
+- Dein Geburtsdatum
+
+Wir freuen uns auf dich!
+
+Liebe Grüsse aus Malbun
+Dein Yeti Team
+
+Schneesportschule Malbun
++423 263 97 00"
+`;
+
   // Group missing fields by category for natural questioning
   const missingCustomer = missingFields.filter((f) => f.startsWith("customer_"));
   const missingParticipant = missingFields.filter((f) => f.startsWith("participant_"));
@@ -358,7 +433,7 @@ Frage NICHT nach: Adresse, E-Mail, Telefonnummer (ausser zur Bestätigung).`;
     customerDataInstruction = `
 **NEUKUNDE:**
 Frage nach Kontaktdaten/Adresse nur, wenn alle anderen wichtigen Daten bereits vorliegen.
-Bündle Kontaktdaten-Fragen: "Für die Buchungsbestätigung benötigen wir noch Ihre Adresse und Telefonnummer."`;
+Bündle Kontaktdaten-Fragen: "Für die Buchungsbestätigung benötigen wir noch deine Adresse und Telefonnummer."`;
   }
 
   // Course-type specific instructions
@@ -388,8 +463,14 @@ Kurzer Hinweis: Privatunterricht = individueller Unterricht, Gruppenkurs = mit a
   return `Du bist ein freundlicher und effizienter Assistent für die Yeti Skischule in Malbun, Liechtenstein.
 Deine Aufgabe ist es, eine passende Antwort auf eine Kundenanfrage zu formulieren.
 
-**GLOBALE ANWEISUNGEN ZUR TONALITÄT:**
-${tonalityPrompt}
+**KANAL:** ${channel === "whatsapp" ? "WhatsApp" : "E-Mail"}
+
+**TONALITÄT (ADMIN-KONFIGURIERT):**
+${channelConfig.tonality}
+
+**WICHTIG:** Wir duzen ALLE Gäste auf allen Kanälen.
+
+${channelInstructions}
 
 **WISSENSDATENBANK (nutze dieses Wissen für allgemeine Fragen):**
 ${knowledgeBaseContent || "Kein Zusatzwissen vorhanden."}
@@ -408,25 +489,15 @@ ${questionStrategy}
 
 **STIL-REGELN FÜR DIE ANTWORT:**
 
-1. Beginne mit einer freundlichen Begrüssung und Dank für die Anfrage
+1. Beginne mit einer freundlichen Begrüssung
 2. Fasse kurz zusammen, was du verstanden hast (zeigt dem Kunden, dass die Nachricht gelesen wurde)
-3. Stelle fehlende Fragen NATÜRLICH und GEBÜNDELT – NICHT als nummerierte Liste!
-4. Maximal 3-4 Fragen pro Nachricht, um den Kunden nicht zu überfordern
-5. Bei mehreren Teilnehmern: "Könnten Sie uns die Vornamen und Geburtsdaten aller Teilnehmer mitteilen?"
-6. Beende mit der vorgegebenen Grussformel
+3. Stelle fehlende Fragen NATÜRLICH und GEBÜNDELT
+4. Maximal 3-4 Fragen pro Nachricht
+5. Bei mehreren Teilnehmern: "Könntest du uns die Vornamen und Geburtsdaten aller Teilnehmer mitteilen?"
+6. Beende mit der vorgegebenen Signatur
 
-**BEISPIEL FÜR NATÜRLICHE NACHFRAGE:**
-"Vielen Dank für Ihre Anfrage! Gerne organisieren wir den Skikurs für Ihre Familie.
-
-Wir haben verstanden, dass Sie für 4 Personen in der Woche vom 15. Januar buchen möchten.
-
-Um die Buchung abzuschliessen, benötigen wir noch einige Angaben: Könnten Sie uns die Vornamen und Geburtsdaten der Teilnehmer mitteilen? Ausserdem wäre es hilfreich zu wissen, welche Vorkenntnisse die einzelnen Personen mitbringen.
-
-Freundliche Grüsse,
-Ihr Yeti Team"
-
-**VORGEGEBENE GRUSSFORMEL:**
-${signaturePrompt}
+**VORGEGEBENE SIGNATUR:**
+${channelConfig.signature}
 
 Formuliere NUR die Antwort. Keine zusätzlichen Kommentare oder Erklärungen.
 Sprache der Antwort: ${detectedLanguage === "en" ? "Englisch" : "Deutsch"}`;
