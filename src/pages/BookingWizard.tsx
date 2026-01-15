@@ -140,19 +140,49 @@ function BookingWizardContent() {
     
     const applyPrefill = async () => {
       didApplyPrefill.current = true;
+      console.log("Applying prefill data:", prefill);
       
       try {
         let customer = prefetchedCustomer;
         
-        // If no existing customer, create one
+        // If no existing customer, try to create one
         if (!customer && prefill.customer && (prefill.customer.last_name || prefill.customer.email)) {
-          console.log("Creating new customer from prefill:", prefill.customer);
-          customer = await createCustomerMutation.mutateAsync(prefill.customer);
-          toast.success("Neuer Kunde erstellt");
+          console.log("Attempting to create new customer from prefill:", prefill.customer);
+          try {
+            customer = await createCustomerMutation.mutateAsync(prefill.customer);
+            toast.success("Neuer Kunde erstellt");
+          } catch (customerError: any) {
+            console.error("Customer creation error:", customerError);
+            // If duplicate email error, try to fetch existing customer
+            if (customerError.code === "23505" && prefill.customer.email) {
+              console.log("Duplicate email detected, fetching existing customer by email:", prefill.customer.email);
+              const { data: existingCustomer } = await supabase
+                .from("customers")
+                .select("*")
+                .eq("email", prefill.customer.email)
+                .maybeSingle();
+
+              if (existingCustomer) {
+                console.log("Found existing customer:", existingCustomer.id);
+                customer = existingCustomer;
+                toast.info("Bestehender Kunde gefunden");
+              }
+            }
+            // Continue even if customer creation/lookup failed - might still apply other data
+          }
         }
 
         if (!customer) {
           console.log("No customer available, staying on step 1");
+          // Still try to apply booking data even without customer
+          if (prefill.booking) {
+            if (prefill.booking.product_type) {
+              setProductType(prefill.booking.product_type);
+            }
+            if (prefill.booking.dates && prefill.booking.dates.length > 0) {
+              setSelectedDates(prefill.booking.dates.map(d => d.date));
+            }
+          }
           return;
         }
 

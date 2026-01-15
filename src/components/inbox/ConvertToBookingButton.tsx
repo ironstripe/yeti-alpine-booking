@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 import type { BookingPrefillState } from "@/types/booking-prefill";
 
 interface ExtractedData {
@@ -71,16 +72,35 @@ export function ConvertToBookingButton({
       const nameParts = customer?.name?.split(" ") || [];
       const firstName = customer?.first_name || nameParts[0] || "";
       const lastName = customer?.last_name || nameParts.slice(1).join(" ") || "";
+      const customerEmail = customer?.email || "";
+
+      // Try to resolve customer ID - first from props/extracted data
+      let resolvedCustomerId = matchedCustomerId || extractedData.matched_customer_id || null;
+
+      // If no matched customer ID but we have an email, try to find existing customer
+      if (!resolvedCustomerId && customerEmail) {
+        console.log("Looking up customer by email:", customerEmail);
+        const { data: existingCustomer } = await supabase
+          .from("customers")
+          .select("id")
+          .eq("email", customerEmail)
+          .maybeSingle();
+
+        if (existingCustomer) {
+          console.log("Found existing customer by email:", existingCustomer.id);
+          resolvedCustomerId = existingCustomer.id;
+        }
+      }
 
       const prefillState: BookingPrefillState = {
-        // Use matched customer ID if available
-        matchedCustomerId: matchedCustomerId || extractedData.matched_customer_id || null,
+        // Use resolved customer ID
+        matchedCustomerId: resolvedCustomerId,
         
         // Customer data for creation if no match
         customer: {
           first_name: firstName,
           last_name: lastName,
-          email: customer?.email || "",
+          email: customerEmail,
           phone: customer?.phone || "",
           holiday_address: customer?.hotel || "",
           street: typeof customer?.address === "object" ? customer.address.street || "" : "",
@@ -115,6 +135,8 @@ export function ConvertToBookingButton({
         // Link back to conversation
         sourceConversationId: conversationId,
       };
+
+      console.log("Prefill state prepared:", prefillState);
 
       // Build query params for resilience (refresh-safe)
       const queryParams = new URLSearchParams();
