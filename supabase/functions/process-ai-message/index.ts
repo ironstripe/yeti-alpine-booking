@@ -10,6 +10,9 @@ const EXTRACTION_PROMPT = `Du bist ein Assistent für eine Skischule in Liechten
 Analysiere die folgende Nachricht und extrahiere alle relevanten Buchungsinformationen.
 
 WICHTIG:
+- Klassifiziere die Absicht der Nachricht (z.B. Neubuchung, Storno, Änderung, allgemeine Anfrage, Beschwerde).
+- Erkenne die Sprache der Nachricht (Deutsch oder Englisch).
+- Identifiziere explizit, welche Informationen für die jeweilige Anfrage fehlen.
 - Extrahiere NUR Informationen, die explizit in der Nachricht stehen
 - Bei Unsicherheiten setze "unknown" oder null
 - Berechne das Alter aus dem Geburtsdatum falls angegeben
@@ -59,12 +62,34 @@ serve(async (req) => {
       );
     }
 
-    // 2. Prepare message content for AI
+    // 2. Customer Lookup (Pre-AI Call)
+    const senderIdentifier = conversation.contact_identifier;
+    let matchedCustomerId: string | null = null;
+    let isExistingCustomer = false;
+
+    if (senderIdentifier) {
+      // Try to find existing customer by email or phone
+      const { data: existingCustomer, error: customerError } = await supabase
+        .from("customers")
+        .select("id, first_name, last_name, email, phone")
+        .or(`email.eq.${senderIdentifier},phone.eq.${senderIdentifier}`)
+        .maybeSingle();
+
+      if (!customerError && existingCustomer) {
+        matchedCustomerId = existingCustomer.id;
+        isExistingCustomer = true;
+        console.log(`Existing customer found: ${existingCustomer.first_name} ${existingCustomer.last_name} (${matchedCustomerId})`);
+      } else {
+        console.log(`No existing customer found for: ${senderIdentifier}`);
+      }
+    }
+
+    // 3. Prepare message content for AI
     const messageContent = conversation.subject
       ? `Betreff: ${conversation.subject}\n\n${conversation.content}`
       : conversation.content;
 
-    // 3. Call Lovable AI Gateway with tool calling for structured extraction
+    // 4. Call Lovable AI Gateway with enhanced tool calling
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -72,7 +97,7 @@ serve(async (req) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        model: "google/gemini-3-flash-preview",
         messages: [
           { role: "system", content: EXTRACTION_PROMPT },
           { role: "user", content: messageContent },
@@ -86,6 +111,24 @@ serve(async (req) => {
               parameters: {
                 type: "object",
                 properties: {
+                  // NEW: Classification
+                  classification: {
+                    type: "string",
+                    enum: ["new_booking", "cancellation", "modification", "general_inquiry", "complaint", "other"],
+                    description: "Klassifiziere die Hauptabsicht der Nachricht",
+                  },
+                  // NEW: Language detection
+                  detected_language: {
+                    type: "string",
+                    enum: ["de", "en"],
+                    description: "Die erkannte Sprache der Nachricht (Deutsch oder Englisch)",
+                  },
+                  // NEW: Missing information
+                  missing_information: {
+                    type: "array",
+                    items: { type: "string" },
+                    description: "Eine Liste von Informationen, die für die Bearbeitung der Anfrage fehlen (z.B., 'start_date', 'number_of_participants', 'participant_ages', 'skill_level', 'contact_phone')",
+                  },
                   customer: {
                     type: "object",
                     properties: {
@@ -174,7 +217,7 @@ serve(async (req) => {
                     description: "Handelt es sich um eine Buchungsanfrage?"
                   },
                 },
-                required: ["confidence", "is_booking_request"],
+                required: ["classification", "confidence", "is_booking_request"],
               },
             },
           },
@@ -211,42 +254,42 @@ serve(async (req) => {
     const extractedData = JSON.parse(toolCall.function.arguments);
     console.log("Extracted data:", extractedData);
 
-    // 4. Validate and clean extracted data
+    // 5. Validate and clean extracted data
     const cleanedData = validateAndCleanExtraction(extractedData);
+    
+    // Add customer matching info to extracted data
+    cleanedData.matched_customer_id = matchedCustomerId;
+    cleanedData.is_existing_customer = isExistingCustomer;
 
-    // 5. Check if it's a booking request or spam
-    if (!cleanedData.is_booking_request) {
-      // Update conversation with AI data but don't create booking request
-      await supabase
-        .from("conversations")
-        .update({
-          ai_extracted_data: cleanedData,
-          ai_confidence_score: cleanedData.confidence || 0,
-          extraction_notes: cleanedData.notes || "Keine Buchungsanfrage erkannt",
-        })
-        .eq("id", conversationId);
+    // 6. Update conversation with AI data and new columns
+    const updateData: Record<string, unknown> = {
+      ai_extracted_data: cleanedData,
+      ai_confidence_score: cleanedData.confidence || 0.5,
+      extraction_notes: cleanedData.notes,
+      classification: cleanedData.classification || "other",
+      detected_language: cleanedData.detected_language || "de",
+    };
 
-      return new Response(
-        JSON.stringify({ success: true, isBookingRequest: false }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+    // Link matched customer if found
+    if (matchedCustomerId) {
+      updateData.matched_customer_id = matchedCustomerId;
     }
 
-    // 6. Update conversation with AI data
     await supabase
       .from("conversations")
-      .update({
-        ai_extracted_data: cleanedData,
-        ai_confidence_score: cleanedData.confidence || 0.5,
-        extraction_notes: cleanedData.notes,
-      })
+      .update(updateData)
       .eq("id", conversationId);
 
     return new Response(
       JSON.stringify({
         success: true,
-        isBookingRequest: true,
+        isBookingRequest: cleanedData.is_booking_request,
+        classification: cleanedData.classification,
+        detectedLanguage: cleanedData.detected_language,
+        missingInformation: cleanedData.missing_information || [],
         confidence: cleanedData.confidence,
+        isExistingCustomer,
+        matchedCustomerId,
         extractedData: cleanedData,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -260,10 +303,26 @@ serve(async (req) => {
   }
 });
 
-function validateAndCleanExtraction(data: any): any {
+function validateAndCleanExtraction(data: Record<string, unknown>): Record<string, unknown> {
+  // Ensure classification has a default
+  if (!data.classification) {
+    data.classification = "other";
+  }
+
+  // Ensure detected_language has a default
+  if (!data.detected_language) {
+    data.detected_language = "de";
+  }
+
+  // Ensure missing_information is an array
+  if (!Array.isArray(data.missing_information)) {
+    data.missing_information = [];
+  }
+
   // Ensure dates are valid
-  if (data.booking?.dates) {
-    data.booking.dates = data.booking.dates.filter((d: any) => {
+  const booking = data.booking as Record<string, unknown> | undefined;
+  if (booking?.dates && Array.isArray(booking.dates)) {
+    booking.dates = (booking.dates as Array<{ date: string }>).filter((d) => {
       try {
         return d.date && !isNaN(new Date(d.date).getTime());
       } catch {
@@ -273,12 +332,13 @@ function validateAndCleanExtraction(data: any): any {
   }
 
   // Normalize phone numbers
-  if (data.customer?.phone) {
-    data.customer.phone = normalizePhoneNumber(data.customer.phone);
+  const customer = data.customer as Record<string, unknown> | undefined;
+  if (customer?.phone && typeof customer.phone === "string") {
+    customer.phone = normalizePhoneNumber(customer.phone);
   }
 
   // Ensure confidence is between 0 and 1
-  data.confidence = Math.max(0, Math.min(1, data.confidence || 0.5));
+  data.confidence = Math.max(0, Math.min(1, (data.confidence as number) || 0.5));
 
   return data;
 }
