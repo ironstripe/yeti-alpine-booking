@@ -22,12 +22,13 @@ import {
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
+import { useConversationCounts } from "@/hooks/useConversations";
 
 const SIDEBAR_COLLAPSED_KEY = "yety-sidebar-collapsed";
 
 const navItems = [
   { title: "Dashboard", url: "/", icon: Home },
-  { title: "Posteingang", url: "/inbox", icon: Inbox, badge: 3 },
+  { title: "Posteingang", url: "/inbox", icon: Inbox, hasDynamicBadge: true },
   { title: "Buchungen", url: "/bookings", icon: Calendar },
   { title: "Stundenplan", url: "/scheduler", icon: LayoutGrid },
   { title: "Kunden", url: "/customers", icon: Users },
@@ -50,6 +51,15 @@ export function AppSidebar() {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
+  const { data: conversationCounts } = useConversationCounts();
+
+  // Get dynamic badge count for nav items
+  const getBadgeCount = (url: string): number | null => {
+    if (url === "/inbox") {
+      return conversationCounts?.all || null;
+    }
+    return null;
+  };
 
   useEffect(() => {
     localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(collapsed));
@@ -109,6 +119,7 @@ export function AppSidebar() {
         <ul className="space-y-1 px-2">
           {navItems.map((item) => {
             const isActive = location.pathname === item.url;
+            const badgeCount = item.hasDynamicBadge ? getBadgeCount(item.url) : null;
             return (
               <li key={item.title}>
                 <NavLink
@@ -124,14 +135,14 @@ export function AppSidebar() {
                   {!collapsed && (
                     <>
                       <span className="flex-1">{item.title}</span>
-                      {item.badge && (
+                      {badgeCount !== null && badgeCount > 0 && (
                         <span className="flex items-center justify-center min-w-5 h-5 px-1.5 text-xs font-semibold rounded-full bg-badge-red text-badge-red-foreground">
-                          {item.badge}
+                          {badgeCount}
                         </span>
                       )}
                     </>
                   )}
-                  {collapsed && item.badge && (
+                  {collapsed && badgeCount !== null && badgeCount > 0 && (
                     <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-badge-red" />
                   )}
                 </NavLink>
