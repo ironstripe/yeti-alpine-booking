@@ -65,6 +65,13 @@ export type Database = {
             foreignKeyName: "action_tasks_related_ticket_id_fkey"
             columns: ["related_ticket_id"]
             isOneToOne: false
+            referencedRelation: "pending_booking_confirmations"
+            referencedColumns: ["ticket_id"]
+          },
+          {
+            foreignKeyName: "action_tasks_related_ticket_id_fkey"
+            columns: ["related_ticket_id"]
+            isOneToOne: false
             referencedRelation: "tickets"
             referencedColumns: ["id"]
           },
@@ -202,6 +209,13 @@ export type Database = {
           voucher_discount?: number | null
         }
         Relationships: [
+          {
+            foreignKeyName: "booking_requests_converted_ticket_id_fkey"
+            columns: ["converted_ticket_id"]
+            isOneToOne: false
+            referencedRelation: "pending_booking_confirmations"
+            referencedColumns: ["ticket_id"]
+          },
           {
             foreignKeyName: "booking_requests_converted_ticket_id_fkey"
             columns: ["converted_ticket_id"]
@@ -353,11 +367,32 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "conversations_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "pending_booking_confirmations"
+            referencedColumns: ["customer_id"]
+          },
+          {
             foreignKeyName: "conversations_matched_customer_id_fkey"
             columns: ["matched_customer_id"]
             isOneToOne: false
             referencedRelation: "customers"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversations_matched_customer_id_fkey"
+            columns: ["matched_customer_id"]
+            isOneToOne: false
+            referencedRelation: "pending_booking_confirmations"
+            referencedColumns: ["customer_id"]
+          },
+          {
+            foreignKeyName: "conversations_related_ticket_id_fkey"
+            columns: ["related_ticket_id"]
+            isOneToOne: false
+            referencedRelation: "pending_booking_confirmations"
+            referencedColumns: ["ticket_id"]
           },
           {
             foreignKeyName: "conversations_related_ticket_id_fkey"
@@ -413,6 +448,13 @@ export type Database = {
             referencedRelation: "customers"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "customer_contacts_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "pending_booking_confirmations"
+            referencedColumns: ["customer_id"]
+          },
         ]
       }
       customer_participants: {
@@ -459,6 +501,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "customers"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_participants_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "pending_booking_confirmations"
+            referencedColumns: ["customer_id"]
           },
         ]
       }
@@ -1264,6 +1313,20 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "invoices_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "pending_booking_confirmations"
+            referencedColumns: ["customer_id"]
+          },
+          {
+            foreignKeyName: "invoices_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "pending_booking_confirmations"
+            referencedColumns: ["ticket_id"]
+          },
+          {
             foreignKeyName: "invoices_ticket_id_fkey"
             columns: ["ticket_id"]
             isOneToOne: false
@@ -1421,6 +1484,13 @@ export type Database = {
           ticket_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "payments_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "pending_booking_confirmations"
+            referencedColumns: ["ticket_id"]
+          },
           {
             foreignKeyName: "payments_ticket_id_fkey"
             columns: ["ticket_id"]
@@ -1883,6 +1953,13 @@ export type Database = {
             foreignKeyName: "shop_transactions_linked_ticket_id_fkey"
             columns: ["linked_ticket_id"]
             isOneToOne: false
+            referencedRelation: "pending_booking_confirmations"
+            referencedColumns: ["ticket_id"]
+          },
+          {
+            foreignKeyName: "shop_transactions_linked_ticket_id_fkey"
+            columns: ["linked_ticket_id"]
+            isOneToOne: false
             referencedRelation: "tickets"
             referencedColumns: ["id"]
           },
@@ -1920,6 +1997,13 @@ export type Database = {
           ticket_item_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "ticket_comments_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "pending_booking_confirmations"
+            referencedColumns: ["ticket_id"]
+          },
           {
             foreignKeyName: "ticket_comments_ticket_id_fkey"
             columns: ["ticket_id"]
@@ -2053,6 +2137,13 @@ export type Database = {
             foreignKeyName: "ticket_items_ticket_id_fkey"
             columns: ["ticket_id"]
             isOneToOne: false
+            referencedRelation: "pending_booking_confirmations"
+            referencedColumns: ["ticket_id"]
+          },
+          {
+            foreignKeyName: "ticket_items_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
             referencedRelation: "tickets"
             referencedColumns: ["id"]
           },
@@ -2129,6 +2220,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "customers"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tickets_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "pending_booking_confirmations"
+            referencedColumns: ["customer_id"]
           },
         ]
       }
@@ -2293,6 +2391,13 @@ export type Database = {
             foreignKeyName: "voucher_redemptions_ticket_id_fkey"
             columns: ["ticket_id"]
             isOneToOne: false
+            referencedRelation: "pending_booking_confirmations"
+            referencedColumns: ["ticket_id"]
+          },
+          {
+            foreignKeyName: "voucher_redemptions_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
             referencedRelation: "tickets"
             referencedColumns: ["id"]
           },
@@ -2374,11 +2479,33 @@ export type Database = {
             referencedRelation: "customers"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "vouchers_buyer_customer_id_fkey"
+            columns: ["buyer_customer_id"]
+            isOneToOne: false
+            referencedRelation: "pending_booking_confirmations"
+            referencedColumns: ["customer_id"]
+          },
         ]
       }
     }
     Views: {
-      [_ in never]: never
+      pending_booking_confirmations: {
+        Row: {
+          conversation_id: string | null
+          created_at: string | null
+          customer_email: string | null
+          customer_id: string | null
+          customer_name: string | null
+          item_count: number | null
+          source_channel: string | null
+          status: string | null
+          ticket_id: string | null
+          ticket_number: string | null
+          total_amount: number | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       get_instructor_for_user: { Args: { _user_id: string }; Returns: string }
