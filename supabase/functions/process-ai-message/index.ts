@@ -265,7 +265,7 @@ serve(async (req) => {
     const updateData: Record<string, unknown> = {
       ai_extracted_data: cleanedData,
       ai_confidence_score: cleanedData.confidence || 0.5,
-      extraction_notes: cleanedData.notes,
+      notes: cleanedData.notes,
       classification: cleanedData.classification || "other",
       detected_language: cleanedData.detected_language || "de",
     };
