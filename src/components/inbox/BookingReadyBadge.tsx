@@ -14,8 +14,20 @@ interface BookingReadyBadgeProps {
 }
 
 const fieldLabels: Record<string, string> = {
-  start_date: "Startdatum",
+  // New standardized field names
+  customer_name: "Vor- und Nachname",
+  customer_contact: "E-Mail oder Telefon",
+  customer_address: "Adresse",
   participant_names: "Teilnehmernamen",
+  participant_birthdates: "Geburtsdaten/Alter",
+  participant_skill_levels: "Könnensstufe",
+  booking_dates: "Konkrete Daten",
+  booking_course_type: "Kurstyp",
+  booking_times: "Uhrzeiten",
+  lunch_supervision: "Mittagsbetreuung",
+  vegetarian_preference: "Vegetarisch",
+  // Legacy field names
+  start_date: "Startdatum",
   contact_info: "Kontaktdaten (E-Mail/Telefon)",
   participant_ages: "Alter der Teilnehmer",
   skill_levels: "Kenntnisstand",

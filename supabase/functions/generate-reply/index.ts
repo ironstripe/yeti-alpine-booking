@@ -13,24 +13,43 @@ interface ExtractedData {
   customer?: {
     first_name?: string;
     last_name?: string;
+    name?: string;
     email?: string;
     phone?: string;
+    address?: {
+      street?: string;
+      zip?: string;
+      city?: string;
+      country?: string;
+    };
   };
   participants?: Array<{
+    first_name?: string;
     name?: string;
     age?: number;
-    level?: string;
+    birth_date?: string;
+    skill_level?: string;
+    discipline?: string;
   }>;
   booking?: {
-    type?: string;
+    product_type?: string;
+    dates?: Array<{
+      date: string;
+      start_time?: string;
+      end_time?: string;
+      time_preference?: string;
+    }>;
+    date_description?: string;
     start_date?: string;
     end_date?: string;
-    time_preference?: string;
-    lesson_type?: string;
-    sport?: string;
+    lunch_supervision?: boolean;
+    vegetarian?: boolean;
+    special_requests?: string;
   };
   notes?: string;
   confidence?: number;
+  data_completeness?: number;
+  booking_ready?: boolean;
 }
 
 interface Conversation {
@@ -44,6 +63,7 @@ interface Conversation {
   classification: string | null;
   detected_language: string | null;
   matched_customer_id: string | null;
+  booking_ready: boolean | null;
 }
 
 interface Customer {
@@ -85,9 +105,11 @@ serve(async (req) => {
       console.error("Error fetching AI configuration:", configError);
     }
 
-    const tonalityPrompt = configData?.find((c: { key: string; value: string }) => c.key === "tonality_prompt")?.value || 
+    const tonalityPrompt =
+      configData?.find((c: { key: string; value: string }) => c.key === "tonality_prompt")?.value ||
       "Antworte professionell, aber herzlich und nahbar. Kunden immer mit 'Sie' ansprechen. Positive und lösungsorientierte Sprache verwenden.";
-    const signaturePrompt = configData?.find((c: { key: string; value: string }) => c.key === "signature_prompt")?.value || 
+    const signaturePrompt =
+      configData?.find((c: { key: string; value: string }) => c.key === "signature_prompt")?.value ||
       "Freundliche Grüsse aus dem verschneiten Malbun,\nIhr Yeti Team";
 
     // Step 1B: Fetch and read Knowledge Documents
@@ -132,10 +154,11 @@ serve(async (req) => {
     }
 
     const conv = conversation as Conversation;
-    const extractedData = conv.ai_extracted_data || {};
+    const extractedData = (conv.ai_extracted_data || {}) as ExtractedData;
     const classification = conv.classification || extractedData.classification || "other";
     const detectedLanguage = conv.detected_language || extractedData.detected_language || "de";
     const missingInfo = extractedData.missing_information || [];
+    const bookingReady = conv.booking_ready || extractedData.booking_ready || false;
 
     // Step 3: Fetch customer context if available
     let customerName = conv.contact_name || "";
@@ -171,54 +194,30 @@ serve(async (req) => {
     // Use customer name from extraction if not found elsewhere
     if (!customerName && extractedData.customer) {
       const custData = extractedData.customer;
-      customerName = [custData.first_name, custData.last_name].filter(Boolean).join(" ");
+      customerName =
+        [custData.first_name, custData.last_name].filter(Boolean).join(" ") ||
+        custData.name ||
+        "";
     }
 
-    // Format extracted entities for prompt
-    const extractedEntities = formatExtractedEntities(extractedData);
-    const missingInfoFormatted = missingInfo.length > 0 
-      ? missingInfo.join(", ") 
-      : "Keine fehlenden Informationen erkannt";
-
-    // Step 4: Construct the dynamic system prompt with AI configuration
-    const systemPrompt = `Du bist ein freundlicher und effizienter Assistent für die Yeti Skischule in Malbun, Liechtenstein.
-Deine Aufgabe ist es, eine passende Antwort auf eine Kundenanfrage zu formulieren.
-
-**GLOBALE ANWEISUNGEN ZUR TONALITÄT:**
-${tonalityPrompt}
-
-**WISSENSDATENBANK (nutze dieses Wissen für allgemeine Fragen):**
-${knowledgeBaseContent || "Kein Zusatzwissen vorhanden."}
-
-**Anweisungen:**
-1.  **Sprache:** Formuliere die Antwort in ${detectedLanguage === "en" ? "Englisch" : "Deutsch"}.
-2.  **Ton:** Halte dich an die globalen Anweisungen zur Tonalität. Sprich den Kunden mit Namen an, falls bekannt.
-3.  **Kontext beachten:**
-    - **Klassifizierung:** Die Anfrage wurde als "${getClassificationLabel(classification)}" klassifiziert.
-    - **Bestandskunde:** ${isExistingCustomer ? "Ja, Bestandskunde" : "Nein, Neukunde"}. ${isExistingCustomer ? "Bedanke dich für die erneute Kontaktaufnahme." : ""}${bookingHistory}
-    - **Extrahierte Daten:** ${extractedEntities}
-    - **Kundenname:** ${customerName || "Unbekannt"}
-4.  **Zielgerichtet antworten:**
-    - **Bei fehlenden Informationen (${missingInfoFormatted}):** Formuliere höfliche und klare Rückfragen, um die fehlenden Details zu erhalten.
-    - **Bei vollständigen Informationen:** Bestätige die Anfrage und informiere über die nächsten Schritte (z.B. "Wir prüfen die Verfügbarkeit und senden Ihnen in Kürze eine Bestätigung.").
-    - **Bei Storno/Umbuchung:** Zeige Verständnis und frage nach der Buchungsnummer, falls diese fehlt.
-    - **Bei Allgemeiner Anfrage:** Beantworte die Frage direkt, falls möglich. Nutze das Wissen aus der Wissensdatenbank.
-
-**Beispiel-Struktur:**
-1.  Freundliche Anrede (mit Namen, falls bekannt).
-2.  Dank für die Anfrage.
-3.  Zusammenfassung des erkannten Anliegens (z.B. "Gerne prüfe ich Ihre Anfrage für einen Privatkurs...").
-4.  Gezielte Rückfragen für die fehlenden Informationen (falls zutreffend).
-5.  Abschliessende, freundliche Grussformel gemäss Vorgabe.
-
-**VORGEGEBENE GRUSSFORMEL:**
-${signaturePrompt}
-
-Formuliere nur die Antwort. Keine zusätzlichen Kommentare.`;
+    // Build the intelligent system prompt
+    const systemPrompt = buildReplySystemPrompt(
+      classification,
+      detectedLanguage,
+      isExistingCustomer,
+      customerName,
+      missingInfo,
+      extractedData,
+      bookingHistory,
+      bookingReady,
+      tonalityPrompt,
+      signaturePrompt,
+      knowledgeBaseContent
+    );
 
     const userMessage = `Bitte formuliere eine Antwort auf die folgende Kundenanfrage:
 
-Betreff: ${conv.subject || "Keine Betreff"}
+Betreff: ${conv.subject || "Kein Betreff"}
 Kanal: ${conv.channel}
 
 Nachricht:
@@ -250,7 +249,7 @@ ${conv.content}`;
     if (!aiResponse.ok) {
       const errorText = await aiResponse.text();
       console.error("AI Gateway error:", aiResponse.status, errorText);
-      
+
       if (aiResponse.status === 429) {
         return new Response(
           JSON.stringify({ error: "Rate limits exceeded, please try again later." }),
@@ -271,9 +270,7 @@ ${conv.content}`;
     const generatedReply = aiData.choices?.[0]?.message?.content || "";
 
     // Step 5: Construct and return the response
-    const subject = conv.subject 
-      ? `Re: ${conv.subject}` 
-      : `Re: Ihre Anfrage bei der Yeti Skischule`;
+    const subject = conv.subject ? `Re: ${conv.subject}` : `Re: Ihre Anfrage bei der Yeti Skischule`;
 
     return new Response(
       JSON.stringify({
@@ -285,7 +282,6 @@ ${conv.content}`;
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
-
   } catch (error) {
     console.error("Error in generate-reply:", error);
     return new Response(
@@ -294,6 +290,147 @@ ${conv.content}`;
     );
   }
 });
+
+function buildReplySystemPrompt(
+  classification: string,
+  detectedLanguage: string,
+  isExistingCustomer: boolean,
+  customerName: string,
+  missingFields: string[],
+  extractedData: ExtractedData,
+  bookingHistory: string,
+  bookingReady: boolean,
+  tonalityPrompt: string,
+  signaturePrompt: string,
+  knowledgeBaseContent: string
+): string {
+  // Group missing fields by category for natural questioning
+  const missingCustomer = missingFields.filter((f) => f.startsWith("customer_"));
+  const missingParticipant = missingFields.filter((f) => f.startsWith("participant_"));
+  const missingBooking = missingFields.filter(
+    (f) => f.startsWith("booking_") || f === "lunch_supervision" || f === "vegetarian_preference"
+  );
+
+  // Determine course type for conditional questions
+  const courseType = extractedData?.booking?.product_type || "unknown";
+  const isPrivate = courseType === "private";
+  const isGroup = courseType === "group";
+
+  // Build context-specific instructions
+  let questionStrategy = "";
+
+  if (bookingReady || missingFields.length === 0) {
+    questionStrategy = `
+**ALLE DATEN VORHANDEN:**
+Die Buchung kann erstellt werden. Bestätige die Anfrage und fasse die Details zusammen.
+Informiere über die nächsten Schritte (Verfügbarkeitsprüfung, Bestätigung folgt).`;
+  } else if (missingFields.length <= 3) {
+    questionStrategy = `
+**WENIGE DATEN FEHLEN (${missingFields.length}):**
+Stelle die fehlenden Fragen in einem natürlichen Absatz. Nicht als nummerierte Liste.
+Fehlend: ${missingFields.map((f) => getMissingFieldLabel(f)).join(", ")}`;
+  } else {
+    // Prioritize questions - most important first
+    const prioritizedMissing = prioritizeMissingFields(missingFields, isPrivate, isGroup);
+    questionStrategy = `
+**MEHRERE DATEN FEHLEN (${missingFields.length}):**
+Priorisiere die wichtigsten 3-4 Fragen. Bündle zusammengehörige Fragen.
+
+Priorität 1 (jetzt fragen): ${prioritizedMissing.slice(0, 4).map((f) => getMissingFieldLabel(f)).join(", ")}
+${prioritizedMissing.length > 4 ? `Priorität 2 (später): ${prioritizedMissing.slice(4).map((f) => getMissingFieldLabel(f)).join(", ")}` : ""}
+
+Priorisierungslogik:
+1. Konkrete Daten (wenn "nächste Woche" o.ä. genannt wurde)
+2. Teilnehmer-Details (Namen, Alter/Geburtsdatum)
+3. Kurstyp (falls unklar)
+4. Zeiten (nur bei Privatstunden)
+5. Mittagsbetreuung (nur bei Ganztags-Gruppenkursen)`;
+  }
+
+  // Customer data handling
+  let customerDataInstruction = "";
+  if (isExistingCustomer) {
+    customerDataInstruction = `
+**BESTANDSKUNDE:**
+${customerName || "Kunde"} ist bereits im System. Adresse und Kontaktdaten sind vorhanden.
+Frage NICHT nach: Adresse, E-Mail, Telefonnummer (ausser zur Bestätigung).`;
+  } else if (missingCustomer.length > 0) {
+    customerDataInstruction = `
+**NEUKUNDE:**
+Frage nach Kontaktdaten/Adresse nur, wenn alle anderen wichtigen Daten bereits vorliegen.
+Bündle Kontaktdaten-Fragen: "Für die Buchungsbestätigung benötigen wir noch Ihre Adresse und Telefonnummer."`;
+  }
+
+  // Course-type specific instructions
+  let courseTypeInstruction = "";
+  if (isPrivate) {
+    courseTypeInstruction = `
+**PRIVATSTUNDE:**
+- Frage nach gewünschter Uhrzeit (Start und Ende)
+- Übliche Zeiten: 09:00-12:00 (Vormittag), 13:00-16:00 (Nachmittag)
+- Mittagsbetreuung ist bei Privatstunden nicht relevant`;
+  } else if (isGroup) {
+    courseTypeInstruction = `
+**GRUPPENKURS:**
+- Zeiten sind fix (Vormittag: 10:00-12:00, Nachmittag: 14:00-16:00, Ganztag: 10:00-16:00)
+- Bei Ganztags-Kursen: Frage nach Mittagsbetreuung
+- Bei Mittagsbetreuung: Frage ob vegetarisch`;
+  } else if (missingBooking.includes("booking_course_type")) {
+    courseTypeInstruction = `
+**KURSTYP UNKLAR:**
+Frage höflich nach, ob Privatunterricht oder Gruppenkurs gewünscht ist.
+Kurzer Hinweis: Privatunterricht = individueller Unterricht, Gruppenkurs = mit anderen Kindern im gleichen Alter/Level.`;
+  }
+
+  // Format what was already extracted
+  const extractedSummary = formatExtractedForPrompt(extractedData);
+
+  return `Du bist ein freundlicher und effizienter Assistent für die Yeti Skischule in Malbun, Liechtenstein.
+Deine Aufgabe ist es, eine passende Antwort auf eine Kundenanfrage zu formulieren.
+
+**GLOBALE ANWEISUNGEN ZUR TONALITÄT:**
+${tonalityPrompt}
+
+**WISSENSDATENBANK (nutze dieses Wissen für allgemeine Fragen):**
+${knowledgeBaseContent || "Kein Zusatzwissen vorhanden."}
+
+**KONTEXT DER ANFRAGE:**
+- Klassifizierung: ${getClassificationLabel(classification)}
+- Sprache: ${detectedLanguage === "en" ? "Englisch" : "Deutsch"}
+- Kunde: ${customerName || "Unbekannt"}
+- Bestandskunde: ${isExistingCustomer ? "Ja" : "Nein"}
+${bookingHistory}
+${extractedSummary}
+
+${customerDataInstruction}
+${courseTypeInstruction}
+${questionStrategy}
+
+**STIL-REGELN FÜR DIE ANTWORT:**
+
+1. Beginne mit einer freundlichen Begrüssung und Dank für die Anfrage
+2. Fasse kurz zusammen, was du verstanden hast (zeigt dem Kunden, dass die Nachricht gelesen wurde)
+3. Stelle fehlende Fragen NATÜRLICH und GEBÜNDELT – NICHT als nummerierte Liste!
+4. Maximal 3-4 Fragen pro Nachricht, um den Kunden nicht zu überfordern
+5. Bei mehreren Teilnehmern: "Könnten Sie uns die Vornamen und Geburtsdaten aller Teilnehmer mitteilen?"
+6. Beende mit der vorgegebenen Grussformel
+
+**BEISPIEL FÜR NATÜRLICHE NACHFRAGE:**
+"Vielen Dank für Ihre Anfrage! Gerne organisieren wir den Skikurs für Ihre Familie.
+
+Wir haben verstanden, dass Sie für 4 Personen in der Woche vom 15. Januar buchen möchten.
+
+Um die Buchung abzuschliessen, benötigen wir noch einige Angaben: Könnten Sie uns die Vornamen und Geburtsdaten der Teilnehmer mitteilen? Ausserdem wäre es hilfreich zu wissen, welche Vorkenntnisse die einzelnen Personen mitbringen.
+
+Freundliche Grüsse,
+Ihr Yeti Team"
+
+**VORGEGEBENE GRUSSFORMEL:**
+${signaturePrompt}
+
+Formuliere NUR die Antwort. Keine zusätzlichen Kommentare oder Erklärungen.
+Sprache der Antwort: ${detectedLanguage === "en" ? "Englisch" : "Deutsch"}`;
+}
 
 function getClassificationLabel(classification: string): string {
   const labels: Record<string, string> = {
@@ -307,24 +444,77 @@ function getClassificationLabel(classification: string): string {
   return labels[classification] || "Sonstige Anfrage";
 }
 
-function formatExtractedEntities(data: ExtractedData): string {
+function getMissingFieldLabel(field: string): string {
+  const labels: Record<string, string> = {
+    customer_name: "Vor- und Nachname",
+    customer_contact: "E-Mail oder Telefon",
+    customer_address: "Adresse",
+    participant_names: "Teilnehmernamen",
+    participant_birthdates: "Geburtsdaten/Alter",
+    participant_skill_levels: "Könnensstufe",
+    booking_dates: "Konkrete Daten",
+    booking_course_type: "Kurstyp",
+    booking_times: "Uhrzeiten",
+    lunch_supervision: "Mittagsbetreuung",
+    vegetarian_preference: "Vegetarisch",
+  };
+  return labels[field] || field.replace(/_/g, " ");
+}
+
+function prioritizeMissingFields(fields: string[], isPrivate: boolean, isGroup: boolean): string[] {
+  const priority: Record<string, number> = {
+    booking_dates: 1,
+    booking_course_type: 2,
+    participant_names: 3,
+    participant_birthdates: 4,
+    participant_skill_levels: 5,
+    booking_times: isPrivate ? 3 : 10, // Only important for private
+    lunch_supervision: isGroup ? 6 : 10,
+    vegetarian_preference: isGroup ? 7 : 10,
+    customer_name: 8,
+    customer_contact: 9,
+    customer_address: 10,
+  };
+
+  return [...fields].sort((a, b) => (priority[a] || 99) - (priority[b] || 99));
+}
+
+function formatExtractedForPrompt(data: ExtractedData): string {
   const parts: string[] = [];
 
+  // Booking info
   if (data.booking) {
     const b = data.booking;
-    if (b.lesson_type) parts.push(`Unterrichtsart: ${b.lesson_type}`);
-    if (b.sport) parts.push(`Sportart: ${b.sport}`);
-    if (b.start_date) parts.push(`Startdatum: ${b.start_date}`);
-    if (b.end_date) parts.push(`Enddatum: ${b.end_date}`);
-    if (b.time_preference) parts.push(`Zeitpräferenz: ${b.time_preference}`);
+    if (b.product_type && b.product_type !== "unknown") {
+      parts.push(`Kurstyp: ${b.product_type === "private" ? "Privatstunde" : "Gruppenkurs"}`);
+    }
+    if (b.dates && b.dates.length > 0) {
+      parts.push(`Termine: ${b.dates.map((d) => d.date).join(", ")}`);
+    } else if (b.date_description) {
+      parts.push(`Zeitraum (unspezifisch): "${b.date_description}"`);
+    }
+    if (b.lunch_supervision !== undefined) {
+      parts.push(`Mittagsbetreuung: ${b.lunch_supervision ? "Ja" : "Nein"}`);
+    }
   }
 
+  // Participants
   if (data.participants && data.participants.length > 0) {
-    const pNames = data.participants
-      .map(p => p.name || "Unbekannt")
-      .join(", ");
-    parts.push(`Teilnehmer: ${pNames} (${data.participants.length} Person(en))`);
+    const pInfo = data.participants.map((p) => {
+      const name = p.first_name || p.name || "Unbekannt";
+      const ageInfo = p.age ? `${p.age}J` : p.birth_date ? `Geb. ${p.birth_date}` : "";
+      const level = p.skill_level && p.skill_level !== "unknown" ? p.skill_level : "";
+      return [name, ageInfo, level].filter(Boolean).join(" ");
+    });
+    parts.push(`Teilnehmer (${data.participants.length}): ${pInfo.join("; ")}`);
   }
 
-  return parts.length > 0 ? parts.join("; ") : "Keine spezifischen Details extrahiert";
+  // Customer
+  if (data.customer) {
+    const c = data.customer;
+    const name = [c.first_name, c.last_name].filter(Boolean).join(" ") || c.name;
+    if (name) parts.push(`Kunde: ${name}`);
+  }
+
+  return parts.length > 0 ? `\n**BEREITS EXTRAHIERTE DATEN:**\n${parts.join("\n")}` : "";
 }

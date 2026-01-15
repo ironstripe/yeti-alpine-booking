@@ -6,21 +6,205 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const EXTRACTION_PROMPT = `Du bist ein Assistent für eine Skischule in Liechtenstein/Schweiz.
-Analysiere die folgende Nachricht und extrahiere alle relevanten Buchungsinformationen.
+// Enhanced extraction prompt for maximum information extraction
+const EXTRACTION_PROMPT = `Du bist ein Experte für die Analyse von Buchungsanfragen einer Skischule in Liechtenstein/Schweiz.
 
-WICHTIG:
-- Klassifiziere die Absicht der Nachricht (z.B. Neubuchung, Storno, Änderung, allgemeine Anfrage, Beschwerde).
-- Erkenne die Sprache der Nachricht (Deutsch oder Englisch).
-- Identifiziere explizit, welche Informationen für die jeweilige Anfrage fehlen.
-- Extrahiere NUR Informationen, die explizit in der Nachricht stehen
-- Bei Unsicherheiten setze "unknown" oder null
-- Berechne das Alter aus dem Geburtsdatum falls angegeben
-- Erkenne Schweizer/Liechtensteinische Datumsformate (DD.MM.YYYY)
-- "Privat" = Einzelunterricht, "Gruppe" = Gruppenkurs
-- Skill levels: "beginner", "intermediate", "advanced"
+**DEINE AUFGABE:** Extrahiere ALLE verfügbaren Informationen aus der Nachricht. Sei gründlich und nutze auch implizite Hinweise.
+
+**EXTRAKTIONSREGELN:**
+
+1. **Kundendaten:**
+   - Suche nach Namen in der Signatur, Grussformel oder im Text
+   - E-Mail-Adressen und Telefonnummern aus Signatur extrahieren
+   - Wenn jemand "ich" oder "wir" schreibt, ist der Absender wahrscheinlich auch Teilnehmer oder Elternteil
+
+2. **Teilnehmer:**
+   - "Meine beiden Kinder" = 2 Teilnehmer
+   - "Wir sind zu viert" = 4 Teilnehmer
+   - "Für mich und meinen Mann" = 2 Erwachsene
+   - Alter aus Kontext ableiten: "Kinder" = unter 16, "Erwachsene" = über 16
+   - Geburtsdaten im Format TT.MM.JJJJ suchen und zu YYYY-MM-DD konvertieren
+
+3. **Daten und Zeiten:**
+   - "Nächste Woche" oder "im Januar" ist NICHT spezifisch genug → als fehlend markieren, aber in date_description speichern
+   - "15. bis 20. Januar" = 6 spezifische Tage
+   - "Montag bis Freitag" ohne konkretes Datum = fehlend
+   - Bei Privatstunden: Uhrzeiten wie "09:00-12:00" oder "Vormittag" extrahieren
+
+4. **Kurstyp:**
+   - "Privatunterricht", "Privatstunde", "nur für uns" = private
+   - "Gruppenkurs", "Skikurs", "Kinderskikurs" = group
+   - Wenn unklar, als "unknown" markieren
+
+5. **Könnensstufe:**
+   - "Anfänger", "noch nie", "erste Mal" = beginner
+   - "Kann schon ein bisschen", "war letztes Jahr" = intermediate
+   - "Fährt schon gut", "rote Pisten" = advanced
+   - "Experte", "schwarze Pisten" = expert
+
+6. **Mittagsbetreuung (nur bei Gruppenkursen):**
+   - Explizit erwähnt: "mit Mittagessen", "Mittagsbetreuung"
+   - "Ganztags" impliziert oft Mittagsbetreuung
+
+**WICHTIG:**
+- Extrahiere ALLES was du findest, auch wenn es unvollständig ist
+- Markiere fehlende Pflichtfelder explizit in "missing_information"
+- Bei Unsicherheit: extrahieren und niedrige Konfidenz angeben
+- Unterscheide zwischen "nicht vorhanden" und "nicht erwähnt"
+
+**FEHLENDE INFORMATIONEN - Liste alle Pflichtfelder auf, die für eine vollständige Buchung noch fehlen:**
+- customer_name (Vor- und Nachname)
+- customer_address (nur bei Neukunden)
+- customer_email
+- customer_phone
+- participant_names (Vornamen aller Teilnehmer)
+- participant_birthdates (Geburtsdaten oder Alter)
+- participant_skill_levels (Könnensstufe)
+- booking_dates (konkrete Daten)
+- booking_times (Start/Ende, nur bei Privatstunden)
+- booking_course_type (Privat/Gruppe)
+- lunch_supervision (nur bei Ganztags-Gruppenkursen)
+- vegetarian_preference (nur wenn Mittagsbetreuung)
 
 Du MUSST die Funktion "extract_booking_info" aufrufen mit den extrahierten Daten.`;
+
+// Enhanced tool schema for comprehensive extraction
+const extractionTools = [
+  {
+    type: "function",
+    function: {
+      name: "extract_booking_info",
+      description: "Extrahiert Buchungsinformationen aus einer Kundenanfrage",
+      parameters: {
+        type: "object",
+        properties: {
+          is_booking_request: {
+            type: "boolean",
+            description: "Ist dies eine Buchungsanfrage?",
+          },
+          classification: {
+            type: "string",
+            enum: ["new_booking", "cancellation", "modification", "general_inquiry", "complaint", "other"],
+            description: "Art der Anfrage",
+          },
+          detected_language: {
+            type: "string",
+            enum: ["de", "en"],
+            description: "Erkannte Sprache",
+          },
+          customer: {
+            type: "object",
+            properties: {
+              first_name: { type: "string", description: "Vorname des Kunden" },
+              last_name: { type: "string", description: "Nachname des Kunden" },
+              name: { type: "string", description: "Vollständiger Name (falls nicht in Vor-/Nachname trennbar)" },
+              email: { type: "string", description: "E-Mail-Adresse" },
+              phone: { type: "string", description: "Telefonnummer" },
+              address: {
+                type: "object",
+                properties: {
+                  street: { type: "string" },
+                  zip: { type: "string" },
+                  city: { type: "string" },
+                  country: { type: "string" },
+                },
+              },
+              hotel: { type: "string", description: "Hotel/Unterkunft Name" },
+            },
+          },
+          participants: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                first_name: { type: "string", description: "Vorname des Teilnehmers" },
+                name: { type: "string", description: "Vollständiger Name (Fallback)" },
+                birth_date: { type: "string", description: "Geburtsdatum im Format YYYY-MM-DD" },
+                age: { type: "number", description: "Alter, falls Geburtsdatum unbekannt" },
+                skill_level: {
+                  type: "string",
+                  enum: ["beginner", "intermediate", "advanced", "expert", "unknown"],
+                  description: "Können des Teilnehmers",
+                },
+                discipline: {
+                  type: "string",
+                  enum: ["ski", "snowboard", "unknown"],
+                  description: "Sportart (default: ski)",
+                },
+                notes: { type: "string", description: "Zusätzliche Infos zum Teilnehmer" },
+              },
+            },
+          },
+          booking: {
+            type: "object",
+            properties: {
+              product_type: {
+                type: "string",
+                enum: ["private", "group", "unknown"],
+                description: "Art der Buchung (Privatstunde oder Gruppenkurs)",
+              },
+              dates: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    date: { type: "string", description: "Datum im Format YYYY-MM-DD" },
+                    start_time: { type: "string", description: "Startzeit im Format HH:MM" },
+                    end_time: { type: "string", description: "Endzeit im Format HH:MM" },
+                    time_preference: {
+                      type: "string",
+                      enum: ["morning", "afternoon", "full_day", "any"],
+                      description: "Gewünschte Tageszeit",
+                    },
+                  },
+                  required: ["date"],
+                },
+              },
+              date_description: {
+                type: "string",
+                description: "Ursprüngliche Datumsbeschreibung wenn nicht konkret (z.B. 'nächste Woche', 'im Januar')",
+              },
+              date_range: {
+                type: "object",
+                properties: {
+                  start: { type: "string", description: "Startdatum YYYY-MM-DD" },
+                  end: { type: "string", description: "Enddatum YYYY-MM-DD" },
+                },
+              },
+              start_date: { type: "string", description: "Startdatum YYYY-MM-DD" },
+              end_date: { type: "string", description: "Enddatum YYYY-MM-DD" },
+              flexibility: {
+                type: "string",
+                enum: ["fixed", "flexible", "unknown"],
+                description: "Flexibilität bei Terminen",
+              },
+              instructor_preference: { type: "string", description: "Gewünschter Lehrer" },
+              lunch_supervision: { type: "boolean", description: "Mittagsbetreuung gewünscht" },
+              vegetarian: { type: "boolean", description: "Vegetarisches Mittagessen" },
+              special_requests: { type: "string", description: "Besondere Wünsche" },
+            },
+          },
+          missing_information: {
+            type: "array",
+            items: { type: "string" },
+            description: "Liste aller fehlenden Pflichtfelder für eine vollständige Buchung",
+          },
+          confidence: {
+            type: "number",
+            minimum: 0,
+            maximum: 1,
+            description: "Konfidenz der Extraktion (0.0-1.0)",
+          },
+          notes: {
+            type: "string",
+            description: "Anmerkungen zu Unklarheiten oder wichtige Hinweise",
+          },
+        },
+        required: ["is_booking_request", "classification", "missing_information"],
+      },
+    },
+  },
+];
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -66,18 +250,20 @@ serve(async (req) => {
     const senderIdentifier = conversation.contact_identifier;
     let matchedCustomerId: string | null = null;
     let isExistingCustomer = false;
+    let existingCustomerData: Record<string, unknown> | null = null;
 
     if (senderIdentifier) {
       // Try to find existing customer by email or phone
       const { data: existingCustomer, error: customerError } = await supabase
         .from("customers")
-        .select("id, first_name, last_name, email, phone")
+        .select("id, first_name, last_name, email, phone, street, city, zip, country")
         .or(`email.eq.${senderIdentifier},phone.eq.${senderIdentifier}`)
         .maybeSingle();
 
       if (!customerError && existingCustomer) {
         matchedCustomerId = existingCustomer.id;
         isExistingCustomer = true;
+        existingCustomerData = existingCustomer;
         console.log(`Existing customer found: ${existingCustomer.first_name} ${existingCustomer.last_name} (${matchedCustomerId})`);
       } else {
         console.log(`No existing customer found for: ${senderIdentifier}`);
@@ -102,126 +288,7 @@ serve(async (req) => {
           { role: "system", content: EXTRACTION_PROMPT },
           { role: "user", content: messageContent },
         ],
-        tools: [
-          {
-            type: "function",
-            function: {
-              name: "extract_booking_info",
-              description: "Extrahiere Buchungsinformationen aus der Nachricht",
-              parameters: {
-                type: "object",
-                properties: {
-                  // NEW: Classification
-                  classification: {
-                    type: "string",
-                    enum: ["new_booking", "cancellation", "modification", "general_inquiry", "complaint", "other"],
-                    description: "Klassifiziere die Hauptabsicht der Nachricht",
-                  },
-                  // NEW: Language detection
-                  detected_language: {
-                    type: "string",
-                    enum: ["de", "en"],
-                    description: "Die erkannte Sprache der Nachricht (Deutsch oder Englisch)",
-                  },
-                  // NEW: Missing information
-                  missing_information: {
-                    type: "array",
-                    items: { type: "string" },
-                    description: "Eine Liste von Informationen, die für die Bearbeitung der Anfrage fehlen (z.B., 'start_date', 'number_of_participants', 'participant_ages', 'skill_level', 'contact_phone')",
-                  },
-                  customer: {
-                    type: "object",
-                    properties: {
-                      name: { type: "string", description: "Vollständiger Name des Kunden" },
-                      email: { type: "string", description: "E-Mail-Adresse" },
-                      phone: { type: "string", description: "Telefonnummer" },
-                      address: { type: "string", description: "Adresse" },
-                      hotel: { type: "string", description: "Hotel/Unterkunft Name" },
-                    },
-                  },
-                  participants: {
-                    type: "array",
-                    items: {
-                      type: "object",
-                      properties: {
-                        name: { type: "string", description: "Name des Teilnehmers" },
-                        age: { type: "number", description: "Alter in Jahren" },
-                        birth_date: { type: "string", description: "Geburtsdatum im Format YYYY-MM-DD" },
-                        skill_level: { 
-                          type: "string", 
-                          enum: ["beginner", "intermediate", "advanced", "unknown"],
-                          description: "Können des Teilnehmers" 
-                        },
-                        discipline: { 
-                          type: "string", 
-                          enum: ["ski", "snowboard", "unknown"],
-                          description: "Sportart" 
-                        },
-                        notes: { type: "string", description: "Besondere Hinweise zum Teilnehmer" },
-                      },
-                      required: ["name"],
-                    },
-                  },
-                  booking: {
-                    type: "object",
-                    properties: {
-                      product_type: { 
-                        type: "string", 
-                        enum: ["private", "group", "unknown"],
-                        description: "Art der Buchung" 
-                      },
-                      dates: {
-                        type: "array",
-                        items: {
-                          type: "object",
-                          properties: {
-                            date: { type: "string", description: "Datum im Format YYYY-MM-DD" },
-                            time_preference: { 
-                              type: "string", 
-                              enum: ["morning", "afternoon", "full_day", "any"],
-                              description: "Gewünschte Tageszeit" 
-                            },
-                          },
-                          required: ["date"],
-                        },
-                      },
-                      date_range: {
-                        type: "object",
-                        properties: {
-                          start: { type: "string", description: "Startdatum YYYY-MM-DD" },
-                          end: { type: "string", description: "Enddatum YYYY-MM-DD" },
-                        },
-                      },
-                      flexibility: { 
-                        type: "string", 
-                        enum: ["fixed", "flexible", "unknown"],
-                        description: "Flexibilität bei Terminen" 
-                      },
-                      instructor_preference: { type: "string", description: "Gewünschter Lehrer" },
-                      lunch_supervision: { type: "boolean", description: "Mittagsbetreuung gewünscht" },
-                      special_requests: { type: "string", description: "Besondere Wünsche" },
-                    },
-                  },
-                  confidence: { 
-                    type: "number", 
-                    minimum: 0, 
-                    maximum: 1,
-                    description: "Konfidenz der Extraktion (0.0-1.0)" 
-                  },
-                  notes: { 
-                    type: "string", 
-                    description: "Anmerkungen zu Unklarheiten oder fehlenden Informationen" 
-                  },
-                  is_booking_request: {
-                    type: "boolean",
-                    description: "Handelt es sich um eine Buchungsanfrage?"
-                  },
-                },
-                required: ["classification", "confidence", "is_booking_request"],
-              },
-            },
-          },
-        ],
+        tools: extractionTools,
         tool_choice: { type: "function", function: { name: "extract_booking_info" } },
       }),
     });
@@ -255,8 +322,8 @@ serve(async (req) => {
     console.log("Extracted data:", extractedData);
 
     // 5. Validate and clean extracted data
-    const cleanedData = validateAndCleanExtraction(extractedData);
-    
+    const cleanedData = validateAndCleanExtraction(extractedData, isExistingCustomer);
+
     // Add customer matching info to extracted data
     cleanedData.matched_customer_id = matchedCustomerId;
     cleanedData.is_existing_customer = isExistingCustomer;
@@ -264,7 +331,7 @@ serve(async (req) => {
     // 6. Update conversation with AI data and new rule-based scores
     const updateData: Record<string, unknown> = {
       ai_extracted_data: cleanedData,
-      ai_confidence_score: cleanedData.data_completeness || 0, // Rule-based completeness
+      ai_confidence_score: cleanedData.data_completeness || 0,
       data_completeness: cleanedData.data_completeness || 0,
       booking_ready: cleanedData.booking_ready || false,
       notes: cleanedData.notes,
@@ -290,6 +357,8 @@ serve(async (req) => {
         detectedLanguage: cleanedData.detected_language,
         missingInformation: cleanedData.missing_information || [],
         confidence: cleanedData.confidence,
+        dataCompleteness: cleanedData.data_completeness,
+        bookingReady: cleanedData.booking_ready,
         isExistingCustomer,
         matchedCustomerId,
         extractedData: cleanedData,
@@ -305,7 +374,10 @@ serve(async (req) => {
   }
 });
 
-function validateAndCleanExtraction(data: Record<string, unknown>): Record<string, unknown> {
+function validateAndCleanExtraction(
+  data: Record<string, unknown>,
+  isExistingCustomer: boolean
+): Record<string, unknown> {
   // Ensure classification has a default
   if (!data.classification) {
     data.classification = "other";
@@ -339,108 +411,227 @@ function validateAndCleanExtraction(data: Record<string, unknown>): Record<strin
     customer.phone = normalizePhoneNumber(customer.phone);
   }
 
-  // Calculate rule-based confidence instead of using AI self-reported value
-  const dataCompleteness = calculateDataCompleteness(data);
-  const bookingReady = isBookingReady(data);
-  
+  // Merge first_name/last_name into name field if needed (for backwards compatibility)
+  if (customer && !customer.name && (customer.first_name || customer.last_name)) {
+    customer.name = [customer.first_name, customer.last_name].filter(Boolean).join(" ");
+  }
+
+  // Normalize participant names
+  const participants = data.participants as Array<Record<string, unknown>> | undefined;
+  if (participants) {
+    for (const p of participants) {
+      if (!p.name && p.first_name) {
+        p.name = p.first_name as string;
+      }
+    }
+  }
+
+  // Calculate rule-based completeness with context awareness
+  const completenessResult = calculateDataCompleteness(data, isExistingCustomer);
+
   // Store both the AI's original confidence and the calculated completeness
   data.ai_original_confidence = data.confidence;
-  data.confidence = dataCompleteness; // Use rule-based score as main confidence
-  data.data_completeness = dataCompleteness;
-  data.booking_ready = bookingReady;
+  data.confidence = completenessResult.score;
+  data.data_completeness = completenessResult.score;
+  data.booking_ready = completenessResult.bookingReady;
+  
+  // Use the calculated missing fields (more accurate than AI-reported)
+  data.missing_information = completenessResult.missingRequired;
 
   return data;
 }
 
-// Rule-based data completeness calculation (0-1 scale)
-function calculateDataCompleteness(data: Record<string, unknown>): number {
-  let score = 0;
-  
-  const booking = data.booking as Record<string, unknown> | undefined || {};
-  const participants = (data.participants as Array<Record<string, unknown>>) || [];
-  const customer = data.customer as Record<string, unknown> | undefined || {};
-  
-  // Required fields (60%)
-  // Start date (15%)
-  const bookingDates = booking.dates as Array<{ date: string }> | undefined;
-  if (booking.start_date || (bookingDates && bookingDates.length > 0)) {
-    score += 15;
-  }
-  
-  // Has participants (15%)
-  if (participants.length > 0) {
-    score += 15;
-  }
-  
-  // Has real participant names - not just "Teilnehmer 1" (15%)
-  const hasRealNames = participants.some((p) => {
-    const name = p.name as string | undefined;
-    return name && !name.match(/^Teilnehmer \d+$/i);
-  });
-  if (hasRealNames) {
-    score += 15;
-  }
-  
-  // Has contact info (15%)
-  if (customer.email || customer.phone) {
-    score += 15;
-  }
-  
-  // Important fields (30%)
-  // Participant ages (10%)
-  if (participants.some((p) => {
-    const age = p.age as number | undefined;
-    return age && age > 0;
-  })) {
-    score += 10;
-  }
-  
-  // Skill levels (10%)
-  if (participants.some((p) => {
-    const level = p.skill_level as string | undefined;
-    return level && level !== "unknown";
-  })) {
-    score += 10;
-  }
-  
-  // Course type (10%)
-  if (booking.product_type && booking.product_type !== "unknown") {
-    score += 10;
-  }
-  
-  // Nice-to-have fields (10%)
-  // Duration / multiple dates (5%)
-  if ((bookingDates && bookingDates.length > 1) || booking.end_date) {
-    score += 5;
-  }
-  
-  // Sport type (5%)
-  if (participants.some((p) => {
-    const discipline = p.discipline as string | undefined;
-    return discipline && discipline !== "unknown";
-  })) {
-    score += 5;
-  }
-  
-  return score / 100; // Return as 0-1 scale
+interface CompletenessResult {
+  score: number;
+  missingRequired: string[];
+  bookingReady: boolean;
 }
 
-// Check if booking is ready (all required fields present)
-function isBookingReady(data: Record<string, unknown>): boolean {
-  const booking = data.booking as Record<string, unknown> | undefined || {};
+// Enhanced rule-based data completeness calculation
+function calculateDataCompleteness(
+  data: Record<string, unknown>,
+  isExistingCustomer: boolean
+): CompletenessResult {
+  const missing: string[] = [];
+  let score = 0;
+
+  const customer = (data.customer as Record<string, unknown>) || {};
   const participants = (data.participants as Array<Record<string, unknown>>) || [];
-  const customer = data.customer as Record<string, unknown> | undefined || {};
-  
-  const bookingDates = booking.dates as Array<{ date: string }> | undefined;
-  const hasStartDate = !!(booking.start_date || (bookingDates && bookingDates.length > 0));
-  const hasParticipants = participants.length > 0;
-  const hasRealNames = participants.some((p) => {
-    const name = p.name as string | undefined;
-    return name && !name.match(/^Teilnehmer \d+$/i);
+  const booking = (data.booking as Record<string, unknown>) || {};
+
+  const isPrivate = booking.product_type === "private";
+  const isGroup = booking.product_type === "group";
+  const bookingDates = booking.dates as Array<Record<string, unknown>> | undefined;
+
+  // Check if any date is full day (for lunch supervision logic)
+  const hasFullDayBooking = bookingDates?.some((d) => {
+    const startTime = d.start_time as string | undefined;
+    const endTime = d.end_time as string | undefined;
+    const timePref = d.time_preference as string | undefined;
+    if (timePref === "full_day") return true;
+    if (startTime && endTime) {
+      const start = parseInt(startTime.split(":")[0]);
+      const end = parseInt(endTime.split(":")[0]);
+      return (end - start) >= 5; // 5+ hours = full day
+    }
+    return false;
   });
-  const hasContact = !!(customer.email || customer.phone);
+
+  // === CUSTOMER DATA (25 points) ===
+  // Name (10 points)
+  const hasFirstName = !!(customer.first_name || customer.name);
+  const hasLastName = !!customer.last_name;
   
-  return hasStartDate && hasParticipants && hasRealNames && hasContact;
+  if (hasFirstName && hasLastName) {
+    score += 10;
+  } else if (hasFirstName || hasLastName || customer.name) {
+    score += 5;
+    missing.push("customer_name");
+  } else {
+    missing.push("customer_name");
+  }
+
+  // Contact: Email OR Phone (10 points)
+  if (customer.email || customer.phone) {
+    score += 10;
+  } else {
+    missing.push("customer_contact");
+  }
+
+  // Address (5 points) - only required for new customers
+  if (isExistingCustomer) {
+    score += 5; // Existing customers get this for free
+  } else {
+    const address = customer.address as Record<string, unknown> | undefined;
+    if (address?.street && address?.city) {
+      score += 5;
+    } else {
+      missing.push("customer_address");
+    }
+  }
+
+  // === PARTICIPANT DATA (35 points) ===
+  if (participants.length > 0) {
+    let hasAllNames = true;
+    let hasAllBirthdates = true;
+    let hasAllLevels = true;
+
+    for (const p of participants) {
+      // Name check - reject placeholder names
+      const name = (p.first_name || p.name) as string | undefined;
+      if (!name || name.match(/^Teilnehmer \d+$/i)) {
+        hasAllNames = false;
+      }
+
+      // Birthdate/Age check
+      if (!p.birth_date && !p.age) {
+        hasAllBirthdates = false;
+      }
+
+      // Skill level check
+      const level = p.skill_level as string | undefined;
+      if (!level || level === "unknown") {
+        hasAllLevels = false;
+      }
+    }
+
+    if (hasAllNames) {
+      score += 15;
+    } else {
+      missing.push("participant_names");
+    }
+
+    if (hasAllBirthdates) {
+      score += 12;
+    } else {
+      missing.push("participant_birthdates");
+    }
+
+    if (hasAllLevels) {
+      score += 8;
+    } else {
+      missing.push("participant_skill_levels");
+    }
+  } else {
+    missing.push("participant_names");
+    missing.push("participant_birthdates");
+    missing.push("participant_skill_levels");
+  }
+
+  // === BOOKING DATA (40 points) ===
+  // Specific dates (20 points)
+  const hasSpecificDates =
+    (bookingDates && bookingDates.length > 0 && bookingDates.every((d) => d.date && !String(d.date).includes("unknown"))) ||
+    (booking.start_date && !String(booking.start_date).includes("unknown"));
+
+  if (hasSpecificDates) {
+    score += 20;
+  } else {
+    missing.push("booking_dates");
+  }
+
+  // Course type (10 points)
+  if (booking.product_type && booking.product_type !== "unknown") {
+    score += 10;
+  } else {
+    missing.push("booking_course_type");
+  }
+
+  // Times - only for private lessons (10 points)
+  if (isPrivate) {
+    const hasAllTimes = bookingDates?.every((d) => d.start_time && d.end_time);
+    if (hasAllTimes) {
+      score += 10;
+    } else {
+      missing.push("booking_times");
+    }
+  } else if (isGroup) {
+    // Group courses have fixed times, so we give the points
+    score += 10;
+  }
+  // If course type unknown, we don't add to missing yet (will be asked first)
+
+  // Lunch supervision - only for full-day group courses (bonus points, not blocking)
+  if (isGroup && hasFullDayBooking) {
+    if (booking.lunch_supervision !== undefined) {
+      score += 3; // Bonus points
+      // Vegetarian only if lunch = yes
+      if (booking.lunch_supervision && booking.vegetarian !== undefined) {
+        score += 2; // Bonus points
+      } else if (booking.lunch_supervision) {
+        missing.push("vegetarian_preference");
+      }
+    } else {
+      missing.push("lunch_supervision");
+    }
+  }
+
+  // Calculate if booking is ready (all REQUIRED fields present)
+  const requiredFields = [
+    "customer_name",
+    "customer_contact",
+    "participant_names",
+    "participant_birthdates",
+    "booking_dates",
+    "booking_course_type",
+  ];
+
+  // Add conditional required fields
+  if (isPrivate) {
+    requiredFields.push("booking_times");
+  }
+  if (!isExistingCustomer) {
+    requiredFields.push("customer_address");
+  }
+
+  const requiredMissing = missing.filter((f) => requiredFields.includes(f));
+  const bookingReady = requiredMissing.length === 0;
+
+  return {
+    score: Math.round(score) / 100, // Return as 0-1 scale
+    missingRequired: missing,
+    bookingReady,
+  };
 }
 
 function normalizePhoneNumber(phone: string): string {
