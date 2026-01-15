@@ -338,14 +338,17 @@ serve(async (req) => {
     const extractedData = JSON.parse(toolCall.function.arguments);
     console.log("Extracted data:", extractedData);
 
-    // 5. Validate and clean extracted data
-    const cleanedData = validateAndCleanExtraction(extractedData, isExistingCustomer);
+    // 5. Apply fallback parsing for booking data that AI might have missed
+    const enrichedData = extractBookingDataFallback(messageContent, extractedData);
+
+    // 6. Validate and clean extracted data
+    const cleanedData = validateAndCleanExtraction(enrichedData, isExistingCustomer);
 
     // Add customer matching info to extracted data
     cleanedData.matched_customer_id = matchedCustomerId;
     cleanedData.is_existing_customer = isExistingCustomer;
 
-    // 6. Update conversation with AI data and new rule-based scores
+    // 7. Update conversation with AI data and new rule-based scores
     const updateData: Record<string, unknown> = {
       ai_extracted_data: cleanedData,
       ai_confidence_score: cleanedData.data_completeness || 0,
@@ -675,4 +678,116 @@ function normalizePhoneNumber(phone: string): string {
   }
 
   return cleaned;
+}
+
+/**
+ * Fallback extraction for booking data that AI might have missed.
+ * Parses dates, times, and product type from raw conversation content.
+ */
+function extractBookingDataFallback(
+  content: string,
+  extractedData: Record<string, unknown>
+): Record<string, unknown> {
+  const booking = (extractedData.booking || {}) as Record<string, unknown>;
+  const dates = ((booking.dates || []) as Array<Record<string, unknown>>).slice();
+  
+  // If no dates extracted, try to parse from content
+  if (dates.length === 0) {
+    // Match German date formats: "17.01.2026", "15. Januar"
+    const dateRegex = /(\d{1,2})\.(\d{1,2})\.(\d{4})/g;
+    let dateMatch;
+    while ((dateMatch = dateRegex.exec(content)) !== null) {
+      const day = dateMatch[1].padStart(2, '0');
+      const month = dateMatch[2].padStart(2, '0');
+      const year = dateMatch[3];
+      const isoDate = `${year}-${month}-${day}`;
+      // Avoid duplicates
+      if (!dates.some(d => d.date === isoDate)) {
+        dates.push({ date: isoDate });
+      }
+    }
+    
+    // Also try "Samstag, 17.01.2026" or similar
+    const namedDateRegex = /(?:Montag|Dienstag|Mittwoch|Donnerstag|Freitag|Samstag|Sonntag)[,\s]+(\d{1,2})\.(\d{1,2})\.(\d{4})/gi;
+    let namedMatch;
+    while ((namedMatch = namedDateRegex.exec(content)) !== null) {
+      const day = namedMatch[1].padStart(2, '0');
+      const month = namedMatch[2].padStart(2, '0');
+      const year = namedMatch[3];
+      const isoDate = `${year}-${month}-${day}`;
+      if (!dates.some(d => d.date === isoDate)) {
+        dates.push({ date: isoDate });
+      }
+    }
+  }
+  
+  // Extract times: "10-11h", "12:00 - 13:00", "10 - 11 Uhr"
+  const timeRegex = /(\d{1,2})(?::(\d{2}))?\s*[-–]\s*(\d{1,2})(?::(\d{2}))?\s*(?:Uhr|h)?/gi;
+  const timeMatch = content.match(timeRegex);
+  
+  if (timeMatch && dates.length > 0) {
+    const firstDate = dates[0];
+    if (!firstDate.start_time) {
+      const parsed = timeMatch[0].match(/(\d{1,2})(?::(\d{2}))?\s*[-–]\s*(\d{1,2})(?::(\d{2}))?/);
+      if (parsed) {
+        firstDate.start_time = `${parsed[1].padStart(2, '0')}:${parsed[2] || '00'}`;
+        firstDate.end_time = `${parsed[3].padStart(2, '0')}:${parsed[4] || '00'}`;
+      }
+    }
+  }
+  
+  // Detect product type from keywords if not already set or unknown
+  if (!booking.product_type || booking.product_type === "unknown") {
+    if (/privat|private|einzelstunde|einzelunterricht/i.test(content)) {
+      booking.product_type = "private";
+    } else if (/gruppe|gruppenkurs|kinderskikurs|skikurs|snowli/i.test(content)) {
+      booking.product_type = "group";
+    }
+  }
+
+  // Parse address if it's a string instead of an object
+  const customer = extractedData.customer as Record<string, unknown> | undefined;
+  if (customer) {
+    if (typeof customer.address === "string" && customer.address.length > 5) {
+      const parsed = parseAddressString(customer.address);
+      if (parsed) {
+        customer.address = parsed;
+      }
+    }
+  }
+  
+  booking.dates = dates;
+  extractedData.booking = booking;
+  
+  return extractedData;
+}
+
+/**
+ * Parse a Swiss/Liechtenstein address string into structured components.
+ * E.g., "Im Riet 58, 9495 Triesen" → { street: "Im Riet 58", zip: "9495", city: "Triesen", country: "LI" }
+ */
+function parseAddressString(addressString: string): Record<string, string> | null {
+  // Pattern: "Street Number, ZIP City" or "Street Number\nZIP City"
+  const match = addressString.match(/^(.+?)[,\n]\s*(?:CH-|LI-|AT-|DE-)?(\d{4,5})\s+(.+)$/);
+  if (match) {
+    const zip = match[2];
+    let country = "CH";
+    // Determine country from ZIP
+    const zipNum = parseInt(zip);
+    if (zip.length === 4 && zipNum >= 9490 && zipNum <= 9498) {
+      country = "LI";
+    } else if (zip.length === 4 && zipNum >= 6800 && zipNum <= 6899) {
+      country = "AT";
+    } else if (zip.length === 5 && zipNum >= 10000) {
+      country = "DE";
+    }
+    
+    return {
+      street: match[1].trim(),
+      zip: zip,
+      city: match[3].trim(),
+      country: country
+    };
+  }
+  return null;
 }
