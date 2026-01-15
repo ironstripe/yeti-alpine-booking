@@ -54,13 +54,29 @@ interface ExtractedData {
 }
 
 const missingFieldLabels: Record<string, string> = {
+  // Customer fields
+  customer_name: "Vor- und Nachname",
+  customer_contact: "E-Mail oder Telefonnummer",
+  customer_address: "Adresse",
+  customer_email: "E-Mail-Adresse",
+  customer_phone: "Telefonnummer",
+  // Participant fields
+  participant_names: "Vornamen der Teilnehmer",
+  participant_birthdates: "Geburtsdaten der Teilnehmer",
+  participant_skill_levels: "Könnensstufe",
+  participant_ages: "Alter der Teilnehmer",
+  // Booking fields
+  booking_dates: "Konkrete Buchungsdaten",
+  booking_course_type: "Kurstyp (Privat/Gruppe)",
+  booking_times: "Uhrzeiten (Start/Ende)",
+  lunch_supervision: "Mittagsbetreuung",
+  vegetarian_preference: "Vegetarisch (ja/nein)",
+  // Legacy field names (backwards compatibility)
   start_date: "Startdatum",
   end_date: "Enddatum",
   number_of_days: "Anzahl Tage",
   number_of_participants: "Anzahl Teilnehmer",
-  participant_ages: "Alter der Teilnehmer",
-  participant_names: "Namen der Teilnehmer",
-  course_type: "Kurstyp (Privat/Gruppe)",
+  course_type: "Kurstyp",
   discipline: "Sportart (Ski/Snowboard)",
   skill_level: "Kenntnisstand",
   booking_reference: "Buchungsnummer",
