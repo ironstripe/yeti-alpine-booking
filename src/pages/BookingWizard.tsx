@@ -43,7 +43,10 @@ function BookingWizardContent() {
     setSelectedParticipants,
     setProductType,
     setSelectedDates,
+    setTimeSlot,
+    setDuration,
     setSport,
+    setAssignLater,
     canProceed, 
     goToNextStep, 
     resetWizard 
@@ -248,11 +251,34 @@ function BookingWizardContent() {
           
           if (prefill.booking.dates && prefill.booking.dates.length > 0) {
             setSelectedDates(prefill.booking.dates.map(d => d.date));
+            
+            // Apply start/end times from the first date that has them
+            const dateWithTime = prefill.booking.dates.find(d => d.start_time && d.end_time);
+            if (dateWithTime && dateWithTime.start_time && dateWithTime.end_time) {
+              const timeSlotValue = `${dateWithTime.start_time} - ${dateWithTime.end_time}`;
+              setTimeSlot(timeSlotValue);
+              
+              // Calculate duration from times
+              const startHour = parseInt(dateWithTime.start_time.split(":")[0]);
+              const endHour = parseInt(dateWithTime.end_time.split(":")[0]);
+              const durationHours = endHour - startHour;
+              if (durationHours > 0) {
+                setDuration(durationHours);
+              }
+              console.log("Applied time from prefill:", timeSlotValue, "duration:", durationHours);
+            }
           }
 
           // Determine sport from first participant if available
           if (selectedParticipants.length > 0 && selectedParticipants[0].sport) {
             setSport(selectedParticipants[0].sport as "ski" | "snowboard");
+          }
+          
+          // Auto-set "Später zuweisen" for inbox-originated bookings
+          // This prevents the wizard from feeling "stuck" when no instructor is assigned yet
+          if (prefill.sourceConversationId) {
+            setAssignLater(true);
+            console.log("Auto-set assignLater=true for inbox-originated booking");
           }
         }
 

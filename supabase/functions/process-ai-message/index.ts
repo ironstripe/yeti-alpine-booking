@@ -339,7 +339,9 @@ serve(async (req) => {
     console.log("Extracted data:", extractedData);
 
     // 5. Apply fallback parsing for booking data that AI might have missed
-    const enrichedData = extractBookingDataFallback(messageContent, extractedData);
+    // Pass notes as additional source for time parsing
+    const extractedNotes = extractedData.notes as string | undefined;
+    const enrichedData = extractBookingDataFallback(messageContent, extractedData, extractedNotes);
 
     // 6. Validate and clean extracted data
     const cleanedData = validateAndCleanExtraction(enrichedData, isExistingCustomer);
@@ -683,14 +685,17 @@ function normalizePhoneNumber(phone: string): string {
 /**
  * Fallback extraction for booking data that AI might have missed.
  * Parses dates, times, and product type from raw conversation content.
+ * Uses scoring heuristics to select the best time when multiple are found.
  */
 function extractBookingDataFallback(
   content: string,
-  extractedData: Record<string, unknown>
+  extractedData: Record<string, unknown>,
+  notes?: string
 ): Record<string, unknown> {
   console.log("=== extractBookingDataFallback START ===");
   console.log("Content length:", content.length);
   
+  // Ensure booking object exists
   const booking = (extractedData.booking || {}) as Record<string, unknown>;
   const dates = ((booking.dates || []) as Array<Record<string, unknown>>).slice();
   
@@ -729,31 +734,110 @@ function extractBookingDataFallback(
     }
   }
   
-  // Extract times with multiple patterns - handles various formats
-  // "10-11h", "12 - 13h", "12:00 - 13:00", "10 - 11 Uhr", "12–13h" (en-dash)
-  let extractedTime: { start: string; end: string } | null = null;
+  // --- IMPROVED TIME EXTRACTION WITH SCORING ---
+  // Find ALL time candidates and their positions, then score them
+  interface TimeCandidate {
+    start: string;
+    end: string;
+    position: number;
+    matchText: string;
+    score: number;
+  }
   
-  // Pattern 1: Time with h/Uhr suffix - most specific
-  const timePatterns = [
-    /(\d{1,2})(?::(\d{2}))?\s*[-–]\s*(\d{1,2})(?::(\d{2}))?\s*h\b/gi,    // "12 - 13h", "10-11h"
-    /(\d{1,2})(?::(\d{2}))?\s*[-–]\s*(\d{1,2})(?::(\d{2}))?\s*Uhr/gi,    // "12 - 13 Uhr"
-    /(\d{1,2}):(\d{2})\s*[-–]\s*(\d{1,2}):(\d{2})/g,                      // "12:00 - 13:00"
+  const timeCandidates: TimeCandidate[] = [];
+  
+  // Time patterns to search for
+  const timePatternRegex = /(\d{1,2})(?::(\d{2}))?\s*[-–]\s*(\d{1,2})(?::(\d{2}))?\s*(?:Uhr|h)?/gi;
+  
+  let timeMatch;
+  while ((timeMatch = timePatternRegex.exec(content)) !== null) {
+    const startHour = parseInt(timeMatch[1]);
+    const startMin = timeMatch[2] || '00';
+    const endHour = parseInt(timeMatch[3]);
+    const endMin = timeMatch[4] || '00';
+    
+    // Validate hours are reasonable (09-16 for ski school)
+    if (startHour >= 8 && startHour <= 16 && endHour >= 9 && endHour <= 17 && endHour > startHour) {
+      timeCandidates.push({
+        start: `${startHour.toString().padStart(2, '0')}:${startMin}`,
+        end: `${endHour.toString().padStart(2, '0')}:${endMin}`,
+        position: timeMatch.index,
+        matchText: timeMatch[0],
+        score: 0
+      });
+    }
+  }
+  
+  console.log("Fallback: Found", timeCandidates.length, "time candidates");
+  
+  // Score each candidate based on surrounding context
+  const negativePatterns = [
+    /leider/gi,
+    /keine\s*(freien?\s*)?Kapazit/gi,
+    /nicht\s*(mehr\s*)?verfügbar/gi,
+    /nicht\s*möglich/gi,
+    /ausgebucht/gi,
+    /bereits\s*belegt/gi,
   ];
   
-  for (const regex of timePatterns) {
-    const match = content.match(regex);
-    if (match && match[0]) {
-      console.log("Fallback: Found time match:", match[0]);
-      // Parse the matched string more carefully
-      const parsed = match[0].match(/(\d{1,2})(?::(\d{2}))?\s*[-–]\s*(\d{1,2})(?::(\d{2}))?/);
-      if (parsed) {
-        extractedTime = {
-          start: `${parsed[1].padStart(2, '0')}:${parsed[2] || '00'}`,
-          end: `${parsed[3].padStart(2, '0')}:${parsed[4] || '00'}`
-        };
-        console.log("Fallback: Parsed time as", extractedTime.start, "-", extractedTime.end);
-        break;
+  const positivePatterns = [
+    /buchen/gi,
+    /bestätigt/gi,
+    /reserviert/gi,
+    /möchte/gi,
+    /würde\s*gerne/gi,
+    /bitte/gi,
+    /perfekt/gi,
+    /passt/gi,
+  ];
+  
+  for (const candidate of timeCandidates) {
+    // Get surrounding context (100 chars before and after)
+    const contextStart = Math.max(0, candidate.position - 100);
+    const contextEnd = Math.min(content.length, candidate.position + candidate.matchText.length + 100);
+    const context = content.substring(contextStart, contextEnd).toLowerCase();
+    
+    // Check for negative patterns (penalize)
+    for (const pattern of negativePatterns) {
+      if (pattern.test(context)) {
+        candidate.score -= 10;
+        console.log(`Fallback: Penalizing "${candidate.matchText}" for negative context`);
       }
+    }
+    
+    // Check for positive patterns (boost)
+    for (const pattern of positivePatterns) {
+      if (pattern.test(context)) {
+        candidate.score += 5;
+      }
+    }
+    
+    // Later positions in the text often represent confirmed times (boost slightly)
+    candidate.score += candidate.position / content.length * 2;
+    
+    console.log(`Fallback: Candidate "${candidate.matchText}" score: ${candidate.score}`);
+  }
+  
+  // Select the best candidate
+  let extractedTime: { start: string; end: string } | null = null;
+  
+  if (timeCandidates.length > 0) {
+    // Sort by score descending and pick the best
+    timeCandidates.sort((a, b) => b.score - a.score);
+    const best = timeCandidates[0];
+    extractedTime = { start: best.start, end: best.end };
+    console.log("Fallback: Selected best time:", extractedTime.start, "-", extractedTime.end, "with score", best.score);
+  }
+  
+  // Also try parsing from notes as additional source
+  if (!extractedTime && notes) {
+    const notesTimeMatch = notes.match(/(\d{1,2}):(\d{2})\s*[-–]\s*(\d{1,2}):(\d{2})/);
+    if (notesTimeMatch) {
+      extractedTime = {
+        start: `${notesTimeMatch[1].padStart(2, '0')}:${notesTimeMatch[2]}`,
+        end: `${notesTimeMatch[3].padStart(2, '0')}:${notesTimeMatch[4]}`
+      };
+      console.log("Fallback: Extracted time from notes:", extractedTime.start, "-", extractedTime.end);
     }
   }
   
@@ -798,6 +882,7 @@ function extractBookingDataFallback(
     console.log("Fallback: Detected participant count:", booking.participant_count);
   }
   
+  // CRITICAL: Always persist booking object with dates
   booking.dates = dates;
   extractedData.booking = booking;
   
