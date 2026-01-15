@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -16,7 +17,10 @@ import {
   RefreshCw,
   Trash2,
   ExternalLink,
-  Globe
+  Globe,
+  Zap,
+  CheckCircle,
+  Loader2
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { de } from "date-fns/locale";
@@ -47,6 +51,13 @@ export default function InboxDetail() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const triggerExtraction = useTriggerAIExtraction();
+  
+  // Quick booking creation state
+  const [isCreatingBooking, setIsCreatingBooking] = useState(false);
+  const [createdTicket, setCreatedTicket] = useState<{
+    id: string;
+    ticket_number: string;
+  } | null>(null);
 
   const { data: conversation, isLoading, error, refetch } = useQuery({
     queryKey: ["conversation", id],
@@ -144,6 +155,47 @@ export default function InboxDetail() {
     } else {
       toast.success("Als Spam markiert");
       navigate("/inbox");
+    }
+  };
+
+  // Quick create booking handler
+  const handleQuickCreateBooking = async () => {
+    if (!id) return;
+    
+    setIsCreatingBooking(true);
+
+    try {
+      const { data, error } = await supabase.functions.invoke(
+        "create-booking-from-extraction",
+        {
+          body: {
+            conversationId: id,
+            customerId: (conversation as any)?.matched_customer_id || null,
+            sendConfirmationAfterApproval: true,
+          },
+        }
+      );
+
+      if (error) throw error;
+
+      if (data.success) {
+        setCreatedTicket({
+          id: data.ticket.id,
+          ticket_number: data.ticket.ticket_number,
+        });
+        toast.success(
+          `Buchung ${data.ticket.ticket_number} erstellt. Wartet auf Bestätigung.`
+        );
+        queryClient.invalidateQueries({ queryKey: ["pending-confirmations"] });
+        refetch();
+      } else {
+        throw new Error(data.error);
+      }
+    } catch (error) {
+      console.error("Error creating booking:", error);
+      toast.error(error instanceof Error ? error.message : "Fehler beim Erstellen der Buchung");
+    } finally {
+      setIsCreatingBooking(false);
     }
   };
 
@@ -355,12 +407,40 @@ export default function InboxDetail() {
                 </CardContent>
               </Card>
               
-              {hasExtraction && (
-                <ConvertToBookingButton
-                  conversationId={conversation.id}
-                  extractedData={extractedData}
+              {/* Quick Booking Actions */}
+              {hasExtraction && !conversation.related_ticket_id && !createdTicket && (
+                <div className="flex gap-2">
+                  {(extractedData?.booking_ready || isBookingReady(extractedData)) && (
+                    <Button
+                      onClick={handleQuickCreateBooking}
+                      disabled={isCreatingBooking}
+                      className="flex-1 bg-green-600 hover:bg-green-700"
+                    >
+                      {isCreatingBooking ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <Zap className="h-4 w-4 mr-2" />
+                      )}
+                      Schnell-Buchung
+                    </Button>
+                  )}
+                  <ConvertToBookingButton
+                    conversationId={conversation.id}
+                    extractedData={extractedData}
+                    className="flex-1"
+                  />
+                </div>
+              )}
+
+              {(conversation.related_ticket_id || createdTicket) && (
+                <Button
+                  variant="outline"
                   className="w-full"
-                />
+                  onClick={() => navigate(`/bookings/${conversation.related_ticket_id || createdTicket?.id}`)}
+                >
+                  <CheckCircle className="h-4 w-4 mr-2 text-green-500" />
+                  Buchung {createdTicket?.ticket_number || ""} anzeigen
+                </Button>
               )}
 
               {/* AI Reply Assistant */}
