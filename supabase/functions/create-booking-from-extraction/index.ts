@@ -469,7 +469,7 @@ serve(async (req) => {
             time_start: dateInfo.start_time || null,
             time_end: dateInfo.end_time || null,
             unit_price: unitPrice,
-            line_total: unitPrice,
+            quantity: 1,
             skill_level: participant?.skill_level || null,
             is_vegetarian: bookingData.vegetarian || false,
             status: "pending",
@@ -485,7 +485,7 @@ serve(async (req) => {
         product_id: selectedProduct.id,
         date: dates[0]?.date || today,
         unit_price: unitPrice,
-        line_total: unitPrice,
+        quantity: 1,
         status: "pending",
       });
     }

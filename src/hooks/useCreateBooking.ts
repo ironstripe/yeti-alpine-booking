@@ -175,7 +175,8 @@ export function useCreateBooking() {
         time_end: string;
         unit_price: number;
         quantity: number;
-        line_total: number;
+        discount_percent: number;
+        discount_reason: string | null;
         instructor_id: string | null;
         participant_id: string | null;
         meeting_point: string | null;
@@ -196,7 +197,8 @@ export function useCreateBooking() {
             time_end: state.timeSlot?.split(" - ")[1] || "12:00",
             unit_price: unitPrice,
             quantity: 1,
-            line_total: unitPrice,
+            discount_percent: state.discountPercent || 0,
+            discount_reason: state.discountReason || null,
             instructor_id: state.instructorId,
             participant_id: participant.id.startsWith("guest-") ? null : participant.id,
             meeting_point: state.meetingPoint,
