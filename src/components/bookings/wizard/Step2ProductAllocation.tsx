@@ -190,6 +190,19 @@ export function Step2ProductAllocation() {
     }
   }, [groupRecommendation.hasAdults, state.productType, setProductType]);
 
+  // Auto-navigate calendar to the month of prefilled dates
+  useEffect(() => {
+    if (state.selectedDates.length > 0) {
+      const firstDate = parseISO(state.selectedDates[0]);
+      const currentMonthStart = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth(), 1);
+      const selectedMonthStart = new Date(firstDate.getFullYear(), firstDate.getMonth(), 1);
+      
+      if (currentMonthStart.getTime() !== selectedMonthStart.getTime()) {
+        setSelectedMonth(firstDate);
+        console.log("Step2: Auto-navigated calendar to month:", firstDate);
+      }
+    }
+  }, [state.selectedDates]);
   // Warnings
   const warnings = useMemo<BookingWarning[]>(() => {
     const result: BookingWarning[] = [];
