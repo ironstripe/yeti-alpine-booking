@@ -157,12 +157,22 @@ export function Step2ProductDates() {
     return null;
   }, [products, state.productType, state.selectedDates.length]);
 
-  // Update productId when product changes
+  // Update productId when product changes (for group courses)
   useEffect(() => {
     if (selectedProduct && selectedProduct.id !== state.productId) {
       setProductId(selectedProduct.id);
     }
   }, [selectedProduct, state.productId, setProductId]);
+
+  // Set default productId for private lessons
+  useEffect(() => {
+    if (state.productType === "private" && !state.productId) {
+      const privateProduct = products.find(p => p.type === "private");
+      if (privateProduct) {
+        setProductId(privateProduct.id);
+      }
+    }
+  }, [state.productType, state.productId, products, setProductId]);
 
   // Find lunch product
   const lunchProduct = products.find((p) => p.type === "lunch");

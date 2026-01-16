@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Users, User } from "lucide-react";
+import { Users, User, Calendar } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
@@ -23,9 +23,21 @@ interface GroupSelectorProps {
   onGroupSelect: (groupId: string | null) => void;
 }
 
-interface GroupWithCapacity extends Tables<"groups"> {
+interface GroupCourseWithCapacity {
+  id: string;
+  name: string;
+  discipline: string;
+  skill_level: string;
+  max_participants: number;
+  color: string | null;
+  meeting_point: string | null;
+  course_type: string | null;
   currentCount: number;
-  instructor?: Tables<"instructors">;
+  schedules: Array<{
+    day_of_week: number;
+    start_time: string;
+    end_time: string;
+  }>;
 }
 
 export function GroupSelector({
@@ -35,47 +47,91 @@ export function GroupSelector({
   selectedGroupId,
   onGroupSelect,
 }: GroupSelectorProps) {
-  // Fetch available groups for the selected dates
-  const { data: groups = [], isLoading } = useQuery({
-    queryKey: ["groups", selectedDates, sport, level],
+  // Fetch active group courses with their schedules
+  const { data: courses = [], isLoading } = useQuery({
+    queryKey: ["group-courses-for-booking", selectedDates, sport],
     queryFn: async () => {
       if (selectedDates.length === 0) return [];
 
-      const startDate = selectedDates.sort()[0];
-      const endDate = selectedDates.sort()[selectedDates.length - 1];
-
-      // Get groups that overlap with selected dates
-      const { data: groupsData, error } = await supabase
-        .from("groups")
-        .select("*, instructor:instructors(*)")
-        .lte("start_date", endDate)
-        .gte("end_date", startDate)
-        .eq("status", "planned");
+      // Fetch active group courses
+      const { data: coursesData, error } = await supabase
+        .from("group_courses")
+        .select(`
+          id,
+          name,
+          discipline,
+          skill_level,
+          max_participants,
+          color,
+          meeting_point,
+          course_type,
+          schedules:group_course_schedules(day_of_week, start_time, end_time)
+        `)
+        .eq("is_active", true);
 
       if (error) throw error;
+      if (!coursesData) return [];
 
-      // TODO: Calculate current enrollment count from ticket_items
-      // For now, return groups with mock capacity
-      return (groupsData || []).map((g) => ({
-        ...g,
-        currentCount: Math.floor(Math.random() * (g.max_participants || 10)),
-        instructor: g.instructor,
-      })) as GroupWithCapacity[];
+      // Get day of week for selected dates (0 = Sunday, 6 = Saturday)
+      const selectedDaysOfWeek = selectedDates.map(dateStr => {
+        const date = new Date(dateStr);
+        return date.getDay();
+      });
+
+      // Filter courses that have schedules matching selected days
+      const matchingCourses = coursesData.filter(course => {
+        // For Saturday courses, check if any selected date is Saturday (6)
+        if (course.course_type === "saturday_course") {
+          return selectedDaysOfWeek.includes(6);
+        }
+        
+        // For weekly courses, check schedules
+        if (!course.schedules || course.schedules.length === 0) return true; // Show if no schedules defined
+        
+        return course.schedules.some(schedule => 
+          selectedDaysOfWeek.includes(schedule.day_of_week)
+        );
+      });
+
+      // Get instance counts for capacity
+      const courseIds = matchingCourses.map(c => c.id);
+      const { data: instances } = await supabase
+        .from("group_course_instances")
+        .select("course_id, current_participants")
+        .in("course_id", courseIds)
+        .in("date", selectedDates);
+
+      // Calculate current enrollment per course
+      const enrollmentMap: Record<string, number> = {};
+      instances?.forEach(inst => {
+        if (!enrollmentMap[inst.course_id]) {
+          enrollmentMap[inst.course_id] = 0;
+        }
+        enrollmentMap[inst.course_id] = Math.max(
+          enrollmentMap[inst.course_id],
+          inst.current_participants || 0
+        );
+      });
+
+      return matchingCourses.map(course => ({
+        ...course,
+        currentCount: enrollmentMap[course.id] || 0,
+      })) as GroupCourseWithCapacity[];
     },
     enabled: selectedDates.length > 0,
   });
 
-  // Filter groups by sport if specified
-  const filteredGroups = useMemo(() => {
-    return groups.filter((g) => {
-      if (sport && g.sport && g.sport !== sport) return false;
+  // Filter by discipline if sport is specified
+  const filteredCourses = useMemo(() => {
+    return courses.filter(c => {
+      if (sport && c.discipline && c.discipline !== sport) return false;
       return true;
     });
-  }, [groups, sport]);
+  }, [courses, sport]);
 
-  const selectedGroup = useMemo(() => {
-    return filteredGroups.find((g) => g.id === selectedGroupId);
-  }, [filteredGroups, selectedGroupId]);
+  const selectedCourse = useMemo(() => {
+    return filteredCourses.find(c => c.id === selectedGroupId);
+  }, [filteredCourses, selectedGroupId]);
 
   if (selectedDates.length === 0) {
     return (
@@ -101,43 +157,34 @@ export function GroupSelector({
           <SelectValue placeholder={isLoading ? "Laden..." : "Gruppe wählen"} />
         </SelectTrigger>
         <SelectContent>
-          {filteredGroups.length === 0 ? (
+          {filteredCourses.length === 0 ? (
             <div className="px-2 py-4 text-center text-sm text-muted-foreground">
               Keine passenden Gruppen gefunden
             </div>
           ) : (
-            filteredGroups.map((group) => {
-              const isFull = group.currentCount >= (group.max_participants || 10);
-              const capacityPercent =
-                (group.currentCount / (group.max_participants || 10)) * 100;
+            filteredCourses.map((course) => {
+              const isFull = course.currentCount >= course.max_participants;
+              const spotsLeft = course.max_participants - course.currentCount;
 
               return (
                 <SelectItem
-                  key={group.id}
-                  value={group.id}
+                  key={course.id}
+                  value={course.id}
                   disabled={isFull}
                   className={cn(isFull && "opacity-50")}
                 >
                   <div className="flex items-center gap-2 w-full">
-                    {/* Level indicator */}
+                    {/* Color indicator */}
                     <div
-                      className={cn(
-                        "w-2 h-2 rounded-full",
-                        group.level === "anfaenger"
-                          ? "bg-green-500"
-                          : group.level === "blue_prince"
-                          ? "bg-blue-500"
-                          : group.level === "red_king"
-                          ? "bg-red-500"
-                          : "bg-gray-400"
-                      )}
+                      className="w-2 h-2 rounded-full flex-shrink-0"
+                      style={{ backgroundColor: course.color || "#6b7280" }}
                     />
-                    <span className="flex-1 truncate">{group.name}</span>
+                    <span className="flex-1 truncate">{course.name}</span>
                     <Badge
-                      variant={isFull ? "destructive" : "secondary"}
+                      variant={isFull ? "destructive" : spotsLeft <= 3 ? "secondary" : "outline"}
                       className="text-[10px] h-5 px-1.5"
                     >
-                      {group.currentCount}/{group.max_participants || 10}
+                      {course.currentCount}/{course.max_participants}
                     </Badge>
                   </div>
                 </SelectItem>
@@ -147,14 +194,21 @@ export function GroupSelector({
         </SelectContent>
       </Select>
 
-      {/* Selected group instructor display */}
-      {selectedGroup && selectedGroup.instructor && (
-        <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/50 rounded-md px-2 py-1.5">
-          <User className="h-3 w-3" />
-          <span>
-            Leiter: {selectedGroup.instructor.first_name}{" "}
-            {selectedGroup.instructor.last_name}
-          </span>
+      {/* Selected course details */}
+      {selectedCourse && (
+        <div className="flex flex-col gap-1 text-xs text-muted-foreground bg-muted/50 rounded-md px-2 py-1.5">
+          <div className="flex items-center gap-2">
+            <Calendar className="h-3 w-3" />
+            <span>
+              {selectedCourse.skill_level} • {selectedCourse.discipline === "ski" ? "Ski" : "Snowboard"}
+            </span>
+          </div>
+          {selectedCourse.meeting_point && (
+            <div className="flex items-center gap-2">
+              <User className="h-3 w-3" />
+              <span>Treffpunkt: {selectedCourse.meeting_point}</span>
+            </div>
+          )}
         </div>
       )}
     </div>
