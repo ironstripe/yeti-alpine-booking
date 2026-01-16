@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, ReactNode } from "react";
 import type { Tables } from "@/integrations/supabase/types";
+import { supabase } from "@/integrations/supabase/client";
 
 export type WizardStep = 1 | 2 | 3;
 
@@ -19,6 +20,19 @@ export interface AppointmentSlot {
   date: string;
   startTime: string;
   durationMinutes: number;
+}
+
+// Track original ticket items for edit mode
+export interface OriginalTicketItem {
+  id: string;
+  participantId: string;
+  date: string;
+  timeStart: string | null;
+  timeEnd: string | null;
+  instructorId: string | null;
+  meetingPoint: string | null;
+  productId: string | null;
+  unitPrice: number | null;
 }
 
 export interface BookingWizardState {
@@ -73,6 +87,12 @@ export interface BookingWizardState {
   // Metadata
   conversationId: string | null;
   currentStep: WizardStep;
+  
+  // Edit mode
+  isEditMode: boolean;
+  editingTicketId: string | null;
+  originalItems: OriginalTicketItem[];
+  originalParticipantIds: string[]; // Track original participants to detect add/remove
 }
 
 interface BookingWizardContextType {
@@ -115,6 +135,8 @@ interface BookingWizardContextType {
   resetWizard: () => void;
   // New: Pre-fill from scheduler
   prefillFromScheduler: (instructorId: string, appointments: AppointmentSlot[]) => void;
+  // Edit mode
+  loadTicketForEditing: (ticketId: string) => Promise<void>;
 }
 
 const initialState: BookingWizardState = {
@@ -154,6 +176,11 @@ const initialState: BookingWizardState = {
   notifyInstructor: true,
   conversationId: null,
   currentStep: 1,
+  // Edit mode defaults
+  isEditMode: false,
+  editingTicketId: null,
+  originalItems: [],
+  originalParticipantIds: [],
 };
 
 const BookingWizardContext = createContext<BookingWizardContextType | null>(null);
@@ -403,6 +430,137 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
     setState(initialState);
   };
 
+  // Load existing ticket for editing
+  const loadTicketForEditing = async (ticketId: string) => {
+    try {
+      // Fetch ticket with all related data
+      const { data: ticket, error } = await supabase
+        .from("tickets")
+        .select(`
+          *,
+          customer:customers!tickets_customer_id_fkey (*),
+          ticket_items (
+            id,
+            date,
+            time_start,
+            time_end,
+            instructor_id,
+            meeting_point,
+            participant_id,
+            product_id,
+            unit_price,
+            internal_notes,
+            instructor_notes,
+            product:products!ticket_items_product_id_fkey (id, name, type),
+            instructor:instructors!ticket_items_instructor_id_fkey (*),
+            participant:customer_participants!ticket_items_participant_id_fkey (*)
+          )
+        `)
+        .eq("id", ticketId)
+        .single();
+
+      if (error) throw error;
+      if (!ticket) throw new Error("Buchung nicht gefunden");
+
+      const items = ticket.ticket_items || [];
+      
+      // Extract unique participants from items
+      const participantMap = new Map<string, SelectedParticipant>();
+      for (const item of items) {
+        if (item.participant && !participantMap.has(item.participant.id)) {
+          participantMap.set(item.participant.id, {
+            id: item.participant.id,
+            first_name: item.participant.first_name,
+            last_name: item.participant.last_name,
+            birth_date: item.participant.birth_date,
+            level_last_season: item.participant.level_last_season,
+            level_current_season: item.participant.level_current_season,
+            sport: item.participant.sport,
+          });
+        }
+      }
+      const selectedParticipants = Array.from(participantMap.values());
+      const originalParticipantIds = selectedParticipants.map(p => p.id);
+
+      // Extract unique dates
+      const selectedDates = [...new Set(items.map(i => i.date).filter(Boolean))].sort();
+
+      // Get time from first item
+      const firstItem = items[0];
+      const timeSlot = firstItem?.time_start && firstItem?.time_end
+        ? `${firstItem.time_start.slice(0, 5)} - ${firstItem.time_end.slice(0, 5)}`
+        : null;
+
+      // Calculate duration
+      let duration = null;
+      if (firstItem?.time_start && firstItem?.time_end) {
+        const startHour = parseInt(firstItem.time_start.split(":")[0]);
+        const endHour = parseInt(firstItem.time_end.split(":")[0]);
+        duration = endHour - startHour;
+      }
+
+      // Get product type
+      const productType = firstItem?.product?.type === "group" ? "group" : "private";
+      const productId = firstItem?.product_id || null;
+
+      // Get instructor (if any)
+      const instructorItem = items.find(i => i.instructor);
+      const instructor = instructorItem?.instructor || null;
+
+      // Get meeting point
+      const meetingPoint = firstItem?.meeting_point || "sammelplatz_gorfion";
+
+      // Build original items for tracking changes
+      const originalItems: OriginalTicketItem[] = items.map(item => ({
+        id: item.id,
+        participantId: item.participant_id || "",
+        date: item.date,
+        timeStart: item.time_start,
+        timeEnd: item.time_end,
+        instructorId: item.instructor_id,
+        meetingPoint: item.meeting_point,
+        productId: item.product_id,
+        unitPrice: item.unit_price,
+      }));
+
+      // Update state with all the loaded data
+      setState(prev => ({
+        ...prev,
+        // Edit mode flags
+        isEditMode: true,
+        editingTicketId: ticketId,
+        originalItems,
+        originalParticipantIds,
+        // Customer (locked in edit mode, but still loaded)
+        customer: ticket.customer as Tables<"customers">,
+        customerId: ticket.customer?.id || null,
+        // Participants
+        selectedParticipants,
+        // Product & dates
+        productType: productType as "private" | "group",
+        productId,
+        selectedDates,
+        timeSlot,
+        duration,
+        // Instructor
+        instructor: instructor as Tables<"instructors"> | null,
+        instructorId: instructor?.id || null,
+        assignLater: !instructor,
+        // Meeting point
+        meetingPoint,
+        // Notes
+        internalNotes: firstItem?.internal_notes || "",
+        instructorNotes: firstItem?.instructor_notes || "",
+        customerNotes: ticket.notes || "",
+        // Start at step 2 (skip customer selection)
+        currentStep: 2,
+      }));
+    } catch (error) {
+      console.error("Error loading ticket for editing:", error);
+      throw error;
+    }
+  };
+
   return (
     <BookingWizardContext.Provider
       value={{
@@ -440,6 +598,7 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
         canProceed,
         resetWizard,
         prefillFromScheduler,
+        loadTicketForEditing,
       }}
     >
       {children}

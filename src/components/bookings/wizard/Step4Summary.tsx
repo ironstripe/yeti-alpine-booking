@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { toast } from "sonner";
+import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -8,6 +9,7 @@ import { Separator } from "@/components/ui/separator";
 
 import { useBookingWizard, WizardStep } from "@/contexts/BookingWizardContext";
 import { useCreateBooking } from "@/hooks/useCreateBooking";
+import { useUpdateBooking, type NewParticipantItem, type TicketItemUpdate } from "@/hooks/useUpdateBooking";
 
 import { BookingSummaryCards } from "./BookingSummaryCards";
 import { PriceBreakdown } from "./PriceBreakdown";
@@ -42,18 +44,14 @@ function check2x2hDiscount(
     });
   }
 
-  // Simple mode: same duration across all dates
-  // 2x2h discount only applies if duration is 2h and we have bookings
-  // that when combined on same day equal 2x2h
-  // For simple mode, user would need to book 2h twice on same day
-  // which currently isn't supported in simple mode (single duration selection)
-  // So for now, this only triggers in complex/appointments mode
   return false;
 }
 
 export function Step4Summary({ onEditStep }: Step4SummaryProps) {
+  const navigate = useNavigate();
   const { state, setCurrentStep, resetWizard } = useBookingWizard();
   const createBooking = useCreateBooking();
+  const updateBooking = useUpdateBooking();
 
   // Local state for Step 4 fields (not in context to keep it simpler)
   const [paymentMethod, setPaymentMethod] = useState<"cash" | "card" | "twint" | "invoice" | null>(null);
@@ -100,7 +98,7 @@ export function Step4Summary({ onEditStep }: Step4SummaryProps) {
   };
 
   const handleCreateBooking = async () => {
-    if (!paymentMethod) {
+    if (!state.isEditMode && !paymentMethod) {
       toast.error("Bitte wähle eine Zahlungsart");
       return;
     }
@@ -118,23 +116,72 @@ export function Step4Summary({ onEditStep }: Step4SummaryProps) {
     ].filter(Boolean).join(", ");
 
     try {
-      const result = await createBooking.mutateAsync({
-        ...state,
-        paymentMethod,
-        isPaid,
-        paymentDueDate,
-        discountPercent: totalDiscount,
-        discountReason: combinedReason,
-        sendCustomerEmail,
-        sendCustomerWhatsApp,
-        notifyInstructor,
-      });
+      if (state.isEditMode && state.editingTicketId) {
+        // UPDATE MODE: Use updateBooking hook
+        const addedParticipantIds = state.selectedParticipants
+          .filter(p => !state.originalParticipantIds.includes(p.id))
+          .map(p => p.id);
+        
+        const removedParticipantIds = state.originalParticipantIds
+          .filter(id => !state.selectedParticipants.some(p => p.id === id));
 
-      setCreatedTicket({ id: result.ticketId, number: result.ticketNumber });
-      setShowSuccess(true);
+        // Build item updates from original items
+        const itemUpdates: TicketItemUpdate[] = state.originalItems
+          .filter(item => state.selectedParticipants.some(p => p.id === item.participantId))
+          .map(item => ({
+            id: item.id,
+            instructorId: state.instructorId,
+            meetingPoint: state.meetingPoint,
+            internalNotes: state.internalNotes,
+            instructorNotes: state.instructorNotes,
+          }));
+
+        // Build new participant items  
+        const addedParticipants: NewParticipantItem[] = addedParticipantIds.map(participantId => {
+          const participant = state.selectedParticipants.find(p => p.id === participantId);
+          return {
+            participantId,
+            participantFirstName: participant?.first_name || "",
+            dates: state.selectedDates,
+            productId: state.productId || "",
+            timeStart: state.timeSlot?.split(" - ")[0] || "10:00",
+            timeEnd: state.timeSlot?.split(" - ")[1] || "12:00",
+            instructorId: state.instructorId,
+            meetingPoint: state.meetingPoint,
+            unitPrice: 0, // Will be recalculated
+          };
+        });
+
+        await updateBooking.mutateAsync({
+          ticketId: state.editingTicketId,
+          itemUpdates,
+          addedParticipants,
+          removedParticipantIds,
+          internalNotes: state.internalNotes,
+        });
+
+        resetWizard();
+        navigate(`/bookings/${state.editingTicketId}`);
+      } else {
+        // CREATE MODE: Use createBooking hook
+        const result = await createBooking.mutateAsync({
+          ...state,
+          paymentMethod,
+          isPaid,
+          paymentDueDate,
+          discountPercent: totalDiscount,
+          discountReason: combinedReason,
+          sendCustomerEmail,
+          sendCustomerWhatsApp,
+          notifyInstructor,
+        });
+
+        setCreatedTicket({ id: result.ticketId, number: result.ticketNumber });
+        setShowSuccess(true);
+      }
     } catch (error) {
-      console.error("Failed to create booking:", error);
-      toast.error("Fehler beim Erstellen der Buchung");
+      console.error("Failed to save booking:", error);
+      toast.error(state.isEditMode ? "Fehler beim Speichern" : "Fehler beim Erstellen der Buchung");
     }
   };
 
@@ -229,16 +276,16 @@ export function Step4Summary({ onEditStep }: Step4SummaryProps) {
 
           <Button 
             onClick={handleCreateBooking} 
-            disabled={createBooking.isPending}
+            disabled={createBooking.isPending || updateBooking.isPending}
             className="min-w-[180px]"
           >
-            {createBooking.isPending ? (
+            {(createBooking.isPending || updateBooking.isPending) ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Wird erstellt...
+                {state.isEditMode ? "Wird gespeichert..." : "Wird erstellt..."}
               </>
             ) : (
-              "Buchung erstellen"
+              state.isEditMode ? "Änderungen speichern" : "Buchung erstellen"
             )}
           </Button>
         </div>

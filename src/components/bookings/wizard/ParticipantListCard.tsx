@@ -47,6 +47,9 @@ interface ParticipantListCardProps {
   onLunchDaysChange?: (participantId: string, days: string[]) => void;
   vegetarianSelections?: Record<string, boolean>;
   onVegetarianChange?: (participantId: string, isVegetarian: boolean) => void;
+  // Edit mode
+  isEditMode?: boolean;
+  originalParticipantIds?: string[];
 }
 
 const participantSchema = z.object({
@@ -69,6 +72,8 @@ export function ParticipantListCard({
   onLunchDaysChange,
   vegetarianSelections = {},
   onVegetarianChange,
+  isEditMode = false,
+  originalParticipantIds = [],
 }: ParticipantListCardProps) {
   const [isAdding, setIsAdding] = useState(false);
   const [isSaving, setIsSaving] = useState(false);

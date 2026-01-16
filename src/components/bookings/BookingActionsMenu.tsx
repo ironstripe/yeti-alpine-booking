@@ -14,10 +14,17 @@ import {
   Printer,
   Copy,
   XCircle,
+  Pencil,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { TicketWithDetails } from "@/hooks/useTickets";
 import { toast } from "sonner";
+import { isBookingEditable } from "@/lib/booking-utils";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface BookingActionsMenuProps {
   ticket: TicketWithDetails;
@@ -27,8 +34,21 @@ interface BookingActionsMenuProps {
 export function BookingActionsMenu({ ticket, onRecordPayment }: BookingActionsMenuProps) {
   const navigate = useNavigate();
 
+  // Check if any ticket item has a future date (editable)
+  const hasEditableItems = ticket.items.some(item => 
+    item.date && isBookingEditable(item.date)
+  );
+
   const handleView = () => {
     navigate(`/bookings/${ticket.id}`);
+  };
+
+  const handleEdit = () => {
+    if (!hasEditableItems) {
+      toast.error("Diese Buchung kann nicht mehr bearbeitet werden (alle Termine in der Vergangenheit)");
+      return;
+    }
+    navigate(`/bookings/new?edit=${ticket.id}`);
   };
 
   const handleResendConfirmation = () => {
@@ -63,6 +83,24 @@ export function BookingActionsMenu({ ticket, onRecordPayment }: BookingActionsMe
           <Eye className="mr-2 h-4 w-4" />
           Buchung anzeigen
         </DropdownMenuItem>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div>
+              <DropdownMenuItem 
+                onClick={handleEdit}
+                disabled={!hasEditableItems}
+              >
+                <Pencil className="mr-2 h-4 w-4" />
+                Buchung bearbeiten
+              </DropdownMenuItem>
+            </div>
+          </TooltipTrigger>
+          {!hasEditableItems && (
+            <TooltipContent>
+              Buchung liegt in der Vergangenheit
+            </TooltipContent>
+          )}
+        </Tooltip>
         <DropdownMenuItem onClick={() => onRecordPayment(ticket)}>
           <CreditCard className="mr-2 h-4 w-4" />
           Zahlung erfassen
