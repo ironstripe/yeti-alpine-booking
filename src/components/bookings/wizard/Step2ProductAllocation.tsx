@@ -179,12 +179,17 @@ export function Step2ProductAllocation() {
     return canSelectAlternativeMeetingPoint(participantLevels);
   }, [participantLevels]);
 
-  // Auto-set meeting point to Gorfion for beginners
+  // Auto-set meeting point to Gorfion for beginners (private) or as default (group)
   useEffect(() => {
-    if (allBeginnersOnly && state.meetingPoint !== "sammelplatz_gorfion") {
+    // For private lessons with beginners: lock to Gorfion
+    if (state.productType === "private" && allBeginnersOnly && state.meetingPoint !== "sammelplatz_gorfion") {
       setMeetingPoint("sammelplatz_gorfion");
     }
-  }, [allBeginnersOnly, state.meetingPoint, setMeetingPoint]);
+    // For group courses: set default meeting point if not already set
+    if (state.productType === "group" && !state.meetingPoint) {
+      setMeetingPoint("sammelplatz_gorfion");
+    }
+  }, [state.productType, allBeginnersOnly, state.meetingPoint, setMeetingPoint]);
 
   // Auto-select "private" for adult participants when group is disabled
   useEffect(() => {
@@ -449,11 +454,6 @@ export function Step2ProductAllocation() {
                 <span>📚 Standard: <strong>10:00 - 12:00</strong> + <strong>14:00 - 16:00</strong></span>
               )}
             </div>
-            {groupRecommendation.hint && !groupRecommendation.hasToddlers && (
-              <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
-                {groupRecommendation.hint}
-              </p>
-            )}
           </div>
         )}
 
@@ -488,63 +488,68 @@ export function Step2ProductAllocation() {
             Zeitfenster & Treffpunkt
           </Label>
           <div className="flex flex-wrap items-center gap-3 rounded-md border-2 p-2 min-h-[42px]">
-            {state.productType === "private" && state.selectedDates.length > 0 ? (
+            {state.productType && state.selectedDates.length > 0 ? (
               <>
-                {/* Time Selection */}
-                <div className="flex items-center gap-1.5">
-                  <Select
-                    value={startTime || ""}
-                    onValueChange={(value) => {
-                      setStartTime(value);
-                      if (endTime && parseInt(value.split(":")[0]) >= parseInt(endTime.split(":")[0])) {
-                        setEndTime(null);
-                      }
-                    }}
-                  >
-                    <SelectTrigger className="w-[72px] h-7 text-xs">
-                      <SelectValue placeholder="Start" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {START_TIMES.map((time) => (
-                        <SelectItem key={time} value={time}>
-                          {time}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <ArrowRight className="h-3 w-3 text-muted-foreground flex-shrink-0" />
-                  <Select
-                    value={endTime || ""}
-                    onValueChange={setEndTime}
-                    disabled={!startTime}
-                  >
-                    <SelectTrigger className="w-[72px] h-7 text-xs">
-                      <SelectValue placeholder="Ende" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {availableEndTimes.map((time) => (
-                        <SelectItem key={time} value={time}>
-                          {time}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {calculatedDuration && (
-                    <Badge variant="secondary" className="text-xs h-5 px-1.5">
-                      {calculatedDuration}h
-                    </Badge>
-                  )}
-                </div>
+                {/* Time Selection - Only for private lessons */}
+                {state.productType === "private" && (
+                  <>
+                    <div className="flex items-center gap-1.5">
+                      <Select
+                        value={startTime || ""}
+                        onValueChange={(value) => {
+                          setStartTime(value);
+                          if (endTime && parseInt(value.split(":")[0]) >= parseInt(endTime.split(":")[0])) {
+                            setEndTime(null);
+                          }
+                        }}
+                      >
+                        <SelectTrigger className="w-[72px] h-7 text-xs">
+                          <SelectValue placeholder="Start" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {START_TIMES.map((time) => (
+                            <SelectItem key={time} value={time}>
+                              {time}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <ArrowRight className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                      <Select
+                        value={endTime || ""}
+                        onValueChange={setEndTime}
+                        disabled={!startTime}
+                      >
+                        <SelectTrigger className="w-[72px] h-7 text-xs">
+                          <SelectValue placeholder="Ende" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {availableEndTimes.map((time) => (
+                            <SelectItem key={time} value={time}>
+                              {time}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {calculatedDuration && (
+                        <Badge variant="secondary" className="text-xs h-5 px-1.5">
+                          {calculatedDuration}h
+                        </Badge>
+                      )}
+                    </div>
 
-                {/* Separator */}
-                <div className="w-px h-5 bg-border" />
+                    {/* Separator */}
+                    <div className="w-px h-5 bg-border" />
+                  </>
+                )}
 
                 {/* Meeting Points - Horizontal Pills */}
                 <div className="flex items-center gap-1.5">
                   <MapPin className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
                   {MEETING_POINTS.map((point) => {
                     const isSelected = state.meetingPoint === point.id;
-                    const isLocked = allBeginnersOnly && point.id !== "sammelplatz_gorfion";
+                    // Only lock for private lessons with beginners; group courses always allow selection
+                    const isLocked = state.productType === "private" && allBeginnersOnly && point.id !== "sammelplatz_gorfion";
                     return (
                       <button
                         key={point.id}
@@ -568,8 +573,6 @@ export function Step2ProductAllocation() {
               <span className="text-xs text-muted-foreground">
                 {!state.productType 
                   ? "Wählen Sie Buchungstyp" 
-                  : state.productType === "group"
-                  ? "Für Gruppenkurse vom Büro zugeteilt"
                   : "Datum auswählen"}
               </span>
             )}
