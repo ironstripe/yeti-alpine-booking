@@ -36,6 +36,7 @@ import {
 import { BookingWarnings, type BookingWarning } from "./BookingWarnings";
 import { MiniSchedulerGrid } from "./MiniSchedulerGrid";
 import { GroupSelector } from "./GroupSelector";
+import { LunchSupervisionAddon } from "./LunchSupervisionAddon";
 import {
   MEETING_POINTS,
   isBeginnerLevel,
@@ -78,6 +79,8 @@ export function Step2ProductAllocation() {
     setLanguage,
     setSelectedGroupId,
     setGroupCourseType,
+    setLunchDaysForParticipant,
+    setVegetarianForParticipant,
   } = useBookingWizard();
 
   const [selectedMonth, setSelectedMonth] = useState<Date>(new Date());
@@ -646,13 +649,30 @@ export function Step2ProductAllocation() {
         {isGroupCourse ? (
           <div className="space-y-4">
             {state.selectedDates.length > 0 ? (
-              <GroupSelector
-                selectedDates={state.selectedDates}
-                sport={state.sport}
-                level={state.selectedParticipants[0]?.level_current_season || null}
-                selectedGroupId={state.selectedGroupId}
-                onGroupSelect={setSelectedGroupId}
-              />
+              <>
+                <GroupSelector
+                  selectedDates={state.selectedDates}
+                  sport={state.sport}
+                  level={state.selectedParticipants[0]?.level_current_season || null}
+                  selectedGroupId={state.selectedGroupId}
+                  onGroupSelect={setSelectedGroupId}
+                />
+                
+                {/* Lunch Supervision Add-on */}
+                {state.selectedParticipants.length > 0 && (
+                  <div className="pt-2">
+                    <LunchSupervisionAddon
+                      selectedDates={state.selectedDates}
+                      participants={state.selectedParticipants}
+                      lunchSelections={state.lunchSelections}
+                      vegetarianSelections={state.vegetarianSelections}
+                      onLunchDaysChange={setLunchDaysForParticipant}
+                      onVegetarianChange={setVegetarianForParticipant}
+                      lunchPricePerDay={lunchProduct?.price || 25}
+                    />
+                  </div>
+                )}
+              </>
             ) : (
               <div className="flex flex-col items-center justify-center py-8 text-center rounded-lg border border-dashed">
                 <CalendarDays className="h-10 w-10 text-muted-foreground mb-2" />

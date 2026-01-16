@@ -110,16 +110,38 @@ export function useCreateBooking() {
         
       // ============ GROUP COURSE PRICING ============
       } else if (state.productType === "group") {
-        // Find a group product
-        const groupProduct = products?.find(p => p.type === "group");
-        if (groupProduct) {
-          productId = groupProduct.id;
+        // First, try to get product from selected group course
+        if (state.selectedGroupId) {
+          const { data: selectedCourse } = await supabase
+            .from("group_courses")
+            .select("product_id, name, price_per_day")
+            .eq("id", state.selectedGroupId)
+            .single();
           
-          // TODO: Implement tiered pricing based on days count
-          // For now, use the base price multiplied by days
-          unitPrice = Number(groupProduct.price);
-        } else {
-          throw new Error("Kein Gruppenkurs-Produkt konfiguriert");
+          if (selectedCourse?.product_id) {
+            productId = selectedCourse.product_id;
+            // Use group course's price_per_day or product price
+            const linkedProduct = products?.find(p => p.id === selectedCourse.product_id);
+            unitPrice = selectedCourse.price_per_day || Number(linkedProduct?.price) || 0;
+          } else if (selectedCourse?.price_per_day) {
+            // Course has price but no linked product - find a generic group product
+            const groupProduct = products?.find(p => p.type === "group");
+            if (groupProduct) {
+              productId = groupProduct.id;
+              unitPrice = selectedCourse.price_per_day;
+            }
+          }
+        }
+        
+        // Fallback to generic group product if no course selected or no product linked
+        if (!productId) {
+          const groupProduct = products?.find(p => p.type === "group");
+          if (groupProduct) {
+            productId = groupProduct.id;
+            unitPrice = Number(groupProduct.price);
+          } else {
+            throw new Error("Kein Gruppenkurs-Produkt konfiguriert");
+          }
         }
       }
 
