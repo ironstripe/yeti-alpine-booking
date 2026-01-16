@@ -26,7 +26,8 @@ export function usePendingConfirmations() {
       if (error) throw error;
       return data as PendingConfirmation[];
     },
-    refetchInterval: 30000,
+    refetchInterval: 60000, // Refetch every 60 seconds
+    refetchOnWindowFocus: false,
   });
 }
 

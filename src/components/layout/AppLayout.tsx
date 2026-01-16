@@ -50,7 +50,7 @@ export function AppLayout({ children }: AppLayoutProps) {
 
         {/* Page Content */}
         <main className="flex-1 overflow-auto">
-          <div className="p-4 md:p-6 pb-24 md:pb-6 animate-fade-in">
+          <div className="p-4 md:p-6 pb-24 md:pb-6">
             {children}
           </div>
         </main>

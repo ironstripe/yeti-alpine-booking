@@ -2,7 +2,6 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import { useRealtimeSubscription } from "./useRealtimeSubscription";
-import { toast } from "sonner";
 import type { Tables } from "@/integrations/supabase/types";
 
 export interface DashboardStats {
@@ -19,25 +18,23 @@ export function useDashboardStats() {
   const queryClient = useQueryClient();
   const today = format(new Date(), "yyyy-MM-dd");
 
-  // Realtime subscription for new bookings
+  // Realtime subscription for new bookings (silent update, no toast)
   useRealtimeSubscription<Tables<"ticket_items">>({
     table: "ticket_items",
     event: "INSERT",
     queryKey: ["dashboard-stats", today],
     onInsert: () => {
       queryClient.invalidateQueries({ queryKey: ["dashboard-stats", today] });
-      toast.info("Neue Buchung erstellt");
     },
   });
 
-  // Realtime subscription for booking requests
+  // Realtime subscription for booking requests (silent update, no toast)
   useRealtimeSubscription<Tables<"booking_requests">>({
     table: "booking_requests",
     event: "INSERT",
     queryKey: ["dashboard-stats", today],
     onInsert: () => {
       queryClient.invalidateQueries({ queryKey: ["dashboard-stats", today] });
-      toast.info("Neue Buchungsanfrage eingegangen");
     },
   });
 
