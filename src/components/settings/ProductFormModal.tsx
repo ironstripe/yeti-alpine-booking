@@ -306,50 +306,55 @@ export function ProductFormModal({ open, onOpenChange, product }: ProductFormMod
                   control={form.control}
                   name="pricing_type"
                   render={({ field }) => (
-                    <RadioGroup
-                      value={field.value}
-                      onValueChange={field.onChange}
-                      className="grid grid-cols-3 gap-3"
-                    >
-                      <label className={cn(
-                        "flex flex-col items-center p-4 border rounded-lg cursor-pointer transition-colors",
-                        "hover:bg-muted/50",
-                        field.value === "fixed" && "border-primary bg-primary/5"
-                      )}>
-                        <RadioGroupItem value="fixed" className="sr-only" />
-                        <span className="text-2xl mb-1">💰</span>
-                        <span className="font-medium text-sm">Fixpreis</span>
-                        <span className="text-xs text-muted-foreground text-center mt-1">
-                          Gleicher Preis pro Tag
-                        </span>
-                      </label>
+                    <FormItem>
+                      <FormControl>
+                        <RadioGroup
+                          value={field.value}
+                          onValueChange={field.onChange}
+                          className="grid grid-cols-3 gap-3"
+                        >
+                          <label className={cn(
+                            "flex flex-col items-center p-4 border rounded-lg cursor-pointer transition-colors",
+                            "hover:bg-muted/50",
+                            field.value === "fixed" && "border-primary bg-primary/5"
+                          )}>
+                            <RadioGroupItem value="fixed" className="sr-only" />
+                            <span className="text-2xl mb-1">💰</span>
+                            <span className="font-medium text-sm">Fixpreis</span>
+                            <span className="text-xs text-muted-foreground text-center mt-1">
+                              Gleicher Preis pro Tag
+                            </span>
+                          </label>
 
-                      <label className={cn(
-                        "flex flex-col items-center p-4 border rounded-lg cursor-pointer transition-colors",
-                        "hover:bg-muted/50",
-                        field.value === "tiered" && "border-primary bg-primary/5"
-                      )}>
-                        <RadioGroupItem value="tiered" className="sr-only" />
-                        <span className="text-2xl mb-1">📊</span>
-                        <span className="font-medium text-sm">Staffelpreis</span>
-                        <span className="text-xs text-muted-foreground text-center mt-1">
-                          Rabatt bei mehr Tagen
-                        </span>
-                      </label>
+                          <label className={cn(
+                            "flex flex-col items-center p-4 border rounded-lg cursor-pointer transition-colors",
+                            "hover:bg-muted/50",
+                            field.value === "tiered" && "border-primary bg-primary/5"
+                          )}>
+                            <RadioGroupItem value="tiered" className="sr-only" />
+                            <span className="text-2xl mb-1">📊</span>
+                            <span className="font-medium text-sm">Staffelpreis</span>
+                            <span className="text-xs text-muted-foreground text-center mt-1">
+                              Rabatt bei mehr Tagen
+                            </span>
+                          </label>
 
-                      <label className={cn(
-                        "flex flex-col items-center p-4 border rounded-lg cursor-pointer transition-colors",
-                        "hover:bg-muted/50",
-                        field.value === "hourly" && "border-primary bg-primary/5"
-                      )}>
-                        <RadioGroupItem value="hourly" className="sr-only" />
-                        <span className="text-2xl mb-1">⏱️</span>
-                        <span className="font-medium text-sm">Stundenpreis</span>
-                        <span className="text-xs text-muted-foreground text-center mt-1">
-                          Preis pro Stunde
-                        </span>
-                      </label>
-                    </RadioGroup>
+                          <label className={cn(
+                            "flex flex-col items-center p-4 border rounded-lg cursor-pointer transition-colors",
+                            "hover:bg-muted/50",
+                            field.value === "hourly" && "border-primary bg-primary/5"
+                          )}>
+                            <RadioGroupItem value="hourly" className="sr-only" />
+                            <span className="text-2xl mb-1">⏱️</span>
+                            <span className="font-medium text-sm">Stundenpreis</span>
+                            <span className="text-xs text-muted-foreground text-center mt-1">
+                              Preis pro Stunde
+                            </span>
+                          </label>
+                        </RadioGroup>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
                   )}
                 />
               </div>
