@@ -122,11 +122,12 @@ export function ProductFormModal({ open, onOpenChange, product }: ProductFormMod
         price_tiers: fullTiers,
       });
     } else {
+      // NEW PRODUCT - default type is "private" which should use hourly pricing
       form.reset({
         name: "",
         type: "private",
         description: "",
-        pricing_type: "fixed",
+        pricing_type: "hourly", // Private lessons default to hourly
         price: 0,
         duration_minutes: 60,
         min_age: null,
@@ -138,9 +139,9 @@ export function ProductFormModal({ open, onOpenChange, product }: ProductFormMod
     }
   }, [product, form, open]);
 
-  // Auto-suggest pricing type based on product type
+  // Auto-suggest pricing type based on product type changes
   useEffect(() => {
-    if (!isEditing) {
+    if (!isEditing && open) {
       const isGroup = GROUP_PRODUCT_TYPES.includes(productType);
       
       if (isGroup) {
@@ -157,7 +158,7 @@ export function ProductFormModal({ open, onOpenChange, product }: ProductFormMod
         form.setValue("is_training_product", false);
       }
     }
-  }, [productType, isEditing, form]);
+  }, [productType, isEditing, form, open]);
 
   const isGroupType = GROUP_PRODUCT_TYPES.includes(productType);
 
