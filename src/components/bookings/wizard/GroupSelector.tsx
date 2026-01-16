@@ -136,18 +136,28 @@ export function GroupSelector({
 
   // Auto-select matching course based on skill level
   useEffect(() => {
-    // Only auto-select if no group is currently selected and courses are loaded
-    if (selectedGroupId || filteredCourses.length === 0 || !level) return;
-
+    // Only auto-select if no group is currently selected
+    if (selectedGroupId || filteredCourses.length === 0) return;
+    
+    // If no level provided, skip auto-select
+    if (!level) return;
+    
     const targetSkill = mapLevelToCourseSkill(level);
-
+    
     // Find best matching course (matching skill level + has capacity)
-    const matchingCourse = filteredCourses.find((course) => {
+    let matchingCourse = filteredCourses.find((course) => {
       const hasCapacity = course.currentCount < course.max_participants;
       const matchesLevel = course.skill_level === targetSkill;
       return hasCapacity && matchesLevel;
     });
-
+    
+    // Fallback: If no exact match, pick first course with capacity
+    if (!matchingCourse) {
+      matchingCourse = filteredCourses.find((course) => 
+        course.currentCount < course.max_participants
+      );
+    }
+    
     if (matchingCourse) {
       onGroupSelect(matchingCourse.id);
     }

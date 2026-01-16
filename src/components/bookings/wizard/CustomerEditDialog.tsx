@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -91,6 +92,22 @@ export function CustomerEditDialog({
       holiday_address: customer.holiday_address || "",
     },
   });
+
+  // Reset form when customer changes
+  useEffect(() => {
+    form.reset({
+      first_name: customer.first_name || "",
+      last_name: customer.last_name || "",
+      email: customer.email || "",
+      phone: customer.phone || "",
+      street: customer.street || "",
+      zip: customer.zip || "",
+      city: customer.city || "",
+      country: customer.country || "",
+      language: customer.language || "",
+      holiday_address: customer.holiday_address || "",
+    });
+  }, [customer, form]);
 
   const handlePhoneBlur = (e: React.FocusEvent<HTMLInputElement>) => {
     const normalized = normalizePhoneNumber(e.target.value);
