@@ -1,6 +1,6 @@
-import { useMemo } from "react";
+import { useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Users, User, Calendar } from "lucide-react";
+import { Users, User, Calendar, Sparkles } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
@@ -13,6 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import { mapLevelToCourseSkill } from "@/lib/level-utils";
 import type { Tables } from "@/integrations/supabase/types";
 
 interface GroupSelectorProps {
@@ -133,6 +134,30 @@ export function GroupSelector({
     return filteredCourses.find(c => c.id === selectedGroupId);
   }, [filteredCourses, selectedGroupId]);
 
+  // Auto-select matching course based on skill level
+  useEffect(() => {
+    // Only auto-select if no group is currently selected and courses are loaded
+    if (selectedGroupId || filteredCourses.length === 0 || !level) return;
+
+    const targetSkill = mapLevelToCourseSkill(level);
+
+    // Find best matching course (matching skill level + has capacity)
+    const matchingCourse = filteredCourses.find((course) => {
+      const hasCapacity = course.currentCount < course.max_participants;
+      const matchesLevel = course.skill_level === targetSkill;
+      return hasCapacity && matchesLevel;
+    });
+
+    if (matchingCourse) {
+      onGroupSelect(matchingCourse.id);
+    }
+  }, [filteredCourses, level, selectedGroupId, onGroupSelect]);
+
+  // Get recommended skill for highlighting
+  const recommendedSkill = useMemo(() => {
+    return level ? mapLevelToCourseSkill(level) : null;
+  }, [level]);
+
   if (selectedDates.length === 0) {
     return (
       <div className="text-xs text-muted-foreground">
@@ -165,6 +190,7 @@ export function GroupSelector({
             filteredCourses.map((course) => {
               const isFull = course.currentCount >= course.max_participants;
               const spotsLeft = course.max_participants - course.currentCount;
+              const isRecommended = recommendedSkill && course.skill_level === recommendedSkill;
 
               return (
                 <SelectItem
@@ -180,6 +206,15 @@ export function GroupSelector({
                       style={{ backgroundColor: course.color || "#6b7280" }}
                     />
                     <span className="flex-1 truncate">{course.name}</span>
+                    {isRecommended && !isFull && (
+                      <Badge
+                        variant="outline"
+                        className="text-[10px] h-5 px-1.5 border-green-400 text-green-600 bg-green-50"
+                      >
+                        <Sparkles className="h-2.5 w-2.5 mr-0.5" />
+                        Empfohlen
+                      </Badge>
+                    )}
                     <Badge
                       variant={isFull ? "destructive" : spotsLeft <= 3 ? "secondary" : "outline"}
                       className="text-[10px] h-5 px-1.5"

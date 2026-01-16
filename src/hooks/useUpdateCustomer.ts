@@ -15,6 +15,7 @@ export interface UpdateCustomerData {
   language?: string | null;
   marketing_consent?: boolean | null;
   notes?: string | null;
+  holiday_address?: string | null;
 }
 
 export function useUpdateCustomer(customerId: string) {

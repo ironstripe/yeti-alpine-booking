@@ -110,3 +110,23 @@ export function isCrossDiscipline(
   if (instructorSpecialization === "both") return false;
   return instructorSpecialization !== participantSport;
 }
+
+/**
+ * Map participant skill level to group course skill level
+ * This is used to auto-select the best matching group course
+ */
+export function mapLevelToCourseSkill(participantLevel: string | null): string {
+  if (!participantLevel) return "beginner";
+  
+  const levelMap: Record<string, string> = {
+    anfaenger: "beginner",
+    blue_prince: "intermediate",
+    blue_king: "intermediate",
+    red_prince: "advanced",
+    red_king: "advanced",
+    black_prince: "advanced",
+    black_king: "advanced",
+  };
+  
+  return levelMap[participantLevel] || "beginner";
+}
