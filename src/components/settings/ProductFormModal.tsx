@@ -191,11 +191,12 @@ export function ProductFormModal({ open, onOpenChange, product }: ProductFormMod
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
+      <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
         <DialogHeader>
           <DialogTitle>{isEditing ? "Produkt bearbeiten" : "Neues Produkt"}</DialogTitle>
         </DialogHeader>
-        <ScrollArea className="flex-1 pr-4">
+        <ScrollArea className="flex-1 overflow-auto max-h-[calc(90vh-140px)]">
+          <div className="pr-4">
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 pb-4">
               {/* Product Type */}
@@ -577,6 +578,7 @@ export function ProductFormModal({ open, onOpenChange, product }: ProductFormMod
               />
             </form>
           </Form>
+          </div>
         </ScrollArea>
         <DialogFooter className="pt-4 border-t">
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
