@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format, parseISO, differenceInYears } from "date-fns";
 import { de } from "date-fns/locale";
-import { Snowflake, Sun, AlertTriangle, Clock, CalendarDays, Info, ArrowRight, Baby } from "lucide-react";
+import { Snowflake, Sun, AlertTriangle, Clock, CalendarDays, Info, ArrowRight, Users, Mountain, Minus, Plus } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
 import { useBookingWizard } from "@/contexts/BookingWizardContext";
@@ -14,6 +14,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
@@ -22,6 +23,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { BookingWarnings, type BookingWarning } from "./BookingWarnings";
+import { usePrivateLessonRates, useHighSeasonPeriods } from "@/hooks/usePrivateLessonRates";
+import {
+  calculatePrivateLessonPrice,
+  formatCHF,
+  MAX_PERSONS,
+  ADDITIONAL_PERSON_RATE,
+} from "@/lib/pricing/private-lesson-pricing";
 
 // Available start and end times (lift hours: 09:00 - 16:00)
 const START_TIMES = ["09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00"];
@@ -43,6 +51,7 @@ export function Step2ProductDates() {
     setSelectedDates,
     setTimeSlot,
     setIncludeLunch,
+    setNumberOfPersons,
   } = useBookingWizard();
 
   const [selectedMonth, setSelectedMonth] = useState<Date>(new Date());
@@ -62,6 +71,10 @@ export function Step2ProductDates() {
       return data;
     },
   });
+
+  // Fetch private lesson rates and high season periods
+  const { data: rates = [] } = usePrivateLessonRates();
+  const { data: highSeasonPeriods = [] } = useHighSeasonPeriods();
 
   // Calculate duration from start and end time
   const calculatedDuration = useMemo(() => {
@@ -96,6 +109,22 @@ export function Step2ProductDates() {
     return UNUSUAL_1H_SLOTS.includes(timeSlotValue);
   }, [calculatedDuration, startTime, endTime]);
 
+  // Calculate private lesson price using time-based pricing
+  const privateLessonPrice = useMemo(() => {
+    if (state.productType !== "private" || !startTime || !endTime || state.selectedDates.length === 0) {
+      return null;
+    }
+    const firstDate = state.selectedDates[0] ? new Date(state.selectedDates[0]) : null;
+    return calculatePrivateLessonPrice(
+      firstDate,
+      startTime,
+      endTime,
+      state.numberOfPersons,
+      rates,
+      highSeasonPeriods
+    );
+  }, [state.productType, startTime, endTime, state.selectedDates, state.numberOfPersons, rates, highSeasonPeriods]);
+
   // Check for young children (under 6) with duration > 1h
   const youngChildWarning = useMemo<BookingWarning | null>(() => {
     if (state.productType !== "private") return null;
@@ -117,18 +146,8 @@ export function Step2ProductDates() {
     };
   }, [state.productType, calculatedDuration, state.selectedParticipants]);
 
-  // Find matching product
+  // Find matching product (for group courses only now)
   const selectedProduct = useMemo(() => {
-    if (state.productType === "private" && state.duration && state.sport) {
-      const durationMinutes = state.duration * 60;
-      const sportName = state.sport === "ski" ? "Ski" : "Snowboard";
-      return products.find(
-        (p) =>
-          p.type === "private" &&
-          p.duration_minutes === durationMinutes &&
-          p.name.includes(sportName)
-      );
-    }
     if (state.productType === "group" && state.selectedDates.length > 0) {
       const daysCount = state.selectedDates.length;
       return products.find(
@@ -136,7 +155,7 @@ export function Step2ProductDates() {
       );
     }
     return null;
-  }, [products, state.productType, state.duration, state.sport, state.selectedDates.length]);
+  }, [products, state.productType, state.selectedDates.length]);
 
   // Update productId when product changes
   useEffect(() => {
@@ -154,6 +173,12 @@ export function Step2ProductDates() {
       setSelectedDates(dateStrings);
     }
   };
+
+  // Calculate total for multiple days
+  const totalForAllDays = useMemo(() => {
+    if (!privateLessonPrice || state.selectedDates.length === 0) return 0;
+    return privateLessonPrice.totalPrice * state.selectedDates.length;
+  }, [privateLessonPrice, state.selectedDates.length]);
 
   if (isLoading) {
     return (
@@ -325,6 +350,53 @@ export function Step2ProductDates() {
         </div>
       )}
 
+      {/* Number of Persons (for private lessons) */}
+      {state.productType === "private" && (
+        <div className="space-y-3">
+          <Label className="text-base font-semibold">
+            <Users className="mr-2 inline h-4 w-4" />
+            Anzahl Personen
+          </Label>
+          
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 bg-muted rounded-lg p-1">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => setNumberOfPersons(state.numberOfPersons - 1)}
+                disabled={state.numberOfPersons <= 1}
+              >
+                <Minus className="h-4 w-4" />
+              </Button>
+              <span className="w-8 text-center font-semibold text-lg">
+                {state.numberOfPersons}
+              </span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => setNumberOfPersons(state.numberOfPersons + 1)}
+                disabled={state.numberOfPersons >= MAX_PERSONS}
+              >
+                <Plus className="h-4 w-4" />
+              </Button>
+            </div>
+            <span className="text-sm text-muted-foreground">
+              (max. {MAX_PERSONS} Personen)
+            </span>
+          </div>
+
+          {state.numberOfPersons > 1 && (
+            <p className="text-sm text-muted-foreground">
+              +{formatCHF(ADDITIONAL_PERSON_RATE)} pro zusätzliche Person pro Stunde
+            </p>
+          )}
+        </div>
+      )}
+
       {/* Date Selection */}
       {state.productType && (
         <div className="space-y-3">
@@ -393,25 +465,89 @@ export function Step2ProductDates() {
         </div>
       )}
 
-      {/* Price Preview */}
-      {selectedProduct && (
+      {/* High Season Warning for Private Lessons */}
+      {privateLessonPrice?.warnings.map((warning, index) => (
+        <Alert key={index} className="bg-amber-50 border-amber-200">
+          <AlertTriangle className="h-4 w-4 text-amber-600" />
+          <AlertDescription className="text-amber-800">
+            {warning}
+          </AlertDescription>
+        </Alert>
+      ))}
+
+      {/* Price Preview - Private Lessons with time-based pricing */}
+      {state.productType === "private" && privateLessonPrice && privateLessonPrice.totalPrice > 0 && (
+        <Card className="bg-muted/50">
+          <CardContent className="p-4 space-y-3">
+            {/* High Season Badge */}
+            {privateLessonPrice.isHighSeason && (
+              <div className="flex items-center gap-2">
+                <Badge variant="secondary" className="bg-blue-100 text-blue-800">
+                  <Mountain className="h-3 w-3 mr-1" />
+                  Hochsaison
+                </Badge>
+              </div>
+            )}
+
+            {/* Price Breakdown */}
+            <div className="space-y-1">
+              <p className="font-medium">Preisberechnung pro Tag:</p>
+              <div className="text-sm text-muted-foreground space-y-0.5">
+                {privateLessonPrice.breakdown.map((item, idx) => (
+                  <div key={idx} className="flex justify-between">
+                    <span>
+                      {item.timeSlot} ({item.isPeak ? "Hauptzeit" : "Randzeit"})
+                    </span>
+                    <span>{formatCHF(item.rate)}</span>
+                  </div>
+                ))}
+                {state.numberOfPersons > 1 && (
+                  <div className="flex justify-between text-muted-foreground">
+                    <span>
+                      Zusatzpersonen ({state.numberOfPersons - 1} × {privateLessonPrice.durationHours}h × {formatCHF(ADDITIONAL_PERSON_RATE)})
+                    </span>
+                    <span>{formatCHF(privateLessonPrice.additionalPersonsPrice)}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Daily Total */}
+            <div className="flex justify-between border-t pt-2">
+              <span className="font-medium">Pro Tag:</span>
+              <span className="font-medium">{formatCHF(privateLessonPrice.totalPrice)}</span>
+            </div>
+
+            {/* Grand Total for multiple days */}
+            {state.selectedDates.length > 1 && (
+              <div className="flex justify-between text-lg font-bold">
+                <span>{state.selectedDates.length} Tage Total:</span>
+                <span>{formatCHF(totalForAllDays)}</span>
+              </div>
+            )}
+
+            {/* Single day total */}
+            {state.selectedDates.length === 1 && (
+              <div className="flex justify-between text-2xl font-bold">
+                <span>Total:</span>
+                <span>{formatCHF(privateLessonPrice.totalPrice)}</span>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Price Preview - Group Courses (unchanged) */}
+      {state.productType === "group" && selectedProduct && (
         <Card className="bg-muted/50">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
                 <p className="font-medium">{selectedProduct.name}</p>
-                {state.productType === "private" && state.selectedDates.length > 1 && (
-                  <p className="text-sm text-muted-foreground">
-                    {state.selectedDates.length} Tage × CHF {selectedProduct.price}
-                  </p>
-                )}
               </div>
               <div className="text-right">
                 <p className="text-2xl font-bold">
-                  CHF{" "}
-                  {state.productType === "private"
-                    ? (selectedProduct.price * state.selectedDates.length).toFixed(0)
-                    : selectedProduct.price.toFixed(0)}
+                  CHF {selectedProduct.price.toFixed(0)}
                 </p>
                 {state.includeLunch && lunchProduct && (
                   <p className="text-sm text-muted-foreground">
