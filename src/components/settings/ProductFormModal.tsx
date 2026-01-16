@@ -42,9 +42,12 @@ const priceTierSchema = z.object({
   cumulative_price: z.number().min(0),
 });
 
+// Product types that should use tiered pricing
+const GROUP_PRODUCT_TYPES = ["group", "group_toddler", "group_beginner"];
+
 const formSchema = z.object({
   name: z.string().min(1, "Name ist erforderlich"),
-  type: z.enum(["private", "group", "addon"]),
+  type: z.enum(["private", "group", "group_toddler", "group_beginner", "addon", "lunch"]),
   description: z.string().optional(),
   pricing_type: z.enum(["fixed", "tiered", "hourly"]),
   price: z.coerce.number().min(0, "Preis muss positiv sein").optional(),
@@ -107,7 +110,7 @@ export function ProductFormModal({ open, onOpenChange, product }: ProductFormMod
 
       form.reset({
         name: product.name,
-        type: product.type as "private" | "group" | "addon",
+        type: product.type as "private" | "group" | "group_toddler" | "group_beginner" | "addon" | "lunch",
         description: product.description || "",
         pricing_type: (product.pricing_type as "fixed" | "tiered" | "hourly") || "fixed",
         price: product.price,
@@ -137,11 +140,13 @@ export function ProductFormModal({ open, onOpenChange, product }: ProductFormMod
 
   // Auto-suggest tiered pricing for group types
   useEffect(() => {
-    if (!isEditing && productType === "group") {
+    if (!isEditing && GROUP_PRODUCT_TYPES.includes(productType)) {
       form.setValue("pricing_type", "tiered");
       form.setValue("is_training_product", true);
     }
   }, [productType, isEditing, form]);
+
+  const isGroupType = GROUP_PRODUCT_TYPES.includes(productType);
 
   // Calculate tiers with day price for display
   const tiersWithDayPrice = useMemo(() => {
@@ -216,7 +221,10 @@ export function ProductFormModal({ open, onOpenChange, product }: ProductFormMod
                       <SelectContent>
                         <SelectItem value="private">🎿 Privatstunde</SelectItem>
                         <SelectItem value="group">👥 Gruppenkurs</SelectItem>
-                        <SelectItem value="addon">🍽️ Zusatzleistung</SelectItem>
+                        <SelectItem value="group_toddler">👶 Windel-Wedelkurs</SelectItem>
+                        <SelectItem value="group_beginner">⭐ Anfängerkurs</SelectItem>
+                        <SelectItem value="lunch">🍽️ Mittagsbetreuung</SelectItem>
+                        <SelectItem value="addon">🎁 Zusatzleistung</SelectItem>
                       </SelectContent>
                     </Select>
                     <FormMessage />
@@ -255,7 +263,7 @@ export function ProductFormModal({ open, onOpenChange, product }: ProductFormMod
               />
 
               {/* Age constraints for group courses */}
-              {productType === "group" && (
+              {isGroupType && (
                 <div className="grid grid-cols-2 gap-4">
                   <FormField
                     control={form.control}
@@ -329,7 +337,7 @@ export function ProductFormModal({ open, onOpenChange, product }: ProductFormMod
                         "flex flex-col items-center p-4 border rounded-lg cursor-pointer transition-colors relative",
                         "hover:bg-muted/50",
                         field.value === "tiered" && "border-primary bg-primary/5",
-                        productType === "group" && field.value !== "tiered" && "ring-2 ring-blue-200"
+                        isGroupType && field.value !== "tiered" && "ring-2 ring-blue-200"
                       )}>
                         <RadioGroupItem value="tiered" className="sr-only" />
                         <span className="text-2xl mb-1">📊</span>
@@ -337,7 +345,7 @@ export function ProductFormModal({ open, onOpenChange, product }: ProductFormMod
                         <span className="text-xs text-muted-foreground text-center mt-1">
                           Rabatt bei mehr Tagen
                         </span>
-                        {productType === "group" && field.value !== "tiered" && (
+                        {isGroupType && field.value !== "tiered" && (
                           <Badge variant="secondary" className="absolute -top-2 -right-2 text-xs">
                             Empfohlen
                           </Badge>

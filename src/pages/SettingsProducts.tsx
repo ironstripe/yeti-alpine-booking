@@ -42,13 +42,19 @@ import {
 const productTypeLabels: Record<string, string> = {
   private: "Privatstunde",
   group: "Gruppenkurs",
+  group_toddler: "Windel-Wedelkurs",
+  group_beginner: "Anfängerkurs",
+  lunch: "Mittagsbetreuung",
   addon: "Zusatzleistung",
 };
 
 const productTypeIcons: Record<string, string> = {
   private: "🎿",
   group: "👥",
-  addon: "🍽️",
+  group_toddler: "👶",
+  group_beginner: "⭐",
+  lunch: "🍽️",
+  addon: "🎁",
 };
 
 const pricingTypeLabels: Record<string, { label: string; icon: string }> = {
