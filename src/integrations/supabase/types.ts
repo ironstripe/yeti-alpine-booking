@@ -1560,6 +1560,41 @@ export type Database = {
         }
         Relationships: []
       }
+      product_price_tiers: {
+        Row: {
+          created_at: string | null
+          cumulative_price: number
+          day_count: number
+          id: string
+          product_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          cumulative_price: number
+          day_count: number
+          id?: string
+          product_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          cumulative_price?: number
+          day_count?: number
+          id?: string
+          product_id?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_price_tiers_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       products: {
         Row: {
           created_at: string
@@ -1569,8 +1604,11 @@ export type Database = {
           id: string
           is_active: boolean | null
           is_training_product: boolean | null
+          max_age: number | null
+          min_age: number | null
           name: string
           price: number
+          pricing_type: string | null
           sort_order: number | null
           type: string
           vat_rate: number | null
@@ -1583,8 +1621,11 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           is_training_product?: boolean | null
+          max_age?: number | null
+          min_age?: number | null
           name: string
           price: number
+          pricing_type?: string | null
           sort_order?: number | null
           type: string
           vat_rate?: number | null
@@ -1597,8 +1638,11 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           is_training_product?: boolean | null
+          max_age?: number | null
+          min_age?: number | null
           name?: string
           price?: number
+          pricing_type?: string | null
           sort_order?: number | null
           type?: string
           vat_rate?: number | null

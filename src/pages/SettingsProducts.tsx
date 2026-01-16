@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Loader2, Plus, Package, MoreHorizontal, Pencil, Trash2, Link2 } from "lucide-react";
+import { Loader2, Plus, Package, MoreHorizontal, Pencil, Trash2, Link2, TrendingDown } from "lucide-react";
 import { SettingsLayout } from "@/components/settings/SettingsLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -25,9 +25,19 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { EmptyState } from "@/components/ui/empty-state";
-import { useProducts } from "@/hooks/useProducts";
+import { useProducts, useDeleteProduct, ProductWithTiers } from "@/hooks/useProducts";
 import { ProductFormModal } from "@/components/settings/ProductFormModal";
-import { Product } from "@/hooks/useProducts";
+import { getProductPriceDisplay, formatPriceCHF } from "@/lib/pricing-utils";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const productTypeLabels: Record<string, string> = {
   private: "Privatstunde",
@@ -41,12 +51,20 @@ const productTypeIcons: Record<string, string> = {
   addon: "🍽️",
 };
 
+const pricingTypeLabels: Record<string, { label: string; icon: string }> = {
+  fixed: { label: "Fixpreis", icon: "💰" },
+  tiered: { label: "Staffel", icon: "📊" },
+  hourly: { label: "Stunde", icon: "⏱️" },
+};
+
 export default function SettingsProducts() {
   const { data: products, isLoading } = useProducts();
+  const deleteProduct = useDeleteProduct();
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [selectedProduct, setSelectedProduct] = useState<ProductWithTiers | null>(null);
+  const [productToDelete, setProductToDelete] = useState<ProductWithTiers | null>(null);
 
-  const handleEdit = (product: Product) => {
+  const handleEdit = (product: ProductWithTiers) => {
     setSelectedProduct(product);
     setIsModalOpen(true);
   };
@@ -59,6 +77,14 @@ export default function SettingsProducts() {
   const handleCloseModal = () => {
     setIsModalOpen(false);
     setSelectedProduct(null);
+  };
+
+  const handleDeleteConfirm = () => {
+    if (productToDelete) {
+      deleteProduct.mutate(productToDelete.id, {
+        onSuccess: () => setProductToDelete(null),
+      });
+    }
   };
 
   if (isLoading) {
@@ -99,6 +125,7 @@ export default function SettingsProducts() {
                   <TableRow>
                     <TableHead>Typ</TableHead>
                     <TableHead>Name</TableHead>
+                    <TableHead>Preismodell</TableHead>
                     <TableHead>Preis</TableHead>
                     <TableHead>Training</TableHead>
                     <TableHead>Status</TableHead>
@@ -107,7 +134,8 @@ export default function SettingsProducts() {
                 </TableHeader>
                 <TableBody>
                   {products.map((product) => {
-                    const isTrainingProduct = (product as any).is_training_product;
+                    const pricingType = (product.pricing_type as string) || "fixed";
+                    const pricingInfo = pricingTypeLabels[pricingType] || pricingTypeLabels.fixed;
                     
                     return (
                       <TableRow key={product.id}>
@@ -121,15 +149,50 @@ export default function SettingsProducts() {
                         </TableCell>
                         <TableCell className="font-medium">{product.name}</TableCell>
                         <TableCell>
-                          CHF {product.price.toFixed(2)}
-                          {product.duration_minutes && (
+                          <Badge variant="outline" className="text-xs">
+                            <span className="mr-1">{pricingInfo.icon}</span>
+                            {pricingInfo.label}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          {pricingType === "tiered" && product.price_tiers?.length ? (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <div className="flex items-center gap-1.5 cursor-help">
+                                    <span>{getProductPriceDisplay(product)}</span>
+                                    <TrendingDown className="h-3.5 w-3.5 text-green-600" />
+                                  </div>
+                                </TooltipTrigger>
+                                <TooltipContent className="max-w-xs">
+                                  <div className="space-y-1.5">
+                                    <div className="font-medium mb-2">Staffelpreise:</div>
+                                    {[...product.price_tiers]
+                                      .sort((a, b) => a.day_count - b.day_count)
+                                      .map(tier => (
+                                        <div key={tier.day_count} className="flex justify-between gap-4 text-sm">
+                                          <span>{tier.day_count} {tier.day_count === 1 ? "Tag" : "Tage"}:</span>
+                                          <span className="font-medium">{formatPriceCHF(tier.cumulative_price)}</span>
+                                        </div>
+                                      ))
+                                    }
+                                  </div>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          ) : pricingType === "hourly" ? (
+                            <span>{formatPriceCHF(product.price)}/h</span>
+                          ) : (
+                            <span>{formatPriceCHF(product.price)}</span>
+                          )}
+                          {pricingType !== "tiered" && product.duration_minutes && (
                             <span className="text-muted-foreground">
                               /{product.duration_minutes >= 60 ? `${product.duration_minutes / 60}h` : `${product.duration_minutes}min`}
                             </span>
                           )}
                         </TableCell>
                         <TableCell>
-                          {isTrainingProduct && (
+                          {product.is_training_product && (
                             <TooltipProvider>
                               <Tooltip>
                                 <TooltipTrigger>
@@ -162,7 +225,10 @@ export default function SettingsProducts() {
                                 <Pencil className="h-4 w-4 mr-2" />
                                 Bearbeiten
                               </DropdownMenuItem>
-                              <DropdownMenuItem className="text-destructive">
+                              <DropdownMenuItem 
+                                className="text-destructive"
+                                onClick={() => setProductToDelete(product)}
+                              >
                                 <Trash2 className="h-4 w-4 mr-2" />
                                 Löschen
                               </DropdownMenuItem>
@@ -184,6 +250,31 @@ export default function SettingsProducts() {
         onOpenChange={handleCloseModal}
         product={selectedProduct}
       />
+
+      <AlertDialog open={!!productToDelete} onOpenChange={() => setProductToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Produkt löschen?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Bist du sicher, dass du "{productToDelete?.name}" löschen möchtest? 
+              Diese Aktion kann nicht rückgängig gemacht werden.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleDeleteConfirm}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleteProduct.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                "Löschen"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </SettingsLayout>
   );
 }
