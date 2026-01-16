@@ -114,19 +114,30 @@ export function isCrossDiscipline(
 /**
  * Map participant skill level to group course skill level
  * This is used to auto-select the best matching group course
+ * Note: Maps to only "beginner" or "advanced" since no "intermediate" courses exist
  */
 export function mapLevelToCourseSkill(participantLevel: string | null): string {
   if (!participantLevel) return "beginner";
   
+  const normalizedLevel = participantLevel.toLowerCase();
+  
   const levelMap: Record<string, string> = {
+    // Beginners
     anfaenger: "beginner",
-    blue_prince: "intermediate",
-    blue_king: "intermediate",
+    blue_star: "beginner",
+    unknown: "beginner",
+    
+    // Intermediate → Advanced (no intermediate courses available)
+    blue_prince: "advanced",
+    blue_king: "advanced",
+    intermediate: "advanced",
+    
+    // Advanced
     red_prince: "advanced",
     red_king: "advanced",
     black_prince: "advanced",
     black_king: "advanced",
   };
   
-  return levelMap[participantLevel] || "beginner";
+  return levelMap[normalizedLevel] || "beginner";
 }
