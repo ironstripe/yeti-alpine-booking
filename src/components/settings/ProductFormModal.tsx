@@ -122,12 +122,12 @@ export function ProductFormModal({ open, onOpenChange, product }: ProductFormMod
         price_tiers: fullTiers,
       });
     } else {
-      // NEW PRODUCT - default type is "private" which should use hourly pricing
+      // NEW PRODUCT - simple default, user chooses pricing model manually
       form.reset({
         name: "",
         type: "private",
         description: "",
-        pricing_type: "hourly", // Private lessons default to hourly
+        pricing_type: "fixed", // Default to fixed, user can change
         price: 0,
         duration_minutes: 60,
         min_age: null,
@@ -138,27 +138,6 @@ export function ProductFormModal({ open, onOpenChange, product }: ProductFormMod
       });
     }
   }, [product, form, open]);
-
-  // Auto-suggest pricing type based on product type changes
-  useEffect(() => {
-    if (!isEditing && open) {
-      const isGroup = GROUP_PRODUCT_TYPES.includes(productType);
-      
-      if (isGroup) {
-        // Group courses → Tiered pricing (Staffelpreis)
-        form.setValue("pricing_type", "tiered");
-        form.setValue("is_training_product", true);
-      } else {
-        // Non-group types
-        if (productType === "private") {
-          form.setValue("pricing_type", "hourly"); // Private lessons = per hour
-        } else {
-          form.setValue("pricing_type", "fixed"); // Addons, lunch = fixed price
-        }
-        form.setValue("is_training_product", false);
-      }
-    }
-  }, [productType, isEditing, form, open]);
 
   const isGroupType = GROUP_PRODUCT_TYPES.includes(productType);
 
@@ -276,51 +255,49 @@ export function ProductFormModal({ open, onOpenChange, product }: ProductFormMod
                 )}
               />
 
-              {/* Age constraints for group courses */}
-              {isGroupType && (
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="min_age"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Mindestalter</FormLabel>
-                        <FormControl>
-                          <Input 
-                            {...field} 
-                            type="number" 
-                            min={0}
-                            value={field.value ?? ""} 
-                            onChange={e => field.onChange(e.target.value ? Number(e.target.value) : null)}
-                            placeholder="z.B. 3" 
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="max_age"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Höchstalter</FormLabel>
-                        <FormControl>
-                          <Input 
-                            {...field} 
-                            type="number" 
-                            min={0}
-                            value={field.value ?? ""} 
-                            onChange={e => field.onChange(e.target.value ? Number(e.target.value) : null)}
-                            placeholder="z.B. 4" 
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-              )}
+              {/* Age constraints - optional for all product types */}
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="min_age"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Mindestalter</FormLabel>
+                      <FormControl>
+                        <Input 
+                          {...field} 
+                          type="number" 
+                          min={0}
+                          value={field.value ?? ""} 
+                          onChange={e => field.onChange(e.target.value ? Number(e.target.value) : null)}
+                          placeholder="z.B. 3" 
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="max_age"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Höchstalter</FormLabel>
+                      <FormControl>
+                        <Input 
+                          {...field} 
+                          type="number" 
+                          min={0}
+                          value={field.value ?? ""} 
+                          onChange={e => field.onChange(e.target.value ? Number(e.target.value) : null)}
+                          placeholder="z.B. 4" 
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
 
               {/* Pricing Type Selection */}
               <div className="space-y-3">
@@ -348,10 +325,9 @@ export function ProductFormModal({ open, onOpenChange, product }: ProductFormMod
                       </label>
 
                       <label className={cn(
-                        "flex flex-col items-center p-4 border rounded-lg cursor-pointer transition-colors relative",
+                        "flex flex-col items-center p-4 border rounded-lg cursor-pointer transition-colors",
                         "hover:bg-muted/50",
-                        field.value === "tiered" && "border-primary bg-primary/5",
-                        isGroupType && field.value !== "tiered" && "ring-2 ring-blue-200"
+                        field.value === "tiered" && "border-primary bg-primary/5"
                       )}>
                         <RadioGroupItem value="tiered" className="sr-only" />
                         <span className="text-2xl mb-1">📊</span>
@@ -359,11 +335,6 @@ export function ProductFormModal({ open, onOpenChange, product }: ProductFormMod
                         <span className="text-xs text-muted-foreground text-center mt-1">
                           Rabatt bei mehr Tagen
                         </span>
-                        {isGroupType && field.value !== "tiered" && (
-                          <Badge variant="secondary" className="absolute -top-2 -right-2 text-xs">
-                            Empfohlen
-                          </Badge>
-                        )}
                       </label>
 
                       <label className={cn(
