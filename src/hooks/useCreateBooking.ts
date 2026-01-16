@@ -184,11 +184,20 @@ export function useCreateBooking() {
         internal_notes: string | null;
         status: string;
         instructor_confirmation: string | null;
+        is_vegetarian: boolean;
+        item_type: string;
       }> = [];
 
       // For each participant, create entries for each date
       for (const participant of state.selectedParticipants) {
+        const participantLunchDays = state.lunchSelections[participant.id] || [];
+        const isVegetarian = state.vegetarianSelections[participant.id] || false;
+        
         for (const dateStr of state.selectedDates) {
+          // Check if this participant has lunch on this day
+          const hasLunchOnDay = participantLunchDays.includes(dateStr);
+          
+          // Create course/lesson item
           ticketItems.push({
             ticket_id: ticket.id,
             product_id: productId,
@@ -206,7 +215,33 @@ export function useCreateBooking() {
             internal_notes: null,
             status: "booked",
             instructor_confirmation: state.instructorId ? "pending" : null,
+            is_vegetarian: hasLunchOnDay ? isVegetarian : false,
+            item_type: state.productType === "group" ? "group" : "private",
           });
+          
+          // Create separate lunch item if participant has lunch on this day
+          if (hasLunchOnDay && lunchProduct) {
+            ticketItems.push({
+              ticket_id: ticket.id,
+              product_id: lunchProduct.id,
+              date: dateStr,
+              time_start: "12:00",
+              time_end: "14:00",
+              unit_price: lunchPricePerDay,
+              quantity: 1,
+              discount_percent: 0,
+              discount_reason: null,
+              instructor_id: null,
+              participant_id: participant.id.startsWith("guest-") ? null : participant.id,
+              meeting_point: null,
+              instructor_notes: null,
+              internal_notes: null,
+              status: "booked",
+              instructor_confirmation: null,
+              is_vegetarian: isVegetarian,
+              item_type: "lunch",
+            });
+          }
         }
       }
 
