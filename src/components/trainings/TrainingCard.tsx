@@ -1,3 +1,4 @@
+import { format } from 'date-fns';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -24,7 +25,9 @@ export function TrainingCard({ course, onEdit, onViewInstances }: TrainingCardPr
   const skillLabel = SKILL_LEVELS.find(s => s.value === course.skill_level)?.label || course.skill_level;
   const disciplineLabel = DISCIPLINES.find(d => d.value === course.discipline)?.label || course.discipline;
 
-  // Get unique days from schedules
+  const isSaturdayCourse = course.course_type === 'saturday_course';
+
+  // Get unique days from schedules (for weekly courses)
   const scheduleDays = [...new Set(course.schedules.map(s => s.day_of_week))].sort();
   const dayLabels = scheduleDays.map(d => DAYS_OF_WEEK.find(dw => dw.value === d)?.label).filter(Boolean);
 
@@ -45,6 +48,10 @@ export function TrainingCard({ course, onEdit, onViewInstances }: TrainingCardPr
   const hasLinkedProduct = !!course.product;
   const displayPrice = hasLinkedProduct ? course.product!.price : course.price_per_day;
 
+  // Saturday course dates count
+  const saturdayCount = course.course_dates?.length || 
+    (course.period_start_date && course.period_end_date ? 5 : 0);
+
   return (
     <Card className="overflow-hidden hover:shadow-md transition-shadow">
       {/* Color bar */}
@@ -59,9 +66,14 @@ export function TrainingCard({ course, onEdit, onViewInstances }: TrainingCardPr
             <Snowflake className="h-5 w-5 text-muted-foreground" />
             <h3 className="font-semibold text-lg">{course.name}</h3>
           </div>
-          {!course.is_active && (
-            <Badge variant="secondary">Inaktiv</Badge>
-          )}
+          <div className="flex gap-1.5">
+            {isSaturdayCourse && (
+              <Badge variant="secondary">Samstagskurs</Badge>
+            )}
+            {!course.is_active && (
+              <Badge variant="secondary">Inaktiv</Badge>
+            )}
+          </div>
         </div>
         <div className="flex flex-wrap gap-1.5 mt-1">
           <Badge variant="outline">{skillLabel}</Badge>
@@ -71,19 +83,40 @@ export function TrainingCard({ course, onEdit, onViewInstances }: TrainingCardPr
       </CardHeader>
 
       <CardContent className="space-y-3">
-        {/* Schedule info */}
-        <div className="space-y-1.5 text-sm">
-          <div className="flex items-center gap-2 text-muted-foreground">
-            <Calendar className="h-4 w-4" />
-            <span>{dayLabels.join('-') || 'Kein Zeitplan'}</span>
-          </div>
-          {timeSlots.map((slot, idx) => (
-            <div key={idx} className="flex items-center gap-2 text-muted-foreground ml-6">
-              <Clock className="h-4 w-4" />
-              <span>{slot}</span>
+        {/* Schedule info - different for Saturday courses */}
+        {isSaturdayCourse ? (
+          <div className="space-y-1.5 text-sm">
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <Calendar className="h-4 w-4" />
+              <span>
+                {course.period_start_date && course.period_end_date ? (
+                  <>
+                    {format(new Date(course.period_start_date), 'dd.MM.')} – {format(new Date(course.period_end_date), 'dd.MM.yyyy')}
+                  </>
+                ) : (
+                  'Keine Periode definiert'
+                )}
+              </span>
             </div>
-          ))}
-        </div>
+            <div className="flex items-center gap-2 text-muted-foreground ml-6">
+              <Clock className="h-4 w-4" />
+              <span>{saturdayCount} Samstage • 10:00-14:00</span>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-1.5 text-sm">
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <Calendar className="h-4 w-4" />
+              <span>{dayLabels.join('-') || 'Kein Zeitplan'}</span>
+            </div>
+            {timeSlots.map((slot, idx) => (
+              <div key={idx} className="flex items-center gap-2 text-muted-foreground ml-6">
+                <Clock className="h-4 w-4" />
+                <span>{slot}</span>
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* Capacity */}
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -101,7 +134,9 @@ export function TrainingCard({ course, onEdit, onViewInstances }: TrainingCardPr
 
         {/* Price - from linked product or legacy */}
         <div className="text-sm">
-          <span className="font-medium">CHF {displayPrice.toFixed(0)}/Tag</span>
+          <span className="font-medium">
+            CHF {displayPrice.toFixed(0)}{isSaturdayCourse ? '/Samstag' : '/Tag'}
+          </span>
           {hasLinkedProduct ? (
             <span className="text-muted-foreground font-normal ml-1">
               via {course.product!.name}
@@ -114,26 +149,28 @@ export function TrainingCard({ course, onEdit, onViewInstances }: TrainingCardPr
           )}
         </div>
 
-        {/* This week stats */}
-        <div className="pt-2 border-t">
-          <p className="text-sm text-muted-foreground mb-1">Diese Woche:</p>
-          {course.assigned_instructor && (
-            <p className="text-sm mb-1">
-              👨‍🏫 {course.assigned_instructor.first_name} {course.assigned_instructor.last_name}
-            </p>
-          )}
-          <div className="flex items-center gap-2">
-            <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
-              <div 
-                className="h-full bg-primary transition-all"
-                style={{ width: `${Math.min(participationPercent, 100)}%` }}
-              />
+        {/* This week stats (only for weekly courses) */}
+        {!isSaturdayCourse && (
+          <div className="pt-2 border-t">
+            <p className="text-sm text-muted-foreground mb-1">Diese Woche:</p>
+            {course.assigned_instructor && (
+              <p className="text-sm mb-1">
+                👨‍🏫 {course.assigned_instructor.first_name} {course.assigned_instructor.last_name}
+              </p>
+            )}
+            <div className="flex items-center gap-2">
+              <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
+                <div 
+                  className="h-full bg-primary transition-all"
+                  style={{ width: `${Math.min(participationPercent, 100)}%` }}
+                />
+              </div>
+              <span className="text-xs text-muted-foreground whitespace-nowrap">
+                {course.this_week_participants || 0}/{course.this_week_max_spots || 0} Plätze
+              </span>
             </div>
-            <span className="text-xs text-muted-foreground whitespace-nowrap">
-              {course.this_week_participants || 0}/{course.this_week_max_spots || 0} Plätze
-            </span>
           </div>
-        </div>
+        )}
 
         {/* Actions */}
         <div className="flex gap-2 pt-2">
@@ -153,7 +190,7 @@ export function TrainingCard({ course, onEdit, onViewInstances }: TrainingCardPr
             onClick={() => onViewInstances(course)}
           >
             <List className="h-4 w-4 mr-1" />
-            Instanzen
+            {isSaturdayCourse ? 'Termine' : 'Instanzen'}
           </Button>
         </div>
       </CardContent>

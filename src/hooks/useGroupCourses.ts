@@ -7,8 +7,10 @@ import type {
   GroupCourseSchedule, 
   GroupCourseInstance, 
   GroupCourseWithSchedules,
-  GroupCourseFormData 
+  GroupCourseFormData,
+  TrainingCourseDate 
 } from '@/types/group-courses';
+import { generateSaturdays } from '@/lib/dates/saturday-generator';
 
 // Fetch all group courses with their schedules and linked products
 export function useGroupCourses(options?: { activeOnly?: boolean }) {
@@ -39,6 +41,26 @@ export function useGroupCourses(options?: { activeOnly?: boolean }) {
 
       if (schedError) throw schedError;
 
+      // Fetch course dates for Saturday courses
+      const saturdayCourseIds = courses
+        .filter(c => c.course_type === 'saturday_course')
+        .map(c => c.id);
+
+      let courseDates: TrainingCourseDate[] = [];
+      if (saturdayCourseIds.length > 0) {
+        const { data: dates, error: datesError } = await supabase
+          .from('training_course_dates')
+          .select(`
+            *,
+            instructor:instructor_id(id, first_name, last_name)
+          `)
+          .in('training_id', saturdayCourseIds)
+          .order('date');
+
+        if (datesError) throw datesError;
+        courseDates = dates as unknown as TrainingCourseDate[];
+      }
+
       // Fetch this week's instances for participant counts
       const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
       const weekEnd = endOfWeek(new Date(), { weekStartsOn: 1 });
@@ -56,6 +78,7 @@ export function useGroupCourses(options?: { activeOnly?: boolean }) {
       return courses.map(course => {
         const courseSchedules = (schedules || []).filter(s => s.course_id === course.id) as GroupCourseSchedule[];
         const courseInstances = (instances || []).filter(i => i.course_id === course.id);
+        const courseCourseDates = courseDates.filter(d => d.training_id === course.id);
         
         // Calculate this week's stats
         const uniqueDays = new Set(courseSchedules.map(s => s.day_of_week)).size;
@@ -67,8 +90,10 @@ export function useGroupCourses(options?: { activeOnly?: boolean }) {
 
         return {
           ...course,
+          course_type: course.course_type || 'weekly',
           product: course.product as any,
           schedules: courseSchedules,
+          course_dates: courseCourseDates,
           this_week_participants: thisWeekParticipants,
           this_week_max_spots: thisWeekMaxSpots,
           assigned_instructor: null,
@@ -101,9 +126,27 @@ export function useGroupCourse(courseId: string | undefined) {
 
       if (schedError) throw schedError;
 
+      // Fetch course dates if Saturday course
+      let courseDates: TrainingCourseDate[] = [];
+      if (course.course_type === 'saturday_course') {
+        const { data: dates, error: datesError } = await supabase
+          .from('training_course_dates')
+          .select(`
+            *,
+            instructor:instructor_id(id, first_name, last_name)
+          `)
+          .eq('training_id', courseId)
+          .order('date');
+
+        if (datesError) throw datesError;
+        courseDates = dates as unknown as TrainingCourseDate[];
+      }
+
       return {
         ...course,
+        course_type: course.course_type || 'weekly',
         schedules: schedules as GroupCourseSchedule[],
+        course_dates: courseDates,
       } as GroupCourseWithSchedules;
     },
     enabled: !!courseId,
@@ -159,6 +202,9 @@ export function useCreateGroupCourse() {
         color: formData.color,
         is_active: formData.is_active,
         price_per_day: 0, // Legacy field, price now comes from product
+        course_type: formData.course_type,
+        period_start_date: formData.period_start_date,
+        period_end_date: formData.period_end_date,
       };
 
       const { data: course, error: courseError } = await supabase
@@ -169,21 +215,58 @@ export function useCreateGroupCourse() {
 
       if (courseError) throw courseError;
 
-      // Create schedules
-      const scheduleInserts = formData.schedules.days.flatMap(dayOfWeek =>
-        formData.schedules.time_slots.map(slot => ({
-          course_id: course.id,
-          day_of_week: dayOfWeek,
-          start_time: slot.start_time,
-          end_time: slot.end_time,
-          is_active: true,
-        }))
-      );
+      // Create schedules (for weekly courses)
+      if (formData.course_type === 'weekly') {
+        const scheduleInserts = formData.schedules.days.flatMap(dayOfWeek =>
+          formData.schedules.time_slots.map(slot => ({
+            course_id: course.id,
+            day_of_week: dayOfWeek,
+            start_time: slot.start_time,
+            end_time: slot.end_time,
+            is_active: true,
+          }))
+        );
 
-      if (scheduleInserts.length > 0) {
+        if (scheduleInserts.length > 0) {
+          const { error: schedError } = await supabase
+            .from('group_course_schedules')
+            .insert(scheduleInserts);
+
+          if (schedError) throw schedError;
+        }
+      }
+
+      // Generate course dates for Saturday courses
+      if (formData.course_type === 'saturday_course' && formData.period_start_date && formData.period_end_date) {
+        const saturdays = generateSaturdays(
+          new Date(formData.period_start_date),
+          new Date(formData.period_end_date)
+        );
+
+        const courseDatesInserts = saturdays.map(date => ({
+          training_id: course.id,
+          date: format(date, 'yyyy-MM-dd'),
+          is_cancelled: false,
+        }));
+
+        if (courseDatesInserts.length > 0) {
+          const { error: datesError } = await supabase
+            .from('training_course_dates')
+            .insert(courseDatesInserts);
+
+          if (datesError) throw datesError;
+        }
+
+        // Also create a schedule entry for Saturday
         const { error: schedError } = await supabase
           .from('group_course_schedules')
-          .insert(scheduleInserts);
+          .insert({
+            course_id: course.id,
+            day_of_week: 6, // Saturday
+            start_time: '10:00',
+            end_time: '14:00',
+            is_active: true,
+          });
 
         if (schedError) throw schedError;
       }
@@ -209,19 +292,22 @@ export function useUpdateGroupCourse() {
     mutationFn: async ({ id, data }: { id: string; data: Partial<GroupCourseFormData> }) => {
       const { schedules, ...courseData } = data;
 
+      // Build update data
+      const updateData: Record<string, unknown> = {
+        ...courseData,
+        updated_at: new Date().toISOString(),
+      };
+
       // Update course
       const { error: courseError } = await supabase
         .from('group_courses')
-        .update({
-          ...courseData,
-          updated_at: new Date().toISOString(),
-        })
+        .update(updateData)
         .eq('id', id);
 
       if (courseError) throw courseError;
 
-      // Update schedules if provided
-      if (schedules) {
+      // Update schedules if provided and it's a weekly course
+      if (schedules && data.course_type === 'weekly') {
         // Delete existing schedules
         await supabase
           .from('group_course_schedules')
@@ -245,6 +331,35 @@ export function useUpdateGroupCourse() {
             .insert(scheduleInserts);
 
           if (schedError) throw schedError;
+        }
+      }
+
+      // Regenerate course dates if Saturday course dates changed
+      if (data.course_type === 'saturday_course' && data.period_start_date && data.period_end_date) {
+        // Delete existing course dates
+        await supabase
+          .from('training_course_dates')
+          .delete()
+          .eq('training_id', id);
+
+        // Generate and insert new dates
+        const saturdays = generateSaturdays(
+          new Date(data.period_start_date),
+          new Date(data.period_end_date)
+        );
+
+        const courseDatesInserts = saturdays.map(date => ({
+          training_id: id,
+          date: format(date, 'yyyy-MM-dd'),
+          is_cancelled: false,
+        }));
+
+        if (courseDatesInserts.length > 0) {
+          const { error: datesError } = await supabase
+            .from('training_course_dates')
+            .insert(courseDatesInserts);
+
+          if (datesError) throw datesError;
         }
       }
     },
@@ -410,6 +525,60 @@ export function useBulkAssignInstructor() {
     },
     onError: (error) => {
       console.error('Error bulk assigning instructor:', error);
+      toast.error('Fehler beim Zuweisen des Lehrers');
+    },
+  });
+}
+
+// Fetch training course dates for a Saturday course
+export function useTrainingCourseDates(trainingId: string | undefined) {
+  return useQuery({
+    queryKey: ['training-course-dates', trainingId],
+    queryFn: async (): Promise<TrainingCourseDate[]> => {
+      if (!trainingId) return [];
+
+      const { data, error } = await supabase
+        .from('training_course_dates')
+        .select(`
+          *,
+          instructor:instructor_id(id, first_name, last_name)
+        `)
+        .eq('training_id', trainingId)
+        .order('date');
+
+      if (error) throw error;
+      return data as unknown as TrainingCourseDate[];
+    },
+    enabled: !!trainingId,
+  });
+}
+
+// Assign instructor to a Saturday course date
+export function useAssignCourseDateInstructor() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ 
+      courseDateId, 
+      instructorId 
+    }: { 
+      courseDateId: string; 
+      instructorId: string | null;
+    }) => {
+      const { error } = await supabase
+        .from('training_course_dates')
+        .update({ instructor_id: instructorId })
+        .eq('id', courseDateId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['training-course-dates'] });
+      queryClient.invalidateQueries({ queryKey: ['group-courses'] });
+      toast.success('Lehrer zugewiesen');
+    },
+    onError: (error) => {
+      console.error('Error assigning instructor to course date:', error);
       toast.error('Fehler beim Zuweisen des Lehrers');
     },
   });

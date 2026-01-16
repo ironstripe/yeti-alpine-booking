@@ -1,7 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
+import { format, addWeeks, isSaturday } from 'date-fns';
+import { de } from 'date-fns/locale';
 import {
   Dialog,
   DialogContent,
@@ -20,6 +22,10 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Badge } from '@/components/ui/badge';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import {
   Select,
   SelectContent,
@@ -27,11 +33,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Plus, Trash2, Info, Loader2 } from 'lucide-react';
+import { Plus, Trash2, Info, Loader2, Calendar as CalendarIcon } from 'lucide-react';
 import { useCreateGroupCourse, useUpdateGroupCourse } from '@/hooks/useGroupCourses';
 import { useTrainingProducts } from '@/hooks/useProducts';
-import type { GroupCourseWithSchedules, GroupCourseFormData } from '@/types/group-courses';
-import { SKILL_LEVELS, DISCIPLINES, DAYS_OF_WEEK, COURSE_COLORS } from '@/types/group-courses';
+import type { GroupCourseWithSchedules, GroupCourseFormData, CourseType } from '@/types/group-courses';
+import { SKILL_LEVELS, DISCIPLINES, DAYS_OF_WEEK, COURSE_COLORS, COURSE_TYPES } from '@/types/group-courses';
+import { generateSaturdays, calculatePeriodEndDate } from '@/lib/dates/saturday-generator';
+import { cn } from '@/lib/utils';
 
 const formSchema = z.object({
   name: z.string().min(1, 'Name ist erforderlich'),
@@ -45,6 +53,9 @@ const formSchema = z.object({
   meeting_point: z.string().optional(),
   color: z.string(),
   is_active: z.boolean(),
+  course_type: z.enum(['weekly', 'saturday_course', 'custom']),
+  period_start_date: z.date().nullable(),
+  period_end_date: z.date().nullable(),
 });
 
 interface TrainingFormModalProps {
@@ -79,8 +90,23 @@ export function TrainingFormModal({ open, onOpenChange, course }: TrainingFormMo
       meeting_point: '',
       color: '#3B82F6',
       is_active: true,
+      course_type: 'weekly',
+      period_start_date: null,
+      period_end_date: null,
     },
   });
+
+  const courseType = form.watch('course_type');
+  const periodStartDate = form.watch('period_start_date');
+  const periodEndDate = form.watch('period_end_date');
+
+  // Generate preview of Saturdays
+  const previewSaturdays = useMemo(() => {
+    if (courseType !== 'saturday_course' || !periodStartDate || !periodEndDate) {
+      return [];
+    }
+    return generateSaturdays(periodStartDate, periodEndDate);
+  }, [courseType, periodStartDate, periodEndDate]);
 
   // Reset form when course changes
   useEffect(() => {
@@ -97,6 +123,9 @@ export function TrainingFormModal({ open, onOpenChange, course }: TrainingFormMo
         meeting_point: course.meeting_point || '',
         color: course.color,
         is_active: course.is_active,
+        course_type: (course.course_type as CourseType) || 'weekly',
+        period_start_date: course.period_start_date ? new Date(course.period_start_date) : null,
+        period_end_date: course.period_end_date ? new Date(course.period_end_date) : null,
       });
 
       // Extract schedule info
@@ -115,6 +144,14 @@ export function TrainingFormModal({ open, onOpenChange, course }: TrainingFormMo
       setTimeSlots([{ start_time: '10:00', end_time: '12:00' }]);
     }
   }, [course, form]);
+
+  // Auto-calculate end date when start date changes for Saturday courses
+  useEffect(() => {
+    if (courseType === 'saturday_course' && periodStartDate && !periodEndDate) {
+      const calculatedEnd = calculatePeriodEndDate(periodStartDate);
+      form.setValue('period_end_date', calculatedEnd);
+    }
+  }, [courseType, periodStartDate, periodEndDate, form]);
 
   const toggleDay = (day: number) => {
     setSelectedDays(prev => 
@@ -151,9 +188,14 @@ export function TrainingFormModal({ open, onOpenChange, course }: TrainingFormMo
       meeting_point: values.meeting_point || '',
       color: values.color,
       is_active: values.is_active,
+      course_type: values.course_type,
+      period_start_date: values.period_start_date ? format(values.period_start_date, 'yyyy-MM-dd') : null,
+      period_end_date: values.period_end_date ? format(values.period_end_date, 'yyyy-MM-dd') : null,
       schedules: {
-        days: selectedDays,
-        time_slots: timeSlots,
+        days: values.course_type === 'saturday_course' ? [6] : selectedDays, // Saturday = 6
+        time_slots: values.course_type === 'saturday_course' 
+          ? [{ start_time: '10:00', end_time: '14:00' }] // 4-hour blocks for Saturday courses
+          : timeSlots,
       },
     };
 
@@ -184,6 +226,159 @@ export function TrainingFormModal({ open, onOpenChange, course }: TrainingFormMo
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+            {/* Course Type Selection */}
+            <div className="space-y-4">
+              <h4 className="font-medium text-sm text-muted-foreground">Kurstyp</h4>
+              <FormField
+                control={form.control}
+                name="course_type"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormControl>
+                      <RadioGroup
+                        value={field.value}
+                        onValueChange={field.onChange}
+                        className="flex gap-4"
+                      >
+                        {COURSE_TYPES.filter(t => t.value !== 'custom').map(type => (
+                          <div key={type.value} className="flex items-center space-x-2">
+                            <RadioGroupItem value={type.value} id={type.value} />
+                            <label htmlFor={type.value} className="text-sm cursor-pointer">
+                              {type.label}
+                            </label>
+                          </div>
+                        ))}
+                      </RadioGroup>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            {/* Saturday Course Period (only for saturday_course) */}
+            {courseType === 'saturday_course' && (
+              <div className="p-4 border rounded-lg bg-muted/30 space-y-4">
+                <div className="flex items-center gap-2">
+                  <CalendarIcon className="h-4 w-4" />
+                  <span className="font-medium">Kursperiode</span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="period_start_date"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Erster Samstag</FormLabel>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <FormControl>
+                              <Button
+                                variant="outline"
+                                className={cn(
+                                  "w-full pl-3 text-left font-normal",
+                                  !field.value && "text-muted-foreground"
+                                )}
+                              >
+                                {field.value ? (
+                                  format(field.value, 'dd.MM.yyyy')
+                                ) : (
+                                  <span>Datum wählen</span>
+                                )}
+                                <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                              </Button>
+                            </FormControl>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0" align="start">
+                            <Calendar
+                              mode="single"
+                              selected={field.value || undefined}
+                              onSelect={(date) => {
+                                field.onChange(date);
+                                // Auto-calculate end date
+                                if (date) {
+                                  const endDate = calculatePeriodEndDate(date);
+                                  form.setValue('period_end_date', endDate);
+                                }
+                              }}
+                              disabled={(date) => !isSaturday(date) || date < new Date()}
+                              initialFocus
+                            />
+                          </PopoverContent>
+                        </Popover>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="period_end_date"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Letzter Samstag</FormLabel>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <FormControl>
+                              <Button
+                                variant="outline"
+                                className={cn(
+                                  "w-full pl-3 text-left font-normal",
+                                  !field.value && "text-muted-foreground"
+                                )}
+                              >
+                                {field.value ? (
+                                  format(field.value, 'dd.MM.yyyy')
+                                ) : (
+                                  <span>Datum wählen</span>
+                                )}
+                                <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                              </Button>
+                            </FormControl>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0" align="start">
+                            <Calendar
+                              mode="single"
+                              selected={field.value || undefined}
+                              onSelect={field.onChange}
+                              disabled={(date) => !isSaturday(date) || (periodStartDate ? date <= periodStartDate : false)}
+                              initialFocus
+                            />
+                          </PopoverContent>
+                        </Popover>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                {/* Preview generated Saturdays */}
+                {previewSaturdays.length > 0 && (
+                  <div>
+                    <p className="text-sm text-muted-foreground mb-2">
+                      Generierte Termine ({previewSaturdays.length} Samstage):
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {previewSaturdays.map((date, i) => (
+                        <Badge key={i} variant="secondary">
+                          {format(date, 'dd.MM.yyyy')}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex items-start gap-2 text-sm text-muted-foreground">
+                  <Info className="h-4 w-4 mt-0.5 shrink-0" />
+                  <span>
+                    Samstagskurse laufen über 5 aufeinanderfolgende Samstage. 
+                    Das Enddatum wird automatisch berechnet.
+                  </span>
+                </div>
+              </div>
+            )}
+
             {/* Basic info */}
             <div className="space-y-4">
               <h4 className="font-medium text-sm text-muted-foreground">Grundinformationen</h4>
@@ -462,70 +657,72 @@ export function TrainingFormModal({ open, onOpenChange, course }: TrainingFormMo
               )}
             />
 
-            {/* Schedule */}
-            <div className="space-y-4">
-              <h4 className="font-medium text-sm text-muted-foreground">Zeitplan (Wöchentlich)</h4>
-              
-              {/* Days selection */}
-              <div className="flex flex-wrap gap-2">
-                {DAYS_OF_WEEK.map(day => (
-                  <div key={day.value} className="flex items-center">
-                    <Checkbox
-                      id={`day-${day.value}`}
-                      checked={selectedDays.includes(day.value)}
-                      onCheckedChange={() => toggleDay(day.value)}
-                    />
-                    <label 
-                      htmlFor={`day-${day.value}`}
-                      className="ml-2 text-sm cursor-pointer"
-                    >
-                      {day.label}
-                    </label>
-                  </div>
-                ))}
-              </div>
-
-              {/* Time slots */}
-              <div className="space-y-2">
-                {timeSlots.map((slot, index) => (
-                  <div key={index} className="flex items-center gap-2">
-                    <span className="text-sm text-muted-foreground w-20">Zeitslot {index + 1}:</span>
-                    <Input
-                      type="time"
-                      value={slot.start_time}
-                      onChange={e => updateTimeSlot(index, 'start_time', e.target.value)}
-                      className="w-28"
-                    />
-                    <span>-</span>
-                    <Input
-                      type="time"
-                      value={slot.end_time}
-                      onChange={e => updateTimeSlot(index, 'end_time', e.target.value)}
-                      className="w-28"
-                    />
-                    {timeSlots.length > 1 && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => removeTimeSlot(index)}
+            {/* Schedule (only for weekly courses) */}
+            {courseType === 'weekly' && (
+              <div className="space-y-4">
+                <h4 className="font-medium text-sm text-muted-foreground">Zeitplan (Wöchentlich)</h4>
+                
+                {/* Days selection */}
+                <div className="flex flex-wrap gap-2">
+                  {DAYS_OF_WEEK.map(day => (
+                    <div key={day.value} className="flex items-center">
+                      <Checkbox
+                        id={`day-${day.value}`}
+                        checked={selectedDays.includes(day.value)}
+                        onCheckedChange={() => toggleDay(day.value)}
+                      />
+                      <label 
+                        htmlFor={`day-${day.value}`}
+                        className="ml-2 text-sm cursor-pointer"
                       >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    )}
-                  </div>
-                ))}
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={addTimeSlot}
-                >
-                  <Plus className="h-4 w-4 mr-1" />
-                  Zeitslot hinzufügen
-                </Button>
+                        {day.label}
+                      </label>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Time slots */}
+                <div className="space-y-2">
+                  {timeSlots.map((slot, index) => (
+                    <div key={index} className="flex items-center gap-2">
+                      <span className="text-sm text-muted-foreground w-20">Zeitslot {index + 1}:</span>
+                      <Input
+                        type="time"
+                        value={slot.start_time}
+                        onChange={e => updateTimeSlot(index, 'start_time', e.target.value)}
+                        className="w-28"
+                      />
+                      <span>-</span>
+                      <Input
+                        type="time"
+                        value={slot.end_time}
+                        onChange={e => updateTimeSlot(index, 'end_time', e.target.value)}
+                        className="w-28"
+                      />
+                      {timeSlots.length > 1 && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => removeTimeSlot(index)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={addTimeSlot}
+                  >
+                    <Plus className="h-4 w-4 mr-1" />
+                    Zeitslot hinzufügen
+                  </Button>
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Active toggle */}
             <FormField
