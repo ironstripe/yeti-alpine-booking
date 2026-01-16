@@ -63,7 +63,16 @@ import SettingsNotifications from "./pages/SettingsNotifications";
 import SettingsAI from "./pages/SettingsAI";
 import SettingsSystem from "./pages/SettingsSystem";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 30000, // Data fresh for 30 seconds
+      refetchOnWindowFocus: false, // Don't refetch on tab switch
+      refetchOnReconnect: false, // Don't refetch on network reconnect
+      retry: 1, // Only retry failed requests once
+    },
+  },
+});
 
 function LoginRoute() {
   const { user, loading } = useAuth();
