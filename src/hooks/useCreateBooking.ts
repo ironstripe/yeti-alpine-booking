@@ -4,6 +4,11 @@ import type { BookingWizardState } from "@/contexts/BookingWizardContext";
 import { createInitialComments } from "./useTicketComments";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
+import { 
+  calculatePrivateLessonPrice, 
+  type TimeSlotRate, 
+  type HighSeasonPeriod 
+} from "@/lib/pricing/private-lesson-pricing";
 
 interface CreateBookingResult {
   ticketId: string;
@@ -57,31 +62,64 @@ export function useCreateBooking() {
 
       // Calculate total from real products
       const daysCount = state.selectedDates.length;
-      const duration = state.duration || 2;
       
-      let unitPrice = 180; // Fallback
+      let unitPrice = 0;
       let productId = state.productId;
       
-      if (state.productType === "private" && state.sport) {
-        const durationMinutes = duration * 60;
-        const sportName = state.sport === "ski" ? "Ski" : "Snowboard";
-        const product = products?.find(
-          (p) =>
-            p.type === "private" &&
-            p.duration_minutes === durationMinutes &&
-            p.name.includes(sportName)
-        );
-        if (product) {
-          unitPrice = Number(product.price);
-          productId = product.id;
+      // ============ PRIVATE LESSON PRICING ============
+      if (state.productType === "private") {
+        // Fetch time-based rates
+        const { data: ratesData } = await supabase
+          .from("private_lesson_rates")
+          .select("*")
+          .order("start_time");
+        
+        const { data: highSeasonData } = await supabase
+          .from("high_season_periods")
+          .select("*");
+        
+        const rates: TimeSlotRate[] = ratesData || [];
+        const highSeasonPeriods: HighSeasonPeriod[] = highSeasonData || [];
+        
+        // Get any private product as reference for ticket_items
+        if (!productId) {
+          const privateProduct = products?.find(p => p.type === "private");
+          if (!privateProduct) {
+            throw new Error("Kein Privatstunden-Produkt konfiguriert");
+          }
+          productId = privateProduct.id;
         }
-      } else if (state.productType === "group") {
-        const product = products?.find(
-          (p) => p.type === "group" && p.name.includes(`${daysCount} Tag`)
+        
+        // Parse time slot
+        const startTime = state.timeSlot?.split(" - ")[0] || "10:00";
+        const endTime = state.timeSlot?.split(" - ")[1] || "12:00";
+        const firstDate = state.selectedDates[0] ? new Date(state.selectedDates[0]) : new Date();
+        
+        // Calculate price using time-based pricing
+        const priceResult = calculatePrivateLessonPrice(
+          firstDate,
+          startTime,
+          endTime,
+          state.numberOfPersons || 1,
+          rates,
+          highSeasonPeriods
         );
-        if (product) {
-          unitPrice = Number(product.price);
-          productId = product.id;
+        
+        // Price per day
+        unitPrice = priceResult.totalPrice;
+        
+      // ============ GROUP COURSE PRICING ============
+      } else if (state.productType === "group") {
+        // Find a group product
+        const groupProduct = products?.find(p => p.type === "group");
+        if (groupProduct) {
+          productId = groupProduct.id;
+          
+          // TODO: Implement tiered pricing based on days count
+          // For now, use the base price multiplied by days
+          unitPrice = Number(groupProduct.price);
+        } else {
+          throw new Error("Kein Gruppenkurs-Produkt konfiguriert");
         }
       }
 
@@ -99,7 +137,7 @@ export function useCreateBooking() {
       }
       
       // Calculate base total
-      const baseTotal = state.productType === "private" ? unitPrice * daysCount : unitPrice;
+      const baseTotal = state.productType === "private" ? unitPrice * daysCount : unitPrice * daysCount;
       
       // Apply discount
       const discountAmount = (baseTotal + lunchTotal) * (state.discountPercent / 100);
@@ -126,7 +164,7 @@ export function useCreateBooking() {
 
       // Create ticket items for each participant + date combination
       if (!productId) {
-        throw new Error("No product selected");
+        throw new Error("Kein Produkt ausgewählt");
       }
 
       const ticketItems: Array<{
@@ -170,11 +208,89 @@ export function useCreateBooking() {
         }
       }
 
-      const { error: itemsError } = await supabase
+      const { data: insertedItems, error: itemsError } = await supabase
         .from("ticket_items")
-        .insert(ticketItems);
+        .insert(ticketItems)
+        .select("id, participant_id, date");
 
       if (itemsError) throw itemsError;
+
+      // ============ GROUP COURSE ENROLLMENT ============
+      if (state.productType === "group" && state.selectedGroupId) {
+        // Get or create instances for the selected dates
+        for (const dateStr of state.selectedDates) {
+          // Check if instance exists
+          let { data: existingInstance } = await supabase
+            .from("group_course_instances")
+            .select("id, current_participants")
+            .eq("course_id", state.selectedGroupId)
+            .eq("date", dateStr)
+            .maybeSingle();
+
+          let instanceId: string;
+
+          if (!existingInstance) {
+            // Get course schedule for time info
+            const { data: course } = await supabase
+              .from("group_courses")
+              .select(`
+                id,
+                schedules:group_course_schedules(start_time, end_time, day_of_week)
+              `)
+              .eq("id", state.selectedGroupId)
+              .single();
+
+            const dayOfWeek = new Date(dateStr).getDay();
+            const schedule = course?.schedules?.find(s => s.day_of_week === dayOfWeek);
+
+            // Create new instance
+            const { data: newInstance, error: instanceError } = await supabase
+              .from("group_course_instances")
+              .insert({
+                course_id: state.selectedGroupId,
+                date: dateStr,
+                start_time: schedule?.start_time || "10:00",
+                end_time: schedule?.end_time || "12:00",
+                current_participants: 0,
+                status: "scheduled",
+              })
+              .select("id")
+              .single();
+
+            if (instanceError) throw instanceError;
+            instanceId = newInstance.id;
+          } else {
+            instanceId = existingInstance.id;
+          }
+
+          // Create enrollments for each participant
+          for (const participant of state.selectedParticipants) {
+            const ticketItem = insertedItems?.find(
+              ti => ti.participant_id === participant.id && ti.date === dateStr
+            );
+
+            await supabase
+              .from("group_course_enrollments")
+              .insert({
+                instance_id: instanceId,
+                participant_id: participant.id.startsWith("guest-") ? null : participant.id,
+                ticket_item_id: ticketItem?.id || null,
+                attendance_status: "registered",
+              });
+          }
+
+          // Update participant count
+          const { count } = await supabase
+            .from("group_course_enrollments")
+            .select("*", { count: "exact", head: true })
+            .eq("instance_id", instanceId);
+
+          await supabase
+            .from("group_course_instances")
+            .update({ current_participants: count || 0 })
+            .eq("id", instanceId);
+        }
+      }
 
       // Create initial comments from wizard notes
       const userName = user.email?.split("@")[0] || "System";
@@ -244,6 +360,8 @@ export function useCreateBooking() {
       queryClient.invalidateQueries({ queryKey: ["conversations"] });
       queryClient.invalidateQueries({ queryKey: ["ticket-comments"] });
       queryClient.invalidateQueries({ queryKey: ["action-tasks"] });
+      queryClient.invalidateQueries({ queryKey: ["group-course-instances"] });
+      queryClient.invalidateQueries({ queryKey: ["group-courses-for-booking"] });
     },
   });
 }
