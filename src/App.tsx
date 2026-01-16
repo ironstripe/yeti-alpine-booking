@@ -115,234 +115,66 @@ const AppRoutes = () => (
   <Routes>
     {/* Public route */}
     <Route path="/login" element={<LoginRoute />} />
-    
-    {/* Protected routes */}
-    <Route
-      path="/"
-      element={
-        <AppLayout>
-          <Dashboard />
-        </AppLayout>
-      }
-    />
-    <Route
-      path="/inbox"
-      element={
-        <AppLayout>
-          <Inbox />
-        </AppLayout>
-      }
-    />
-    <Route
-      path="/inbox/:id"
-      element={
-        <AppLayout>
-          <InboxDetail />
-        </AppLayout>
-      }
-    />
-    <Route
-      path="/bookings"
-      element={
-        <AppLayout>
-          <Bookings />
-        </AppLayout>
-      }
-    />
-    <Route path="/bookings/new" element={<BookingWizard />} />
-    <Route path="/bookings/new/school-camp" element={<SchoolCampBooking />} />
-    <Route
-      path="/bookings/:id"
-      element={
-        <AppLayout>
-          <BookingDetail />
-        </AppLayout>
-      }
-    />
-    <Route
-      path="/customers"
-      element={
-        <AppLayout>
-          <Customers />
-        </AppLayout>
-      }
-    />
-    <Route
-      path="/customers/:id"
-      element={
-        <AppLayout>
-          <CustomerDetail />
-        </AppLayout>
-      }
-    />
-    <Route
-      path="/instructors"
-      element={
-        <AppLayout>
-          <Instructors />
-        </AppLayout>
-      }
-    />
-    <Route
-      path="/instructors/:id"
-      element={
-        <AppLayout>
-          <InstructorDetail />
-        </AppLayout>
-      }
-    />
-    <Route
-      path="/trainings"
-      element={
-        <AppLayout>
-          <Trainings />
-        </AppLayout>
-      }
-    />
+
     {/* Public scheduler route for testing */}
     <Route path="/scheduler" element={<Scheduler />} />
-    <Route
-      path="/reconciliation"
-      element={
-        <AppLayout>
-          <Reconciliation />
-        </AppLayout>
-      }
-    />
-    <Route
-      path="/lists"
-      element={
-        <AppLayout>
-          <Lists />
-        </AppLayout>
-      }
-    />
-    <Route
-      path="/shop"
-      element={
-        <AppLayout>
-          <Shop />
-        </AppLayout>
-      }
-    />
-    <Route
-      path="/shop/products"
-      element={
-        <AppLayout>
-          <ShopProducts />
-        </AppLayout>
-      }
-    />
-    <Route
-      path="/shop/products/:id"
-      element={
-        <AppLayout>
-          <ShopProductDetail />
-        </AppLayout>
-      }
-    />
-    <Route
-      path="/shop/inventory"
-      element={
-        <AppLayout>
-          <ShopInventory />
-        </AppLayout>
-      }
-    />
-    <Route
-      path="/shop/transactions"
-      element={
-        <AppLayout>
-          <ShopTransactions />
-        </AppLayout>
-      }
-    />
-    <Route
-      path="/vouchers"
-      element={
-        <AppLayout>
-          <Vouchers />
-        </AppLayout>
-      }
-    />
-    <Route
-      path="/vouchers/new"
-      element={
-        <AppLayout>
-          <VoucherNew />
-        </AppLayout>
-      }
-    />
-    <Route
-      path="/vouchers/:id"
-      element={
-        <AppLayout>
-          <VoucherDetail />
-        </AppLayout>
-      }
-    />
-    <Route
-      path="/reports"
-      element={
-        <AppLayout>
-          <Reports />
-        </AppLayout>
-      }
-    />
-    <Route
-      path="/reports/revenue"
-      element={
-        <AppLayout>
-          <ReportsRevenue />
-        </AppLayout>
-      }
-    />
-    <Route
-      path="/reports/instructors"
-      element={
-        <AppLayout>
-          <ReportsInstructors />
-        </AppLayout>
-      }
-    />
-    <Route
-      path="/reports/bookings"
-      element={
-        <AppLayout>
-          <ReportsBookings />
-        </AppLayout>
-      }
-    />
-    <Route
-      path="/reports/customers"
-      element={
-        <AppLayout>
-          <ReportsCustomers />
-        </AppLayout>
-      }
-    />
-    {/* Instructor Portal Routes */}
-    <Route path="/instructor" element={<InstructorDashboard />} />
-    <Route path="/instructor/schedule" element={<InstructorSchedule />} />
-    <Route path="/instructor/availability" element={<InstructorAvailability />} />
-    <Route path="/instructor/profile" element={<InstructorProfile />} />
+
     {/* Public Booking Portal Routes */}
     <Route path="/book" element={<BookingLanding />} />
     <Route path="/book/private" element={<PrivateBookingForm />} />
     <Route path="/book/group" element={<GroupBookingForm />} />
     <Route path="/book/request/:token" element={<RequestConfirmation />} />
-    {/* Settings Routes */}
-    <Route path="/settings" element={<AppLayout><Settings /></AppLayout>} />
-    <Route path="/settings/school" element={<AppLayout><SettingsSchool /></AppLayout>} />
-    <Route path="/settings/products" element={<AppLayout><SettingsProducts /></AppLayout>} />
-    <Route path="/settings/pricing" element={<AppLayout><SettingsPricing /></AppLayout>} />
-    <Route path="/settings/seasons" element={<AppLayout><SettingsSeasons /></AppLayout>} />
-    <Route path="/settings/users" element={<AppLayout><SettingsUsers /></AppLayout>} />
-    <Route path="/settings/emails" element={<AppLayout><SettingsEmailTemplates /></AppLayout>} />
-    <Route path="/settings/emails/:id" element={<AppLayout><SettingsEmailTemplateEdit /></AppLayout>} />
-    <Route path="/settings/notifications" element={<AppLayout><SettingsNotifications /></AppLayout>} />
-    <Route path="/settings/ai" element={<AppLayout><SettingsAI /></AppLayout>} />
-    <Route path="/settings/system" element={<AppLayout><SettingsSystem /></AppLayout>} />
+
+    {/* Booking creation routes (kept outside the main layout) */}
+    <Route path="/bookings/new" element={<BookingWizard />} />
+    <Route path="/bookings/new/school-camp" element={<SchoolCampBooking />} />
+
+    {/* Instructor Portal Routes */}
+    <Route path="/instructor" element={<InstructorDashboard />} />
+    <Route path="/instructor/schedule" element={<InstructorSchedule />} />
+    <Route path="/instructor/availability" element={<InstructorAvailability />} />
+    <Route path="/instructor/profile" element={<InstructorProfile />} />
+
+    {/* Protected app routes (single persistent layout to avoid remount flicker) */}
+    <Route element={<AppLayout />}>
+      <Route index element={<Dashboard />} />
+      <Route path="inbox" element={<Inbox />} />
+      <Route path="inbox/:id" element={<InboxDetail />} />
+      <Route path="bookings" element={<Bookings />} />
+      <Route path="bookings/:id" element={<BookingDetail />} />
+      <Route path="customers" element={<Customers />} />
+      <Route path="customers/:id" element={<CustomerDetail />} />
+      <Route path="instructors" element={<Instructors />} />
+      <Route path="instructors/:id" element={<InstructorDetail />} />
+      <Route path="trainings" element={<Trainings />} />
+      <Route path="reconciliation" element={<Reconciliation />} />
+      <Route path="lists" element={<Lists />} />
+      <Route path="shop" element={<Shop />} />
+      <Route path="shop/products" element={<ShopProducts />} />
+      <Route path="shop/products/:id" element={<ShopProductDetail />} />
+      <Route path="shop/inventory" element={<ShopInventory />} />
+      <Route path="shop/transactions" element={<ShopTransactions />} />
+      <Route path="vouchers" element={<Vouchers />} />
+      <Route path="vouchers/new" element={<VoucherNew />} />
+      <Route path="vouchers/:id" element={<VoucherDetail />} />
+      <Route path="reports" element={<Reports />} />
+      <Route path="reports/revenue" element={<ReportsRevenue />} />
+      <Route path="reports/instructors" element={<ReportsInstructors />} />
+      <Route path="reports/bookings" element={<ReportsBookings />} />
+      <Route path="reports/customers" element={<ReportsCustomers />} />
+      <Route path="settings" element={<Settings />} />
+      <Route path="settings/school" element={<SettingsSchool />} />
+      <Route path="settings/products" element={<SettingsProducts />} />
+      <Route path="settings/pricing" element={<SettingsPricing />} />
+      <Route path="settings/seasons" element={<SettingsSeasons />} />
+      <Route path="settings/users" element={<SettingsUsers />} />
+      <Route path="settings/emails" element={<SettingsEmailTemplates />} />
+      <Route path="settings/emails/:id" element={<SettingsEmailTemplateEdit />} />
+      <Route path="settings/notifications" element={<SettingsNotifications />} />
+      <Route path="settings/ai" element={<SettingsAI />} />
+      <Route path="settings/system" element={<SettingsSystem />} />
+    </Route>
+
     {/* Catch-all route */}
     <Route path="*" element={<NotFound />} />
   </Routes>

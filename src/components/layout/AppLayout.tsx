@@ -1,5 +1,5 @@
 import { ReactNode } from "react";
-import { Navigate, useLocation } from "react-router-dom";
+import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { AppSidebar } from "./AppSidebar";
 import { BottomNav } from "./BottomNav";
@@ -9,7 +9,7 @@ import { ConnectionStatus } from "@/components/ui/connection-status";
 import { Loader2 } from "lucide-react";
 
 interface AppLayoutProps {
-  children: ReactNode;
+  children?: ReactNode;
 }
 
 export function AppLayout({ children }: AppLayoutProps) {
@@ -50,9 +50,7 @@ export function AppLayout({ children }: AppLayoutProps) {
 
         {/* Page Content */}
         <main className="flex-1 overflow-auto">
-          <div className="p-4 md:p-6 pb-24 md:pb-6">
-            {children}
-          </div>
+          <div className="p-4 md:p-6 pb-24 md:pb-6">{children ?? <Outlet />}</div>
         </main>
       </div>
 
