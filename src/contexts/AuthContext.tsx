@@ -24,26 +24,47 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
-  const initialCheckDone = useRef(false);
+  const initialized = useRef(false);
 
   useEffect(() => {
-    // Get initial session first
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      initialCheckDone.current = true;
-      setLoading(false);
-    });
-
-    // Set up auth state listener for changes AFTER initial load
+    // Set up auth state listener FIRST (so we don't miss events)
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      // Only set loading false if initial check hasn't completed yet
-      if (!initialCheckDone.current) {
-        initialCheckDone.current = true;
+    } = supabase.auth.onAuthStateChange((event, newSession) => {
+      // Update state synchronously
+      setSession(newSession);
+      setUser(newSession?.user ?? null);
+      
+      // Mark as initialized if not already
+      if (!initialized.current) {
+        initialized.current = true;
+        setLoading(false);
+      }
+    });
+
+    // THEN get initial session
+    supabase.auth.getSession().then(({ data: { session: initialSession } }) => {
+      // Only update if we haven't been initialized by onAuthStateChange
+      if (!initialized.current) {
+        // Validate session is not expired
+        if (initialSession?.expires_at) {
+          const expiresAt = initialSession.expires_at * 1000; // Convert to ms
+          const now = Date.now();
+          const bufferMs = 30 * 1000; // 30 second buffer
+          
+          if (expiresAt - now < bufferMs) {
+            // Session expired or about to expire - treat as logged out
+            setSession(null);
+            setUser(null);
+          } else {
+            setSession(initialSession);
+            setUser(initialSession.user);
+          }
+        } else {
+          setSession(initialSession);
+          setUser(initialSession?.user ?? null);
+        }
+        initialized.current = true;
         setLoading(false);
       }
     });
