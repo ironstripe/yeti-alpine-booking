@@ -935,6 +935,7 @@ export type Database = {
       group_courses: {
         Row: {
           color: string | null
+          course_type: string | null
           created_at: string | null
           description: string | null
           discipline: string
@@ -945,6 +946,8 @@ export type Database = {
           meeting_point: string | null
           min_age: number | null
           name: string
+          period_end_date: string | null
+          period_start_date: string | null
           price_full_week: number | null
           price_per_day: number
           product_id: string | null
@@ -953,6 +956,7 @@ export type Database = {
         }
         Insert: {
           color?: string | null
+          course_type?: string | null
           created_at?: string | null
           description?: string | null
           discipline?: string
@@ -963,6 +967,8 @@ export type Database = {
           meeting_point?: string | null
           min_age?: number | null
           name: string
+          period_end_date?: string | null
+          period_start_date?: string | null
           price_full_week?: number | null
           price_per_day: number
           product_id?: string | null
@@ -971,6 +977,7 @@ export type Database = {
         }
         Update: {
           color?: string | null
+          course_type?: string | null
           created_at?: string | null
           description?: string | null
           discipline?: string
@@ -981,6 +988,8 @@ export type Database = {
           meeting_point?: string | null
           min_age?: number | null
           name?: string
+          period_end_date?: string | null
+          period_start_date?: string | null
           price_full_week?: number | null
           price_per_day?: number
           product_id?: string | null
@@ -2304,6 +2313,54 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "pending_booking_confirmations"
             referencedColumns: ["customer_id"]
+          },
+        ]
+      }
+      training_course_dates: {
+        Row: {
+          created_at: string | null
+          date: string
+          id: string
+          instructor_id: string | null
+          is_cancelled: boolean | null
+          notes: string | null
+          training_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          date: string
+          id?: string
+          instructor_id?: string | null
+          is_cancelled?: boolean | null
+          notes?: string | null
+          training_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          date?: string
+          id?: string
+          instructor_id?: string | null
+          is_cancelled?: boolean | null
+          notes?: string | null
+          training_id?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "training_course_dates_instructor_id_fkey"
+            columns: ["instructor_id"]
+            isOneToOne: false
+            referencedRelation: "instructors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_course_dates_training_id_fkey"
+            columns: ["training_id"]
+            isOneToOne: false
+            referencedRelation: "group_courses"
+            referencedColumns: ["id"]
           },
         ]
       }

@@ -1,5 +1,7 @@
 // Types for Group Courses (Trainings) module
 
+export type CourseType = 'weekly' | 'saturday_course' | 'custom';
+
 export interface GroupCourse {
   id: string;
   name: string;
@@ -15,6 +17,9 @@ export interface GroupCourse {
   meeting_point: string | null;
   color: string;
   is_active: boolean;
+  course_type: CourseType;
+  period_start_date: string | null;
+  period_end_date: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -81,6 +86,24 @@ export interface GroupCourseEnrollment {
   };
 }
 
+// Training course date for Saturday courses
+export interface TrainingCourseDate {
+  id: string;
+  training_id: string;
+  date: string;
+  is_cancelled: boolean;
+  instructor_id: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+  // Joined data
+  instructor?: {
+    id: string;
+    first_name: string;
+    last_name: string;
+  };
+}
+
 export interface GroupCourseWithSchedules extends GroupCourse {
   schedules: GroupCourseSchedule[];
   product?: LinkedProduct | null;
@@ -91,6 +114,8 @@ export interface GroupCourseWithSchedules extends GroupCourse {
     first_name: string;
     last_name: string;
   } | null;
+  // For Saturday courses
+  course_dates?: TrainingCourseDate[];
 }
 
 export interface GroupCourseFormData {
@@ -105,6 +130,9 @@ export interface GroupCourseFormData {
   meeting_point: string;
   color: string;
   is_active: boolean;
+  course_type: CourseType;
+  period_start_date: string | null;
+  period_end_date: string | null;
   schedules: {
     days: number[];
     time_slots: { start_time: string; end_time: string }[];
@@ -143,4 +171,10 @@ export const COURSE_COLORS = [
   { value: '#EC4899', label: 'Pink' },
   { value: '#06B6D4', label: 'Türkis' },
   { value: '#6B7280', label: 'Grau' },
+] as const;
+
+export const COURSE_TYPES = [
+  { value: 'weekly', label: 'Wöchentlich (Mo-Fr)' },
+  { value: 'saturday_course', label: 'Samstagskurs' },
+  { value: 'custom', label: 'Benutzerdefiniert' },
 ] as const;
