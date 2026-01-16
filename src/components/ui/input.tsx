@@ -3,11 +3,10 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 
 const Input = React.forwardRef<HTMLInputElement, React.ComponentProps<"input">>(
-  ({ className, type, autoComplete = "off", autoCorrect = "off", autoCapitalize = "off", spellCheck = false, ...props }, ref) => {
+  ({ className, type, autoCorrect = "off", autoCapitalize = "off", spellCheck = false, ...props }, ref) => {
     return (
       <input
         type={type}
-        autoComplete={autoComplete}
         autoCorrect={autoCorrect}
         autoCapitalize={autoCapitalize}
         spellCheck={spellCheck}

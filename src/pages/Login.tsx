@@ -119,7 +119,7 @@ const Login = () => {
         </CardHeader>
 
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4" autoComplete="on">
             {/* Error Message */}
             {error && (
               <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/20">
@@ -138,7 +138,7 @@ const Login = () => {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 disabled={loading}
-                autoComplete="email username"
+                autoComplete="username"
               />
             </div>
 
