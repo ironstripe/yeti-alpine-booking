@@ -1,8 +1,9 @@
-import { useEffect, useRef, Component, ReactNode } from "react";
+import { useEffect, useRef, useState, Component, ReactNode } from "react";
 import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
-import { ArrowLeft, X } from "lucide-react";
+import { ArrowLeft, X, RefreshCw } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -34,6 +35,7 @@ function BookingWizardContent() {
   const location = useLocation();
   const [searchParams] = useSearchParams();
   const didApplyPrefill = useRef(false);
+  const [isReanalyzing, setIsReanalyzing] = useState(false);
   
   const { 
     state, 
@@ -57,6 +59,112 @@ function BookingWizardContent() {
   
   // Get prefill from navigation state
   const prefill = (location.state as { prefill?: BookingPrefillState })?.prefill;
+
+  // Helper function to apply prefill from AI extraction data
+  const applyPrefillFromExtraction = async (extractedData: any) => {
+    console.log("Applying prefill from extraction:", extractedData);
+    
+    // Build prefill structure from extraction
+    const newPrefill: BookingPrefillState = {
+      sourceConversationId: conversationId || undefined,
+      matchedCustomerId: extractedData.customer?.id || extractedData.matched_customer_id,
+      customer: extractedData.customer || {},
+      participants: extractedData.participants || [],
+      booking: extractedData.booking || {},
+    };
+
+    // Apply product type
+    if (newPrefill.booking?.product_type) {
+      setProductType(newPrefill.booking.product_type);
+    }
+
+    // Apply dates
+    if (newPrefill.booking?.dates && newPrefill.booking.dates.length > 0) {
+      setSelectedDates(newPrefill.booking.dates.map((d: any) => d.date).filter(Boolean));
+      
+      // Apply times from first date that has them
+      const dateWithTime = newPrefill.booking.dates.find((d: any) => d.start_time && d.end_time);
+      if (dateWithTime) {
+        const timeSlotValue = `${dateWithTime.start_time} - ${dateWithTime.end_time}`;
+        setTimeSlot(timeSlotValue);
+        
+        // Calculate duration
+        const startHour = parseInt(dateWithTime.start_time.split(":")[0]);
+        const endHour = parseInt(dateWithTime.end_time.split(":")[0]);
+        const durationHours = endHour - startHour;
+        if (durationHours > 0) {
+          setDuration(durationHours);
+        }
+        console.log("Applied time from re-analysis:", timeSlotValue, "duration:", durationHours);
+      }
+    }
+
+    // Auto-set assign later for inbox bookings
+    if (conversationId) {
+      setAssignLater(true);
+    }
+
+    toast.success("Daten aktualisiert");
+  };
+
+  // Re-analyze function
+  const handleReanalyze = async () => {
+    if (!conversationId) return;
+    
+    setIsReanalyzing(true);
+    try {
+      const { error: fnError } = await supabase.functions.invoke("process-ai-message", {
+        body: { conversationId }
+      });
+      
+      if (fnError) throw fnError;
+      
+      // Refetch conversation and re-apply prefill
+      const { data, error } = await supabase
+        .from("conversations")
+        .select("ai_extracted_data")
+        .eq("id", conversationId)
+        .single();
+      
+      if (error) throw error;
+      
+      if (data?.ai_extracted_data) {
+        await applyPrefillFromExtraction(data.ai_extracted_data);
+        toast.success("Analyse abgeschlossen");
+      }
+    } catch (error) {
+      console.error("Re-analyze error:", error);
+      toast.error("Analyse fehlgeschlagen");
+    } finally {
+      setIsReanalyzing(false);
+    }
+  };
+
+  // Refresh-safe: fetch conversation data if we have conversationId but no prefill
+  useEffect(() => {
+    const fetchConversationPrefill = async () => {
+      if (!conversationId || prefill || didApplyPrefill.current) return;
+      
+      console.log("Fetching conversation for refresh-safe prefill:", conversationId);
+      const { data, error } = await supabase
+        .from("conversations")
+        .select("ai_extracted_data, matched_customer_id")
+        .eq("id", conversationId)
+        .single();
+      
+      if (error) {
+        console.error("Error fetching conversation:", error);
+        return;
+      }
+      
+      if (data?.ai_extracted_data) {
+        didApplyPrefill.current = true;
+        await applyPrefillFromExtraction(data.ai_extracted_data);
+      }
+    };
+    
+    fetchConversationPrefill();
+  }, [conversationId, prefill]);
 
   // Fetch customer if provided in URL or prefill
   const targetCustomerId = customerId || prefill?.matchedCustomerId;
@@ -387,7 +495,19 @@ function BookingWizardContent() {
 
           <h1 className="text-lg font-semibold">Neue Buchung</h1>
 
-          <div className="w-[100px]" /> {/* Spacer for centering */}
+          {conversationId ? (
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={handleReanalyze}
+              disabled={isReanalyzing}
+            >
+              <RefreshCw className={cn("h-4 w-4 mr-2", isReanalyzing && "animate-spin")} />
+              Erneut analysieren
+            </Button>
+          ) : (
+            <div className="w-[100px]" />
+          )}
         </div>
       </header>
 
