@@ -39,29 +39,29 @@ export function CustomerSearch({
   }, []);
 
   const handleSelect = (customer: CustomerWithCount) => {
-    // Convert CustomerWithCount to Tables<"customers">
+    // Convert CustomerWithCount to Tables<"customers"> - pass through all fields
     const fullCustomer: Tables<"customers"> = {
       id: customer.id,
       first_name: customer.first_name,
       last_name: customer.last_name,
       email: customer.email,
       phone: customer.phone,
+      street: customer.street,
+      zip: customer.zip,
+      city: customer.city,
+      country: customer.country,
+      language: customer.language,
+      holiday_address: customer.holiday_address ?? "",
+      notes: customer.notes,
+      kulanz_score: customer.kulanz_score,
+      marketing_consent: customer.marketing_consent,
+      preferred_channel: customer.preferred_channel,
+      additional_phones: (customer.additional_phones ?? []) as Tables<"customers">["additional_phones"],
+      additional_emails: (customer.additional_emails ?? []) as Tables<"customers">["additional_emails"],
+      customer_type: customer.customer_type ?? "private",
+      organization_name: customer.organization_name,
+      billing_email: customer.billing_email,
       created_at: customer.created_at,
-      city: null,
-      country: null,
-      kulanz_score: null,
-      language: null,
-      marketing_consent: null,
-      notes: null,
-      preferred_channel: null,
-      street: null,
-      zip: null,
-      holiday_address: "",
-      additional_phones: [],
-      additional_emails: [],
-      customer_type: "private",
-      organization_name: null,
-      billing_email: null,
     };
     onSelect(fullCustomer);
     setSearchQuery("");
