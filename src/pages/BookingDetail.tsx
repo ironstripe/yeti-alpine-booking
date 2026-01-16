@@ -15,6 +15,7 @@ import {
   ArrowLeft,
   Loader2,
   Eye,
+  Pencil,
 } from "lucide-react";
 import { PageHeader } from "@/components/layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -29,13 +30,14 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useSchoolSettings } from "@/hooks/useSchoolSettings";
 import { useCreateInvoice, useInvoicesByTicket, useSendInvoice } from "@/hooks/useInvoices";
 import { useSendTestEmail } from "@/hooks/useEmailTemplates";
 import { InvoicePrintTemplate } from "@/components/invoices/InvoicePrintTemplate";
+import { TicketItemEditCard } from "@/components/bookings/TicketItemEditCard";
 import { formatCurrency } from "@/lib/swiss-qr-utils";
 
 const BookingDetail = () => {
@@ -256,27 +258,13 @@ const BookingDetail = () => {
                 <>
                   <Separator className="my-4" />
                   <div>
-                    <p className="text-sm font-medium mb-2">Positionen</p>
-                    <div className="space-y-2">
+                    <p className="text-sm font-medium mb-3">Positionen</p>
+                    <div className="space-y-3">
                       {ticket.items.map((item: any) => (
-                        <div key={item.id} className="flex justify-between items-start p-3 bg-muted/50 rounded-lg">
-                          <div>
-                            <p className="font-medium">
-                              {item.participant?.first_name} {item.participant?.last_name} - {item.product?.name}
-                            </p>
-                            <p className="text-sm text-muted-foreground">
-                              {format(new Date(item.date), 'dd.MM.yyyy', { locale: de })}
-                              {item.time_start && ` · ${item.time_start.substring(0, 5)}`}
-                              {item.time_end && ` - ${item.time_end.substring(0, 5)}`}
-                            </p>
-                            {item.instructor && (
-                              <p className="text-sm text-muted-foreground">
-                                Lehrer: {item.instructor.first_name} {item.instructor.last_name}
-                              </p>
-                            )}
-                          </div>
-                          <p className="font-medium">CHF {formatCurrency(item.line_total || item.unit_price || 0)}</p>
-                        </div>
+                        <TicketItemEditCard 
+                          key={item.id} 
+                          item={item}
+                        />
                       ))}
                     </div>
                   </div>
