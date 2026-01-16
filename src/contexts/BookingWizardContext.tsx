@@ -37,6 +37,9 @@ export interface BookingWizardState {
   duration: number | null;
   includeLunch: boolean;
   
+  // Private lesson specific
+  numberOfPersons: number; // For additional person pricing (max 4)
+  
   // Group course specific
   selectedGroupId: string | null;
   groupCourseType: "windel_wedelkurs" | "kids_village" | "standard" | null;
@@ -87,6 +90,7 @@ interface BookingWizardContextType {
   setTimeSlot: (slot: string | null) => void;
   setDuration: (duration: number | null) => void;
   setIncludeLunch: (include: boolean) => void;
+  setNumberOfPersons: (count: number) => void;
   setAppointments: (appointments: AppointmentSlot[] | null) => void;
   // Group course setters
   setSelectedGroupId: (id: string | null) => void;
@@ -125,6 +129,7 @@ const initialState: BookingWizardState = {
   timeSlot: null,
   duration: null,
   includeLunch: false,
+  numberOfPersons: 1,
   selectedGroupId: null,
   groupCourseType: null,
   lunchSelections: {},
@@ -249,6 +254,10 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
 
   const setIncludeLunch = (include: boolean) => {
     setState((prev) => ({ ...prev, includeLunch: include }));
+  };
+
+  const setNumberOfPersons = (count: number) => {
+    setState((prev) => ({ ...prev, numberOfPersons: Math.min(Math.max(count, 1), 4) }));
   };
 
   const setAppointments = (appointments: AppointmentSlot[] | null) => {
@@ -410,6 +419,7 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
         setTimeSlot,
         setDuration,
         setIncludeLunch,
+        setNumberOfPersons,
         setAppointments,
         setSelectedGroupId,
         setGroupCourseType,

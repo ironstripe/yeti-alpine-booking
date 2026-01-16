@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Check } from "lucide-react";
+import { Check, Clock, Users } from "lucide-react";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
@@ -8,6 +8,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useBookingWizard } from "@/contexts/BookingWizardContext";
+import { usePrivateLessonRates, useHighSeasonPeriods } from "@/hooks/usePrivateLessonRates";
+import {
+  calculatePrivateLessonPrice,
+  formatCHF,
+  ADDITIONAL_PERSON_RATE,
+} from "@/lib/pricing/private-lesson-pricing";
 
 interface PriceBreakdownProps {
   discountPercent: number;
@@ -37,26 +43,43 @@ export function PriceBreakdown({
     },
   });
 
+  // Fetch private lesson rates and high season periods
+  const { data: rates = [] } = usePrivateLessonRates();
+  const { data: highSeasonPeriods = [] } = useHighSeasonPeriods();
+
   // Calculate prices from real products
   const daysCount = state.selectedDates.length;
-  const duration = state.duration || 2;
   const productType = state.productType || "private";
 
-  // Find matching product
+  // Parse time slot for private lessons
+  const timeSlotParts = state.timeSlot?.split(" - ") || [];
+  const startTime = timeSlotParts[0] || "";
+  const endTime = timeSlotParts[1] || "";
+
+  // Calculate private lesson price using time-based pricing
+  const privateLessonPrice = useMemo(() => {
+    if (productType !== "private" || !startTime || !endTime || daysCount === 0) {
+      return null;
+    }
+    const firstDate = state.selectedDates[0] ? new Date(state.selectedDates[0]) : null;
+    return calculatePrivateLessonPrice(
+      firstDate,
+      startTime,
+      endTime,
+      state.numberOfPersons,
+      rates,
+      highSeasonPeriods
+    );
+  }, [productType, startTime, endTime, state.selectedDates, state.numberOfPersons, rates, highSeasonPeriods, daysCount]);
+
+  // Find matching product for group courses
   let unitPrice = 0;
   let productName = "";
 
-  if (productType === "private" && state.sport) {
-    const durationMinutes = duration * 60;
-    const sportName = state.sport === "ski" ? "Ski" : "Snowboard";
-    const product = products.find(
-      (p) =>
-        p.type === "private" &&
-        p.duration_minutes === durationMinutes &&
-        p.name.includes(sportName)
-    );
-    unitPrice = product?.price || 180;
-    productName = product?.name || `Privatstunde ${duration}h`;
+  if (productType === "private" && privateLessonPrice) {
+    unitPrice = privateLessonPrice.totalPrice;
+    const duration = privateLessonPrice.durationHours;
+    productName = `Privatstunde ${state.sport === "ski" ? "Ski" : state.sport === "snowboard" ? "Snowboard" : ""} ${duration}h`;
   } else if (productType === "group") {
     const product = products.find(
       (p) => p.type === "group" && p.name.includes(`${daysCount} Tag`)
@@ -123,11 +146,31 @@ export function PriceBreakdown({
           <div className="flex justify-between">
             <div>
               <p className="font-medium">{productName}</p>
-              <p className="text-sm text-muted-foreground">
-                {productType === "private"
-                  ? `${daysCount} Tag${daysCount > 1 ? "e" : ""} × ${formatCurrency(unitPrice)}`
-                  : `${daysCount} Tag${daysCount > 1 ? "e" : ""}`}
-              </p>
+              {productType === "private" && privateLessonPrice && (
+                <div className="text-sm text-muted-foreground space-y-0.5">
+                  <p className="flex items-center gap-1">
+                    <Clock className="h-3 w-3" />
+                    {state.timeSlot}
+                  </p>
+                  {/* Time slot breakdown */}
+                  {privateLessonPrice.breakdown.map((item, idx) => (
+                    <p key={idx} className="text-xs">
+                      {item.timeSlot}: {formatCHF(item.rate)} ({item.isPeak ? "Hauptzeit" : "Randzeit"})
+                    </p>
+                  ))}
+                  {state.numberOfPersons > 1 && (
+                    <p className="flex items-center gap-1 text-xs">
+                      <Users className="h-3 w-3" />
+                      +{state.numberOfPersons - 1} Person(en) × {privateLessonPrice.durationHours}h × {formatCHF(ADDITIONAL_PERSON_RATE)}
+                    </p>
+                  )}
+                </div>
+              )}
+              {productType === "group" && (
+                <p className="text-sm text-muted-foreground">
+                  {daysCount} Tag{daysCount > 1 ? "e" : ""}
+                </p>
+              )}
             </div>
             <span className="font-medium">
               {formatCurrency(
@@ -135,6 +178,13 @@ export function PriceBreakdown({
               )}
             </span>
           </div>
+
+          {/* Days breakdown for private lessons */}
+          {productType === "private" && daysCount > 1 && (
+            <p className="text-sm text-muted-foreground">
+              {daysCount} Tag{daysCount > 1 ? "e" : ""} × {formatCurrency(unitPrice)}
+            </p>
+          )}
 
           {lunchTotal > 0 && (
             <div className="flex justify-between">
@@ -151,12 +201,12 @@ export function PriceBreakdown({
             </div>
           )}
 
-          <p className="text-sm text-muted-foreground">
-            Teilnehmer: {state.selectedParticipants.length} Person
-            {state.selectedParticipants.length > 1 ? "en" : ""}
-            <br />
-            <span className="text-xs">(Preis gilt für bis zu 2 Teilnehmer)</span>
-          </p>
+          {/* High season badge */}
+          {productType === "private" && privateLessonPrice?.isHighSeason && (
+            <Badge variant="secondary" className="bg-blue-100 text-blue-800">
+              Hochsaison
+            </Badge>
+          )}
         </div>
 
         <Separator />

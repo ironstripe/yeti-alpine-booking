@@ -1560,6 +1560,39 @@ export type Database = {
         }
         Relationships: []
       }
+      private_lesson_rates: {
+        Row: {
+          additional_person_rate: number | null
+          created_at: string | null
+          end_time: string
+          id: string
+          is_peak: boolean | null
+          rate_per_hour: number
+          start_time: string
+          updated_at: string | null
+        }
+        Insert: {
+          additional_person_rate?: number | null
+          created_at?: string | null
+          end_time: string
+          id?: string
+          is_peak?: boolean | null
+          rate_per_hour: number
+          start_time: string
+          updated_at?: string | null
+        }
+        Update: {
+          additional_person_rate?: number | null
+          created_at?: string | null
+          end_time?: string
+          id?: string
+          is_peak?: boolean | null
+          rate_per_hour?: number
+          start_time?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       product_price_tiers: {
         Row: {
           created_at: string | null
