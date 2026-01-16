@@ -35,7 +35,9 @@ function BookingWizardContent() {
   const location = useLocation();
   const [searchParams] = useSearchParams();
   const didApplyPrefill = useRef(false);
+  const didLoadEditMode = useRef(false);
   const [isReanalyzing, setIsReanalyzing] = useState(false);
+  const [isLoadingEdit, setIsLoadingEdit] = useState(false);
   
   const { 
     state, 
@@ -51,11 +53,13 @@ function BookingWizardContent() {
     setAssignLater,
     canProceed, 
     goToNextStep, 
-    resetWizard 
+    resetWizard,
+    loadTicketForEditing,
   } = useBookingWizard();
 
   const customerId = searchParams.get("customer");
   const conversationId = searchParams.get("conversation");
+  const editTicketId = searchParams.get("edit");
   
   // Get prefill from navigation state
   const prefill = (location.state as { prefill?: BookingPrefillState })?.prefill;
@@ -140,10 +144,33 @@ function BookingWizardContent() {
     }
   };
 
+  // Load ticket for edit mode
+  useEffect(() => {
+    const loadEditTicket = async () => {
+      if (!editTicketId || didLoadEditMode.current || state.isEditMode) return;
+      
+      didLoadEditMode.current = true;
+      setIsLoadingEdit(true);
+      
+      try {
+        await loadTicketForEditing(editTicketId);
+        toast.success("Buchung zum Bearbeiten geladen");
+      } catch (error) {
+        console.error("Error loading ticket for edit:", error);
+        toast.error("Fehler beim Laden der Buchung");
+        navigate("/bookings");
+      } finally {
+        setIsLoadingEdit(false);
+      }
+    };
+
+    loadEditTicket();
+  }, [editTicketId, state.isEditMode, loadTicketForEditing, navigate]);
+
   // Refresh-safe: fetch conversation data if we have conversationId but no prefill
   useEffect(() => {
     const fetchConversationPrefill = async () => {
-      if (!conversationId || prefill || didApplyPrefill.current) return;
+      if (!conversationId || prefill || didApplyPrefill.current || editTicketId) return;
       
       console.log("Fetching conversation for refresh-safe prefill:", conversationId);
       const { data, error } = await supabase
@@ -164,7 +191,7 @@ function BookingWizardContent() {
     };
     
     fetchConversationPrefill();
-  }, [conversationId, prefill]);
+  }, [conversationId, prefill, editTicketId]);
 
   // Fetch customer if provided in URL or prefill
   const targetCustomerId = customerId || prefill?.matchedCustomerId;
@@ -453,13 +480,15 @@ function BookingWizardContent() {
     }
   };
 
-  // Show loading while applying prefill
+  // Show loading while applying prefill or loading edit mode
   const isApplyingPrefill = prefill && !didApplyPrefill.current && isLoadingCustomer;
 
-  if (isApplyingPrefill) {
+  if (isApplyingPrefill || isLoadingEdit) {
     return (
       <div className="flex min-h-screen items-center justify-center">
-        <p className="text-muted-foreground">Daten werden geladen...</p>
+        <p className="text-muted-foreground">
+          {isLoadingEdit ? "Buchung wird geladen..." : "Daten werden geladen..."}
+        </p>
       </div>
     );
   }
@@ -478,10 +507,11 @@ function BookingWizardContent() {
             </AlertDialogTrigger>
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>Buchung abbrechen?</AlertDialogTitle>
+                <AlertDialogTitle>
+                  {state.isEditMode ? "Bearbeitung abbrechen?" : "Buchung abbrechen?"}
+                </AlertDialogTitle>
                 <AlertDialogDescription>
-                  Alle eingegebenen Daten gehen verloren. Möchtest du wirklich
-                  abbrechen?
+                  Alle Änderungen gehen verloren. Möchtest du wirklich abbrechen?
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
@@ -493,7 +523,9 @@ function BookingWizardContent() {
             </AlertDialogContent>
           </AlertDialog>
 
-          <h1 className="text-lg font-semibold">Neue Buchung</h1>
+          <h1 className="text-lg font-semibold">
+            {state.isEditMode ? "Buchung bearbeiten" : "Neue Buchung"}
+          </h1>
 
           {conversationId ? (
             <Button 
