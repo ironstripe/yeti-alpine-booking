@@ -132,13 +132,13 @@ const Login = () => {
               <Label htmlFor="email">E-Mail</Label>
               <Input
                 id="email"
+                name="email"
                 type="email"
                 placeholder="name@beispiel.ch"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 disabled={loading}
-                autoComplete="email"
-                autoFocus
+                autoComplete="email username"
               />
             </div>
 
@@ -148,6 +148,7 @@ const Login = () => {
               <div className="relative">
                 <Input
                   id="password"
+                  name="password"
                   type={showPassword ? "text" : "password"}
                   placeholder="••••••••"
                   value={password}
