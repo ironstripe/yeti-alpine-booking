@@ -138,11 +138,24 @@ export function ProductFormModal({ open, onOpenChange, product }: ProductFormMod
     }
   }, [product, form, open]);
 
-  // Auto-suggest tiered pricing for group types
+  // Auto-suggest pricing type based on product type
   useEffect(() => {
-    if (!isEditing && GROUP_PRODUCT_TYPES.includes(productType)) {
-      form.setValue("pricing_type", "tiered");
-      form.setValue("is_training_product", true);
+    if (!isEditing) {
+      const isGroup = GROUP_PRODUCT_TYPES.includes(productType);
+      
+      if (isGroup) {
+        // Group courses → Tiered pricing (Staffelpreis)
+        form.setValue("pricing_type", "tiered");
+        form.setValue("is_training_product", true);
+      } else {
+        // Non-group types
+        if (productType === "private") {
+          form.setValue("pricing_type", "hourly"); // Private lessons = per hour
+        } else {
+          form.setValue("pricing_type", "fixed"); // Addons, lunch = fixed price
+        }
+        form.setValue("is_training_product", false);
+      }
     }
   }, [productType, isEditing, form]);
 
