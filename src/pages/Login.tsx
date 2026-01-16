@@ -61,9 +61,9 @@ const Login = () => {
         }
 
         toast.success("Registrierung erfolgreich!", {
-          description: "Du bist jetzt angemeldet.",
+          description: "Du wirst weitergeleitet...",
         });
-        navigate("/", { replace: true });
+        // LoginRoute will handle redirect via auth state change
       } else {
         const { error } = await signIn(email, password);
 
@@ -78,7 +78,7 @@ const Login = () => {
           return;
         }
 
-        navigate("/", { replace: true });
+        // LoginRoute will handle redirect via auth state change
       }
     } catch (err) {
       setError("Ein unerwarteter Fehler ist aufgetreten");
