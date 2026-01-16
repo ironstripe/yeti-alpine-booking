@@ -18,10 +18,9 @@ export function SessionTimeoutWarning() {
   }, []);
   
   useEffect(() => {
-    // Initialize last activity
-    if (!localStorage.getItem(ACTIVITY_KEY)) {
-      localStorage.setItem(ACTIVITY_KEY, Date.now().toString());
-    }
+    // ALWAYS reset activity timestamp on mount (fresh login = fresh timer)
+    // This prevents stale timestamps from previous sessions causing immediate logout
+    localStorage.setItem(ACTIVITY_KEY, Date.now().toString());
 
     // Track user activity
     const events = ['mousedown', 'keydown', 'scroll', 'touchstart'];
@@ -29,7 +28,15 @@ export function SessionTimeoutWarning() {
     
     // Check session periodically
     const interval = setInterval(() => {
-      const lastActivity = parseInt(localStorage.getItem(ACTIVITY_KEY) || '0');
+      const lastActivityRaw = localStorage.getItem(ACTIVITY_KEY);
+      const lastActivity = lastActivityRaw ? parseInt(lastActivityRaw, 10) : 0;
+      
+      // Guard against invalid/NaN values - treat as fresh activity
+      if (isNaN(lastActivity) || lastActivity <= 0) {
+        localStorage.setItem(ACTIVITY_KEY, Date.now().toString());
+        return;
+      }
+      
       const timeSinceActivity = Date.now() - lastActivity;
       const timeUntilTimeout = SESSION_TIMEOUT - timeSinceActivity;
       
@@ -37,7 +44,8 @@ export function SessionTimeoutWarning() {
         setShowWarning(true);
         setRemainingTime(Math.ceil(timeUntilTimeout / 1000));
       } else if (timeUntilTimeout <= 0) {
-        // Session expired - log out
+        // Session expired - log out and clear activity key
+        localStorage.removeItem(ACTIVITY_KEY);
         supabase.auth.signOut();
         window.location.href = '/login?reason=timeout';
       } else {
@@ -57,6 +65,7 @@ export function SessionTimeoutWarning() {
   };
 
   const handleLogout = async () => {
+    localStorage.removeItem(ACTIVITY_KEY);
     await supabase.auth.signOut();
     window.location.href = '/login';
   };
