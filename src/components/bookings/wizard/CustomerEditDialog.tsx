@@ -1,9 +1,7 @@
-import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Loader2 } from "lucide-react";
-import { toast } from "sonner";
 
 import {
   Dialog,
@@ -21,6 +19,13 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { normalizePhoneNumber, capitalizeName } from "@/lib/phone-utils";
 import { useUpdateCustomer } from "@/hooks/useUpdateCustomer";
 import type { Tables } from "@/integrations/supabase/types";
@@ -30,6 +35,12 @@ const customerEditSchema = z.object({
   last_name: z.string().min(1, "Nachname ist erforderlich").max(100),
   email: z.string().email("Ungültige E-Mail-Adresse").max(255),
   phone: z.string().max(50).optional(),
+  street: z.string().max(200).optional(),
+  zip: z.string().max(20).optional(),
+  city: z.string().max(100).optional(),
+  country: z.string().max(100).optional(),
+  language: z.string().max(10).optional(),
+  holiday_address: z.string().max(255).optional(),
 });
 
 type CustomerEditFormData = z.infer<typeof customerEditSchema>;
@@ -40,6 +51,22 @@ interface CustomerEditDialogProps {
   onOpenChange: (open: boolean) => void;
   onSaved: (customer: Tables<"customers">) => void;
 }
+
+const COUNTRY_OPTIONS = [
+  { value: "CH", label: "Schweiz" },
+  { value: "DE", label: "Deutschland" },
+  { value: "AT", label: "Österreich" },
+  { value: "LI", label: "Liechtenstein" },
+  { value: "FR", label: "Frankreich" },
+  { value: "IT", label: "Italien" },
+];
+
+const LANGUAGE_OPTIONS = [
+  { value: "de", label: "Deutsch" },
+  { value: "en", label: "English" },
+  { value: "fr", label: "Français" },
+  { value: "it", label: "Italiano" },
+];
 
 export function CustomerEditDialog({
   customer,
@@ -56,6 +83,12 @@ export function CustomerEditDialog({
       last_name: customer.last_name || "",
       email: customer.email || "",
       phone: customer.phone || "",
+      street: customer.street || "",
+      zip: customer.zip || "",
+      city: customer.city || "",
+      country: customer.country || "",
+      language: customer.language || "",
+      holiday_address: customer.holiday_address || "",
     },
   });
 
@@ -82,6 +115,12 @@ export function CustomerEditDialog({
         last_name: data.last_name,
         email: data.email,
         phone: data.phone || null,
+        street: data.street || null,
+        zip: data.zip || null,
+        city: data.city || null,
+        country: data.country || null,
+        language: data.language || null,
+        holiday_address: data.holiday_address || null,
       });
 
       // Return updated customer to update wizard state
@@ -91,6 +130,12 @@ export function CustomerEditDialog({
         last_name: data.last_name,
         email: data.email,
         phone: data.phone || null,
+        street: data.street || null,
+        zip: data.zip || null,
+        city: data.city || null,
+        country: data.country || null,
+        language: data.language || null,
+        holiday_address: data.holiday_address || null,
       };
 
       onSaved(updatedCustomer);
@@ -102,12 +147,13 @@ export function CustomerEditDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Kundendaten bearbeiten</DialogTitle>
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            {/* Name Row */}
             <div className="grid grid-cols-2 gap-3">
               <FormField
                 control={form.control}
@@ -149,6 +195,7 @@ export function CustomerEditDialog({
               />
             </div>
 
+            {/* Email */}
             <FormField
               control={form.control}
               name="email"
@@ -170,6 +217,7 @@ export function CustomerEditDialog({
               )}
             />
 
+            {/* Phone */}
             <FormField
               control={form.control}
               name="phone"
@@ -182,6 +230,140 @@ export function CustomerEditDialog({
                       type="tel"
                       placeholder="+41 79 123 45 67"
                       onBlur={handlePhoneBlur}
+                      autoComplete="off"
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {/* Street */}
+            <FormField
+              control={form.control}
+              name="street"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Strasse</FormLabel>
+                  <FormControl>
+                    <Input
+                      {...field}
+                      placeholder="Musterstrasse 12"
+                      autoComplete="off"
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {/* ZIP / City Row */}
+            <div className="grid grid-cols-3 gap-3">
+              <FormField
+                control={form.control}
+                name="zip"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>PLZ</FormLabel>
+                    <FormControl>
+                      <Input
+                        {...field}
+                        placeholder="8000"
+                        autoComplete="off"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="city"
+                render={({ field }) => (
+                  <FormItem className="col-span-2">
+                    <FormLabel>Ort</FormLabel>
+                    <FormControl>
+                      <Input
+                        {...field}
+                        placeholder="Zürich"
+                        autoComplete="off"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            {/* Country / Language Row */}
+            <div className="grid grid-cols-2 gap-3">
+              <FormField
+                control={form.control}
+                name="country"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Land</FormLabel>
+                    <Select
+                      value={field.value}
+                      onValueChange={field.onChange}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Land wählen" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {COUNTRY_OPTIONS.map((opt) => (
+                          <SelectItem key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="language"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Sprache</FormLabel>
+                    <Select
+                      value={field.value}
+                      onValueChange={field.onChange}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Sprache wählen" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {LANGUAGE_OPTIONS.map((opt) => (
+                          <SelectItem key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            {/* Holiday Address */}
+            <FormField
+              control={form.control}
+              name="holiday_address"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Ferienadresse / Hotel</FormLabel>
+                  <FormControl>
+                    <Input
+                      {...field}
+                      placeholder="Hotel Malbun, Zimmer 204"
                       autoComplete="off"
                     />
                   </FormControl>

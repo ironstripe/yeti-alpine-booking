@@ -1,9 +1,10 @@
 import { useState } from "react";
-import { Mail, Phone, Pencil, Search } from "lucide-react";
+import { Mail, Phone, Pencil, Search, MapPin, Globe, Home } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CustomerSearch } from "./CustomerSearch";
 import { InlineCustomerForm } from "./InlineCustomerForm";
 import { CustomerEditDialog } from "./CustomerEditDialog";
+import { LANGUAGE_LABELS } from "@/lib/language-utils";
 import type { Tables } from "@/integrations/supabase/types";
 
 interface CustomerPayerCardProps {
@@ -93,13 +94,44 @@ export function CustomerPayerCard({
         </p>
         <div className="flex flex-col gap-1 text-sm text-muted-foreground">
           <div className="flex items-center gap-2">
-            <Mail className="h-3.5 w-3.5" />
+            <Mail className="h-3.5 w-3.5 flex-shrink-0" />
             <span className="truncate">{customer.email}</span>
           </div>
           {customer.phone && (
             <div className="flex items-center gap-2">
-              <Phone className="h-3.5 w-3.5" />
+              <Phone className="h-3.5 w-3.5 flex-shrink-0" />
               <span>{customer.phone}</span>
+            </div>
+          )}
+          {(customer.street || customer.city) && (
+            <div className="flex items-center gap-2">
+              <MapPin className="h-3.5 w-3.5 flex-shrink-0" />
+              <span className="truncate">
+                {[
+                  customer.street,
+                  [customer.zip, customer.city].filter(Boolean).join(" "),
+                ]
+                  .filter(Boolean)
+                  .join(", ")}
+              </span>
+            </div>
+          )}
+          {customer.country && (
+            <div className="flex items-center gap-2">
+              <Globe className="h-3.5 w-3.5 flex-shrink-0" />
+              <span>{customer.country}</span>
+            </div>
+          )}
+          {customer.language && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs w-3.5 text-center">🌐</span>
+              <span>{LANGUAGE_LABELS[customer.language] || customer.language}</span>
+            </div>
+          )}
+          {customer.holiday_address && (
+            <div className="flex items-center gap-2">
+              <Home className="h-3.5 w-3.5 flex-shrink-0" />
+              <span className="truncate">{customer.holiday_address}</span>
             </div>
           )}
         </div>
