@@ -87,6 +87,21 @@ function LoginRoute() {
   return <Login />;
 }
 
+// Only render these components when user is authenticated
+function AuthenticatedComponents() {
+  const { user, loading } = useAuth();
+  
+  // Don't render on login page or during loading
+  if (loading || !user) return null;
+  
+  return (
+    <>
+      <OnboardingDialog />
+      <SessionTimeoutWarning />
+    </>
+  );
+}
+
 const AppRoutes = () => (
   <Routes>
     {/* Public route */}
@@ -335,8 +350,7 @@ const App = () => (
             <OfflineIndicator />
             <AppRoutes />
             <InstallBanner />
-            <OnboardingDialog />
-            <SessionTimeoutWarning />
+            <AuthenticatedComponents />
           </AuthProvider>
         </BrowserRouter>
       </TooltipProvider>
