@@ -13,7 +13,6 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Calendar } from "@/components/ui/calendar";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -23,6 +22,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { BookingWarnings, type BookingWarning } from "./BookingWarnings";
+import { LunchSupervisionAddon } from "./LunchSupervisionAddon";
 import { usePrivateLessonRates, useHighSeasonPeriods } from "@/hooks/usePrivateLessonRates";
 import {
   calculatePrivateLessonPrice,
@@ -50,8 +50,9 @@ export function Step2ProductDates() {
     setDuration,
     setSelectedDates,
     setTimeSlot,
-    setIncludeLunch,
     setNumberOfPersons,
+    setLunchDaysForParticipant,
+    setVegetarianForParticipant,
   } = useBookingWizard();
 
   const [selectedMonth, setSelectedMonth] = useState<Date>(new Date());
@@ -448,30 +449,18 @@ export function Step2ProductDates() {
 
 
       {/* Lunch Supervision Add-on (only for group lessons) */}
-      {state.productType === "group" && lunchProduct && (
+      {state.productType === "group" && state.selectedDates.length > 0 && state.selectedParticipants.length > 0 && (
         <div className="space-y-3">
           <Label className="text-base font-semibold">Zusatzoptionen</Label>
-          <Card className="p-4">
-            <div className="flex items-center space-x-3">
-              <Checkbox
-                id="lunch"
-                checked={state.includeLunch}
-                onCheckedChange={(checked) => setIncludeLunch(checked as boolean)}
-              />
-              <div className="flex-1">
-                <label
-                  htmlFor="lunch"
-                  className="text-sm font-medium cursor-pointer"
-                >
-                  {lunchProduct.name}
-                </label>
-                <p className="text-xs text-muted-foreground">
-                  {lunchProduct.description}
-                </p>
-              </div>
-              <Badge variant="outline">CHF {lunchProduct.price}</Badge>
-            </div>
-          </Card>
+          <LunchSupervisionAddon
+            selectedDates={state.selectedDates}
+            participants={state.selectedParticipants}
+            lunchSelections={state.lunchSelections}
+            vegetarianSelections={state.vegetarianSelections}
+            onLunchDaysChange={setLunchDaysForParticipant}
+            onVegetarianChange={setVegetarianForParticipant}
+            lunchPricePerDay={lunchProduct?.price || 25}
+          />
         </div>
       )}
 
@@ -559,11 +548,18 @@ export function Step2ProductDates() {
                 <p className="text-2xl font-bold">
                   CHF {selectedProduct.price.toFixed(0)}
                 </p>
-                {state.includeLunch && lunchProduct && (
-                  <p className="text-sm text-muted-foreground">
-                    + CHF {(lunchProduct.price * state.selectedDates.length).toFixed(0)} Mittagsbetreuung
-                  </p>
-                )}
+                {(() => {
+                  const totalLunchDays = Object.values(state.lunchSelections).reduce(
+                    (sum, days) => sum + days.length,
+                    0
+                  );
+                  const lunchPrice = totalLunchDays * (lunchProduct?.price || 25);
+                  return totalLunchDays > 0 ? (
+                    <p className="text-sm text-muted-foreground">
+                      + CHF {lunchPrice.toFixed(0)} Mittagsbetreuung ({totalLunchDays} Tage)
+                    </p>
+                  ) : null;
+                })()}
               </div>
             </div>
           </CardContent>
