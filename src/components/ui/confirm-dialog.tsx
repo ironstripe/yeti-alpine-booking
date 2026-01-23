@@ -92,31 +92,43 @@ interface UseConfirmDialogOptions {
   onConfirm: () => void | Promise<void>;
 }
 
+interface UseConfirmDialogPromiseOptions {
+  title: string;
+  description: string | ReactNode;
+  confirmLabel?: string;
+  cancelLabel?: string;
+  variant?: 'default' | 'destructive' | 'warning';
+}
+
 export function useConfirmDialog() {
   const [state, setState] = useState<{
     open: boolean;
-    props: UseConfirmDialogOptions | null;
+    props: UseConfirmDialogPromiseOptions | null;
     isLoading: boolean;
-  }>({ open: false, props: null, isLoading: false });
+    resolver: ((value: boolean) => void) | null;
+  }>({ open: false, props: null, isLoading: false, resolver: null });
 
-  const confirm = useCallback((props: UseConfirmDialogOptions) => {
-    setState({ open: true, props, isLoading: false });
+  const confirm = useCallback((props: UseConfirmDialogPromiseOptions): Promise<boolean> => {
+    return new Promise((resolve) => {
+      setState({ open: true, props, isLoading: false, resolver: resolve });
+    });
   }, []);
 
   const handleConfirm = async () => {
-    if (!state.props) return;
     setState(s => ({ ...s, isLoading: true }));
-    try {
-      await state.props.onConfirm();
-    } finally {
-      setState({ open: false, props: null, isLoading: false });
-    }
+    state.resolver?.(true);
+    setState({ open: false, props: null, isLoading: false, resolver: null });
+  };
+
+  const handleCancel = () => {
+    state.resolver?.(false);
+    setState({ open: false, props: null, isLoading: false, resolver: null });
   };
 
   const dialog = state.props ? (
     <ConfirmDialog
       open={state.open}
-      onOpenChange={(open) => !open && setState({ open: false, props: null, isLoading: false })}
+      onOpenChange={(open) => !open && handleCancel()}
       title={state.props.title}
       description={state.props.description}
       confirmLabel={state.props.confirmLabel}

@@ -156,3 +156,23 @@ export function useMarkAllAsRead() {
 
   return { markAllAsRead };
 }
+
+export function useDeleteConversation() {
+  const queryClient = useQueryClient();
+
+  const deleteConversation = async (id: string) => {
+    const { error } = await supabase
+      .from("conversations")
+      .delete()
+      .eq("id", id);
+
+    if (error) throw error;
+
+    queryClient.invalidateQueries({ queryKey: ["conversations"] });
+    queryClient.invalidateQueries({ queryKey: ["conversation-counts"] });
+    queryClient.invalidateQueries({ queryKey: ["inbox-stats"] });
+    toast.success("Nachricht gelöscht");
+  };
+
+  return { deleteConversation };
+}
