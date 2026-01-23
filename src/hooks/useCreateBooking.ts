@@ -65,21 +65,22 @@ export function useCreateBooking() {
       
       let unitPrice = 0;
       let productId = state.productId;
+
+      // Fetch time-based rates (needed for both shared and participant-specific mode)
+      const { data: ratesData } = await supabase
+        .from("private_lesson_rates")
+        .select("*")
+        .order("start_time");
+      
+      const { data: highSeasonData } = await supabase
+        .from("high_season_periods")
+        .select("*");
+      
+      const rates: TimeSlotRate[] = ratesData || [];
+      const highSeasonPeriods: HighSeasonPeriod[] = highSeasonData || [];
       
       // ============ PRIVATE LESSON PRICING ============
       if (state.productType === "private") {
-        // Fetch time-based rates
-        const { data: ratesData } = await supabase
-          .from("private_lesson_rates")
-          .select("*")
-          .order("start_time");
-        
-        const { data: highSeasonData } = await supabase
-          .from("high_season_periods")
-          .select("*");
-        
-        const rates: TimeSlotRate[] = ratesData || [];
-        const highSeasonPeriods: HighSeasonPeriod[] = highSeasonData || [];
         
         // Get any private product as reference for ticket_items
         if (!productId) {
@@ -210,61 +211,167 @@ export function useCreateBooking() {
         item_type: string;
       }> = [];
 
-      // For each participant, create entries for each date
-      for (const participant of state.selectedParticipants) {
-        const participantLunchDays = state.lunchSelections[participant.id] || [];
-        const isVegetarian = state.vegetarianSelections[participant.id] || false;
-        
-        for (const dateStr of state.selectedDates) {
-          // Check if this participant has lunch on this day
-          const hasLunchOnDay = participantLunchDays.includes(dateStr);
-          
-          // Create course/lesson item
-          ticketItems.push({
-            ticket_id: ticket.id,
-            product_id: productId,
-            date: dateStr,
-            time_start: state.timeSlot?.split(" - ")[0] || "10:00",
-            time_end: state.timeSlot?.split(" - ")[1] || "12:00",
-            unit_price: unitPrice,
-            quantity: 1,
-            discount_percent: state.discountPercent || 0,
-            discount_reason: state.discountReason || null,
-            instructor_id: state.instructorId,
-            participant_id: participant.id.startsWith("guest-") ? null : participant.id,
-            meeting_point: state.meetingPoint,
-            instructor_notes: null,
-            internal_notes: null,
-            status: "booked",
-            instructor_confirmation: state.instructorId ? "pending" : null,
-            is_vegetarian: hasLunchOnDay ? isVegetarian : false,
-            item_type: state.productType === "group" ? "group" : "private",
-          });
-          
-          // Create separate lunch item if participant has lunch on this day
-          if (hasLunchOnDay && lunchProduct) {
+      // ============ PARTICIPANT-SPECIFIC BOOKING MODE ============
+      if (state.useParticipantSpecificBooking && Object.keys(state.participantBookings).length > 0) {
+        // Each participant has their own booking details
+        for (const participant of state.selectedParticipants) {
+          const pBooking = state.participantBookings[participant.id];
+          if (!pBooking) continue;
+
+          // Determine product and price for this participant
+          let participantProductId = productId;
+          let participantUnitPrice = unitPrice;
+
+          if (pBooking.productType === "group" && pBooking.groupCourseId) {
+            // Fetch group course product
+            const { data: course } = await supabase
+              .from("group_courses")
+              .select("product_id, price_per_day")
+              .eq("id", pBooking.groupCourseId)
+              .single();
+
+            if (course?.product_id) {
+              participantProductId = course.product_id;
+              participantUnitPrice = course.price_per_day || 0;
+            }
+          } else if (pBooking.productType === "private" && pBooking.startTime && pBooking.endTime) {
+            // Calculate private lesson price for this participant
+            const firstDate = pBooking.dates[0] ? new Date(pBooking.dates[0]) : new Date();
+            const priceResult = calculatePrivateLessonPrice(
+              firstDate,
+              pBooking.startTime,
+              pBooking.endTime,
+              1, // Individual participant
+              rates,
+              highSeasonPeriods
+            );
+            participantUnitPrice = priceResult.totalPrice;
+          }
+
+          // Create items for each of this participant's dates
+          for (const dateStr of pBooking.dates) {
+            const hasLunchOnDay = pBooking.lunchDays.includes(dateStr);
+
+            // Create course/lesson item
             ticketItems.push({
               ticket_id: ticket.id,
-              product_id: lunchProduct.id,
+              product_id: participantProductId,
               date: dateStr,
-              time_start: "12:00",
-              time_end: "14:00",
-              unit_price: lunchPricePerDay,
+              time_start: pBooking.startTime || "10:00",
+              time_end: pBooking.endTime || "12:00",
+              unit_price: participantUnitPrice,
               quantity: 1,
-              discount_percent: 0,
-              discount_reason: null,
-              instructor_id: null,
+              discount_percent: state.discountPercent || 0,
+              discount_reason: state.discountReason || null,
+              instructor_id: state.instructorId,
               participant_id: participant.id.startsWith("guest-") ? null : participant.id,
-              meeting_point: null,
+              meeting_point: state.meetingPoint,
               instructor_notes: null,
               internal_notes: null,
               status: "booked",
-              instructor_confirmation: null,
-              is_vegetarian: isVegetarian,
-              item_type: "lunch",
+              instructor_confirmation: state.instructorId ? "pending" : null,
+              is_vegetarian: hasLunchOnDay ? pBooking.isVegetarian : false,
+              item_type: pBooking.productType === "group" ? "group" : "private",
             });
+
+            // Create lunch item if applicable
+            if (hasLunchOnDay && lunchProduct) {
+              ticketItems.push({
+                ticket_id: ticket.id,
+                product_id: lunchProduct.id,
+                date: dateStr,
+                time_start: "12:00",
+                time_end: "14:00",
+                unit_price: lunchPricePerDay,
+                quantity: 1,
+                discount_percent: 0,
+                discount_reason: null,
+                instructor_id: null,
+                participant_id: participant.id.startsWith("guest-") ? null : participant.id,
+                meeting_point: null,
+                instructor_notes: null,
+                internal_notes: null,
+                status: "booked",
+                instructor_confirmation: null,
+                is_vegetarian: pBooking.isVegetarian,
+                item_type: "lunch",
+              });
+            }
           }
         }
+      } else {
+        // ============ SHARED BOOKING MODE (Original Logic) ============
+        for (const participant of state.selectedParticipants) {
+          const participantLunchDays = state.lunchSelections[participant.id] || [];
+          const isVegetarian = state.vegetarianSelections[participant.id] || false;
+          
+          for (const dateStr of state.selectedDates) {
+            const hasLunchOnDay = participantLunchDays.includes(dateStr);
+            
+            // Create course/lesson item
+            ticketItems.push({
+              ticket_id: ticket.id,
+              product_id: productId,
+              date: dateStr,
+              time_start: state.timeSlot?.split(" - ")[0] || "10:00",
+              time_end: state.timeSlot?.split(" - ")[1] || "12:00",
+              unit_price: unitPrice,
+              quantity: 1,
+              discount_percent: state.discountPercent || 0,
+              discount_reason: state.discountReason || null,
+              instructor_id: state.instructorId,
+              participant_id: participant.id.startsWith("guest-") ? null : participant.id,
+              meeting_point: state.meetingPoint,
+              instructor_notes: null,
+              internal_notes: null,
+              status: "booked",
+              instructor_confirmation: state.instructorId ? "pending" : null,
+              is_vegetarian: hasLunchOnDay ? isVegetarian : false,
+              item_type: state.productType === "group" ? "group" : "private",
+            });
+            
+            // Create separate lunch item if participant has lunch on this day
+            if (hasLunchOnDay && lunchProduct) {
+              ticketItems.push({
+                ticket_id: ticket.id,
+                product_id: lunchProduct.id,
+                date: dateStr,
+                time_start: "12:00",
+                time_end: "14:00",
+                unit_price: lunchPricePerDay,
+                quantity: 1,
+                discount_percent: 0,
+                discount_reason: null,
+                instructor_id: null,
+                participant_id: participant.id.startsWith("guest-") ? null : participant.id,
+                meeting_point: null,
+                instructor_notes: null,
+                internal_notes: null,
+                status: "booked",
+                instructor_confirmation: null,
+                is_vegetarian: isVegetarian,
+                item_type: "lunch",
+              });
+            }
+          }
+        }
+      }
+
+      // Recalculate total from actual items (for participant-specific mode)
+      const recalculatedTotal = ticketItems
+        .filter((item) => item.item_type !== "lunch")
+        .reduce((sum, item) => sum + (item.unit_price || 0), 0);
+      const recalculatedLunch = ticketItems
+        .filter((item) => item.item_type === "lunch")
+        .reduce((sum, item) => sum + (item.unit_price || 0), 0);
+      const finalTotal = recalculatedTotal + recalculatedLunch - (recalculatedTotal + recalculatedLunch) * (state.discountPercent / 100);
+
+      // Update ticket with recalculated total if using participant-specific mode
+      if (state.useParticipantSpecificBooking && Object.keys(state.participantBookings).length > 0) {
+        await supabase
+          .from("tickets")
+          .update({ total_amount: finalTotal })
+          .eq("id", ticket.id);
       }
 
       const { data: insertedItems, error: itemsError } = await supabase

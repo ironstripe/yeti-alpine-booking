@@ -2,10 +2,10 @@ import { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format, parseISO, differenceInYears } from "date-fns";
 import { de } from "date-fns/locale";
-import { Snowflake, Sun, AlertTriangle, Clock, CalendarDays, Info, ArrowRight, Users, Mountain, Minus, Plus } from "lucide-react";
+import { Snowflake, Sun, AlertTriangle, Clock, CalendarDays, Info, ArrowRight, Users, Mountain, Minus, Plus, SplitSquareHorizontal } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
-import { useBookingWizard } from "@/contexts/BookingWizardContext";
+import { useBookingWizard, type ParticipantBookingDetails } from "@/contexts/BookingWizardContext";
 import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -14,6 +14,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -23,6 +24,7 @@ import {
 } from "@/components/ui/select";
 import { BookingWarnings, type BookingWarning } from "./BookingWarnings";
 import { LunchSupervisionAddon } from "./LunchSupervisionAddon";
+import { ParticipantBookingCard } from "./ParticipantBookingCard";
 import { usePrivateLessonRates, useHighSeasonPeriods } from "@/hooks/usePrivateLessonRates";
 import {
   calculatePrivateLessonPrice,
@@ -53,6 +55,10 @@ export function Step2ProductDates() {
     setNumberOfPersons,
     setLunchDaysForParticipant,
     setVegetarianForParticipant,
+    setUseParticipantSpecificBooking,
+    setParticipantBooking,
+    initializeParticipantBookings,
+    copyBookingToAllParticipants,
   } = useBookingWizard();
 
   const [selectedMonth, setSelectedMonth] = useState<Date>(new Date());
@@ -191,6 +197,56 @@ export function Step2ProductDates() {
     return privateLessonPrice.totalPrice * state.selectedDates.length;
   }, [privateLessonPrice, state.selectedDates.length]);
 
+  // NEW: Detect if participants have different skill levels
+  const hasDifferentLevels = useMemo(() => {
+    const levels = state.selectedParticipants
+      .map((p) => p.level_current_season)
+      .filter(Boolean);
+    return new Set(levels).size > 1;
+  }, [state.selectedParticipants]);
+
+  // NEW: Detect if participants have very different ages (e.g., toddler + teen)
+  const hasAgeMismatch = useMemo(() => {
+    const ages = state.selectedParticipants.map((p) => {
+      if (!p.birth_date) return null;
+      return differenceInYears(new Date(), new Date(p.birth_date));
+    }).filter((a): a is number => a !== null);
+    
+    if (ages.length < 2) return false;
+    const hasToddler = ages.some((a) => a >= 3 && a <= 4);
+    const hasOlder = ages.some((a) => a > 4);
+    return hasToddler && hasOlder;
+  }, [state.selectedParticipants]);
+
+  // NEW: Handler for enabling participant-specific mode
+  const handleEnableParticipantMode = () => {
+    initializeParticipantBookings();
+    setUseParticipantSpecificBooking(true);
+  };
+
+  // NEW: Handler for participant booking changes
+  const handleParticipantBookingChange = (booking: ParticipantBookingDetails) => {
+    setParticipantBooking(booking.participantId, booking);
+  };
+
+  // NEW: Check if participant's booking differs from first participant
+  const checkBookingDifference = (participantId: string): boolean => {
+    if (!state.useParticipantSpecificBooking) return false;
+    const firstId = state.selectedParticipants[0]?.id;
+    if (!firstId || participantId === firstId) return false;
+    
+    const first = state.participantBookings[firstId];
+    const current = state.participantBookings[participantId];
+    if (!first || !current) return false;
+    
+    return (
+      first.productType !== current.productType ||
+      first.groupCourseId !== current.groupCourseId ||
+      first.dates.length !== current.dates.length ||
+      first.dates.some((d) => !current.dates.includes(d))
+    );
+  };
+
   if (isLoading) {
     return (
       <div className="py-12 text-center text-muted-foreground">
@@ -199,9 +255,106 @@ export function Step2ProductDates() {
     );
   }
 
+  // NEW: Render participant-specific booking mode
+  if (state.useParticipantSpecificBooking) {
+    return (
+      <div className="space-y-6 py-6">
+        {/* Header with toggle */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-lg font-semibold flex items-center gap-2">
+              <SplitSquareHorizontal className="h-5 w-5" />
+              Individuelle Buchung
+            </h3>
+            <p className="text-sm text-muted-foreground">
+              Jeder Teilnehmer kann unterschiedliche Kurse und Tage buchen
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Label htmlFor="participant-mode" className="text-sm">Individuell</Label>
+            <Switch
+              id="participant-mode"
+              checked={state.useParticipantSpecificBooking}
+              onCheckedChange={setUseParticipantSpecificBooking}
+            />
+          </div>
+        </div>
+
+        {/* Participant Cards */}
+        <div className="space-y-4">
+          {state.selectedParticipants.map((participant, index) => (
+            <ParticipantBookingCard
+              key={participant.id}
+              participant={participant}
+              booking={state.participantBookings[participant.id] || {
+                participantId: participant.id,
+                productType: "group",
+                productId: null,
+                groupCourseId: null,
+                dates: [],
+                startTime: null,
+                endTime: null,
+                lunchDays: [],
+                isVegetarian: false,
+              }}
+              onBookingChange={handleParticipantBookingChange}
+              onCopyToAll={() => copyBookingToAllParticipants(state.selectedParticipants[0].id)}
+              isFirst={index === 0}
+              showDifferenceWarning={checkBookingDifference(participant.id)}
+            />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-8 py-6">
-      {/* Product Type Selection */}
+      {/* Different Levels Warning */}
+      {(hasDifferentLevels || hasAgeMismatch) && state.selectedParticipants.length > 1 && !state.useParticipantSpecificBooking && (
+        <Alert className="bg-amber-50 border-amber-200">
+          <AlertTriangle className="h-4 w-4 text-amber-600" />
+          <AlertDescription className="text-amber-800">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+              <span>
+                {hasDifferentLevels 
+                  ? "Teilnehmer haben unterschiedliche Niveaus." 
+                  : "Teilnehmer haben sehr unterschiedliche Altersgruppen."
+                } Individuelle Buchung ermöglicht passende Kurse für jeden.
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleEnableParticipantMode}
+                className="border-amber-400 text-amber-700 hover:bg-amber-100"
+              >
+                <SplitSquareHorizontal className="h-4 w-4 mr-1" />
+                Individuelle Buchung
+              </Button>
+            </div>
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {/* Toggle for participant-specific mode (always available) */}
+      {state.selectedParticipants.length > 1 && (
+        <div className="flex items-center justify-end gap-2">
+          <Label htmlFor="participant-mode-toggle" className="text-xs text-muted-foreground">
+            Individuelle Buchung
+          </Label>
+          <Switch
+            id="participant-mode-toggle"
+            checked={state.useParticipantSpecificBooking}
+            onCheckedChange={(checked) => {
+              if (checked) {
+                handleEnableParticipantMode();
+              } else {
+                setUseParticipantSpecificBooking(false);
+              }
+            }}
+          />
+        </div>
+      )}
       <div className="space-y-3">
         <Label className="text-base font-semibold">Buchungstyp</Label>
         <RadioGroup
