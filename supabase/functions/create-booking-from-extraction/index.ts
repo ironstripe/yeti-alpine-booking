@@ -26,6 +26,18 @@ interface ExtractedCustomer {
   };
 }
 
+interface ParticipantBooking {
+  product_type?: string;
+  product_suggestion?: string;
+  dates?: Array<{
+    date: string;
+    start_time?: string;
+    end_time?: string;
+  }>;
+  lunch_supervision?: boolean;
+  is_vegetarian?: boolean;
+}
+
 interface ExtractedParticipant {
   name?: string;
   first_name?: string;
@@ -34,6 +46,7 @@ interface ExtractedParticipant {
   age?: number;
   skill_level?: string;
   discipline?: string;
+  booking?: ParticipantBooking;
 }
 
 interface ExtractedBooking {
@@ -452,32 +465,86 @@ serve(async (req) => {
       );
     }
 
-    // 10. Create ticket items for each date and participant
+    // 10. Create ticket items for each participant's individual booking
     const ticketItems = [];
+    let recalculatedTotal = 0;
     
-    if (dates.length > 0 && participantIds.length > 0) {
-      for (const dateInfo of dates) {
-        for (let i = 0; i < participantIds.length; i++) {
-          const participantId = participantIds[i];
-          const participant = participants[i];
+    if (participantIds.length > 0) {
+      for (let i = 0; i < participantIds.length; i++) {
+        const participantId = participantIds[i];
+        const participant = participants[i];
+        
+        // Get participant-specific booking, fallback to global booking
+        const pBooking = participant?.booking || {};
+        const pDates = pBooking.dates || dates;
+        
+        // Find product for this participant based on product_suggestion
+        let productId = selectedProduct.id;
+        let productPrice = unitPrice;
+        
+        if (pBooking.product_suggestion) {
+          const suggestion = pBooking.product_suggestion as string;
+          const { data: suggestedProduct } = await supabase
+            .from("products")
+            .select("id, price, name")
+            .or(`name.ilike.%${suggestion}%`)
+            .eq("is_active", true)
+            .limit(1)
+            .maybeSingle();
           
-          ticketItems.push({
-            ticket_id: ticket.id,
-            participant_id: participantId,
-            product_id: selectedProduct.id,
-            date: dateInfo.date,
-            time_start: dateInfo.start_time || null,
-            time_end: dateInfo.end_time || null,
-            unit_price: unitPrice,
-            quantity: 1,
-            skill_level: participant?.skill_level || null,
-            is_vegetarian: bookingData.vegetarian || false,
-            status: "pending",
-          });
+          if (suggestedProduct) {
+            productId = suggestedProduct.id;
+            productPrice = suggestedProduct.price || unitPrice;
+            console.log(`Found product for ${participant?.name}: ${suggestedProduct.name} (${productId})`);
+          }
+        }
+        
+        // Create items for each date for THIS participant
+        if (pDates && pDates.length > 0) {
+          for (const dateInfo of pDates) {
+            const itemPrice = productPrice;
+            recalculatedTotal += itemPrice;
+            
+            ticketItems.push({
+              ticket_id: ticket.id,
+              participant_id: participantId,
+              product_id: productId,
+              date: dateInfo.date,
+              time_start: dateInfo.start_time || null,
+              time_end: dateInfo.end_time || null,
+              unit_price: itemPrice,
+              quantity: 1,
+              skill_level: participant?.skill_level || null,
+              is_vegetarian: pBooking.is_vegetarian || bookingData.vegetarian || false,
+              status: "pending",
+            });
+          }
+        } else if (dates.length > 0) {
+          // Fallback to global dates
+          for (const dateInfo of dates) {
+            const itemPrice = productPrice;
+            recalculatedTotal += itemPrice;
+            
+            ticketItems.push({
+              ticket_id: ticket.id,
+              participant_id: participantId,
+              product_id: productId,
+              date: dateInfo.date,
+              time_start: dateInfo.start_time || null,
+              time_end: dateInfo.end_time || null,
+              unit_price: itemPrice,
+              quantity: 1,
+              skill_level: participant?.skill_level || null,
+              is_vegetarian: bookingData.vegetarian || false,
+              status: "pending",
+            });
+          }
         }
       }
-    } else {
-      // Create at least one item
+    }
+    
+    // Fallback: create at least one item if none were created
+    if (ticketItems.length === 0) {
       const today = new Date().toISOString().split("T")[0];
       ticketItems.push({
         ticket_id: ticket.id,
@@ -488,6 +555,7 @@ serve(async (req) => {
         quantity: 1,
         status: "pending",
       });
+      recalculatedTotal = unitPrice;
     }
 
     if (ticketItems.length > 0) {
@@ -499,6 +567,15 @@ serve(async (req) => {
         console.error("Failed to create ticket items:", itemsError);
       } else {
         console.log("Created", ticketItems.length, "ticket items");
+        
+        // Update ticket with recalculated total if different
+        if (recalculatedTotal > 0 && recalculatedTotal !== totalAmount) {
+          await supabase
+            .from("tickets")
+            .update({ total_amount: recalculatedTotal })
+            .eq("id", ticket.id);
+          console.log("Updated ticket total to:", recalculatedTotal);
+        }
       }
     }
 
