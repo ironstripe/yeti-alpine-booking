@@ -1,10 +1,11 @@
 import { useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Users, User, Calendar, Sparkles } from "lucide-react";
+import { Users, User, Calendar, Sparkles, AlertTriangle } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Select,
   SelectContent,
@@ -16,10 +17,19 @@ import { Label } from "@/components/ui/label";
 import { mapLevelToCourseSkill } from "@/lib/level-utils";
 import type { Tables } from "@/integrations/supabase/types";
 
+interface Participant {
+  id: string;
+  first_name: string;
+  last_name?: string | null;
+  level_current_season: string | null;
+}
+
 interface GroupSelectorProps {
   selectedDates: string[];
   sport: "ski" | "snowboard" | null;
-  level: string | null;
+  /** @deprecated Use participants instead */
+  level?: string | null;
+  participants?: Participant[];
   selectedGroupId: string | null;
   onGroupSelect: (groupId: string | null) => void;
 }
@@ -45,9 +55,23 @@ export function GroupSelector({
   selectedDates,
   sport,
   level,
+  participants = [],
   selectedGroupId,
   onGroupSelect,
 }: GroupSelectorProps) {
+  // Use first participant's level as fallback for backwards compatibility
+  const primaryLevel = participants.length > 0 
+    ? participants[0].level_current_season 
+    : level;
+
+  // Check if participants have different levels
+  const levelMismatch = useMemo(() => {
+    if (participants.length < 2) return false;
+    const levels = participants.map(p => mapLevelToCourseSkill(p.level_current_season));
+    const unique = new Set(levels);
+    return unique.size > 1;
+  }, [participants]);
+
   // Fetch active group courses with their schedules
   const { data: courses = [], isLoading } = useQuery({
     queryKey: ["group-courses-for-booking", selectedDates, sport],
@@ -134,39 +158,61 @@ export function GroupSelector({
     return filteredCourses.find(c => c.id === selectedGroupId);
   }, [filteredCourses, selectedGroupId]);
 
+  // Check capacity for multiple participants
+  const insufficientCapacity = useMemo(() => {
+    if (!selectedCourse || participants.length === 0) return false;
+    const spotsNeeded = participants.length;
+    const spotsAvailable = selectedCourse.max_participants - selectedCourse.currentCount;
+    return spotsAvailable < spotsNeeded;
+  }, [selectedCourse, participants.length]);
+
   // Auto-select matching course based on skill level
   useEffect(() => {
     // Only auto-select if no group is currently selected
     if (selectedGroupId || filteredCourses.length === 0) return;
     
     // If no level provided, skip auto-select
-    if (!level) return;
+    if (!primaryLevel) return;
     
-    const targetSkill = mapLevelToCourseSkill(level);
+    const targetSkill = mapLevelToCourseSkill(primaryLevel);
     
-    // Find best matching course (matching skill level + has capacity)
+    // Find best matching course (matching skill level + has capacity for all participants)
+    const spotsNeeded = Math.max(participants.length, 1);
     let matchingCourse = filteredCourses.find((course) => {
-      const hasCapacity = course.currentCount < course.max_participants;
+      const spotsAvailable = course.max_participants - course.currentCount;
+      const hasCapacity = spotsAvailable >= spotsNeeded;
       const matchesLevel = course.skill_level === targetSkill;
       return hasCapacity && matchesLevel;
     });
     
     // Fallback: If no exact match, pick first course with capacity
     if (!matchingCourse) {
-      matchingCourse = filteredCourses.find((course) => 
-        course.currentCount < course.max_participants
-      );
+      matchingCourse = filteredCourses.find((course) => {
+        const spotsAvailable = course.max_participants - course.currentCount;
+        return spotsAvailable >= spotsNeeded;
+      });
     }
     
     if (matchingCourse) {
       onGroupSelect(matchingCourse.id);
     }
-  }, [filteredCourses, level, selectedGroupId, onGroupSelect]);
+  }, [filteredCourses, primaryLevel, selectedGroupId, onGroupSelect, participants.length]);
 
   // Get recommended skill for highlighting
   const recommendedSkill = useMemo(() => {
-    return level ? mapLevelToCourseSkill(level) : null;
-  }, [level]);
+    return primaryLevel ? mapLevelToCourseSkill(primaryLevel) : null;
+  }, [primaryLevel]);
+
+  // Find mismatched participants for the selected course
+  const mismatchedParticipants = useMemo(() => {
+    if (!selectedCourse || participants.length === 0) return [];
+    const courseSkill = selectedCourse.skill_level;
+    
+    return participants.filter(p => {
+      const participantSkill = mapLevelToCourseSkill(p.level_current_season);
+      return participantSkill !== courseSkill;
+    });
+  }, [selectedCourse, participants]);
 
   if (selectedDates.length === 0) {
     return (
@@ -183,6 +229,16 @@ export function GroupSelector({
         Gruppe auswählen
       </Label>
 
+      {/* Level mismatch warning */}
+      {levelMismatch && participants.length > 1 && (
+        <Alert className="bg-amber-50 border-amber-200 py-2">
+          <AlertTriangle className="h-4 w-4 text-amber-600" />
+          <AlertDescription className="text-xs text-amber-700">
+            Teilnehmer haben unterschiedliche Niveaus. Alle werden in dieselbe Gruppe eingeschrieben.
+          </AlertDescription>
+        </Alert>
+      )}
+
       <Select
         value={selectedGroupId || ""}
         onValueChange={(value) => onGroupSelect(value || null)}
@@ -198,8 +254,9 @@ export function GroupSelector({
             </div>
           ) : (
             filteredCourses.map((course) => {
-              const isFull = course.currentCount >= course.max_participants;
-              const spotsLeft = course.max_participants - course.currentCount;
+              const spotsNeeded = Math.max(participants.length, 1);
+              const spotsAvailable = course.max_participants - course.currentCount;
+              const isFull = spotsAvailable < spotsNeeded;
               const isRecommended = recommendedSkill && course.skill_level === recommendedSkill;
 
               return (
@@ -226,7 +283,7 @@ export function GroupSelector({
                       </Badge>
                     )}
                     <Badge
-                      variant={isFull ? "destructive" : spotsLeft <= 3 ? "secondary" : "outline"}
+                      variant={isFull ? "destructive" : spotsAvailable <= 3 ? "secondary" : "outline"}
                       className="text-[10px] h-5 px-1.5"
                     >
                       {course.currentCount}/{course.max_participants}
@@ -238,6 +295,28 @@ export function GroupSelector({
           )}
         </SelectContent>
       </Select>
+
+      {/* Insufficient capacity warning */}
+      {insufficientCapacity && selectedCourse && (
+        <Alert variant="destructive" className="py-2">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription className="text-xs">
+            Nicht genügend Plätze! Benötigt: {participants.length}, 
+            Verfügbar: {selectedCourse.max_participants - selectedCourse.currentCount}
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {/* Participant mismatch warning */}
+      {mismatchedParticipants.length > 0 && selectedCourse && !insufficientCapacity && (
+        <Alert className="bg-orange-50 border-orange-200 py-2">
+          <AlertTriangle className="h-4 w-4 text-orange-600" />
+          <AlertDescription className="text-xs text-orange-700">
+            {mismatchedParticipants.map(p => p.first_name).join(", ")} passt/passen 
+            nicht zum Kursniveau "{selectedCourse.skill_level}".
+          </AlertDescription>
+        </Alert>
+      )}
 
       {/* Selected course details */}
       {selectedCourse && (
