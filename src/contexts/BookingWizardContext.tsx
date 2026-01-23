@@ -35,13 +35,26 @@ export interface OriginalTicketItem {
   unitPrice: number | null;
 }
 
+// NEW: Participant-specific booking details
+export interface ParticipantBookingDetails {
+  participantId: string;
+  productType: "private" | "group";
+  productId: string | null;
+  groupCourseId: string | null;
+  dates: string[];
+  startTime: string | null;
+  endTime: string | null;
+  lunchDays: string[];
+  isVegetarian: boolean;
+}
+
 export interface BookingWizardState {
   // Step 1: Customer & Participants
   customerId: string | null;
   customer: Tables<"customers"> | null;
   selectedParticipants: SelectedParticipant[];
   
-  // Step 2: Product & Date
+  // Step 2: Product & Date (shared mode - default)
   productType: "private" | "group" | null;
   productId: string | null;
   sport: "ski" | "snowboard" | null;
@@ -62,6 +75,10 @@ export interface BookingWizardState {
   
   // New: Variable appointments (from scheduler multi-slot selection)
   appointments: AppointmentSlot[] | null;
+  
+  // NEW: Participant-specific booking mode
+  useParticipantSpecificBooking: boolean;
+  participantBookings: Record<string, ParticipantBookingDetails>;
   
   // Step 3: Instructor & Details
   instructorId: string | null;
@@ -117,6 +134,11 @@ interface BookingWizardContextType {
   setGroupCourseType: (type: "windel_wedelkurs" | "kids_village" | "standard" | null) => void;
   setLunchDaysForParticipant: (participantId: string, days: string[]) => void;
   setVegetarianForParticipant: (participantId: string, isVegetarian: boolean) => void;
+  // NEW: Participant-specific booking setters
+  setUseParticipantSpecificBooking: (use: boolean) => void;
+  setParticipantBooking: (participantId: string, booking: ParticipantBookingDetails) => void;
+  initializeParticipantBookings: () => void;
+  copyBookingToAllParticipants: (sourceParticipantId: string) => void;
   // Step 3 setters
   setInstructor: (instructor: Tables<"instructors"> | null) => void;
   setAssignLater: (assignLater: boolean) => void;
@@ -157,6 +179,10 @@ const initialState: BookingWizardState = {
   lunchSelections: {},
   vegetarianSelections: {},
   appointments: null,
+  // NEW: Participant-specific booking defaults
+  useParticipantSpecificBooking: false,
+  participantBookings: {},
+  // Step 3
   instructorId: null,
   instructor: null,
   assignLater: false,
@@ -327,6 +353,57 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
     }));
   };
 
+  // NEW: Participant-specific booking setters
+  const setUseParticipantSpecificBooking = (use: boolean) => {
+    setState((prev) => ({ ...prev, useParticipantSpecificBooking: use }));
+  };
+
+  const setParticipantBooking = (participantId: string, booking: ParticipantBookingDetails) => {
+    setState((prev) => ({
+      ...prev,
+      participantBookings: {
+        ...prev.participantBookings,
+        [participantId]: booking,
+      },
+    }));
+  };
+
+  const initializeParticipantBookings = () => {
+    setState((prev) => {
+      const bookings: Record<string, ParticipantBookingDetails> = {};
+      for (const p of prev.selectedParticipants) {
+        bookings[p.id] = {
+          participantId: p.id,
+          productType: prev.productType || "group",
+          productId: prev.productId,
+          groupCourseId: prev.selectedGroupId,
+          dates: [...prev.selectedDates],
+          startTime: prev.timeSlot?.split(" - ")[0] || null,
+          endTime: prev.timeSlot?.split(" - ")[1] || null,
+          lunchDays: prev.lunchSelections[p.id] || [],
+          isVegetarian: prev.vegetarianSelections[p.id] || false,
+        };
+      }
+      return { ...prev, participantBookings: bookings };
+    });
+  };
+
+  const copyBookingToAllParticipants = (sourceParticipantId: string) => {
+    setState((prev) => {
+      const source = prev.participantBookings[sourceParticipantId];
+      if (!source) return prev;
+
+      const newBookings: Record<string, ParticipantBookingDetails> = {};
+      for (const p of prev.selectedParticipants) {
+        newBookings[p.id] = {
+          ...source,
+          participantId: p.id,
+        };
+      }
+      return { ...prev, participantBookings: newBookings };
+    });
+  };
+
   const prefillFromScheduler = (instructorId: string, appointments: AppointmentSlot[]) => {
     const dates = [...new Set(appointments.map((a) => a.date))];
     setState((prev) => ({
@@ -408,7 +485,21 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
       case 1:
         return state.customer !== null && state.selectedParticipants.length > 0;
       case 2: {
-        // Merged step: Product + Instructor + Meeting Point
+        // Check participant-specific mode
+        if (state.useParticipantSpecificBooking) {
+          // Each participant must have dates and product type
+          const allParticipantsHaveBookings = state.selectedParticipants.every((p) => {
+            const booking = state.participantBookings[p.id];
+            if (!booking) return false;
+            if (booking.dates.length === 0) return false;
+            if (booking.productType === "private" && (!booking.startTime || !booking.endTime)) return false;
+            if (booking.productType === "group" && !booking.groupCourseId) return false;
+            return true;
+          });
+          return allParticipantsHaveBookings && state.meetingPoint !== null;
+        }
+        
+        // Shared mode (original logic)
         const hasProduct = state.productType !== null && state.selectedDates.length > 0;
         const hasMeetingPoint = state.meetingPoint !== null;
         
@@ -583,6 +674,12 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
         setGroupCourseType,
         setLunchDaysForParticipant,
         setVegetarianForParticipant,
+        // NEW: Participant-specific booking setters
+        setUseParticipantSpecificBooking,
+        setParticipantBooking,
+        initializeParticipantBookings,
+        copyBookingToAllParticipants,
+        // Step 3 setters
         setInstructor,
         setAssignLater,
         setMeetingPoint,
