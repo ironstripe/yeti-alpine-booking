@@ -20,6 +20,23 @@ import { ConfidenceIndicator } from "./ConfidenceIndicator";
 import { format, parseISO } from "date-fns";
 import { de } from "date-fns/locale";
 
+interface ParticipantBooking {
+  product_type?: string;
+  product_suggestion?: string;
+  dates?: Array<{ date: string; start_time?: string; end_time?: string; time_preference?: string }>;
+  lunch_supervision?: boolean;
+  is_vegetarian?: boolean;
+}
+
+interface BookingSummary {
+  total_participants?: number;
+  has_different_levels?: boolean;
+  has_different_dates?: boolean;
+  has_different_products?: boolean;
+  date_range?: { start?: string; end?: string };
+  warnings?: string[];
+}
+
 interface ExtractedData {
   customer?: {
     name?: string;
@@ -37,26 +54,29 @@ interface ExtractedData {
   };
   participants?: Array<{
     name: string;
+    first_name?: string;
+    last_name?: string;
     age?: number;
     skill_level?: string;
     discipline?: string;
     notes?: string;
+    booking?: ParticipantBooking;
   }>;
   booking?: {
     product_type?: string;
-    dates?: Array<{ date: string; time_preference?: string }>;
+    dates?: Array<{ date: string; start_time?: string; end_time?: string; time_preference?: string }>;
     flexibility?: string;
     instructor_preference?: string;
     lunch_supervision?: boolean;
     special_requests?: string;
   };
+  booking_summary?: BookingSummary;
   confidence: number;
   notes?: string;
   is_booking_request?: boolean;
   classification?: string;
   detected_language?: string;
   missing_information?: string[];
-  // New fields for rule-based confidence
   data_completeness?: number;
   booking_ready?: boolean;
 }
@@ -106,6 +126,7 @@ const skillLevelLabels: Record<string, string> = {
   beginner: "Anfänger",
   intermediate: "Fortgeschritten",
   advanced: "Experte",
+  expert: "Experte",
   unknown: "Unbekannt",
 };
 
@@ -128,6 +149,27 @@ const timePreferenceLabels: Record<string, string> = {
   any: "Flexibel",
 };
 
+function formatProductName(slug: string): string {
+  const names: Record<string, string> = {
+    "windel-wedel": "Windel-Wedel (3-4 J.)",
+    "anfaenger-gruppenkurs": "Anfänger-Gruppenkurs",
+    "fortgeschrittenen-gruppenkurs": "Fortgeschrittenen-Kurs",
+    "experten-kurs": "Experten-Kurs",
+    "privat": "Privatstunde",
+  };
+  return names[slug] || slug.replace(/-/g, " ");
+}
+
+function getSkillLevelVariant(level: string): "default" | "secondary" | "outline" {
+  switch (level) {
+    case "beginner": return "default";
+    case "intermediate": return "secondary";
+    case "advanced":
+    case "expert": return "outline";
+    default: return "secondary";
+  }
+}
+
 function formatDate(dateStr: string): string {
   try {
     return format(parseISO(dateStr), "EEE, dd.MM.yyyy", { locale: de });
@@ -140,6 +182,8 @@ export function ExtractionPanel({ data, onEdit, showHeader = true }: ExtractionP
   const hasCustomer = data.customer && (data.customer.name || data.customer.email || data.customer.phone);
   const hasParticipants = data.participants && data.participants.length > 0;
   const hasDates = data.booking?.dates && data.booking.dates.length > 0;
+  const hasParticipantBookings = data.participants?.some(p => p.booking);
+  const hasWarnings = data.booking_summary?.warnings && data.booking_summary.warnings.length > 0;
 
   if (!data.is_booking_request) {
     return (
@@ -210,31 +254,99 @@ export function ExtractionPanel({ data, onEdit, showHeader = true }: ExtractionP
 
         {hasCustomer && (hasParticipants || hasDates) && <Separator />}
 
-        {/* Participants */}
+        {/* Booking Summary Warnings */}
+        {hasWarnings && (
+          <div className="bg-amber-50 border border-amber-200 rounded-md p-3 space-y-2">
+            <h4 className="text-sm font-medium flex items-center gap-2 text-amber-700">
+              <AlertTriangle className="h-4 w-4" />
+              Hinweise
+            </h4>
+            <ul className="pl-6 space-y-1 text-sm text-amber-600">
+              {data.booking_summary!.warnings!.map((warning, idx) => (
+                <li key={idx} className="flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                  {warning}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {/* Participants with Individual Booking Details */}
         {hasParticipants && (
-          <div className="space-y-2">
+          <div className="space-y-3">
             <h4 className="text-sm font-medium flex items-center gap-2">
               <Users className="h-4 w-4 text-muted-foreground" />
-              Teilnehmer ({data.participants!.length})
+              Teilnehmer & Buchungen ({data.participants!.length})
             </h4>
-            <div className="pl-6 space-y-2">
+            <div className="space-y-3">
               {data.participants!.map((p, i) => (
-                <div key={i} className="flex items-center gap-2 text-sm">
-                  <span className="font-medium">{p.name}</span>
-                  {p.age && (
-                    <Badge variant="outline" className="text-xs">
-                      {p.age} Jahre
-                    </Badge>
+                <div key={i} className="border rounded-md p-3 space-y-2 bg-muted/30">
+                  {/* Participant Header */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium">{p.name}</span>
+                      {p.age && (
+                        <Badge variant="outline" className="text-xs">
+                          {p.age} J.
+                        </Badge>
+                      )}
+                    </div>
+                    <div className="flex gap-1">
+                      {p.skill_level && p.skill_level !== "unknown" && (
+                        <Badge variant={getSkillLevelVariant(p.skill_level)} className="text-xs">
+                          {skillLevelLabels[p.skill_level] || p.skill_level}
+                        </Badge>
+                      )}
+                      {p.discipline && p.discipline !== "unknown" && (
+                        <Badge variant="secondary" className="text-xs">
+                          {disciplineLabels[p.discipline] || p.discipline}
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Participant-specific booking */}
+                  {p.booking && (
+                    <div className="pl-4 space-y-1 text-sm border-l-2 border-primary/20">
+                      {/* Product suggestion */}
+                      {p.booking.product_suggestion && (
+                        <div className="flex items-center gap-2">
+                          <span className="text-muted-foreground">Kurs:</span>
+                          <Badge variant="secondary" className="text-xs">
+                            {formatProductName(p.booking.product_suggestion)}
+                          </Badge>
+                        </div>
+                      )}
+
+                      {/* Dates */}
+                      {p.booking.dates && p.booking.dates.length > 0 && (
+                        <div className="flex items-center gap-2">
+                          <Calendar className="h-3 w-3 text-muted-foreground" />
+                          <span>
+                            {p.booking.dates.length} Tag(e): {p.booking.dates.map(d => formatDate(d.date)).join(", ")}
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Lunch */}
+                      {p.booking.lunch_supervision && (
+                        <div className="flex items-center gap-2">
+                          <UtensilsCrossed className="h-3 w-3 text-muted-foreground" />
+                          <span>Mittagsbetreuung</span>
+                          {p.booking.is_vegetarian && (
+                            <Badge variant="outline" className="text-xs">Vegi</Badge>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   )}
-                  {p.skill_level && p.skill_level !== "unknown" && (
-                    <Badge variant="secondary" className="text-xs">
-                      {skillLevelLabels[p.skill_level] || p.skill_level}
-                    </Badge>
-                  )}
-                  {p.discipline && p.discipline !== "unknown" && (
-                    <Badge variant="secondary" className="text-xs">
-                      {disciplineLabels[p.discipline] || p.discipline}
-                    </Badge>
+
+                  {/* Participant notes */}
+                  {p.notes && (
+                    <p className="text-xs text-muted-foreground italic pl-4">
+                      "{p.notes}"
+                    </p>
                   )}
                 </div>
               ))}
@@ -407,31 +519,99 @@ export function ExtractionPanel({ data, onEdit, showHeader = true }: ExtractionP
 
         {hasCustomer && (hasParticipants || hasDates) && <Separator />}
 
-        {/* Participants */}
+        {/* Booking Summary Warnings */}
+        {hasWarnings && (
+          <div className="bg-amber-50 border border-amber-200 rounded-md p-3 space-y-2">
+            <h4 className="text-sm font-medium flex items-center gap-2 text-amber-700">
+              <AlertTriangle className="h-4 w-4" />
+              Hinweise
+            </h4>
+            <ul className="pl-6 space-y-1 text-sm text-amber-600">
+              {data.booking_summary!.warnings!.map((warning, idx) => (
+                <li key={idx} className="flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                  {warning}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {/* Participants with Individual Booking Details */}
         {hasParticipants && (
-          <div className="space-y-2">
+          <div className="space-y-3">
             <h4 className="text-sm font-medium flex items-center gap-2">
               <Users className="h-4 w-4 text-muted-foreground" />
-              Teilnehmer ({data.participants!.length})
+              Teilnehmer & Buchungen ({data.participants!.length})
             </h4>
-            <div className="pl-6 space-y-2">
+            <div className="space-y-3">
               {data.participants!.map((p, i) => (
-                <div key={i} className="flex items-center gap-2 text-sm">
-                  <span className="font-medium">{p.name}</span>
-                  {p.age && (
-                    <Badge variant="outline" className="text-xs">
-                      {p.age} Jahre
-                    </Badge>
+                <div key={i} className="border rounded-md p-3 space-y-2 bg-muted/30">
+                  {/* Participant Header */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium">{p.name}</span>
+                      {p.age && (
+                        <Badge variant="outline" className="text-xs">
+                          {p.age} J.
+                        </Badge>
+                      )}
+                    </div>
+                    <div className="flex gap-1">
+                      {p.skill_level && p.skill_level !== "unknown" && (
+                        <Badge variant={getSkillLevelVariant(p.skill_level)} className="text-xs">
+                          {skillLevelLabels[p.skill_level] || p.skill_level}
+                        </Badge>
+                      )}
+                      {p.discipline && p.discipline !== "unknown" && (
+                        <Badge variant="secondary" className="text-xs">
+                          {disciplineLabels[p.discipline] || p.discipline}
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Participant-specific booking */}
+                  {p.booking && (
+                    <div className="pl-4 space-y-1 text-sm border-l-2 border-primary/20">
+                      {/* Product suggestion */}
+                      {p.booking.product_suggestion && (
+                        <div className="flex items-center gap-2">
+                          <span className="text-muted-foreground">Kurs:</span>
+                          <Badge variant="secondary" className="text-xs">
+                            {formatProductName(p.booking.product_suggestion)}
+                          </Badge>
+                        </div>
+                      )}
+
+                      {/* Dates */}
+                      {p.booking.dates && p.booking.dates.length > 0 && (
+                        <div className="flex items-center gap-2">
+                          <Calendar className="h-3 w-3 text-muted-foreground" />
+                          <span>
+                            {p.booking.dates.length} Tag(e): {p.booking.dates.map(d => formatDate(d.date)).join(", ")}
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Lunch */}
+                      {p.booking.lunch_supervision && (
+                        <div className="flex items-center gap-2">
+                          <UtensilsCrossed className="h-3 w-3 text-muted-foreground" />
+                          <span>Mittagsbetreuung</span>
+                          {p.booking.is_vegetarian && (
+                            <Badge variant="outline" className="text-xs">Vegi</Badge>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   )}
-                  {p.skill_level && p.skill_level !== "unknown" && (
-                    <Badge variant="secondary" className="text-xs">
-                      {skillLevelLabels[p.skill_level] || p.skill_level}
-                    </Badge>
-                  )}
-                  {p.discipline && p.discipline !== "unknown" && (
-                    <Badge variant="secondary" className="text-xs">
-                      {disciplineLabels[p.discipline] || p.discipline}
-                    </Badge>
+
+                  {/* Participant notes */}
+                  {p.notes && (
+                    <p className="text-xs text-muted-foreground italic pl-4">
+                      "{p.notes}"
+                    </p>
                   )}
                 </div>
               ))}

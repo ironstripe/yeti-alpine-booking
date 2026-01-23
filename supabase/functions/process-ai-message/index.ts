@@ -6,10 +6,28 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// Enhanced extraction prompt for maximum information extraction
+// Enhanced extraction prompt for maximum information extraction with participant-specific booking support
 const EXTRACTION_PROMPT = `Du bist ein Experte für die Analyse von Buchungsanfragen einer Skischule in Liechtenstein/Schweiz.
 
 **DEINE AUFGABE:** Extrahiere ALLE verfügbaren Informationen aus der Nachricht. Sei gründlich und nutze auch implizite Hinweise.
+
+**WICHTIG - TEILNEHMER-SPEZIFISCHE BUCHUNGEN:**
+Jeder Teilnehmer kann individuelle Buchungsdetails haben (unterschiedliche Produkte, Tage, Zeiten).
+Erkenne unterschiedliche Skill-Levels und schlage passende Produkte vor:
+- beginner + Alter 3-4 → product_suggestion: "windel-wedel" (nur 10:00-12:00)
+- beginner + Alter 5+ → product_suggestion: "anfaenger-gruppenkurs"
+- intermediate → product_suggestion: "fortgeschrittenen-gruppenkurs"
+- advanced/expert → product_suggestion: "experten-kurs" oder "privat"
+
+Wenn Teilnehmer unterschiedliche Levels/Tage haben:
+- Setze booking_summary.has_different_levels/has_different_dates: true
+- Füge Warnungen hinzu
+- Erfasse für JEDEN Teilnehmer sein eigenes booking-Objekt mit dates und product_suggestion
+
+Zeiten für Gruppenkurse:
+- Standard: 10:00-12:00 und 13:30-15:30 (Halbtageskurse)
+- Mit Mittagsbetreuung: 10:00-15:30 (Ganztageskurs)
+- Windel-Wedel (3-4 Jahre): nur 10:00-12:00
 
 **EXTRAKTIONSREGELN:**
 
@@ -18,18 +36,20 @@ const EXTRACTION_PROMPT = `Du bist ein Experte für die Analyse von Buchungsanfr
    - E-Mail-Adressen und Telefonnummern aus Signatur extrahieren
    - Wenn jemand "ich" oder "wir" schreibt, ist der Absender wahrscheinlich auch Teilnehmer oder Elternteil
 
-2. **Teilnehmer:**
+2. **Teilnehmer (MIT individuellen Buchungen):**
    - "Meine beiden Kinder" = 2 Teilnehmer
    - "Wir sind zu viert" = 4 Teilnehmer
    - "Für mich und meinen Mann" = 2 Erwachsene
    - Alter aus Kontext ableiten: "Kinder" = unter 16, "Erwachsene" = über 16
    - Geburtsdaten im Format TT.MM.JJJJ suchen und zu YYYY-MM-DD konvertieren
+   - **WICHTIG:** Für jeden Teilnehmer ein booking-Objekt mit dates und product_suggestion erstellen!
 
 3. **Daten und Zeiten:**
    - "Nächste Woche" oder "im Januar" ist NICHT spezifisch genug → als fehlend markieren, aber in date_description speichern
    - "15. bis 20. Januar" = 6 spezifische Tage
    - "Montag bis Freitag" ohne konkretes Datum = fehlend
    - Bei Privatstunden: Uhrzeiten wie "09:00-12:00" oder "Vormittag" extrahieren
+   - **BEACHTE:** Verschiedene Teilnehmer können unterschiedliche Tage haben!
 
 4. **Kurstyp:**
    - "Privatunterricht", "Privatstunde", "nur für uns" = private
@@ -82,6 +102,38 @@ const EXTRACTION_PROMPT = `Du bist ein Experte für die Analyse von Buchungsanfr
 - lunch_supervision (nur bei Ganztags-Gruppenkursen)
 - vegetarian_preference (nur wenn Mittagsbetreuung)
 
+**BEISPIEL für Familie mit unterschiedlichen Levels:**
+{
+  "participants": [
+    {
+      "name": "Emma Streiff",
+      "age": 8,
+      "skill_level": "beginner",
+      "booking": {
+        "product_type": "group",
+        "product_suggestion": "anfaenger-gruppenkurs",
+        "dates": [{"date": "2026-01-15"}, {"date": "2026-01-16"}],
+        "lunch_supervision": true
+      }
+    },
+    {
+      "name": "Lukas Streiff",
+      "age": 11,
+      "skill_level": "intermediate",
+      "booking": {
+        "product_type": "group",
+        "product_suggestion": "fortgeschrittenen-gruppenkurs",
+        "dates": [{"date": "2026-01-15"}, {"date": "2026-01-16"}, {"date": "2026-01-17"}]
+      }
+    }
+  ],
+  "booking_summary": {
+    "has_different_levels": true,
+    "has_different_dates": true,
+    "warnings": ["Teilnehmer haben unterschiedliche Niveaus", "Teilnehmer haben unterschiedliche Kurstage"]
+  }
+}
+
 Du MUSST die Funktion "extract_booking_info" aufrufen mit den extrahierten Daten.`;
 
 // Enhanced tool schema for comprehensive extraction
@@ -131,10 +183,12 @@ const extractionTools = [
           },
           participants: {
             type: "array",
+            description: "Liste der Teilnehmer mit individuellen Buchungsdetails",
             items: {
               type: "object",
               properties: {
                 first_name: { type: "string", description: "Vorname des Teilnehmers" },
+                last_name: { type: "string", description: "Nachname des Teilnehmers" },
                 name: { type: "string", description: "Vollständiger Name (Fallback)" },
                 birth_date: { type: "string", description: "Geburtsdatum im Format YYYY-MM-DD" },
                 age: { type: "number", description: "Alter, falls Geburtsdatum unbekannt" },
@@ -149,6 +203,35 @@ const extractionTools = [
                   description: "Sportart (default: ski)",
                 },
                 notes: { type: "string", description: "Zusätzliche Infos zum Teilnehmer" },
+                booking: {
+                  type: "object",
+                  description: "Individuelle Buchungsdetails für diesen Teilnehmer",
+                  properties: {
+                    product_type: {
+                      type: "string",
+                      enum: ["private", "group", "unknown"],
+                      description: "Art der Buchung für diesen Teilnehmer",
+                    },
+                    product_suggestion: {
+                      type: "string",
+                      description: "Vorgeschlagenes Produkt basierend auf Alter und Level (z.B. 'windel-wedel', 'anfaenger-gruppenkurs', 'fortgeschrittenen-gruppenkurs')",
+                    },
+                    dates: {
+                      type: "array",
+                      items: {
+                        type: "object",
+                        properties: {
+                          date: { type: "string", description: "Datum im Format YYYY-MM-DD" },
+                          start_time: { type: "string", description: "Startzeit im Format HH:MM" },
+                          end_time: { type: "string", description: "Endzeit im Format HH:MM" },
+                        },
+                        required: ["date"],
+                      },
+                    },
+                    lunch_supervision: { type: "boolean", description: "Mittagsbetreuung für diesen Teilnehmer" },
+                    is_vegetarian: { type: "boolean", description: "Vegetarisches Mittagessen" },
+                  },
+                },
               },
             },
           },
@@ -199,6 +282,37 @@ const extractionTools = [
               lunch_supervision: { type: "boolean", description: "Mittagsbetreuung gewünscht" },
               vegetarian: { type: "boolean", description: "Vegetarisches Mittagessen" },
               special_requests: { type: "string", description: "Besondere Wünsche" },
+            },
+          },
+          booking_summary: {
+            type: "object",
+            description: "Zusammenfassung für schnelle Analyse bei mehreren Teilnehmern",
+            properties: {
+              total_participants: { type: "number", description: "Anzahl Teilnehmer" },
+              has_different_levels: { 
+                type: "boolean", 
+                description: "True wenn Teilnehmer unterschiedliche Skill-Levels haben" 
+              },
+              has_different_dates: { 
+                type: "boolean", 
+                description: "True wenn Teilnehmer unterschiedliche Buchungstage haben" 
+              },
+              has_different_products: { 
+                type: "boolean", 
+                description: "True wenn Teilnehmer unterschiedliche Produkte brauchen" 
+              },
+              date_range: {
+                type: "object",
+                properties: {
+                  start: { type: "string", description: "Frühestes Datum YYYY-MM-DD" },
+                  end: { type: "string", description: "Spätestes Datum YYYY-MM-DD" },
+                },
+              },
+              warnings: {
+                type: "array",
+                items: { type: "string" },
+                description: "Liste von Warnungen (z.B. 'Unterschiedliche Niveaus')",
+              },
             },
           },
           missing_information: {
@@ -448,6 +562,12 @@ function validateAndCleanExtraction(
     }
   }
 
+  // Generate or enhance booking_summary for participant-specific bookings
+  data.booking_summary = generateBookingSummary(data);
+
+  // Ensure backwards compatibility: populate global booking object from participant bookings
+  ensureBackwardsCompatibility(data);
+
   // Calculate rule-based completeness with context awareness
   const completenessResult = calculateDataCompleteness(data, isExistingCustomer);
 
@@ -461,6 +581,138 @@ function validateAndCleanExtraction(
   data.missing_information = completenessResult.missingRequired;
 
   return data;
+}
+
+// Generate booking summary from participant-specific bookings
+function generateBookingSummary(data: Record<string, unknown>): Record<string, unknown> {
+  const participants = (data.participants as Array<Record<string, unknown>>) || [];
+  const globalBooking = (data.booking as Record<string, unknown>) || {};
+  const existingSummary = (data.booking_summary as Record<string, unknown>) || {};
+  
+  if (participants.length === 0) {
+    return existingSummary;
+  }
+
+  // Collect unique levels
+  const levels = new Set<string>();
+  const productTypes = new Set<string>();
+  const allDates: string[] = [];
+  const dateSets: Set<string>[] = [];
+
+  for (const p of participants) {
+    const level = p.skill_level as string | undefined;
+    if (level && level !== "unknown") {
+      levels.add(level);
+    }
+
+    const pBooking = (p.booking as Record<string, unknown>) || {};
+    const productType = (pBooking.product_type || globalBooking.product_type) as string | undefined;
+    if (productType && productType !== "unknown") {
+      productTypes.add(productType);
+    }
+
+    const pDates = (pBooking.dates || globalBooking.dates) as Array<Record<string, unknown>> | undefined;
+    const dateSet = new Set<string>();
+    if (pDates) {
+      for (const d of pDates) {
+        const dateStr = d.date as string;
+        if (dateStr) {
+          allDates.push(dateStr);
+          dateSet.add(dateStr);
+        }
+      }
+    }
+    dateSets.push(dateSet);
+  }
+
+  // Check if participants have different dates
+  let hasDifferentDates = false;
+  if (dateSets.length > 1) {
+    const firstSet = dateSets[0];
+    for (let i = 1; i < dateSets.length; i++) {
+      if (dateSets[i].size !== firstSet.size || 
+          ![...dateSets[i]].every(d => firstSet.has(d))) {
+        hasDifferentDates = true;
+        break;
+      }
+    }
+  }
+
+  // Generate warnings
+  const warnings: string[] = [];
+  if (levels.size > 1) {
+    const levelLabels: Record<string, string> = {
+      beginner: "Anfänger",
+      intermediate: "Fortgeschritten",
+      advanced: "Experte",
+      expert: "Experte"
+    };
+    const levelNames = [...levels].map(l => levelLabels[l] || l).join(", ");
+    warnings.push(`Teilnehmer haben unterschiedliche Niveaus (${levelNames})`);
+  }
+  if (hasDifferentDates) {
+    warnings.push("Teilnehmer haben unterschiedliche Kurstage");
+  }
+  if (productTypes.size > 1) {
+    warnings.push("Teilnehmer haben unterschiedliche Kurstypen");
+  }
+
+  // Calculate date range
+  const sortedDates = [...new Set(allDates)].sort();
+  const dateRange = sortedDates.length > 0 ? {
+    start: sortedDates[0],
+    end: sortedDates[sortedDates.length - 1]
+  } : undefined;
+
+  return {
+    ...existingSummary,
+    total_participants: participants.length,
+    has_different_levels: levels.size > 1,
+    has_different_dates: hasDifferentDates,
+    has_different_products: productTypes.size > 1,
+    date_range: dateRange,
+    warnings: warnings.length > 0 ? warnings : (existingSummary.warnings || [])
+  };
+}
+
+// Ensure backwards compatibility by populating global booking from participant bookings
+function ensureBackwardsCompatibility(data: Record<string, unknown>): void {
+  const participants = (data.participants as Array<Record<string, unknown>>) || [];
+  const globalBooking = (data.booking as Record<string, unknown>) || {};
+
+  // If participants have individual bookings, merge into global booking for legacy support
+  if (participants.some(p => p.booking)) {
+    const allDates: Array<Record<string, unknown>> = [];
+    let dominantProductType: string | undefined;
+
+    for (const p of participants) {
+      const pBooking = (p.booking as Record<string, unknown>) || {};
+      const pDates = (pBooking.dates as Array<Record<string, unknown>>) || [];
+      
+      for (const d of pDates) {
+        const dateStr = d.date as string;
+        if (dateStr && !allDates.some(existing => existing.date === dateStr)) {
+          allDates.push({ ...d });
+        }
+      }
+
+      if (!dominantProductType && pBooking.product_type) {
+        dominantProductType = pBooking.product_type as string;
+      }
+    }
+
+    // Update global booking with merged data
+    if (allDates.length > 0 && (!globalBooking.dates || (globalBooking.dates as Array<unknown>).length === 0)) {
+      globalBooking.dates = allDates.sort((a, b) => 
+        (a.date as string).localeCompare(b.date as string)
+      );
+    }
+    if (dominantProductType && !globalBooking.product_type) {
+      globalBooking.product_type = dominantProductType;
+    }
+
+    data.booking = globalBooking;
+  }
 }
 
 interface CompletenessResult {
