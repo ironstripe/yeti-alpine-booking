@@ -23,6 +23,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Calendar } from "@/components/ui/calendar";
 import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -653,10 +654,31 @@ export function Step2ProductAllocation() {
           <div className="space-y-4">
             {state.selectedDates.length > 0 ? (
               <>
+                {/* Participant enrollment preview for multiple participants */}
+                {state.selectedParticipants.length > 1 && (
+                  <Card className="bg-blue-50 border-blue-200">
+                    <CardContent className="p-3">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Users className="h-4 w-4 text-blue-600" />
+                        <span className="text-sm font-medium text-blue-800">
+                          {state.selectedParticipants.length} Teilnehmer werden in diese Gruppe eingeschrieben:
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {state.selectedParticipants.map((p) => (
+                          <Badge key={p.id} variant="secondary" className="bg-white">
+                            {p.first_name} {p.last_name}
+                          </Badge>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
                 <GroupSelector
                   selectedDates={state.selectedDates}
                   sport={state.sport}
-                  level={state.selectedParticipants[0]?.level_current_season || null}
+                  participants={state.selectedParticipants}
                   selectedGroupId={state.selectedGroupId}
                   onGroupSelect={setSelectedGroupId}
                 />
