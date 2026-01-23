@@ -17,6 +17,7 @@ import {
   useConversations,
   useConversationCounts,
   useMarkAllAsRead,
+  useDeleteConversation,
   type ConversationFilter,
 } from "@/hooks/useConversations";
 import { useInboxStats } from "@/hooks/useInboxStats";
@@ -27,6 +28,7 @@ import { ConversationEmptyState } from "@/components/inbox/ConversationEmptyStat
 import { InboxQuickStats } from "@/components/inbox/InboxQuickStats";
 import { QuickBookingModal } from "@/components/inbox/QuickBookingModal";
 import { AITestPanel } from "@/components/inbox/AITestPanel";
+import { useConfirmDialog } from "@/components/ui/confirm-dialog";
 import type { ExtractedData } from "@/hooks/useAIExtraction";
 
 type SortOption = "newest" | "oldest" | "confidence";
@@ -53,11 +55,26 @@ const Inbox = () => {
     search: debouncedSearch,
   });
   const { markAllAsRead } = useMarkAllAsRead();
+  const { deleteConversation } = useDeleteConversation();
+  const { confirm, dialog: confirmDialog } = useConfirmDialog();
 
   const unreadCount = counts?.unread || 0;
 
   const handleConversationClick = (id: string) => {
     navigate(`/inbox/${id}`);
+  };
+
+  const handleDeleteConversation = async (id: string, contactName: string) => {
+    const confirmed = await confirm({
+      title: "Nachricht löschen?",
+      description: `Möchten Sie die Nachricht von "${contactName}" wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.`,
+      confirmLabel: "Löschen",
+      variant: "destructive",
+    });
+    
+    if (confirmed) {
+      await deleteConversation(id);
+    }
   };
 
   const handleQuickBook = (conversationId: string, extractedData: ExtractedData) => {
@@ -180,6 +197,10 @@ const Inbox = () => {
                       ? () => handleQuickBook(conversation.id, extractedData)
                       : undefined
                   }
+                  onDelete={() => handleDeleteConversation(
+                    conversation.id, 
+                    conversation.contact_name || conversation.contact_identifier
+                  )}
                 />
               );
             })}
@@ -206,6 +227,9 @@ const Inbox = () => {
 
       {/* AI Test Panel */}
       <AITestPanel open={aiTestOpen} onOpenChange={setAiTestOpen} />
+
+      {/* Confirm Dialog */}
+      {confirmDialog}
     </>
   );
 };

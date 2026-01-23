@@ -15,6 +15,7 @@ import {
   ChevronDown,
   ChevronUp,
   UtensilsCrossed,
+  Trash2,
 } from "lucide-react";
 import { format, isToday, isYesterday, parseISO } from "date-fns";
 import { de } from "date-fns/locale";
@@ -48,6 +49,7 @@ interface EnhancedConversationCardProps {
   onViewDetails: () => void;
   onEdit?: () => void;
   onQuickBook?: () => void;
+  onDelete?: () => void;
 }
 
 const channelConfig: Record<string, { icon: typeof Mail; color: string; bgColor: string }> = {
@@ -100,6 +102,7 @@ export function EnhancedConversationCard({
   onViewDetails,
   onEdit,
   onQuickBook,
+  onDelete,
 }: EnhancedConversationCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   
@@ -278,27 +281,44 @@ export function EnhancedConversationCard({
 
       {/* Action Row */}
       <div className="flex items-center justify-between mt-4 pt-3 border-t">
-        <Button
-          variant="ghost"
-          size="sm"
-          className="text-xs"
-          onClick={(e) => {
-            e.stopPropagation();
-            setIsExpanded(!isExpanded);
-          }}
-        >
-          {isExpanded ? (
-            <>
-              <ChevronUp className="h-3 w-3 mr-1" />
-              Weniger
-            </>
-          ) : (
-            <>
-              <ChevronDown className="h-3 w-3 mr-1" />
-              Vorschau
-            </>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-xs"
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsExpanded(!isExpanded);
+            }}
+          >
+            {isExpanded ? (
+              <>
+                <ChevronUp className="h-3 w-3 mr-1" />
+                Weniger
+              </>
+            ) : (
+              <>
+                <ChevronDown className="h-3 w-3 mr-1" />
+                Vorschau
+              </>
+            )}
+          </Button>
+          
+          {onDelete && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-xs text-destructive hover:text-destructive hover:bg-destructive/10"
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete();
+              }}
+            >
+              <Trash2 className="h-3 w-3 mr-1" />
+              Löschen
+            </Button>
           )}
-        </Button>
+        </div>
 
         <div className="flex items-center gap-2">
           <Button
