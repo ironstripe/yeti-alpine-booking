@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format, parseISO, differenceInYears } from "date-fns";
 import { de } from "date-fns/locale";
-import { Snowflake, Sun, AlertTriangle, Clock, CalendarDays, Info, ArrowRight, Users, Mountain, Minus, Plus, SplitSquareHorizontal } from "lucide-react";
+import { Snowflake, Sun, AlertTriangle, Clock, CalendarDays, Info, ArrowRight, Users, Mountain, Minus, Plus, SplitSquareHorizontal, User } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
 import { useBookingWizard, type ParticipantBookingDetails } from "@/contexts/BookingWizardContext";
@@ -197,12 +197,18 @@ export function Step2ProductDates() {
     return privateLessonPrice.totalPrice * state.selectedDates.length;
   }, [privateLessonPrice, state.selectedDates.length]);
 
-  // NEW: Detect if participants have different skill levels
+  // NEW: Detect if participants have different skill levels (including "unknown" for missing levels)
   const hasDifferentLevels = useMemo(() => {
-    const levels = state.selectedParticipants
-      .map((p) => p.level_current_season)
-      .filter(Boolean);
-    return new Set(levels).size > 1;
+    if (state.selectedParticipants.length < 2) return false;
+    
+    // Normalize levels - treat null/undefined as "unknown" to detect when some have levels and others don't
+    const normalizedLevels = state.selectedParticipants.map(
+      (p) => p.level_current_season || "unknown"
+    );
+    const uniqueLevels = new Set(normalizedLevels);
+    
+    // Different if more than one unique level
+    return uniqueLevels.size > 1;
   }, [state.selectedParticipants]);
 
   // NEW: Detect if participants have very different ages (e.g., toddler + teen)
@@ -308,29 +314,70 @@ export function Step2ProductDates() {
     );
   }
 
+  // Helper to get level label inline
+  const getLevelDisplayLabel = (level: string | null): string => {
+    if (!level) return "Nicht angegeben";
+    const levelMap: Record<string, string> = {
+      anfaenger: "Anfänger",
+      blue_prince: "Blue Prince",
+      blue_king: "Blue King",
+      red_prince: "Red Prince",
+      red_king: "Red King",
+      black_prince: "Black Prince",
+      black_king: "Black King",
+    };
+    return levelMap[level] || level;
+  };
+
   return (
     <div className="space-y-8 py-6">
-      {/* Different Levels Warning */}
+      {/* Different Levels Warning - More Prominent */}
       {(hasDifferentLevels || hasAgeMismatch) && state.selectedParticipants.length > 1 && !state.useParticipantSpecificBooking && (
-        <Alert className="bg-amber-50 border-amber-200">
-          <AlertTriangle className="h-4 w-4 text-amber-600" />
+        <Alert className="bg-amber-50 border-amber-300 shadow-sm">
+          <AlertTriangle className="h-5 w-5 text-amber-600" />
           <AlertDescription className="text-amber-800">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-              <span>
+            <div className="space-y-3">
+              <p className="font-medium">
                 {hasDifferentLevels 
-                  ? "Teilnehmer haben unterschiedliche Niveaus." 
-                  : "Teilnehmer haben sehr unterschiedliche Altersgruppen."
-                } Individuelle Buchung ermöglicht passende Kurse für jeden.
-              </span>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleEnableParticipantMode}
-                className="border-amber-400 text-amber-700 hover:bg-amber-100"
-              >
-                <SplitSquareHorizontal className="h-4 w-4 mr-1" />
-                Individuelle Buchung
-              </Button>
+                  ? "Teilnehmer haben unterschiedliche Niveaus!" 
+                  : "Teilnehmer haben sehr unterschiedliche Altersgruppen!"
+                }
+              </p>
+              
+              {/* Show each participant's level */}
+              <div className="flex flex-wrap gap-2">
+                {state.selectedParticipants.map((p) => {
+                  const age = p.birth_date 
+                    ? differenceInYears(new Date(), new Date(p.birth_date))
+                    : null;
+                  return (
+                    <Badge 
+                      key={p.id} 
+                      variant="outline" 
+                      className="bg-white/50 text-xs"
+                    >
+                      <User className="h-3 w-3 mr-1" />
+                      {p.first_name}: {getLevelDisplayLabel(p.level_current_season)}
+                      {age !== null && ` (${age}J)`}
+                    </Badge>
+                  );
+                })}
+              </div>
+
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2 pt-1">
+                <span className="text-sm">
+                  Mit "Individuelle Buchung" kann jeder Teilnehmer den passenden Kurs erhalten.
+                </span>
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={handleEnableParticipantMode}
+                  className="shrink-0"
+                >
+                  <SplitSquareHorizontal className="h-4 w-4 mr-1" />
+                  Individuelle Buchung aktivieren
+                </Button>
+              </div>
             </div>
           </AlertDescription>
         </Alert>
@@ -393,6 +440,35 @@ export function Step2ProductDates() {
             </span>
           </Label>
         </RadioGroup>
+
+        {/* Participant Level Summary - shown when group is selected with multiple participants */}
+        {state.productType === "group" && state.selectedParticipants.length > 1 && !state.useParticipantSpecificBooking && (
+          <Card className="bg-muted/30 border-dashed">
+            <CardContent className="p-3">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs text-muted-foreground">Teilnehmer-Niveaus:</span>
+                  {state.selectedParticipants.map((p) => (
+                    <Badge key={p.id} variant="outline" className="text-xs">
+                      {p.first_name}: {getLevelDisplayLabel(p.level_current_season)}
+                    </Badge>
+                  ))}
+                </div>
+                {hasDifferentLevels && (
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={handleEnableParticipantMode}
+                    className="text-xs h-7"
+                  >
+                    <SplitSquareHorizontal className="h-3 w-3 mr-1" />
+                    Einzeln buchen
+                  </Button>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       {/* Sport Selection (for private lessons) */}
