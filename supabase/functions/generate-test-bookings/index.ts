@@ -52,6 +52,28 @@ function calculatePrice(startTime: string, endTime: string): number {
   return hours * 80;
 }
 
+async function generateTicketNumber(supabase: any): Promise<string> {
+  const year = new Date().getFullYear();
+
+  const { data, error } = await supabase
+    .from("tickets")
+    .select("ticket_number")
+    .like("ticket_number", `YETY-${year}-%`)
+    .order("ticket_number", { ascending: false })
+    .limit(1);
+
+  if (error) throw error;
+
+  let nextNumber = 1;
+  if (data && data.length > 0) {
+    const lastNumber = data[0].ticket_number as string;
+    const match = lastNumber.match(/YETY-\d{4}-(\d+)/);
+    if (match) nextNumber = parseInt(match[1], 10) + 1;
+  }
+
+  return `YETY-${year}-${nextNumber.toString().padStart(5, "0")}`;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -71,7 +93,8 @@ Deno.serve(async (req) => {
       supabase.from("instructors").select("id, first_name, last_name").eq("status", "active"),
       supabase.from("customers").select("id, first_name, last_name, email"),
       supabase.from("customer_participants").select("id, customer_id, first_name"),
-      supabase.from("products").select("id, name, product_type, price").eq("is_active", true),
+      // NOTE: In our schema the column is `products.type` (e.g. "private" | "group"), not `product_type`.
+      supabase.from("products").select("id, name, type, price").eq("is_active", true),
     ]);
 
     console.log("Instructors query:", { data: instructorsRes.data?.length, error: instructorsRes.error });
@@ -102,8 +125,8 @@ Deno.serve(async (req) => {
     }
 
     // Filter products
-    const privateProducts = products.filter(p => p.product_type === "private");
-    const groupProducts = products.filter(p => p.product_type === "group");
+    const privateProducts = products.filter((p) => p.type === "private");
+    const groupProducts = products.filter((p) => p.type === "group");
     
     const createdTickets: string[] = [];
     const createdItems: string[] = [];
@@ -142,16 +165,16 @@ Deno.serve(async (req) => {
         : null;
 
       // Create ticket
+      const ticketNumber = await generateTicketNumber(supabase);
       const { data: ticket, error: ticketError } = await supabase
         .from("tickets")
         .insert({
+          ticket_number: ticketNumber,
           customer_id: customer.id,
-          status: isConfirmed ? "confirmed" : "pending",
-          total_price: price,
+          status: isConfirmed ? "confirmed" : "pending_confirmation",
+          total_amount: price,
           paid_amount: isConfirmed ? price : 0,
-          payment_status: isConfirmed ? "paid" : "pending",
           payment_method: isConfirmed ? randomElement(["cash", "card", "twint"]) : null,
-          source: "test-generator",
           notes: `Test booking generated on ${new Date().toISOString()}`,
         })
         .select("id")
@@ -221,7 +244,7 @@ Deno.serve(async (req) => {
             await supabase
               .from("tickets")
               .update({ 
-                total_price: price + nextPrice,
+                total_amount: price + nextPrice,
                 paid_amount: isConfirmed ? price + nextPrice : 0,
               })
               .eq("id", ticket.id);
