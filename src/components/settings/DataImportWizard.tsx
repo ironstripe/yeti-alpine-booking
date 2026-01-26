@@ -1,9 +1,12 @@
 import { useState, useCallback } from "react";
-import { Upload, FileArchive, CheckCircle2, Loader2, AlertTriangle } from "lucide-react";
+import { Upload, FileArchive, CheckCircle2, Loader2, AlertTriangle, Trash2, RefreshCw, SkipForward } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { useDataImport, type ParsedData } from "@/hooks/useDataImport";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Label } from "@/components/ui/label";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { useDataImport, type ParsedData, type ImportMode } from "@/hooks/useDataImport";
 import { ImportTablePreview } from "./ImportTablePreview";
 import { ImportReport } from "./ImportReport";
 import { cn } from "@/lib/utils";
@@ -14,6 +17,7 @@ export function DataImportWizard() {
   const [step, setStep] = useState<WizardStep>("upload");
   const [dragActive, setDragActive] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [importMode, setImportMode] = useState<ImportMode>("clear");
 
   const {
     progress,
@@ -72,14 +76,15 @@ export function DataImportWizard() {
   const handleStartImport = useCallback(async () => {
     if (!parsedData) return;
     setStep("importing");
-    await importData(parsedData);
+    await importData(parsedData, importMode);
     setStep("complete");
-  }, [parsedData, importData]);
+  }, [parsedData, importData, importMode]);
 
   const handleReset = useCallback(() => {
     reset();
     setStep("upload");
     setSelectedFile(null);
+    setImportMode("clear");
   }, [reset]);
 
   const getTotalRecords = (data: ParsedData) => {
@@ -213,12 +218,71 @@ export function DataImportWizard() {
                 <Button variant="outline" onClick={handleReset}>
                   Abbrechen
                 </Button>
-                <Button onClick={handleStartImport} disabled={totalErrors > 0}>
+                <Button onClick={handleStartImport}>
                   Import starten
                 </Button>
               </div>
             </div>
           </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div>
+                <h4 className="font-medium mb-3">Import-Modus</h4>
+                <RadioGroup
+                  value={importMode}
+                  onValueChange={(value) => setImportMode(value as ImportMode)}
+                  className="space-y-3"
+                >
+                  <div className="flex items-start space-x-3">
+                    <RadioGroupItem value="clear" id="mode-clear" />
+                    <div className="space-y-1">
+                      <Label htmlFor="mode-clear" className="flex items-center gap-2 font-medium cursor-pointer">
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                        Bestehende Daten löschen (empfohlen für Testdaten)
+                      </Label>
+                      <p className="text-sm text-muted-foreground">
+                        Löscht alle bestehenden Daten in den Import-Tabellen vor dem Import.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-start space-x-3">
+                    <RadioGroupItem value="update" id="mode-update" />
+                    <div className="space-y-1">
+                      <Label htmlFor="mode-update" className="flex items-center gap-2 font-medium cursor-pointer">
+                        <RefreshCw className="h-4 w-4 text-primary" />
+                        Bestehende aktualisieren
+                      </Label>
+                      <p className="text-sm text-muted-foreground">
+                        Aktualisiert bestehende Datensätze mit CSV-Daten, fügt neue hinzu.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-start space-x-3">
+                    <RadioGroupItem value="skip" id="mode-skip" />
+                    <div className="space-y-1">
+                      <Label htmlFor="mode-skip" className="flex items-center gap-2 font-medium cursor-pointer">
+                        <SkipForward className="h-4 w-4 text-amber-600" />
+                        Duplikate überspringen
+                      </Label>
+                      <p className="text-sm text-muted-foreground">
+                        Bestehende Datensätze bleiben unverändert, nur neue werden hinzugefügt.
+                      </p>
+                    </div>
+                  </div>
+                </RadioGroup>
+              </div>
+
+              {importMode === "clear" && (
+                <Alert variant="destructive">
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertDescription>
+                    <strong>Achtung:</strong> Alle bestehenden Daten in den Import-Tabellen werden gelöscht!
+                    Dies kann nicht rückgängig gemacht werden.
+                  </AlertDescription>
+                </Alert>
+              )}
+            </div>
+          </CardContent>
         </Card>
 
         <div className="grid gap-4">
