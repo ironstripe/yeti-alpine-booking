@@ -1,96 +1,70 @@
 
-# Fix Status Display Inconsistency Between Booking Overview and Detail
+# Fix Scheduler Date Range Adaptation
 
-## Problem Summary
-The bookings overview shows "Ausstehend" (Pending) while the detail page shows "Bestätigt" (Confirmed) for the same booking. This occurs because:
-
-- **Overview**: Uses `BookingStatusBadge` with instructor confirmation logic
-- **Detail Page**: Directly displays `ticket.status` without checking instructor confirmation
+## Problem
+When pressing the "Today" button (Target icon), the scheduler jumps to today's date but keeps the current view mode (e.g., weekly), showing 7 days instead of just today. Users expect pressing "Today" to show only that day.
 
 ## Root Cause
-The detail page (`BookingDetail.tsx` lines 236-239) displays status using simple logic:
+The `goToToday` function in `SchedulerHeader.tsx` only updates the date, not the view mode:
+
 ```typescript
-<Badge variant={ticket.status === 'confirmed' ? 'default' : 'secondary'}>
-  {ticket.status === 'confirmed' ? 'Bestätigt' : ticket.status}
-</Badge>
+const goToToday = () => onDateChange(new Date());
 ```
 
-This ignores the `instructor_confirmation` field on ticket items, which the overview correctly considers.
+The view mode remains unchanged (default: `weekly`), so `getDaysForViewMode("weekly")` returns 7, and the grid renders 7 days.
 
 ## Solution
-
-### File to Modify: `src/pages/BookingDetail.tsx`
-
-**Change:** Replace the inline status Badge with the `BookingStatusBadge` component used in the overview.
-
-**Current Code (lines 236-239):**
-```typescript
-<Badge variant={ticket.status === 'confirmed' ? 'default' : 'secondary'}>
-  {ticket.status === 'confirmed' ? 'Bestätigt' : ticket.status}
-</Badge>
-```
-
-**New Code:**
-```typescript
-<BookingStatusBadge
-  status={ticket.status}
-  paymentStatus={computedPaymentStatus}
-  hasUnconfirmedInstructor={hasUnconfirmedInstructor}
-/>
-```
-
-### Additional Changes:
-
-1. **Add Import:** Import `BookingStatusBadge` from `@/components/bookings/BookingStatusBadge`
-
-2. **Compute Required Values:** Add computation logic before the return statement:
-```typescript
-// Compute payment status
-const totalAmount = ticket.total_amount || 0;
-const paidAmount = ticket.paid_amount || 0;
-let computedPaymentStatus: "paid" | "open" | "overdue" | "partial" = "open";
-if (paidAmount >= totalAmount && totalAmount > 0) {
-  computedPaymentStatus = "paid";
-} else if (paidAmount > 0 && paidAmount < totalAmount) {
-  computedPaymentStatus = "partial";
-}
-
-// Check for unconfirmed instructors
-const hasUnconfirmedInstructor = ticket.items?.some(
-  (item: any) => item.instructor_id && item.instructor_confirmation !== "confirmed"
-) || false;
-```
+Modify the "Today" button to also switch to daily view mode, making the behavior intuitive.
 
 ---
 
-## Technical Details
+## Technical Implementation
 
-### Status Priority Logic (preserved from `BookingStatusBadge`):
-1. **Cancelled** → 🔴 Storniert
-2. **Draft** → ⚪ Entwurf  
-3. **Unconfirmed Instructor** → 🟠 Ausstehend
-4. **Paid** → 🟢 Bezahlt
-5. **Partial** → 🟡 Teilbezahlt
-6. **Open** → 🟡 Offen
+### File: `src/components/scheduler/SchedulerHeader.tsx`
 
-### Data Flow:
-```text
-ticket_items.instructor_confirmation = "pending"
-         ↓
-hasUnconfirmedInstructor = true
-         ↓
-BookingStatusBadge shows "🟠 Ausstehend"
+**Change 1:** Update the `goToToday` function to also change the view mode
+
+**Current code (line 79):**
+```typescript
+const goToToday = () => onDateChange(new Date());
 ```
+
+**New code:**
+```typescript
+const goToToday = () => {
+  onDateChange(new Date());
+  onViewModeChange("daily");
+};
+```
+
+This ensures that when users click "Today":
+1. The date is set to today
+2. The view mode switches to "daily" (1 day)
 
 ---
 
-## Expected Outcome
-After implementation:
-- Both overview and detail pages show **"🟠 Ausstehend"** for bookings with pending instructor confirmations
-- Status display is consistent across the entire application
-- Users can trust that the same status is shown everywhere
+## Alternative Consideration
+
+If users sometimes want to keep the current view mode when jumping to today, we could:
+- **Option A (Recommended):** Always switch to daily view when pressing "Today" (clear expectation)
+- **Option B:** Add a separate "Today" button that keeps the current view mode, and rename the current one to "Go to Today (Daily)"
+
+The recommended approach (Option A) is simpler and matches user expectations based on the reported issue.
+
+---
+
+## Expected Behavior After Fix
+
+| Action | Before | After |
+|--------|--------|-------|
+| Press "Today" while in Weekly view | Shows 7 days starting from today | Shows only today (1 day) |
+| Press "Today" while in 3-Day view | Shows 3 days starting from today | Shows only today (1 day) |
+| Press "Today" while in Daily view | Shows today | Shows today (no change) |
+
+---
 
 ## Files Changed
+
 | File | Change |
 |------|--------|
-| `src/pages/BookingDetail.tsx` | Add import, compute values, use `BookingStatusBadge` component |
+| `src/components/scheduler/SchedulerHeader.tsx` | Update `goToToday` to also call `onViewModeChange("daily")` |
