@@ -1,5 +1,8 @@
 project_id = "pgrlrsrjwyixndmrzhct"
 
+[functions.generate-test-bookings]
+verify_jwt = false
+
 [functions.notify-absence]
 verify_jwt = false
 
