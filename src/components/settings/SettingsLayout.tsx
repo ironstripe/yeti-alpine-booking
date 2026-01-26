@@ -1,6 +1,6 @@
 import { ReactNode } from "react";
 import { NavLink, useLocation } from "react-router-dom";
-import { Building2, Package, DollarSign, CalendarDays, Users, Mail, Bell, Settings2, Brain, ClipboardList } from "lucide-react";
+import { Building2, Package, DollarSign, CalendarDays, Users, Mail, Bell, Settings2, Brain, ClipboardList, Upload } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -15,6 +15,7 @@ const settingsNav = [
   { title: "E-Mail Vorlagen", url: "/settings/emails", icon: Mail },
   { title: "Benachrichtigungen", url: "/settings/notifications", icon: Bell },
   { title: "KI-Einstellungen", url: "/settings/ai", icon: Brain },
+  { title: "Datenimport", url: "/settings/import", icon: Upload },
   { title: "System", url: "/settings/system", icon: Settings2 },
 ];
 

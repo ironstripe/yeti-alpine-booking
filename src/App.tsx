@@ -62,6 +62,7 @@ import SettingsEmailTemplates from "./pages/SettingsEmailTemplates";
 import SettingsEmailTemplateEdit from "./pages/SettingsEmailTemplateEdit";
 import SettingsNotifications from "./pages/SettingsNotifications";
 import SettingsAI from "./pages/SettingsAI";
+import SettingsDataImport from "./pages/SettingsDataImport";
 import SettingsSystem from "./pages/SettingsSystem";
 
 const queryClient = new QueryClient({
@@ -174,6 +175,7 @@ const AppRoutes = () => (
       <Route path="settings/emails/:id" element={<SettingsEmailTemplateEdit />} />
       <Route path="settings/notifications" element={<SettingsNotifications />} />
       <Route path="settings/ai" element={<SettingsAI />} />
+      <Route path="settings/import" element={<SettingsDataImport />} />
       <Route path="settings/system" element={<SettingsSystem />} />
     </Route>
 
