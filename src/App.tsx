@@ -56,6 +56,7 @@ import SettingsSchool from "./pages/SettingsSchool";
 import SettingsProducts from "./pages/SettingsProducts";
 import SettingsPricing from "./pages/SettingsPricing";
 import SettingsSeasons from "./pages/SettingsSeasons";
+import SettingsDailyTasks from "./pages/SettingsDailyTasks";
 import SettingsUsers from "./pages/SettingsUsers";
 import SettingsEmailTemplates from "./pages/SettingsEmailTemplates";
 import SettingsEmailTemplateEdit from "./pages/SettingsEmailTemplateEdit";
@@ -167,6 +168,7 @@ const AppRoutes = () => (
       <Route path="settings/products" element={<SettingsProducts />} />
       <Route path="settings/pricing" element={<SettingsPricing />} />
       <Route path="settings/seasons" element={<SettingsSeasons />} />
+      <Route path="settings/daily-tasks" element={<SettingsDailyTasks />} />
       <Route path="settings/users" element={<SettingsUsers />} />
       <Route path="settings/emails" element={<SettingsEmailTemplates />} />
       <Route path="settings/emails/:id" element={<SettingsEmailTemplateEdit />} />

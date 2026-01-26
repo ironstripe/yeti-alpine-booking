@@ -658,6 +658,77 @@ export type Database = {
         }
         Relationships: []
       }
+      daily_task_completions: {
+        Row: {
+          completed_at: string | null
+          completed_by: string | null
+          completed_date: string
+          id: string
+          template_id: string | null
+        }
+        Insert: {
+          completed_at?: string | null
+          completed_by?: string | null
+          completed_date: string
+          id?: string
+          template_id?: string | null
+        }
+        Update: {
+          completed_at?: string | null
+          completed_by?: string | null
+          completed_date?: string
+          id?: string
+          template_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "daily_task_completions_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "daily_task_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      daily_task_templates: {
+        Row: {
+          created_at: string | null
+          due_time: string | null
+          id: string
+          is_active: boolean | null
+          linked_action: string | null
+          recurrence: string
+          sort_order: number | null
+          title: string
+          updated_at: string | null
+          weekdays: number[] | null
+        }
+        Insert: {
+          created_at?: string | null
+          due_time?: string | null
+          id?: string
+          is_active?: boolean | null
+          linked_action?: string | null
+          recurrence: string
+          sort_order?: number | null
+          title: string
+          updated_at?: string | null
+          weekdays?: number[] | null
+        }
+        Update: {
+          created_at?: string | null
+          due_time?: string | null
+          id?: string
+          is_active?: boolean | null
+          linked_action?: string | null
+          recurrence?: string
+          sort_order?: number | null
+          title?: string
+          updated_at?: string | null
+          weekdays?: number[] | null
+        }
+        Relationships: []
+      }
       email_logs: {
         Row: {
           click_count: number | null

@@ -6,7 +6,7 @@ import { NewRequestsBox } from "@/components/dashboard/NewRequestsBox";
 import { OpenBookingsBox } from "@/components/dashboard/OpenBookingsBox";
 import { ActionRequiredBox } from "@/components/dashboard/ActionRequiredBox";
 import { AbsenceRequestsBox } from "@/components/dashboard/AbsenceRequestsBox";
-import { DailyTasksPlaceholder } from "@/components/dashboard/DailyTasksPlaceholder";
+import { DailyTaskList } from "@/components/dashboard/DailyTaskList";
 import { CompactDailySchedule } from "@/components/dashboard/CompactDailySchedule";
 
 const Dashboard = () => {
@@ -31,8 +31,8 @@ const Dashboard = () => {
         <AbsenceRequestsBox />
       </div>
 
-      {/* 3. Daily Tasks Checklist (Placeholder) */}
-      <DailyTasksPlaceholder />
+      {/* 3. Daily Tasks Checklist */}
+      <DailyTaskList />
 
       {/* 4. Compact Daily Schedule */}
       <CompactDailySchedule />
