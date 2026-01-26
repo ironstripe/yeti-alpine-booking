@@ -74,14 +74,29 @@ Deno.serve(async (req) => {
       supabase.from("products").select("id, name, product_type, price").eq("is_active", true),
     ]);
 
+    console.log("Instructors query:", { data: instructorsRes.data?.length, error: instructorsRes.error });
+    console.log("Customers query:", { data: customersRes.data?.length, error: customersRes.error });
+    console.log("Products query:", { data: productsRes.data?.length, error: productsRes.error });
+
     const instructors = instructorsRes.data || [];
     const customers = customersRes.data || [];
     const participants = participantsRes.data || [];
     const products = productsRes.data || [];
 
     if (instructors.length === 0 || customers.length === 0 || products.length === 0) {
+      console.log("Missing data - instructors:", instructors.length, "customers:", customers.length, "products:", products.length);
       return new Response(
-        JSON.stringify({ error: "Not enough reference data (instructors, customers, or products)" }),
+        JSON.stringify({ 
+          error: "Not enough reference data (instructors, customers, or products)",
+          debug: {
+            instructors: instructors.length,
+            customers: customers.length,
+            products: products.length,
+            instructorsError: instructorsRes.error,
+            customersError: customersRes.error,
+            productsError: productsRes.error,
+          }
+        }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
