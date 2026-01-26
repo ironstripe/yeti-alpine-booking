@@ -76,7 +76,10 @@ export function SchedulerHeader({
 
   const goToPreviousDay = () => onDateChange(subDays(date, 1));
   const goToNextDay = () => onDateChange(addDays(date, 1));
-  const goToToday = () => onDateChange(new Date());
+  const goToToday = () => {
+    onDateChange(new Date());
+    onViewModeChange("daily");
+  };
 
   // Filter instructors by search query
   const filteredInstructors = instructorOptions.filter((instructor) =>
