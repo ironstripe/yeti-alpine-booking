@@ -1,12 +1,14 @@
 import { ReactNode } from "react";
-import { Navigate, Outlet, useLocation } from "react-router-dom";
+import { Navigate, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { AppSidebar } from "./AppSidebar";
 import { BottomNav } from "./BottomNav";
 import { MobileHeader } from "./MobileHeader";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { ConnectionStatus } from "@/components/ui/connection-status";
-import { Loader2 } from "lucide-react";
+import { CommandBarTrigger } from "@/components/CommandBarTrigger";
+import { Button } from "@/components/ui/button";
+import { Loader2, Plus } from "lucide-react";
 
 interface AppLayoutProps {
   children?: ReactNode;
@@ -15,6 +17,7 @@ interface AppLayoutProps {
 export function AppLayout({ children }: AppLayoutProps) {
   const { user, loading } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
 
   // Show loading spinner while checking auth state
   if (loading) {
@@ -43,8 +46,19 @@ export function AppLayout({ children }: AppLayoutProps) {
         {/* Mobile Header */}
         <MobileHeader />
 
-        {/* Desktop Header with Notifications */}
-        <div className="hidden md:flex h-14 border-b border-border items-center justify-end px-6 bg-card">
+        {/* Desktop Header with Command Bar and Notifications */}
+        <div className="hidden md:flex h-14 border-b border-border items-center justify-between px-6 bg-card">
+          <div className="flex items-center gap-4">
+            <CommandBarTrigger />
+            <Button
+              size="sm"
+              onClick={() => navigate("/bookings/new")}
+              className="gap-1"
+            >
+              <Plus className="h-4 w-4" />
+              Neue Buchung
+            </Button>
+          </div>
           <NotificationBell />
         </div>
 
