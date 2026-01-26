@@ -21,6 +21,7 @@ import { PageHeader } from "@/components/layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { BookingStatusBadge } from "@/components/bookings/BookingStatusBadge";
 import { Separator } from "@/components/ui/separator";
 import {
   Dialog,
@@ -206,6 +207,21 @@ const BookingDetail = () => {
     amount: item.line_total || item.unit_price || 0,
   })) || [];
 
+  // Compute payment status for BookingStatusBadge
+  const totalAmount = ticket.total_amount || 0;
+  const paidAmount = ticket.paid_amount || 0;
+  let computedPaymentStatus: "paid" | "open" | "overdue" | "partial" = "open";
+  if (paidAmount >= totalAmount && totalAmount > 0) {
+    computedPaymentStatus = "paid";
+  } else if (paidAmount > 0 && paidAmount < totalAmount) {
+    computedPaymentStatus = "partial";
+  }
+
+  // Check for unconfirmed instructors
+  const hasUnconfirmedInstructor = ticket.items?.some(
+    (item: any) => item.instructor_id && item.instructor_confirmation !== "confirmed"
+  ) || false;
+
   return (
     <>
       <PageHeader
@@ -234,9 +250,11 @@ const BookingDetail = () => {
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
                   <p className="text-sm text-muted-foreground">Status</p>
-                  <Badge variant={ticket.status === 'confirmed' ? 'default' : 'secondary'}>
-                    {ticket.status === 'confirmed' ? 'Bestätigt' : ticket.status}
-                  </Badge>
+                  <BookingStatusBadge
+                    status={ticket.status}
+                    paymentStatus={computedPaymentStatus}
+                    hasUnconfirmedInstructor={hasUnconfirmedInstructor}
+                  />
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Gesamtbetrag</p>
