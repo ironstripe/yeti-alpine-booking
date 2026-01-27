@@ -4,7 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
-import { Plus, Users, X, Loader2, CalendarIcon, AlertTriangle } from "lucide-react";
+import { Plus, Users, X, Loader2, AlertTriangle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -19,8 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Calendar } from "@/components/ui/calendar";
+import { EnhancedDatePicker } from "@/components/ui/enhanced-date-picker";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { cn } from "@/lib/utils";
 import { Participant } from "@/hooks/useCustomerDetail";
@@ -151,34 +150,16 @@ export function FamilyHub({
 
               <div className="space-y-2">
                 <Label>Geburtsdatum *</Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className={cn(
-                        "w-full justify-start text-left font-normal",
-                        !watchedBirthDate && "text-muted-foreground"
-                      )}
-                    >
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {watchedBirthDate
-                        ? format(watchedBirthDate, "d. MMMM yyyy", { locale: de })
-                        : "Datum wählen"}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar
-                      mode="single"
-                      selected={watchedBirthDate}
-                      onSelect={(date) => date && setValue("birth_date", date)}
-                      disabled={(date) =>
-                        date > new Date() || date < new Date("1900-01-01")
-                      }
-                      initialFocus
-                      className="pointer-events-auto"
-                    />
-                  </PopoverContent>
-                </Popover>
+                <EnhancedDatePicker
+                  value={watchedBirthDate}
+                  onChange={(date) => date && setValue("birth_date", date)}
+                  placeholder="Datum wählen"
+                  disabled={(date) =>
+                    date > new Date() || date < new Date("1900-01-01")
+                  }
+                  minYear={1900}
+                  maxYear={new Date().getFullYear()}
+                />
                 {errors.birth_date && (
                   <p className="text-sm text-destructive">
                     {errors.birth_date.message}
