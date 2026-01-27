@@ -65,6 +65,8 @@ interface GroupCourseOption {
   currentCount: number;
   color: string | null;
   meeting_point: string | null;
+  min_age: number | null;
+  max_age: number | null;
 }
 
 export function ParticipantBookingCard({
@@ -105,7 +107,9 @@ export function ParticipantBookingCard({
           max_participants,
           color,
           meeting_point,
-          course_type
+          course_type,
+          min_age,
+          max_age
         `)
         .eq("is_active", true);
 
@@ -128,21 +132,41 @@ export function ParticipantBookingCard({
         );
       });
 
-      return coursesData.map((course) => ({
-        ...course,
-        currentCount: enrollmentMap[course.id] || 0,
-      })) as GroupCourseOption[];
+      // Filter by participant age and map to options
+      return coursesData
+        .filter((course) => {
+          // Filter by age if participant has birth date and course has age constraints
+          if (age !== null && course.min_age != null && course.max_age != null) {
+            if (age < course.min_age || age > course.max_age) {
+              return false;
+            }
+          }
+          return true;
+        })
+        .map((course) => ({
+          ...course,
+          currentCount: enrollmentMap[course.id] || 0,
+        })) as GroupCourseOption[];
     },
     enabled: booking.dates.length > 0 && booking.productType === "group",
   });
 
-  // Get recommended course based on participant's level
+  // Get recommended course based on participant's level (age already filtered in query)
   const recommendedCourseId = useMemo(() => {
-    if (!participant.level_current_season || groupCourses.length === 0) return null;
+    if (groupCourses.length === 0) return null;
+    
     const targetSkill = mapLevelToCourseSkill(participant.level_current_season);
-    const match = groupCourses.find(
+    
+    // First try: exact skill match with capacity
+    let match = groupCourses.find(
       (c) => c.skill_level === targetSkill && c.currentCount < c.max_participants
     );
+    
+    // Fallback: if no exact skill match, pick first age-appropriate course with capacity
+    if (!match) {
+      match = groupCourses.find((c) => c.currentCount < c.max_participants);
+    }
+    
     return match?.id || null;
   }, [participant.level_current_season, groupCourses]);
 
