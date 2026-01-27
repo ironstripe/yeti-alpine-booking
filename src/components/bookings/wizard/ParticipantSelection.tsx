@@ -283,7 +283,7 @@ export function ParticipantSelection({
                       disabled={(date) =>
                         date > new Date() || date < new Date("1900-01-01")
                       }
-                      minYear={2000}
+                      minYear={1900}
                       maxYear={new Date().getFullYear()}
                     />
                   </FormControl>
