@@ -1,115 +1,115 @@
 
-Goal
-- When creating a group booking with multiple participants who have different ski levels, the wizard must automatically switch into participant-specific booking mode and assign each participant to an appropriate group (with the option to adjust), matching the behavior you expect.
+# Fix Group Course Recommendation Logic for Age and Level Matching
 
-What I found (why it’s “not solved”)
-- The wizard page `/bookings/new` renders `Step2ProductAllocation.tsx` for step 2.
-- The “auto-enable individual booking mode” logic we added earlier lives in `Step2ProductDates.tsx`, but that component is not used anywhere in the current wizard flow.
-- Therefore the UI you show in the screenshot is still the shared `GroupSelector` inside `Step2ProductAllocation.tsx`, which explicitly warns: “Alle werden in dieselbe Gruppe eingeschrieben.”
+## Problem Summary
+Robin Streiff (12 years old, blue_star level) is incorrectly being recommended "Windel Wedel Kurs" (toddler course for ages 3-4). The system should recommend "Blauer Star" course which is designed for intermediate level participants aged 5-16.
 
-Scope of fix
-A) Fix the Step 2 UI so the correct mode is activated (and the shared group selector disappears)
-B) Fix booking creation so that, when participant-specific mode is used, the backend enrollment records are created per participant and per selected group (not only for one shared group)
+## Root Causes
 
-Implementation plan
+### 1. Incorrect Level Mapping
+The `mapLevelToCourseSkill` function in `src/lib/level-utils.ts` maps `blue_star` → `"beginner"`, but looking at the database:
+- "Blauer Star" course has `skill_level: "intermediate"`
+- "Blauer Prinz/Prinzessin" courses have `skill_level: "beginner"`
 
-1) Update Step 2 (active wizard screen) to support participant-specific mode for group bookings
-Files
-- src/components/bookings/wizard/Step2ProductAllocation.tsx
-- (re-use existing) src/components/bookings/wizard/ParticipantBookingCard.tsx
-- (re-use existing) src/contexts/BookingWizardContext.tsx (only if we need a small helper tweak)
+So `blue_star` should actually map to `"intermediate"`.
 
-Changes
-1.1 Add mismatch detection to Step2ProductAllocation
-- Add `hasDifferentLevels`:
-  - Normalize levels (treat null/undefined as "unknown") OR use `mapLevelToCourseSkill` to detect mismatch.
-- Add `hasAgeMismatch` (toddler + older) to mirror existing behavior expectations.
+### 2. No Age Filtering
+The course recommendation logic in `ParticipantBookingCard.tsx` doesn't check the participant's age against the course's `min_age`/`max_age` constraints.
 
-1.2 Auto-enable participant-specific booking mode in Step2ProductAllocation (the screen you’re actually using)
-- Add a `useEffect` in Step2ProductAllocation:
-  - Trigger when:
-    - productType === "group"
-    - selectedParticipants.length > 1
-    - (hasDifferentLevels || hasAgeMismatch)
-    - NOT already in participant-specific mode
-  - Actions:
-    - Clear shared group selection (`setSelectedGroupId(null)`) so we don’t “carry over” one group to everyone.
-    - Initialize participant bookings (`initializeParticipantBookings()`).
-    - Enable participant-specific mode (`setUseParticipantSpecificBooking(true)`).
+---
 
-1.3 Render participant cards in Step2ProductAllocation when participant mode is active
-- In the group-course section of Step2ProductAllocation:
-  - If `state.useParticipantSpecificBooking === true`:
-    - Replace the shared “2 Teilnehmer werden … eingeschrieben” preview + `GroupSelector` with:
-      - A short info banner: “Individuelle Buchung aktiviert – Teilnehmer werden automatisch in passende Kurse eingeschrieben.”
-      - A list of `ParticipantBookingCard` for each participant (already built to:
-        - auto-recommend a group per participant level
-        - allow adjustments
-        - handle lunch days per participant)
-    - Hide `LunchSupervisionAddon` in this mode to avoid conflicting sources of truth (in participant mode lunch is stored in `participantBookings`, while the add-on edits `lunchSelections`).
+## Implementation Plan
 
-Expected UI result
-- As soon as “Gruppe” is selected and the system detects different levels:
-  - The screen switches away from the shared group dropdown.
-  - You see one card per participant with its own group dropdown.
-  - Each participant gets auto-assigned to a suitable group (if available capacity exists).
+### File 1: `src/lib/level-utils.ts`
 
-2) Fix booking creation so enrollments are created per participant-selected group (participant-specific mode)
-Why this is necessary
-- Even if the UI is corrected, the current booking creation logic only creates group enrollments for `state.selectedGroupId` (a single shared group).
-- In participant-specific mode we need enrollments for each participant’s `participantBookings[participantId].groupCourseId`.
+**Fix the level mapping** to correctly match the database course skill levels:
 
-File
-- src/hooks/useCreateBooking.ts
+```typescript
+// Current (WRONG):
+const levelMap: Record<string, string> = {
+  anfaenger: "beginner",
+  blue_star: "beginner",     // ❌ Maps to wrong skill
+  ...
+};
 
-Changes
-2.1 Make the inserted ticket_items query include fields needed to correctly link enrollments
-- Change the insert `.select(...)` to include at least:
-  - `id, participant_id, date, item_type, product_id`
-- This avoids accidentally linking group enrollments to the participant’s lunch item (same participant_id/date).
+// Fixed:
+const levelMap: Record<string, string> = {
+  anfaenger: "beginner",
+  blue_star: "intermediate",  // ✅ Matches "Blauer Star" course
+  ...
+};
+```
 
-2.2 Add participant-specific group enrollment path
-- If `state.useParticipantSpecificBooking`:
-  - For each participant:
-    - Read `pBooking`
-    - If `pBooking.productType === "group"` and `pBooking.groupCourseId` exists:
-      - For each date in `pBooking.dates`:
-        - Get-or-create `group_course_instance` for (course_id = pBooking.groupCourseId, date)
-          - Use course schedules to set instance start/end time (same logic as today, but per course)
-        - Find the matching inserted “group” ticket_item for this participant/date
-        - Insert `group_course_enrollments` row pointing to:
-          - instance_id
-          - participant_id (null for guests)
-          - ticket_item_id
-        - Update instance `current_participants` (count enrollments per instance)
-- Keep existing shared-mode enrollment logic as-is for non-participant-specific bookings.
+### File 2: `src/components/bookings/wizard/ParticipantBookingCard.tsx`
 
-3) Verification steps (what I’ll test in the preview)
-UI
-- Go to /bookings/new, pick a customer with 2 participants of different levels
-- Select “Gruppe” + pick course days
-- Confirm:
-  - The wizard automatically switches to per-participant cards
-  - Each participant has an auto-selected group matching their level (where capacity permits)
+**Add age filtering when fetching and recommending group courses:**
 
-Data (backend)
-- Create the booking
-- Confirm:
-  - Ticket items exist for each participant/date
-  - Group enrollments exist in the correct course instances for each participant (not all in one shared course)
-  - Instance participant counts are updated
+1. Update the query to include `min_age` and `max_age` fields
+2. Filter courses where participant age is within the `min_age`-`max_age` range
+3. Only recommend courses that match both skill level AND age constraints
 
-Edge cases handled
-- If user already picked a shared group before the auto-switch triggers:
-  - We explicitly clear `selectedGroupId` when enabling participant-specific mode to prevent “everyone stays in the same group” as in your screenshot.
-- Missing levels:
-  - Treated as “unknown” so mixed known/unknown also triggers participant-specific mode (safer than silently forcing same group).
-- Capacity issues:
-  - ParticipantBookingCard already disables full courses and shows capacity; user can adjust if the recommended option is full.
+```typescript
+// In the query (around line 99-134):
+.select(`
+  id, name, skill_level, max_participants, color, meeting_point, course_type,
+  min_age, max_age  // Add these fields
+`)
 
-Deliverables (code changes)
-- Step2ProductAllocation: add mismatch detection + auto-enable + participant-card rendering in group mode
-- useCreateBooking: participant-specific enrollment creation and safer ticket_item linkage for enrollments
+// In course filtering/mapping:
+return coursesData
+  .filter(course => {
+    // Filter by age if participant has birth date
+    if (age !== null && course.min_age != null && course.max_age != null) {
+      if (age < course.min_age || age > course.max_age) {
+        return false;
+      }
+    }
+    return true;
+  })
+  .map(course => ({ ... }));
 
-Outcome
-- The wizard will behave like you expect: when participants differ in level, they will not be pushed into one shared group. Each participant will get their own appropriate group assignment, automatically, with correct enrollment records created when the booking is finalized.
+// Update recommended course logic (around line 140-147):
+const recommendedCourseId = useMemo(() => {
+  if (!participant.level_current_season || groupCourses.length === 0) return null;
+  
+  const targetSkill = mapLevelToCourseSkill(participant.level_current_season);
+  
+  // First try: exact skill match with capacity
+  let match = groupCourses.find(
+    (c) => c.skill_level === targetSkill && c.currentCount < c.max_participants
+  );
+  
+  // Fallback: if no skill match, pick first course with capacity (age already filtered)
+  if (!match) {
+    match = groupCourses.find(c => c.currentCount < c.max_participants);
+  }
+  
+  return match?.id || null;
+}, [participant.level_current_season, groupCourses]);
+```
+
+---
+
+## Expected Behavior After Fix
+
+| Participant | Age | Level | Before (Wrong) | After (Correct) |
+|-------------|-----|-------|----------------|-----------------|
+| Robin | 12 J. | blue_star | Windel Wedel Kurs | Blauer Star |
+| Toddler | 4 J. | anfaenger | Any beginner course | Windel Wedel Kurs (age-appropriate) |
+| Child | 8 J. | anfaenger | Any beginner course | Blauer Prinz (age-appropriate) |
+
+---
+
+## Files to Modify
+
+| File | Change |
+|------|--------|
+| `src/lib/level-utils.ts` | Fix `blue_star` mapping: "beginner" → "intermediate" |
+| `src/components/bookings/wizard/ParticipantBookingCard.tsx` | Add age-based course filtering and fallback logic |
+
+---
+
+## UI Display Update
+
+The green confirmation text will now correctly show:
+- "Automatisch passend zum Niveau 'Blue Star' zugewiesen" (instead of showing blue_star → toddler course)
