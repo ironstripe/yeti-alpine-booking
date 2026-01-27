@@ -122,17 +122,17 @@ export function mapLevelToCourseSkill(participantLevel: string | null): string {
   const normalizedLevel = participantLevel.toLowerCase();
   
   const levelMap: Record<string, string> = {
-    // Beginners
+    // Beginners (Anfänger, no prior experience)
     anfaenger: "beginner",
-    blue_star: "beginner",
     unknown: "beginner",
     
-    // Intermediate → Advanced (no intermediate courses available)
+    // Intermediate (Blue Star = "Blauer Star" course)
+    blue_star: "intermediate",
+    
+    // Advanced (Prince/King levels)
     blue_prince: "advanced",
     blue_king: "advanced",
     intermediate: "advanced",
-    
-    // Advanced
     red_prince: "advanced",
     red_king: "advanced",
     black_prince: "advanced",
