@@ -1,140 +1,115 @@
 
-# Auto-Enable Individual Booking Mode for Multi-Participant Group Bookings with Different Skill Levels
+Goal
+- When creating a group booking with multiple participants who have different ski levels, the wizard must automatically switch into participant-specific booking mode and assign each participant to an appropriate group (with the option to adjust), matching the behavior you expect.
 
-## Problem Summary
-When creating a group booking with multiple participants who have different skill levels (e.g., Lisa is "beginner" and Robin is "advanced"), the system currently:
-1. Displays a warning about the level mismatch
-2. Still allows booking all participants into the same group
-3. Requires manual activation of "Individuelle Buchung" (Individual Booking) mode
+What I found (why it’s “not solved”)
+- The wizard page `/bookings/new` renders `Step2ProductAllocation.tsx` for step 2.
+- The “auto-enable individual booking mode” logic we added earlier lives in `Step2ProductDates.tsx`, but that component is not used anywhere in the current wizard flow.
+- Therefore the UI you show in the screenshot is still the shared `GroupSelector` inside `Step2ProductAllocation.tsx`, which explicitly warns: “Alle werden in dieselbe Gruppe eingeschrieben.”
 
-The expected behavior is that each participant should be automatically booked into an appropriate group matching their skill level.
+Scope of fix
+A) Fix the Step 2 UI so the correct mode is activated (and the shared group selector disappears)
+B) Fix booking creation so that, when participant-specific mode is used, the backend enrollment records are created per participant and per selected group (not only for one shared group)
 
-## Solution Overview
-Auto-enable "Individual Booking" mode when:
-- Product type is "group" (Gruppenkurs)
-- Multiple participants are selected
-- Participants have different skill levels
+Implementation plan
 
-This matches the behavior expected from inbox-originated bookings where the AI suggests participant-specific configurations.
+1) Update Step 2 (active wizard screen) to support participant-specific mode for group bookings
+Files
+- src/components/bookings/wizard/Step2ProductAllocation.tsx
+- (re-use existing) src/components/bookings/wizard/ParticipantBookingCard.tsx
+- (re-use existing) src/contexts/BookingWizardContext.tsx (only if we need a small helper tweak)
 
----
+Changes
+1.1 Add mismatch detection to Step2ProductAllocation
+- Add `hasDifferentLevels`:
+  - Normalize levels (treat null/undefined as "unknown") OR use `mapLevelToCourseSkill` to detect mismatch.
+- Add `hasAgeMismatch` (toddler + older) to mirror existing behavior expectations.
 
-## Technical Implementation
+1.2 Auto-enable participant-specific booking mode in Step2ProductAllocation (the screen you’re actually using)
+- Add a `useEffect` in Step2ProductAllocation:
+  - Trigger when:
+    - productType === "group"
+    - selectedParticipants.length > 1
+    - (hasDifferentLevels || hasAgeMismatch)
+    - NOT already in participant-specific mode
+  - Actions:
+    - Clear shared group selection (`setSelectedGroupId(null)`) so we don’t “carry over” one group to everyone.
+    - Initialize participant bookings (`initializeParticipantBookings()`).
+    - Enable participant-specific mode (`setUseParticipantSpecificBooking(true)`).
 
-### File 1: `src/components/bookings/wizard/Step2ProductDates.tsx`
+1.3 Render participant cards in Step2ProductAllocation when participant mode is active
+- In the group-course section of Step2ProductAllocation:
+  - If `state.useParticipantSpecificBooking === true`:
+    - Replace the shared “2 Teilnehmer werden … eingeschrieben” preview + `GroupSelector` with:
+      - A short info banner: “Individuelle Buchung aktiviert – Teilnehmer werden automatisch in passende Kurse eingeschrieben.”
+      - A list of `ParticipantBookingCard` for each participant (already built to:
+        - auto-recommend a group per participant level
+        - allow adjustments
+        - handle lunch days per participant)
+    - Hide `LunchSupervisionAddon` in this mode to avoid conflicting sources of truth (in participant mode lunch is stored in `participantBookings`, while the add-on edits `lunchSelections`).
 
-**Change 1**: Add `useEffect` to auto-enable individual booking mode when group course is selected with level mismatch
+Expected UI result
+- As soon as “Gruppe” is selected and the system detects different levels:
+  - The screen switches away from the shared group dropdown.
+  - You see one card per participant with its own group dropdown.
+  - Each participant gets auto-assigned to a suitable group (if available capacity exists).
 
-After the existing `handleEnableParticipantMode` function (around line 231), add a new effect:
+2) Fix booking creation so enrollments are created per participant-selected group (participant-specific mode)
+Why this is necessary
+- Even if the UI is corrected, the current booking creation logic only creates group enrollments for `state.selectedGroupId` (a single shared group).
+- In participant-specific mode we need enrollments for each participant’s `participantBookings[participantId].groupCourseId`.
 
-```typescript
-// Auto-enable participant-specific mode for group bookings with different levels
-useEffect(() => {
-  // Only auto-enable for group courses with multiple participants having different levels
-  if (
-    state.productType === "group" &&
-    state.selectedParticipants.length > 1 &&
-    (hasDifferentLevels || hasAgeMismatch) &&
-    !state.useParticipantSpecificBooking
-  ) {
-    // Initialize participant bookings and enable individual mode
-    initializeParticipantBookings();
-    setUseParticipantSpecificBooking(true);
-  }
-}, [
-  state.productType,
-  state.selectedParticipants.length,
-  hasDifferentLevels,
-  hasAgeMismatch,
-  state.useParticipantSpecificBooking,
-  initializeParticipantBookings,
-  setUseParticipantSpecificBooking,
-]);
-```
+File
+- src/hooks/useCreateBooking.ts
 
-**Change 2**: Update the warning message to be informational (mode is now auto-enabled)
+Changes
+2.1 Make the inserted ticket_items query include fields needed to correctly link enrollments
+- Change the insert `.select(...)` to include at least:
+  - `id, participant_id, date, item_type, product_id`
+- This avoids accidentally linking group enrollments to the participant’s lunch item (same participant_id/date).
 
-Update lines 335-384 to show as an info message rather than an action prompt when in group mode:
+2.2 Add participant-specific group enrollment path
+- If `state.useParticipantSpecificBooking`:
+  - For each participant:
+    - Read `pBooking`
+    - If `pBooking.productType === "group"` and `pBooking.groupCourseId` exists:
+      - For each date in `pBooking.dates`:
+        - Get-or-create `group_course_instance` for (course_id = pBooking.groupCourseId, date)
+          - Use course schedules to set instance start/end time (same logic as today, but per course)
+        - Find the matching inserted “group” ticket_item for this participant/date
+        - Insert `group_course_enrollments` row pointing to:
+          - instance_id
+          - participant_id (null for guests)
+          - ticket_item_id
+        - Update instance `current_participants` (count enrollments per instance)
+- Keep existing shared-mode enrollment logic as-is for non-participant-specific bookings.
 
-```typescript
-{/* Info message when individual mode was auto-enabled for group */}
-{(hasDifferentLevels || hasAgeMismatch) && state.productType === "group" && state.selectedParticipants.length > 1 && (
-  <Alert className="bg-blue-50 border-blue-300 shadow-sm">
-    <Info className="h-5 w-5 text-blue-600" />
-    <AlertDescription className="text-blue-800">
-      <div className="space-y-2">
-        <p className="font-medium">
-          Individuelle Buchung aktiviert
-        </p>
-        <p className="text-sm">
-          {hasDifferentLevels 
-            ? "Teilnehmer haben unterschiedliche Niveaus - jeder wird in den passenden Kurs eingeschrieben." 
-            : "Teilnehmer haben unterschiedliche Altersgruppen - jeder wird in den passenden Kurs eingeschrieben."
-          }
-        </p>
-      </div>
-    </AlertDescription>
-  </Alert>
-)}
-```
+3) Verification steps (what I’ll test in the preview)
+UI
+- Go to /bookings/new, pick a customer with 2 participants of different levels
+- Select “Gruppe” + pick course days
+- Confirm:
+  - The wizard automatically switches to per-participant cards
+  - Each participant has an auto-selected group matching their level (where capacity permits)
 
-**Change 3**: Keep the original warning only for private lessons (where all can still be taught together)
+Data (backend)
+- Create the booking
+- Confirm:
+  - Ticket items exist for each participant/date
+  - Group enrollments exist in the correct course instances for each participant (not all in one shared course)
+  - Instance participant counts are updated
 
-The existing warning with the "Individuelle Buchung aktivieren" button should only show when `state.productType !== "group"` or is `null` (before type is selected).
+Edge cases handled
+- If user already picked a shared group before the auto-switch triggers:
+  - We explicitly clear `selectedGroupId` when enabling participant-specific mode to prevent “everyone stays in the same group” as in your screenshot.
+- Missing levels:
+  - Treated as “unknown” so mixed known/unknown also triggers participant-specific mode (safer than silently forcing same group).
+- Capacity issues:
+  - ParticipantBookingCard already disables full courses and shows capacity; user can adjust if the recommended option is full.
 
-### File 2: `src/components/bookings/wizard/ParticipantBookingCard.tsx` (Minor Enhancement)
+Deliverables (code changes)
+- Step2ProductAllocation: add mismatch detection + auto-enable + participant-card rendering in group mode
+- useCreateBooking: participant-specific enrollment creation and safer ticket_item linkage for enrollments
 
-**Change**: Add visual indicator showing which group was auto-selected based on skill level
-
-After the group selector (around line 375), add confirmation text:
-
-```typescript
-{/* Show auto-matched info */}
-{booking.groupCourseId === recommendedCourseId && recommendedCourseId && (
-  <div className="flex items-center gap-1 text-xs text-green-600">
-    <Sparkles className="h-3 w-3" />
-    <span>Automatisch passend zum Niveau "{getLevelLabel(participant.level_current_season)}" zugewiesen</span>
-  </div>
-)}
-```
-
----
-
-## Behavior After Implementation
-
-| Scenario | Before | After |
-|----------|--------|-------|
-| 2+ participants, different levels, select "Group" | Warning shown, manual toggle required | Auto-switches to individual mode |
-| 2+ participants, same level, select "Group" | Shared booking mode | Shared booking mode (unchanged) |
-| 2+ participants, different levels, select "Private" | Warning shown, manual toggle offered | Warning shown, manual toggle offered (unchanged) |
-| AI prefill from inbox with different levels | Warning shown, manual toggle required | Auto-switches to individual mode |
-
----
-
-## Expected User Experience
-
-1. User selects customer with participants Lisa (beginner) and Robin (advanced)
-2. User chooses "Gruppenkurs" product type
-3. **System automatically switches to individual booking mode**
-4. Each participant card shows:
-   - Their recommended group course based on skill level
-   - Auto-selected best matching group with capacity
-5. Info banner explains: "Teilnehmer haben unterschiedliche Niveaus - jeder wird in den passenden Kurs eingeschrieben."
-
----
-
-## Files to Modify
-
-| File | Changes |
-|------|---------|
-| `src/components/bookings/wizard/Step2ProductDates.tsx` | Add auto-enable useEffect, update warning to info message for group mode |
-| `src/components/bookings/wizard/ParticipantBookingCard.tsx` | Add auto-match confirmation text |
-
----
-
-## Edge Cases Handled
-
-1. **Switching back to private**: If user switches from group to private, individual mode can stay enabled or be manually toggled off
-2. **Same levels**: If all participants have the same level, shared booking mode remains (no auto-enable)
-3. **Missing level data**: The `hasDifferentLevels` logic already treats `null` as "unknown", so a participant with no level differs from one with a level
-4. **Age mismatch (toddler + older)**: Also triggers auto-enable for group courses since toddlers need different courses
+Outcome
+- The wizard will behave like you expect: when participants differ in level, they will not be pushed into one shared group. Each participant will get their own appropriate group assignment, automatically, with correct enrollment records created when the booking is finalized.
