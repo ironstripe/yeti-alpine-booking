@@ -230,6 +230,29 @@ export function Step2ProductDates() {
     setUseParticipantSpecificBooking(true);
   };
 
+  // Auto-enable participant-specific mode for group bookings with different levels
+  useEffect(() => {
+    // Only auto-enable for group courses with multiple participants having different levels
+    if (
+      state.productType === "group" &&
+      state.selectedParticipants.length > 1 &&
+      (hasDifferentLevels || hasAgeMismatch) &&
+      !state.useParticipantSpecificBooking
+    ) {
+      // Initialize participant bookings and enable individual mode
+      initializeParticipantBookings();
+      setUseParticipantSpecificBooking(true);
+    }
+  }, [
+    state.productType,
+    state.selectedParticipants.length,
+    hasDifferentLevels,
+    hasAgeMismatch,
+    state.useParticipantSpecificBooking,
+    initializeParticipantBookings,
+    setUseParticipantSpecificBooking,
+  ]);
+
   // NEW: Handler for participant booking changes
   const handleParticipantBookingChange = (booking: ParticipantBookingDetails) => {
     setParticipantBooking(booking.participantId, booking);
@@ -331,8 +354,8 @@ export function Step2ProductDates() {
 
   return (
     <div className="space-y-8 py-6">
-      {/* Different Levels Warning - More Prominent */}
-      {(hasDifferentLevels || hasAgeMismatch) && state.selectedParticipants.length > 1 && !state.useParticipantSpecificBooking && (
+      {/* Different Levels Warning - For private lessons (manual enable) */}
+      {(hasDifferentLevels || hasAgeMismatch) && state.selectedParticipants.length > 1 && !state.useParticipantSpecificBooking && state.productType !== "group" && (
         <Alert className="bg-amber-50 border-amber-300 shadow-sm">
           <AlertTriangle className="h-5 w-5 text-amber-600" />
           <AlertDescription className="text-amber-800">
