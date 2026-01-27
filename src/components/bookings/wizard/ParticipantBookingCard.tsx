@@ -371,6 +371,14 @@ export function ParticipantBookingCard({
                     })}
                   </SelectContent>
                 </Select>
+
+                {/* Show auto-matched info */}
+                {booking.groupCourseId === recommendedCourseId && recommendedCourseId && (
+                  <div className="flex items-center gap-1 text-xs text-green-600 mt-1">
+                    <Sparkles className="h-3 w-3" />
+                    <span>Automatisch passend zum Niveau "{getLevelLabel(participant.level_current_season)}" zugewiesen</span>
+                  </div>
+                )}
               </div>
             )}
 
