@@ -377,13 +377,92 @@ export function useCreateBooking() {
       const { data: insertedItems, error: itemsError } = await supabase
         .from("ticket_items")
         .insert(ticketItems)
-        .select("id, participant_id, date");
+        .select("id, participant_id, date, item_type, product_id");
 
       if (itemsError) throw itemsError;
 
       // ============ GROUP COURSE ENROLLMENT ============
-      if (state.productType === "group" && state.selectedGroupId) {
-        // Get or create instances for the selected dates
+      // Handle participant-specific group enrollments (different groups per participant)
+      if (state.useParticipantSpecificBooking && Object.keys(state.participantBookings).length > 0) {
+        for (const participant of state.selectedParticipants) {
+          const pBooking = state.participantBookings[participant.id];
+          if (!pBooking || pBooking.productType !== "group" || !pBooking.groupCourseId) continue;
+
+          for (const dateStr of pBooking.dates) {
+            // Get or create instance for this participant's specific group course
+            let { data: existingInstance } = await supabase
+              .from("group_course_instances")
+              .select("id, current_participants")
+              .eq("course_id", pBooking.groupCourseId)
+              .eq("date", dateStr)
+              .maybeSingle();
+
+            let instanceId: string;
+
+            if (!existingInstance) {
+              // Get course schedule for time info
+              const { data: course } = await supabase
+                .from("group_courses")
+                .select(`
+                  id,
+                  schedules:group_course_schedules(start_time, end_time, day_of_week)
+                `)
+                .eq("id", pBooking.groupCourseId)
+                .single();
+
+              const dayOfWeek = new Date(dateStr).getDay();
+              const schedule = course?.schedules?.find(s => s.day_of_week === dayOfWeek);
+
+              // Create new instance
+              const { data: newInstance, error: instanceError } = await supabase
+                .from("group_course_instances")
+                .insert({
+                  course_id: pBooking.groupCourseId,
+                  date: dateStr,
+                  start_time: schedule?.start_time || "10:00",
+                  end_time: schedule?.end_time || "12:00",
+                  current_participants: 0,
+                  status: "scheduled",
+                })
+                .select("id")
+                .single();
+
+              if (instanceError) throw instanceError;
+              instanceId = newInstance.id;
+            } else {
+              instanceId = existingInstance.id;
+            }
+
+            // Find the matching "group" ticket_item for this participant/date (avoid linking lunch items)
+            const ticketItem = insertedItems?.find(
+              ti => ti.participant_id === participant.id && 
+                   ti.date === dateStr && 
+                   ti.item_type === "group"
+            );
+
+            await supabase
+              .from("group_course_enrollments")
+              .insert({
+                instance_id: instanceId,
+                participant_id: participant.id.startsWith("guest-") ? null : participant.id,
+                ticket_item_id: ticketItem?.id || null,
+                attendance_status: "registered",
+              });
+
+            // Update participant count
+            const { count } = await supabase
+              .from("group_course_enrollments")
+              .select("*", { count: "exact", head: true })
+              .eq("instance_id", instanceId);
+
+            await supabase
+              .from("group_course_instances")
+              .update({ current_participants: count || 0 })
+              .eq("id", instanceId);
+          }
+        }
+      } else if (state.productType === "group" && state.selectedGroupId) {
+        // Shared group booking mode (all participants in same group)
         for (const dateStr of state.selectedDates) {
           // Check if instance exists
           let { data: existingInstance } = await supabase
@@ -432,7 +511,9 @@ export function useCreateBooking() {
           // Create enrollments for each participant
           for (const participant of state.selectedParticipants) {
             const ticketItem = insertedItems?.find(
-              ti => ti.participant_id === participant.id && ti.date === dateStr
+              ti => ti.participant_id === participant.id && 
+                   ti.date === dateStr &&
+                   ti.item_type === "group"
             );
 
             await supabase

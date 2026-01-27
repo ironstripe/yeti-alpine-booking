@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format, parseISO, differenceInYears } from "date-fns";
 import { de } from "date-fns/locale";
@@ -13,6 +13,7 @@ import {
   Check,
   Search,
   AlertTriangle,
+  Sparkles,
 } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
@@ -38,12 +39,13 @@ import { BookingWarnings, type BookingWarning } from "./BookingWarnings";
 import { MiniSchedulerGrid } from "./MiniSchedulerGrid";
 import { GroupSelector } from "./GroupSelector";
 import { LunchSupervisionAddon } from "./LunchSupervisionAddon";
+import { ParticipantBookingCard } from "./ParticipantBookingCard";
 import {
   MEETING_POINTS,
   isBeginnerLevel,
   canSelectAlternativeMeetingPoint,
 } from "@/lib/meeting-point-utils";
-import { LEVEL_OPTIONS } from "@/lib/level-utils";
+import { LEVEL_OPTIONS, mapLevelToCourseSkill, getLevelLabel } from "@/lib/level-utils";
 import {
   getGroupRecommendationForParticipants,
   formatGroupTimes,
@@ -82,6 +84,10 @@ export function Step2ProductAllocation() {
     setGroupCourseType,
     setLunchDaysForParticipant,
     setVegetarianForParticipant,
+    setUseParticipantSpecificBooking,
+    setParticipantBooking,
+    initializeParticipantBookings,
+    copyBookingToAllParticipants,
   } = useBookingWizard();
 
   const [selectedMonth, setSelectedMonth] = useState<Date>(new Date());
@@ -107,6 +113,64 @@ export function Step2ProductAllocation() {
   const groupRecommendation = useMemo(() => {
     return getGroupRecommendationForParticipants(state.selectedParticipants);
   }, [state.selectedParticipants]);
+
+  // Detect if participants have different skill levels (for group course)
+  const hasDifferentLevels = useMemo(() => {
+    if (state.selectedParticipants.length <= 1) return false;
+    const courseSkills = state.selectedParticipants.map((p) =>
+      mapLevelToCourseSkill(p.level_current_season)
+    );
+    const uniqueSkills = new Set(courseSkills);
+    return uniqueSkills.size > 1;
+  }, [state.selectedParticipants]);
+
+  // Detect if participants have age mismatches (toddlers vs older kids)
+  const hasAgeMismatch = useMemo(() => {
+    if (state.selectedParticipants.length <= 1) return false;
+    const ageGroups = state.selectedParticipants.map((p) => {
+      const age = differenceInYears(new Date(), new Date(p.birth_date));
+      if (age >= 3 && age <= 4) return "toddler";
+      if (age >= 16) return "adult";
+      return "child";
+    });
+    const uniqueGroups = new Set(ageGroups);
+    return uniqueGroups.size > 1;
+  }, [state.selectedParticipants]);
+
+  // Auto-enable participant-specific mode for group bookings with different levels
+  useEffect(() => {
+    if (
+      state.productType === "group" &&
+      state.selectedParticipants.length > 1 &&
+      (hasDifferentLevels || hasAgeMismatch) &&
+      !state.useParticipantSpecificBooking
+    ) {
+      // Clear shared group selection to avoid confusion
+      setSelectedGroupId(null);
+      // Initialize individual bookings for each participant
+      initializeParticipantBookings();
+      // Enable participant-specific mode
+      setUseParticipantSpecificBooking(true);
+      console.log("Step2: Auto-enabled participant-specific mode due to level/age mismatch");
+    }
+  }, [
+    state.productType,
+    state.selectedParticipants.length,
+    hasDifferentLevels,
+    hasAgeMismatch,
+    state.useParticipantSpecificBooking,
+    setSelectedGroupId,
+    initializeParticipantBookings,
+    setUseParticipantSpecificBooking,
+  ]);
+
+  // Handler for participant booking changes
+  const handleParticipantBookingChange = useCallback(
+    (participantId: string, booking: Parameters<typeof setParticipantBooking>[1]) => {
+      setParticipantBooking(participantId, booking);
+    },
+    [setParticipantBooking]
+  );
 
   // Fetch products from database
   const { data: products = [], isLoading: productsLoading } = useQuery({
@@ -654,48 +718,100 @@ export function Step2ProductAllocation() {
           <div className="space-y-4">
             {state.selectedDates.length > 0 ? (
               <>
-                {/* Participant enrollment preview for multiple participants */}
-                {state.selectedParticipants.length > 1 && (
-                  <Card className="bg-blue-50 border-blue-200">
-                    <CardContent className="p-3">
-                      <div className="flex items-center gap-2 mb-2">
-                        <Users className="h-4 w-4 text-blue-600" />
-                        <span className="text-sm font-medium text-blue-800">
-                          {state.selectedParticipants.length} Teilnehmer werden in diese Gruppe eingeschrieben:
-                        </span>
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        {state.selectedParticipants.map((p) => (
-                          <Badge key={p.id} variant="secondary" className="bg-white">
-                            {p.first_name} {p.last_name}
-                          </Badge>
-                        ))}
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
+                {/* Participant-specific booking mode (auto-enabled when levels differ) */}
+                {state.useParticipantSpecificBooking ? (
+                  <>
+                    {/* Info banner explaining individual mode */}
+                    <Alert className="bg-blue-50 border-blue-300">
+                      <Sparkles className="h-4 w-4 text-blue-600" />
+                      <AlertDescription className="text-blue-800">
+                        <div className="space-y-1">
+                          <p className="font-medium">Individuelle Buchung aktiviert</p>
+                          <p className="text-sm">
+                            {hasDifferentLevels
+                              ? "Teilnehmer haben unterschiedliche Niveaus – jeder wird in den passenden Kurs eingeschrieben."
+                              : "Teilnehmer haben unterschiedliche Altersgruppen – jeder wird in den passenden Kurs eingeschrieben."}
+                          </p>
+                        </div>
+                      </AlertDescription>
+                    </Alert>
 
-                <GroupSelector
-                  selectedDates={state.selectedDates}
-                  sport={state.sport}
-                  participants={state.selectedParticipants}
-                  selectedGroupId={state.selectedGroupId}
-                  onGroupSelect={setSelectedGroupId}
-                />
-                
-                {/* Lunch Supervision Add-on */}
-                {state.selectedParticipants.length > 0 && (
-                  <div className="pt-2">
-                    <LunchSupervisionAddon
+                    {/* Individual participant cards */}
+                    <div className="space-y-3">
+                      {state.selectedParticipants.map((participant, index) => {
+                        const booking = state.participantBookings[participant.id];
+                        if (!booking) return null;
+
+                        const firstParticipantBooking = state.participantBookings[state.selectedParticipants[0]?.id];
+                        const hasDifference =
+                          index > 0 &&
+                          firstParticipantBooking &&
+                          (booking.groupCourseId !== firstParticipantBooking.groupCourseId ||
+                            booking.dates.length !== firstParticipantBooking.dates.length);
+
+                        return (
+                          <ParticipantBookingCard
+                            key={participant.id}
+                            participant={participant}
+                            booking={booking}
+                            onBookingChange={(newBooking) =>
+                              handleParticipantBookingChange(participant.id, newBooking)
+                            }
+                            onCopyToAll={() => copyBookingToAllParticipants(participant.id)}
+                            isFirst={index === 0}
+                            showDifferenceWarning={hasDifference}
+                          />
+                        );
+                      })}
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    {/* Shared group booking mode (original behavior) */}
+                    {/* Participant enrollment preview for multiple participants */}
+                    {state.selectedParticipants.length > 1 && (
+                      <Card className="bg-blue-50 border-blue-200">
+                        <CardContent className="p-3">
+                          <div className="flex items-center gap-2 mb-2">
+                            <Users className="h-4 w-4 text-blue-600" />
+                            <span className="text-sm font-medium text-blue-800">
+                              {state.selectedParticipants.length} Teilnehmer werden in diese Gruppe eingeschrieben:
+                            </span>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            {state.selectedParticipants.map((p) => (
+                              <Badge key={p.id} variant="secondary" className="bg-white">
+                                {p.first_name} {p.last_name}
+                              </Badge>
+                            ))}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    <GroupSelector
                       selectedDates={state.selectedDates}
+                      sport={state.sport}
                       participants={state.selectedParticipants}
-                      lunchSelections={state.lunchSelections}
-                      vegetarianSelections={state.vegetarianSelections}
-                      onLunchDaysChange={setLunchDaysForParticipant}
-                      onVegetarianChange={setVegetarianForParticipant}
-                      lunchPricePerDay={lunchProduct?.price || 25}
+                      selectedGroupId={state.selectedGroupId}
+                      onGroupSelect={setSelectedGroupId}
                     />
-                  </div>
+
+                    {/* Lunch Supervision Add-on (only in shared mode) */}
+                    {state.selectedParticipants.length > 0 && (
+                      <div className="pt-2">
+                        <LunchSupervisionAddon
+                          selectedDates={state.selectedDates}
+                          participants={state.selectedParticipants}
+                          lunchSelections={state.lunchSelections}
+                          vegetarianSelections={state.vegetarianSelections}
+                          onLunchDaysChange={setLunchDaysForParticipant}
+                          onVegetarianChange={setVegetarianForParticipant}
+                          lunchPricePerDay={lunchProduct?.price || 25}
+                        />
+                      </div>
+                    )}
+                  </>
                 )}
               </>
             ) : (
