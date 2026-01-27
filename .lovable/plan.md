@@ -1,85 +1,140 @@
 
-# Update FamilyHub Date Picker - Match Booking Wizard Logic
+# Auto-Enable Individual Booking Mode for Multi-Participant Group Bookings with Different Skill Levels
 
-## Problem
-The "New Participant" form in the customer detail page (`FamilyHub.tsx`) uses an old `Popover/Calendar` approach for birthdate selection that lacks:
-- Manual text input field (`TT.MM.JJJJ`)
-- Year dropdown for quick navigation
-- Year jump buttons (double chevrons)
+## Problem Summary
+When creating a group booking with multiple participants who have different skill levels (e.g., Lisa is "beginner" and Robin is "advanced"), the system currently:
+1. Displays a warning about the level mismatch
+2. Still allows booking all participants into the same group
+3. Requires manual activation of "Individuelle Buchung" (Individual Booking) mode
 
-This is inconsistent with the booking wizard's date picker.
+The expected behavior is that each participant should be automatically booked into an appropriate group matching their skill level.
 
-## Solution
-Replace the `Popover/Calendar` implementation with `EnhancedDatePicker` in `FamilyHub.tsx`.
+## Solution Overview
+Auto-enable "Individual Booking" mode when:
+- Product type is "group" (Gruppenkurs)
+- Multiple participants are selected
+- Participants have different skill levels
+
+This matches the behavior expected from inbox-originated bookings where the AI suggests participant-specific configurations.
 
 ---
 
 ## Technical Implementation
 
-### File: `src/components/customers/detail/FamilyHub.tsx`
+### File 1: `src/components/bookings/wizard/Step2ProductDates.tsx`
 
-**Changes:**
+**Change 1**: Add `useEffect` to auto-enable individual booking mode when group course is selected with level mismatch
 
-1. **Update imports** (lines 7, 22-23):
-   - Remove: `CalendarIcon` from lucide-react
-   - Remove: `Popover, PopoverContent, PopoverTrigger` from popover
-   - Remove: `Calendar` from calendar
-   - Add: `EnhancedDatePicker` from enhanced-date-picker
-
-2. **Replace Popover/Calendar with EnhancedDatePicker** (lines 152-181):
+After the existing `handleEnableParticipantMode` function (around line 231), add a new effect:
 
 ```typescript
-// Before (lines 152-181)
-<div className="space-y-2">
-  <Label>Geburtsdatum *</Label>
-  <Popover>
-    <PopoverTrigger asChild>
-      <Button variant="outline" ...>
-        <CalendarIcon className="mr-2 h-4 w-4" />
-        {watchedBirthDate ? format(...) : "Datum wählen"}
-      </Button>
-    </PopoverTrigger>
-    <PopoverContent>
-      <Calendar mode="single" ... />
-    </PopoverContent>
-  </Popover>
-  {errors.birth_date && ...}
-</div>
+// Auto-enable participant-specific mode for group bookings with different levels
+useEffect(() => {
+  // Only auto-enable for group courses with multiple participants having different levels
+  if (
+    state.productType === "group" &&
+    state.selectedParticipants.length > 1 &&
+    (hasDifferentLevels || hasAgeMismatch) &&
+    !state.useParticipantSpecificBooking
+  ) {
+    // Initialize participant bookings and enable individual mode
+    initializeParticipantBookings();
+    setUseParticipantSpecificBooking(true);
+  }
+}, [
+  state.productType,
+  state.selectedParticipants.length,
+  hasDifferentLevels,
+  hasAgeMismatch,
+  state.useParticipantSpecificBooking,
+  initializeParticipantBookings,
+  setUseParticipantSpecificBooking,
+]);
+```
 
-// After
-<div className="space-y-2">
-  <Label>Geburtsdatum *</Label>
-  <EnhancedDatePicker
-    value={watchedBirthDate}
-    onChange={(date) => date && setValue("birth_date", date)}
-    placeholder="Datum wählen"
-    disabled={(date) =>
-      date > new Date() || date < new Date("1900-01-01")
-    }
-    minYear={1900}
-    maxYear={new Date().getFullYear()}
-  />
-  {errors.birth_date && ...}
-</div>
+**Change 2**: Update the warning message to be informational (mode is now auto-enabled)
+
+Update lines 335-384 to show as an info message rather than an action prompt when in group mode:
+
+```typescript
+{/* Info message when individual mode was auto-enabled for group */}
+{(hasDifferentLevels || hasAgeMismatch) && state.productType === "group" && state.selectedParticipants.length > 1 && (
+  <Alert className="bg-blue-50 border-blue-300 shadow-sm">
+    <Info className="h-5 w-5 text-blue-600" />
+    <AlertDescription className="text-blue-800">
+      <div className="space-y-2">
+        <p className="font-medium">
+          Individuelle Buchung aktiviert
+        </p>
+        <p className="text-sm">
+          {hasDifferentLevels 
+            ? "Teilnehmer haben unterschiedliche Niveaus - jeder wird in den passenden Kurs eingeschrieben." 
+            : "Teilnehmer haben unterschiedliche Altersgruppen - jeder wird in den passenden Kurs eingeschrieben."
+          }
+        </p>
+      </div>
+    </AlertDescription>
+  </Alert>
+)}
+```
+
+**Change 3**: Keep the original warning only for private lessons (where all can still be taught together)
+
+The existing warning with the "Individuelle Buchung aktivieren" button should only show when `state.productType !== "group"` or is `null` (before type is selected).
+
+### File 2: `src/components/bookings/wizard/ParticipantBookingCard.tsx` (Minor Enhancement)
+
+**Change**: Add visual indicator showing which group was auto-selected based on skill level
+
+After the group selector (around line 375), add confirmation text:
+
+```typescript
+{/* Show auto-matched info */}
+{booking.groupCourseId === recommendedCourseId && recommendedCourseId && (
+  <div className="flex items-center gap-1 text-xs text-green-600">
+    <Sparkles className="h-3 w-3" />
+    <span>Automatisch passend zum Niveau "{getLevelLabel(participant.level_current_season)}" zugewiesen</span>
+  </div>
+)}
 ```
 
 ---
 
-## Files Changed Summary
+## Behavior After Implementation
 
-| File | Change |
-|------|--------|
-| `src/components/customers/detail/FamilyHub.tsx` | Replace Popover/Calendar with EnhancedDatePicker, update imports |
+| Scenario | Before | After |
+|----------|--------|-------|
+| 2+ participants, different levels, select "Group" | Warning shown, manual toggle required | Auto-switches to individual mode |
+| 2+ participants, same level, select "Group" | Shared booking mode | Shared booking mode (unchanged) |
+| 2+ participants, different levels, select "Private" | Warning shown, manual toggle offered | Warning shown, manual toggle offered (unchanged) |
+| AI prefill from inbox with different levels | Warning shown, manual toggle required | Auto-switches to individual mode |
 
 ---
 
-## Expected Behavior After Fix
+## Expected User Experience
 
-The "New Participant" form in customer detail will now have:
-- **Text input field** for manual date entry (`TT.MM.JJJJ` format)
-- **Calendar button** showing "Datum wählen" or the selected date
-- **Year dropdown** for quick year navigation (1900-2026)
-- **Year jump buttons** (double chevrons) for fast navigation
-- **Same behavior** as booking wizard participant forms
+1. User selects customer with participants Lisa (beginner) and Robin (advanced)
+2. User chooses "Gruppenkurs" product type
+3. **System automatically switches to individual booking mode**
+4. Each participant card shows:
+   - Their recommended group course based on skill level
+   - Auto-selected best matching group with capacity
+5. Info banner explains: "Teilnehmer haben unterschiedliche Niveaus - jeder wird in den passenden Kurs eingeschrieben."
 
-All participant-related date pickers across the app will be consistent.
+---
+
+## Files to Modify
+
+| File | Changes |
+|------|---------|
+| `src/components/bookings/wizard/Step2ProductDates.tsx` | Add auto-enable useEffect, update warning to info message for group mode |
+| `src/components/bookings/wizard/ParticipantBookingCard.tsx` | Add auto-match confirmation text |
+
+---
+
+## Edge Cases Handled
+
+1. **Switching back to private**: If user switches from group to private, individual mode can stay enabled or be manually toggled off
+2. **Same levels**: If all participants have the same level, shared booking mode remains (no auto-enable)
+3. **Missing level data**: The `hasDifferentLevels` logic already treats `null` as "unknown", so a participant with no level differs from one with a level
+4. **Age mismatch (toddler + older)**: Also triggers auto-enable for group courses since toddlers need different courses
