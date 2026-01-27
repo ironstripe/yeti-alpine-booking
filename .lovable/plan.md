@@ -1,124 +1,140 @@
 
+# Fix Birthdate Picker - Year Range and Manual Input
 
-# Generate More Test Bookings - Implementation Plan
+## Problem Summary
+The birthdate picker in the booking wizard has two issues:
+1. **Year selection limited to 2000-2026** - Cannot select years before 2000, making it impossible to enter birthdates for adults born before 2000
+2. **Manual input validation rejects valid dates** - Even though there's a text input field, it validates against the same `minYear` limit (2000), rejecting manually typed older dates
 
-## Current State
-- **321 tickets** and **316 ticket_items** exist in the database
-- Only **4 lessons** are scheduled for today (2026-01-26)
-- Only **12 lessons** in the next week
-- **26 instructors** and **560 customers** available
-- **10 products** (private and group)
+## Root Cause
+The `EnhancedDatePicker` component is used with incorrect `minYear={2000}` in multiple locations:
+- `ParticipantSelection.tsx` (line 286)
+- `ParticipantListCard.tsx` (line 320)
+- `ParticipantEditDialog.tsx` (line 165)
 
-## Approach Options
+This creates a conflict: the `disabled` prop allows dates from 1900, but `minYear={2000}` only shows years 2000+ in the dropdown and rejects manual input for years before 2000.
 
-### Option A: Database Seeding Edge Function (Recommended)
-Create an edge function that generates realistic test bookings directly in the database. This is the cleanest solution as it:
-- Generates data on-demand with a single button click
-- Creates realistic bookings with proper relationships
-- Can target specific date ranges
-- Avoids file upload complexity
-
-### Option B: Enhanced CSV Generator
-Create downloadable CSVs with more bookings to use with the existing import wizard.
-
----
-
-## Recommended: Option A - Test Data Generator
-
-### New Edge Function: `generate-test-bookings`
-
-**Features:**
-- Generate X bookings starting from a specific date
-- Randomly assign instructors, participants, and products
-- Create realistic time slots (09:00-11:00, 10:00-12:00, 14:00-16:00)
-- Distribute across different lesson types (private/group)
-- Set proper statuses and prices
-
-### New UI: Test Data Generator Button
-
-Add a button in **Settings → Datenimport** to trigger the generator:
-
-```text
-┌─────────────────────────────────────────────────┐
-│ 🧪 Testdaten generieren                         │
-│                                                 │
-│ Startdatum: [2026-01-26    ]                   │
-│ Anzahl Buchungen: [50     ]                     │
-│ Tagesverteilung: [5-10 pro Tag]                │
-│                                                 │
-│ [Generieren]                                    │
-└─────────────────────────────────────────────────┘
-```
+## Solution
+Change `minYear` from `2000` to `1900` in all three files to match the `disabled` date constraint. This ensures:
+- Year dropdown shows 1900-current year
+- Manual text input accepts years from 1900+
+- Calendar still disables dates outside the valid range
 
 ---
 
 ## Technical Implementation
 
-### File 1: `supabase/functions/generate-test-bookings/index.ts`
+### File 1: `src/components/bookings/wizard/ParticipantSelection.tsx`
 
-**Logic:**
-1. Fetch all active instructors, products, customers, and participants
-2. Generate N tickets with random customer assignments
-3. For each ticket, create 1-3 ticket_items:
-   - Random date within range
-   - Random time slot (morning/afternoon)
-   - Random instructor assignment
-   - Random product (private 2h most common)
-   - Set `instructor_confirmation: "confirmed"` so they appear in scheduler
-4. Calculate proper pricing and totals
-5. Return summary of created records
+**Line 286:** Change `minYear={2000}` to `minYear={1900}`
 
-### File 2: `src/components/settings/TestDataGenerator.tsx`
+```typescript
+// Before
+<EnhancedDatePicker
+  value={field.value}
+  onChange={field.onChange}
+  placeholder="Datum wählen"
+  disabled={(date) =>
+    date > new Date() || date < new Date("1900-01-01")
+  }
+  minYear={2000}  // Wrong!
+  maxYear={new Date().getFullYear()}
+/>
 
-**Features:**
-- Date picker for start date
-- Number input for booking count
-- "Generate" button that calls the edge function
-- Progress indicator
-- Success/error feedback
+// After
+<EnhancedDatePicker
+  value={field.value}
+  onChange={field.onChange}
+  placeholder="Datum wählen"
+  disabled={(date) =>
+    date > new Date() || date < new Date("1900-01-01")
+  }
+  minYear={1900}  // Matches disabled constraint
+  maxYear={new Date().getFullYear()}
+/>
+```
 
-### File 3: Update `src/pages/SettingsDataImport.tsx`
+### File 2: `src/components/bookings/wizard/ParticipantListCard.tsx`
 
-Add the `TestDataGenerator` component below the existing import wizard.
+**Line 320:** Change `minYear={2000}` to `minYear={1900}`
 
----
+### File 3: `src/components/bookings/wizard/ParticipantEditDialog.tsx`
 
-## Generated Booking Distribution
-
-Per generated booking:
-- **70%** Private 2h lessons
-- **20%** Private 1h lessons  
-- **10%** Group course enrollments
-
-Time slot distribution:
-- **40%** Morning (09:00-11:00 or 10:00-12:00)
-- **40%** Afternoon (14:00-16:00)
-- **20%** Full day (09:00-16:00 with lunch)
-
-Status distribution:
-- **80%** Confirmed with instructor assigned
-- **20%** Pending (no instructor yet)
+**Line 165:** Change `minYear={2000}` to `minYear={1900}`
 
 ---
 
-## Files to Create/Modify
+## Additional Improvement: ParticipantCard in Customer Detail
 
-| File | Action | Purpose |
-|------|--------|---------|
-| `supabase/functions/generate-test-bookings/index.ts` | Create | Edge function to generate bookings |
-| `src/components/settings/TestDataGenerator.tsx` | Create | UI component with form |
-| `src/pages/SettingsDataImport.tsx` | Modify | Add TestDataGenerator below wizard |
+The `ParticipantCard.tsx` component uses a basic `Calendar` without the `EnhancedDatePicker`. It should be updated to use `EnhancedDatePicker` for consistency (includes manual text input).
+
+### File 4: `src/components/customers/detail/ParticipantCard.tsx`
+
+Replace the Popover/Calendar combination with `EnhancedDatePicker`:
+
+```typescript
+// Before (lines 166-195)
+<div className="space-y-2">
+  <Label>Geburtsdatum *</Label>
+  <Popover>
+    <PopoverTrigger asChild>
+      <Button variant="outline" ...>
+        <CalendarIcon className="mr-2 h-4 w-4" />
+        {watchedBirthDate ? format(...) : "Datum wählen"}
+      </Button>
+    </PopoverTrigger>
+    <PopoverContent>
+      <Calendar mode="single" ... />
+    </PopoverContent>
+  </Popover>
+</div>
+
+// After
+<div className="space-y-2">
+  <Label>Geburtsdatum *</Label>
+  <EnhancedDatePicker
+    value={watchedBirthDate}
+    onChange={(date) => date && setValue("birth_date", date)}
+    placeholder="Datum wählen"
+    disabled={(date) =>
+      date > new Date() || date < new Date("1900-01-01")
+    }
+    minYear={1900}
+    maxYear={new Date().getFullYear()}
+  />
+</div>
+```
 
 ---
 
-## Expected Outcome
+## Files Changed Summary
 
-After clicking "Generieren" with 50 bookings:
-- ~50 new tickets created
-- ~75-100 new ticket_items (some tickets have multiple lessons)
-- Distributed across the next 7-14 days
-- Instructor assignments visible in scheduler
-- Mix of statuses for testing different views
+| File | Change |
+|------|--------|
+| `src/components/bookings/wizard/ParticipantSelection.tsx` | Line 286: `minYear={2000}` → `minYear={1900}` |
+| `src/components/bookings/wizard/ParticipantListCard.tsx` | Line 320: `minYear={2000}` → `minYear={1900}` |
+| `src/components/bookings/wizard/ParticipantEditDialog.tsx` | Line 165: `minYear={2000}` → `minYear={1900}` |
+| `src/components/customers/detail/ParticipantCard.tsx` | Replace Calendar with EnhancedDatePicker for consistency |
 
-This gives you a one-click solution to populate the scheduler with realistic test data whenever needed.
+---
 
+## Expected Behavior After Fix
+
+| Feature | Before | After |
+|---------|--------|-------|
+| Year dropdown range | 2000-2026 (26 years) | 1900-2026 (126 years) |
+| Manual input "15.03.1985" | Rejected (year < 2000) | Accepted |
+| Calendar navigation | Limited | Full range with year jumps |
+| Consistency | Different pickers in different places | Same EnhancedDatePicker everywhere |
+
+---
+
+## Note on EnhancedDatePicker Features
+
+The `EnhancedDatePicker` component already supports:
+- **Manual text input** with format `TT.MM.JJJJ` (DD.MM.YYYY)
+- **Year dropdown** for quick navigation
+- **Year jump buttons** (double chevrons) to skip years quickly
+- **Validation on blur** to reset invalid inputs
+
+No changes needed to the component itself - just the configuration where it's used.
