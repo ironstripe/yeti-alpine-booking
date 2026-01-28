@@ -48,6 +48,7 @@ import InstructorSchedule from "./pages/InstructorSchedule";
 import InstructorAvailability from "./pages/InstructorAvailability";
 import InstructorProfile from "./pages/InstructorProfile";
 import InstructorConfirmations from "./pages/InstructorConfirmations";
+import InstructorGroupManagement from "./pages/InstructorGroupManagement";
 import BookingLanding from "./pages/booking-portal/BookingLanding";
 import PrivateBookingForm from "./pages/booking-portal/PrivateBookingForm";
 import GroupBookingForm from "./pages/booking-portal/GroupBookingForm";
@@ -137,6 +138,7 @@ const AppRoutes = () => (
     <Route path="/instructor/schedule" element={<InstructorSchedule />} />
     <Route path="/instructor/confirmations" element={<InstructorConfirmations />} />
     <Route path="/instructor/availability" element={<InstructorAvailability />} />
+    <Route path="/instructor/group/:instanceId" element={<InstructorGroupManagement />} />
     <Route path="/instructor/profile" element={<InstructorProfile />} />
 
     {/* Protected app routes (single persistent layout to avoid remount flicker) */}

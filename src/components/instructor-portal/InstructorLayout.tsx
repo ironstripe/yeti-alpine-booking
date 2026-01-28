@@ -85,6 +85,9 @@ export function InstructorLayout({ children }: InstructorLayoutProps) {
         if (location.pathname.startsWith("/instructor/booking/")) {
           return "Buchungsdetails";
         }
+        if (location.pathname.startsWith("/instructor/group/")) {
+          return "Gruppe verwalten";
+        }
         return "YETY";
     }
   };

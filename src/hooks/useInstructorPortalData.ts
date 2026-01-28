@@ -17,6 +17,9 @@ export interface PortalLesson {
   instructorConfirmation: string | null;
   instructorNotes: string | null;
   internalNotes: string | null;
+  groupCourseInstanceId: string | null;
+  groupCourseId: string | null;
+  groupCourseName: string | null;
   customer: {
     id: string;
     firstName: string | null;
@@ -88,6 +91,18 @@ export function useInstructorPortalData() {
             birth_date,
             level_current_season,
             notes
+          ),
+          group_course_enrollments (
+            id,
+            instance_id,
+            group_course_instances (
+              id,
+              course_id,
+              group_courses (
+                id,
+                name
+              )
+            )
           )
         `)
         .eq("instructor_id", instructorId)
@@ -103,6 +118,11 @@ export function useInstructorPortalData() {
         const key = `${item.ticket_id}-${item.time_start}-${item.time_end}`;
         
         if (!lessonMap.has(key)) {
+          // Extract group course info from enrollments
+          const enrollment = item.group_course_enrollments?.[0];
+          const instance = enrollment?.group_course_instances;
+          const course = instance?.group_courses;
+
           lessonMap.set(key, {
             id: item.id,
             ticketId: item.ticket_id,
@@ -117,6 +137,9 @@ export function useInstructorPortalData() {
             instructorConfirmation: item.instructor_confirmation,
             instructorNotes: item.instructor_notes,
             internalNotes: item.internal_notes,
+            groupCourseInstanceId: instance?.id || null,
+            groupCourseId: course?.id || null,
+            groupCourseName: course?.name || null,
             customer: item.tickets?.customers ? {
               id: item.tickets.customers.id,
               firstName: item.tickets.customers.first_name,
