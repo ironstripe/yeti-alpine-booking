@@ -2,7 +2,9 @@ import { ReactNode, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserRole } from "@/hooks/useUserRole";
-import { Home, Calendar, Hand, User, Menu, X, Bell, LogOut } from "lucide-react";
+import { Home, Calendar, Hand, User, Menu, Bell, LogOut, ClipboardCheck } from "lucide-react";
+import { usePendingBookingsCount } from "@/hooks/usePendingBookingsCount";
+import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -16,6 +18,7 @@ interface InstructorLayoutProps {
 const navItems = [
   { title: "Heute", url: "/instructor", icon: Home },
   { title: "Plan", url: "/instructor/schedule", icon: Calendar },
+  { title: "Bestätigen", url: "/instructor/confirmations", icon: ClipboardCheck },
   { title: "Abwesend", url: "/instructor/availability", icon: Hand },
   { title: "Profil", url: "/instructor/profile", icon: User },
 ];
@@ -25,6 +28,7 @@ export function InstructorLayout({ children }: InstructorLayoutProps) {
   const location = useLocation();
   const { user, signOut, loading: authLoading } = useAuth();
   const { isTeacher, isAdminOrOffice, loading: roleLoading, instructorId } = useUserRole();
+  const { data: pendingCount } = usePendingBookingsCount();
 
   // Redirect non-teachers to main app (unless admin/office)
   useEffect(() => {
@@ -71,6 +75,8 @@ export function InstructorLayout({ children }: InstructorLayoutProps) {
         return "Mein Tag";
       case "/instructor/schedule":
         return "Mein Stundenplan";
+      case "/instructor/confirmations":
+        return "Bestätigungen";
       case "/instructor/availability":
         return "Meine Verfügbarkeit";
       case "/instructor/profile":
@@ -165,16 +171,27 @@ export function InstructorLayout({ children }: InstructorLayoutProps) {
         <div className="flex justify-around items-center h-16">
           {navItems.map((item) => {
             const active = isActive(item.url);
+            const showBadge = item.url === "/instructor/confirmations" && pendingCount && pendingCount > 0;
             return (
               <button
                 key={item.url}
                 onClick={() => navigate(item.url)}
                 className={cn(
-                  "flex flex-col items-center justify-center gap-1 w-full h-full touch-target transition-colors",
+                  "flex flex-col items-center justify-center gap-1 w-full h-full touch-target transition-colors relative",
                   active ? "text-primary" : "text-muted-foreground"
                 )}
               >
-                <item.icon className={cn("h-5 w-5", active && "text-primary")} />
+                <div className="relative">
+                  <item.icon className={cn("h-5 w-5", active && "text-primary")} />
+                  {showBadge && (
+                    <Badge
+                      variant="destructive"
+                      className="absolute -top-2 -right-3 h-4 min-w-4 flex items-center justify-center p-0 text-[10px]"
+                    >
+                      {pendingCount > 9 ? "9+" : pendingCount}
+                    </Badge>
+                  )}
+                </div>
                 <span className="text-xs font-medium">{item.title}</span>
               </button>
             );
