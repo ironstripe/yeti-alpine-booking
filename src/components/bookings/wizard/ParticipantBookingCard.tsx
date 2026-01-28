@@ -169,19 +169,40 @@ export function ParticipantBookingCard({
     enabled: booking.dates.length > 0 && booking.productType === "group",
   });
 
-  // Get recommended course based on participant's skill_level_id (direct match)
+  // Get participant's skill level ID based on their sport
+  const participantSkillId = participant.sport === 'snowboard' 
+    ? participant.current_snowboard_level_id 
+    : participant.current_ski_level_id;
+
+  // Fetch participant's NEXT level for progression-based course matching
+  // Business logic: If a participant ACHIEVED level X, they should be placed in NEXT level course
+  const { data: skillLevelData } = useQuery({
+    queryKey: ["skill-level-next", participantSkillId],
+    queryFn: async () => {
+      if (!participantSkillId) return null;
+      const { data, error } = await supabase
+        .from("skill_levels")
+        .select("id, name, next_level_id")
+        .eq("id", participantSkillId)
+        .maybeSingle();
+      if (error) console.error("Error fetching skill level:", error);
+      return data;
+    },
+    enabled: !!participantSkillId,
+  });
+
+  // Get recommended course based on participant's NEXT level (progression)
   const recommendedCourseId = useMemo(() => {
     if (groupCourses.length === 0) return null;
     
-    // Get participant's skill level ID based on their sport
-    const participantSkillId = participant.sport === 'snowboard' 
-      ? participant.current_snowboard_level_id 
-      : participant.current_ski_level_id;
+    // Use next_level_id for matching (participant should progress to next course)
+    // If at max level (no next), use current level
+    const targetSkillLevelId = skillLevelData?.next_level_id || participantSkillId;
     
-    // First try: DIRECT match on skill_level_id (1:1 relationship)
-    let match = participantSkillId 
+    // First try: DIRECT match on skill_level_id (1:1 relationship via next level)
+    let match = targetSkillLevelId 
       ? groupCourses.find(
-          (c) => c.skill_level_id === participantSkillId && c.currentCount < c.max_participants
+          (c) => c.skill_level_id === targetSkillLevelId && c.currentCount < c.max_participants
         )
       : null;
     
@@ -199,7 +220,7 @@ export function ParticipantBookingCard({
     }
     
     return match?.id || null;
-  }, [participant.current_ski_level_id, participant.current_snowboard_level_id, participant.sport, participant.level_current_season, groupCourses]);
+  }, [skillLevelData, participantSkillId, participant.level_current_season, groupCourses]);
 
   // Auto-select group if none selected and we have a recommendation
   useEffect(() => {
