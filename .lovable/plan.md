@@ -1,9 +1,31 @@
 
-# Extend InstructorSchedule with "All Instructors" View
+# Group Leader Management Feature
 
 ## Overview
 
-This plan extends the existing `InstructorSchedule.tsx` page to support viewing all instructors' bookings. When in "Alle Lehrer" mode, instructors can see a color-coded weekly view of all bookings across the school, with privacy restrictions that hide sensitive customer information for other instructors' bookings.
+This plan implements a comprehensive Group Leader Management feature for the YETY Instructor Portal, enabling instructors assigned to group courses to manage their participants directly. The feature includes attendance tracking, skill level updates, and participant notes.
+
+---
+
+## Architecture Analysis
+
+### Existing Data Model
+
+The current system uses this relationship chain for group courses:
+```text
+group_courses
+    └── group_course_instances (per date/time)
+            └── group_course_enrollments (per participant per instance)
+                    └── customer_participants (participant details)
+```
+
+**Key Tables:**
+- `group_courses`: Defines course templates (name, skill level, schedule)
+- `group_course_instances`: Specific date/time occurrences of a course with `instructor_id`
+- `group_course_enrollments`: Links participants to instances with `attendance_status` (registered, present, absent, cancelled)
+- `customer_participants`: Participant details including `current_ski_level_id`
+
+**Important Finding:** The `group_course_enrollments` table already has an `attendance_status` column that can be used for daily attendance tracking, eliminating the need for a separate `group_attendance` table.
 
 ---
 
@@ -11,379 +33,277 @@ This plan extends the existing `InstructorSchedule.tsx` page to support viewing 
 
 | File | Action | Description |
 |------|--------|-------------|
-| `src/pages/InstructorSchedule.tsx` | Modify | Add view mode toggle, color-coding, and instructor legend |
+| `src/hooks/useGroupLeaderData.ts` | Create | Hook to fetch group course details with participants |
+| `src/hooks/useUpdateAttendance.ts` | Create | Mutation hook for attendance updates |
+| `src/hooks/useUpdateParticipantLevel.ts` | Create | Mutation hook for skill level updates |
+| `src/hooks/useUpdateParticipantNotes.ts` | Create | Mutation hook for notes updates |
+| `src/pages/InstructorGroupManagement.tsx` | Create | Group management page |
+| `src/components/instructor-portal/ParticipantManagementCard.tsx` | Create | Card for managing individual participants |
+| `src/components/instructor-portal/AttendanceGrid.tsx` | Create | Visual attendance grid for the course period |
+| `src/components/instructor-portal/SkillLevelSelect.tsx` | Create | Skill level selector component |
+| `src/components/instructor-portal/LessonCard.tsx` | Modify | Add "Gruppe verwalten" button for group courses |
+| `src/hooks/useInstructorPortalData.ts` | Modify | Add group course instance info to PortalLesson |
+| `src/App.tsx` | Modify | Add route for `/instructor/group/:instanceId` |
+| `src/components/instructor-portal/InstructorLayout.tsx` | Modify | Add page title case for group management |
 
 ---
 
 ## Technical Implementation
 
-### 1. Add View Mode State and Toggle UI
+### 1. Extend PortalLesson Type
 
-Add state to track current view mode and a Select dropdown at the top of the page:
+Add group course instance information to identify when a lesson is part of a group course:
 
 ```typescript
-// New imports
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { toast } from "sonner";
-import { ChevronDown, Users } from "lucide-react";
-
-// New state
-const [viewMode, setViewMode] = useState<'my-bookings' | 'all-instructors'>('my-bookings');
-const [legendOpen, setLegendOpen] = useState(false);
+// src/hooks/useInstructorPortalData.ts
+export interface PortalLesson {
+  // ... existing fields
+  groupCourseInstanceId: string | null;  // NEW
+  groupCourseId: string | null;          // NEW
+  groupCourseName: string | null;        // NEW
+}
 ```
 
-UI placement: Above the week navigation, full-width dropdown.
+The query will be extended to join `group_course_enrollments` and `group_course_instances` to retrieve this information.
 
-### 2. Fetch All Instructors
-
-New query to fetch all instructors (for color mapping and legend):
+### 2. Create useGroupLeaderData Hook
 
 ```typescript
-const { data: allInstructors } = useQuery({
-  queryKey: ['all-instructors'],
-  queryFn: async () => {
-    const { data, error } = await supabase
-      .from('instructors')
-      .select('id, first_name, last_name')
-      .eq('status', 'active')
-      .order('first_name', { ascending: true });
-    
-    if (error) throw error;
-    return data || [];
-  },
-  enabled: viewMode === 'all-instructors',
-});
+// src/hooks/useGroupLeaderData.ts
+
+interface GroupParticipant {
+  id: string;
+  firstName: string;
+  lastName: string | null;
+  birthDate: string;
+  age: number;
+  currentSkiLevelId: string | null;
+  currentSnowboardLevelId: string | null;
+  notes: string | null;
+  attendance: {
+    date: string;
+    instanceId: string;
+    status: 'registered' | 'present' | 'absent' | 'cancelled';
+    enrollmentId: string;
+  }[];
+}
+
+interface GroupLeaderData {
+  courseId: string;
+  courseName: string;
+  discipline: string;
+  skillLevel: string;
+  meetingPoint: string | null;
+  periodStart: string;
+  periodEnd: string;
+  instances: {
+    id: string;
+    date: string;
+    startTime: string;
+    endTime: string;
+  }[];
+  participants: GroupParticipant[];
+}
 ```
 
-### 3. Color Palette for Instructors
+**Query Strategy:**
+1. Fetch the `group_course_instance` by ID
+2. Get the `group_course` details via `course_id`
+3. Get all instances in the course period where `instructor_id` matches current instructor
+4. Fetch all `group_course_enrollments` for those instances with participant details
+5. Aggregate by participant to build the attendance history
 
-Define a consistent color palette (10 distinct colors that cycle):
+### 3. Create Mutation Hooks
 
+**useUpdateAttendance:**
 ```typescript
-const INSTRUCTOR_COLORS = [
-  { bg: 'bg-blue-500', text: 'text-white' },
-  { bg: 'bg-green-500', text: 'text-white' },
-  { bg: 'bg-purple-500', text: 'text-white' },
-  { bg: 'bg-orange-500', text: 'text-white' },
-  { bg: 'bg-pink-500', text: 'text-white' },
-  { bg: 'bg-teal-500', text: 'text-white' },
-  { bg: 'bg-red-500', text: 'text-white' },
-  { bg: 'bg-yellow-500', text: 'text-black' },
-  { bg: 'bg-indigo-500', text: 'text-white' },
-  { bg: 'bg-cyan-500', text: 'text-white' },
-];
-
-const getInstructorColor = (instructorId: string) => {
-  if (!allInstructors) return INSTRUCTOR_COLORS[0];
-  const index = allInstructors.findIndex((i) => i.id === instructorId);
-  return INSTRUCTOR_COLORS[index % INSTRUCTOR_COLORS.length];
-};
+// Updates group_course_enrollments.attendance_status
+{
+  enrollmentId: string;
+  status: 'present' | 'absent';
+}
 ```
 
-### 4. Update Week Schedule Query
-
-Modify the existing query to conditionally fetch all instructors' bookings:
-
+**useUpdateParticipantLevel:**
 ```typescript
-const { data: weekData, isLoading } = useQuery({
-  queryKey: ["instructor-week-schedule", instructorId, weekOffset, viewMode],
-  queryFn: async () => {
-    if (!instructorId) return [];
-
-    // Build base query with instructor join for "all instructors" mode
-    let query = supabase
-      .from("ticket_items")
-      .select(`
-        id,
-        date,
-        time_start,
-        time_end,
-        ticket_id,
-        instructor_id,
-        products (name, type),
-        tickets (ticket_number),
-        instructors (first_name, last_name)
-      `)
-      .gte("date", format(weekStart, "yyyy-MM-dd"))
-      .lte("date", format(weekEnd, "yyyy-MM-dd"))
-      .not("instructor_id", "is", null)
-      .order("date", { ascending: true })
-      .order("time_start", { ascending: true });
-
-    // Filter by instructor only in "my-bookings" mode
-    if (viewMode === 'my-bookings') {
-      query = query.eq("instructor_id", instructorId);
-    }
-
-    const { data, error } = await query;
-    if (error) throw error;
-    return data || [];
-  },
-  enabled: !!instructorId,
-});
+// Updates customer_participants.current_ski_level_id or current_snowboard_level_id
+{
+  participantId: string;
+  discipline: 'ski' | 'snowboard';
+  levelId: string;
+}
 ```
 
-### 5. Update Week Grid Slot Rendering
-
-Modify `isSlotBooked` and slot rendering to show color-coded bookings:
-
+**useUpdateParticipantNotes:**
 ```typescript
-const getBookingsForSlot = (date: Date, hour: string) => {
-  return (weekData || []).filter((booking: any) => {
-    if (booking.date !== format(date, "yyyy-MM-dd") || !booking.time_start) return false;
-    const startHour = parseInt(booking.time_start.split(":")[0]);
-    const endHour = booking.time_end ? parseInt(booking.time_end.split(":")[0]) : startHour + 1;
-    return parseInt(hour) >= startHour && parseInt(hour) < endHour;
-  });
-};
-
-// In grid rendering, replace simple colored div with:
-{weekDays.map((day) => {
-  const absent = isDateAbsent(day);
-  const slotBookings = getBookingsForSlot(day, hour);
-  const hasBookings = slotBookings.length > 0;
-  
-  return (
-    <div
-      key={`${day.toISOString()}-${hour}`}
-      className={cn(
-        "h-8 rounded-sm relative",
-        absent && "bg-destructive/20",
-        !hasBookings && !absent && "bg-muted/30"
-      )}
-    >
-      {hasBookings && !absent && (
-        <div className="absolute inset-0 flex gap-0.5 p-0.5">
-          {slotBookings.map((booking: any) => {
-            const isOwn = booking.instructor_id === instructorId;
-            const color = viewMode === 'all-instructors' && !isOwn
-              ? getInstructorColor(booking.instructor_id)
-              : { bg: 'bg-primary', text: 'text-primary-foreground' };
-            
-            return (
-              <div
-                key={booking.id}
-                className={cn(
-                  "flex-1 rounded-sm cursor-pointer transition-opacity hover:opacity-80",
-                  color.bg
-                )}
-                onClick={() => handleBookingClick(booking)}
-              />
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-})}
+// Updates group_course_enrollments.notes (specific to this enrollment/course)
+{
+  enrollmentId: string;
+  notes: string;
+}
 ```
 
-### 6. Handle Booking Clicks with Privacy
+### 4. LessonCard Modification
 
-Add click handler that respects privacy for other instructors' bookings:
-
-```typescript
-const handleBookingClick = (booking: any) => {
-  const isOwn = booking.instructor_id === instructorId;
-  
-  if (viewMode === 'all-instructors' && !isOwn) {
-    // Show limited info for other instructors' bookings
-    toast.info(
-      `${booking.instructors?.first_name} ${booking.instructors?.last_name}`,
-      {
-        description: `${booking.time_start?.slice(0, 5)} - ${booking.time_end?.slice(0, 5)} · ${booking.products?.type === 'private' ? 'Privat' : 'Gruppe'}`,
-      }
-    );
-  } else {
-    // For own bookings, could navigate to detail (if route exists)
-    // For now, show full product info
-    toast.info(booking.products?.name || 'Buchung', {
-      description: `${booking.time_start?.slice(0, 5)} - ${booking.time_end?.slice(0, 5)}`,
-    });
-  }
-};
-```
-
-### 7. Update List View
-
-Modify the list view to support all-instructors mode:
+Add detection logic for group courses and a navigation button:
 
 ```typescript
-{bookings.map((booking: any) => {
-  const isOwn = booking.instructor_id === instructorId;
-  const color = viewMode === 'all-instructors' && !isOwn
-    ? getInstructorColor(booking.instructor_id)
-    : null;
-  
-  return (
-    <div 
-      key={booking.id}
-      className={cn(
-        "flex items-center justify-between rounded-lg px-3 py-2 text-sm cursor-pointer",
-        color ? `${color.bg} ${color.text}` : "bg-muted/50"
-      )}
-      onClick={() => handleBookingClick(booking)}
-    >
-      <div>
-        <span className="font-medium">
-          {booking.time_start?.slice(0, 5)} - {booking.time_end?.slice(0, 5)}
-        </span>
-        <span className={cn("ml-2", color?.text || "text-muted-foreground")}>
-          {viewMode === 'all-instructors' && !isOwn
-            ? `${booking.instructors?.first_name} ${booking.instructors?.last_name?.charAt(0)}.`
-            : booking.products?.name || "Lektion"
-          }
-        </span>
-      </div>
-    </div>
-  );
-})}
-```
+// Detect group course from productType
+const isGroupCourse = ['group_kids', 'group_adults'].includes(lesson.productType);
 
-### 8. Add Collapsible Instructor Legend
-
-Add a legend at the bottom when in "all-instructors" mode:
-
-```typescript
-{viewMode === 'all-instructors' && allInstructors && allInstructors.length > 0 && (
-  <Card className="mt-4">
-    <Collapsible open={legendOpen} onOpenChange={setLegendOpen}>
-      <CollapsibleTrigger asChild>
-        <CardContent className="p-3 cursor-pointer hover:bg-muted/50 transition-colors">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Users className="h-4 w-4" />
-              <span className="text-sm font-medium">Legende</span>
-              <Badge variant="secondary" className="text-xs">
-                {allInstructors.length} Lehrer
-              </Badge>
-            </div>
-            <ChevronDown className={cn(
-              "h-4 w-4 transition-transform",
-              legendOpen && "rotate-180"
-            )} />
-          </div>
-        </CardContent>
-      </CollapsibleTrigger>
-      <CollapsibleContent>
-        <div className="px-3 pb-3 grid grid-cols-2 gap-2">
-          {allInstructors.map((instructor, index) => {
-            const color = INSTRUCTOR_COLORS[index % INSTRUCTOR_COLORS.length];
-            const isCurrentUser = instructor.id === instructorId;
-            return (
-              <div 
-                key={instructor.id} 
-                className={cn(
-                  "flex items-center gap-2 p-1.5 rounded",
-                  isCurrentUser && "bg-primary/5 ring-1 ring-primary/20"
-                )}
-              >
-                <div className={cn("w-3 h-3 rounded-sm flex-shrink-0", color.bg)} />
-                <span className={cn(
-                  "text-xs truncate",
-                  isCurrentUser && "font-medium"
-                )}>
-                  {instructor.first_name} {instructor.last_name}
-                  {isCurrentUser && " (Du)"}
-                </span>
-              </div>
-            );
-          })}
-        </div>
-      </CollapsibleContent>
-    </Collapsible>
-  </Card>
+// Inside expanded content, add:
+{isGroupCourse && lesson.groupCourseInstanceId && (
+  <Button
+    variant="default"
+    className="w-full mt-4"
+    onClick={() => navigate(`/instructor/group/${lesson.groupCourseInstanceId}`)}
+  >
+    <Users className="h-4 w-4 mr-2" />
+    Gruppe verwalten
+  </Button>
 )}
 ```
 
-### 9. Update Week Stats
+### 5. ParticipantManagementCard Component
 
-Show different stats based on view mode:
-
-```typescript
-{/* Week Stats */}
-<Card className="mt-4">
-  <CardContent className="p-4">
-    <p className="text-sm text-muted-foreground uppercase tracking-wide mb-2">
-      {viewMode === 'my-bookings' ? 'DIESE WOCHE' : 'ALLE LEHRER DIESE WOCHE'}
-    </p>
-    <div className="grid grid-cols-2 gap-4">
-      <div>
-        <p className="text-2xl font-bold">
-          {viewMode === 'my-bookings'
-            ? (weekData || []).length
-            : (weekData || []).filter((b: any) => b.instructor_id === instructorId).length
-          }
-        </p>
-        <p className="text-sm text-muted-foreground">
-          {viewMode === 'my-bookings' ? 'Lektionen' : 'Meine Lektionen'}
-        </p>
-      </div>
-      {/* ... hours calculation for own bookings only ... */}
-    </div>
-  </CardContent>
-</Card>
-```
-
----
-
-## UI Layout (Mobile-First)
+Mobile-first card for each participant:
 
 ```text
-┌─────────────────────────────────┐
-│ [View Mode Dropdown    ▼]       │  ← Full width select
-├─────────────────────────────────┤
-│ [◀] KW 05 · 27. Jan - 2. Feb [▶]│  ← Week navigation
-├─────────────────────────────────┤
-│ [Woche] [Liste]                 │  ← Existing tabs
-├─────────────────────────────────┤
-│ ┌───┬─────────────────────────┐ │
-│ │   │ Mo Di Mi Do Fr Sa So    │ │
-│ ├───┼─────────────────────────┤ │
-│ │09 │ ██ ░░ ██ ░░ ░░ ░░ ░░    │ │  ← Color-coded blocks
-│ │10 │ ██ ██ ██ ░░ ░░ ░░ ░░    │ │
-│ │...│ ...                     │ │
-│ └───┴─────────────────────────┘ │
-│                                 │
-│ [🟦 Gebucht] [⬜ Frei] [🟥 Abw] │  ← Base legend (my-bookings)
-├─────────────────────────────────┤
-│ ┌─────────────────────────────┐ │
-│ │ 👥 Legende · 8 Lehrer    ▼  │ │  ← Collapsible (all-instructors)
-│ │ ─────────────────────────── │ │
-│ │ 🟦 Max Müller (Du)          │ │
-│ │ 🟩 Anna Schmidt             │ │
-│ │ 🟪 Peter Weber              │ │
-│ │ 🟧 ...                      │ │
-│ └─────────────────────────────┘ │
-├─────────────────────────────────┤
-│ [Diese Woche Stats]             │  ← Filtered to own bookings
-└─────────────────────────────────┘
+┌─────────────────────────────────────────────────────────┐
+│ [Avatar] Max Müller                                     │
+│          8 Jahre · Blauer Prinz                      ▼  │
+├─────────────────────────────────────────────────────────┤
+│ ANWESENHEIT                                             │
+│ ┌─────┬─────┬─────┬─────┬─────┐                        │
+│ │ Mo  │ Di  │ Mi  │ Do  │ Fr  │                        │
+│ │ ✓   │ ✓   │ ○   │ ○   │ ○   │                        │
+│ └─────┴─────┴─────┴─────┴─────┘                        │
+├─────────────────────────────────────────────────────────┤
+│ ERREICHTES LEVEL                                        │
+│ [Select: Blauer Prinz / Roter Prinz / ...]          ▼  │
+├─────────────────────────────────────────────────────────┤
+│ NOTIZEN                                                 │
+│ ┌─────────────────────────────────────────────────────┐ │
+│ │ Macht gute Fortschritte...                          │ │
+│ └─────────────────────────────────────────────────────┘ │
+│ [Speichern]                                             │
+└─────────────────────────────────────────────────────────┘
+```
+
+Features:
+- Collapsible for mobile (shows name + quick attendance status when collapsed)
+- Checkboxes for each day's attendance
+- Skill level dropdown (uses `useAllSkillLevels` hook, filtered by discipline)
+- Notes textarea with save button
+- Optimistic updates with rollback on error
+
+### 6. InstructorGroupManagement Page
+
+```text
+┌─────────────────────────────────────────────────────────┐
+│ ← Zurück                              [Treffpunkt: ...] │
+├─────────────────────────────────────────────────────────┤
+│ BLAUER PRINZ                                            │
+│ 27. Jan - 31. Jan 2025 · 5 Teilnehmer                  │
+├─────────────────────────────────────────────────────────┤
+│ ZUSAMMENFASSUNG                                         │
+│ ┌─────────────────────────────────────────────────────┐ │
+│ │ Heute anwesend: 4/5                                 │ │
+│ │ Woche: Mo✓ Di✓ Mi○ Do○ Fr○                         │ │
+│ └─────────────────────────────────────────────────────┘ │
+├─────────────────────────────────────────────────────────┤
+│ TEILNEHMER                                              │
+│ ┌───────────────────────────────────────────────────┐   │
+│ │ ParticipantManagementCard #1                      │   │
+│ └───────────────────────────────────────────────────┘   │
+│ ┌───────────────────────────────────────────────────┐   │
+│ │ ParticipantManagementCard #2                      │   │
+│ └───────────────────────────────────────────────────┘   │
+│ ...                                                     │
+└─────────────────────────────────────────────────────────┘
+```
+
+Structure:
+- Header with back button and meeting point
+- Course info (name, date range, participant count)
+- Summary card (today's attendance, week overview)
+- List of ParticipantManagementCard components
+- Uses `InstructorLayout` wrapper
+
+### 7. Routing Update
+
+```typescript
+// src/App.tsx - Add in Instructor Portal Routes section
+<Route path="/instructor/group/:instanceId" element={<InstructorGroupManagement />} />
+```
+
+Also update `InstructorLayout.tsx` getPageTitle:
+```typescript
+if (location.pathname.startsWith("/instructor/group/")) {
+  return "Gruppe verwalten";
+}
 ```
 
 ---
 
-## Privacy Restrictions
+## Data Fetching Strategy
 
-When viewing other instructors' bookings, the following data is **hidden**:
+### Finding Participants for a Group Course Instance
 
-| Data | Visible | Hidden |
-|------|---------|--------|
-| Instructor name | ✅ | - |
-| Time slot | ✅ | - |
-| Product type (Privat/Gruppe) | ✅ | - |
-| Product name | - | ✅ |
-| Customer name | - | ✅ |
-| Customer contact | - | ✅ |
-| Participant details | - | ✅ |
-| Prices | - | ✅ |
-| Internal notes | - | ✅ |
-| Ticket number | - | ✅ |
+Since `group_course_enrollments` links `instance_id` to `participant_id`, the query path is:
 
-This is enforced in the frontend by:
-1. Only showing instructor initials on grid slots
-2. Showing limited info in toast on click
-3. Not navigating to detail pages for other instructors' bookings
+```text
+1. Given: instanceId (from URL)
+2. Fetch group_course_instances where id = instanceId
+3. Get course_id and instructor_id (verify access)
+4. Fetch all instances for the same course_id in the date range
+5. Fetch all enrollments for those instances with participant details
+6. Group by participant to create attendance history
+```
+
+```sql
+-- Pseudocode for the main query
+SELECT 
+  gce.id as enrollment_id,
+  gce.instance_id,
+  gce.participant_id,
+  gce.attendance_status,
+  gce.notes as enrollment_notes,
+  gci.date,
+  gci.start_time,
+  gci.end_time,
+  cp.*
+FROM group_course_enrollments gce
+JOIN group_course_instances gci ON gci.id = gce.instance_id
+JOIN customer_participants cp ON cp.id = gce.participant_id
+WHERE gci.course_id = :courseId
+  AND gci.instructor_id = :currentInstructorId
+ORDER BY gci.date, cp.first_name
+```
+
+---
+
+## Authorization & Security
+
+**RLS Consideration:** The existing RLS policies on `group_course_enrollments` are currently basic. We need to ensure instructors can only:
+1. View enrollments for instances they're assigned to
+2. Update attendance status for those enrollments
+3. Update notes on those enrollments
+
+The frontend will verify `gci.instructor_id = currentInstructorId` before showing data. For additional security, RLS policies could be added:
+
+```sql
+-- Example (to be added if needed)
+CREATE POLICY "Instructors can update their course enrollments"
+ON group_course_enrollments
+FOR UPDATE
+USING (
+  instance_id IN (
+    SELECT id FROM group_course_instances
+    WHERE instructor_id = (SELECT id FROM instructors WHERE email = auth.email())
+  )
+);
+```
 
 ---
 
@@ -391,75 +311,64 @@ This is enforced in the frontend by:
 
 | English | German |
 |---------|--------|
-| My Bookings | Meine Buchungen |
-| All Instructors | Alle Lehrer |
-| Legend | Legende |
-| (You) | (Du) |
-| Private | Privat |
-| Group | Gruppe |
-| instructors | Lehrer |
+| Manage Group | Gruppe verwalten |
+| Participants | Teilnehmer |
+| Attendance | Anwesenheit |
+| Present | Anwesend |
+| Absent | Abwesend |
+| Skill Level | Erreicht Level |
+| Notes | Notizen |
+| Save | Speichern |
+| Save Notes | Notizen speichern |
+| Back | Zurück |
+| Today | Heute |
 | This Week | Diese Woche |
-| All Instructors This Week | Alle Lehrer diese Woche |
-| My Lessons | Meine Lektionen |
+| Meeting Point | Treffpunkt |
+| years old | Jahre |
+| participants | Teilnehmer |
 
 ---
 
-## Data Flow
+## Implementation Sequence
 
-```text
-┌─────────────────────────────────────────────────────────────────┐
-│ viewMode state: 'my-bookings' | 'all-instructors'               │
-└─────────────────────────────────────────────────────────────────┘
-                            │
-            ┌───────────────┴───────────────┐
-            ▼                               ▼
-    ┌───────────────┐              ┌───────────────────┐
-    │ my-bookings   │              │ all-instructors   │
-    │               │              │                   │
-    │ Query:        │              │ Query:            │
-    │ • eq instructor_id           │ • No filter       │
-    │ • No instructors join        │ • Join instructors│
-    │                              │ • Fetch all instr.│
-    └───────────────┘              └───────────────────┘
-            │                               │
-            └───────────────┬───────────────┘
-                            ▼
-    ┌─────────────────────────────────────────────────────────────┐
-    │ weekData: ticket_items[]                                    │
-    │   • Filtered by date range                                  │
-    │   • With products, tickets, instructors                     │
-    └─────────────────────────────────────────────────────────────┘
-                            │
-                            ▼
-    ┌─────────────────────────────────────────────────────────────┐
-    │ Render Grid/List                                            │
-    │   • If my-bookings: Primary color for all                   │
-    │   • If all-instructors:                                     │
-    │     - Own bookings: Primary color                           │
-    │     - Other instructors: Color from palette                 │
-    │   • Click handler respects privacy                          │
-    └─────────────────────────────────────────────────────────────┘
-```
+1. **Phase 1: Data Layer**
+   - Create `useGroupLeaderData` hook
+   - Create mutation hooks (attendance, level, notes)
+   - Extend `PortalLesson` type with group course info
+
+2. **Phase 2: UI Components**
+   - Create `ParticipantManagementCard` component
+   - Create `AttendanceGrid` component
+   - Create `SkillLevelSelect` component
+
+3. **Phase 3: Page & Navigation**
+   - Create `InstructorGroupManagement` page
+   - Modify `LessonCard` to add "Gruppe verwalten" button
+   - Add route to `App.tsx`
+   - Update `InstructorLayout` page title
+
+4. **Phase 4: Testing**
+   - Test with existing group course data
+   - Verify attendance updates persist
+   - Verify skill level updates work
+   - Test authorization (instructor can only see their groups)
+
+---
+
+## Edge Cases to Handle
+
+1. **No Enrollments Yet**: Show empty state with message "Keine Teilnehmer angemeldet"
+2. **Course Already Ended**: Show read-only view with past attendance data
+3. **Single Day Course**: Adjust attendance grid layout
+4. **Variable Course Length**: Support 3-day, 5-day, Saturday courses
+5. **Missing Skill Level Data**: Show "Unbekannt" with option to set
+6. **Instructor Not Assigned**: Show 403 error if accessing someone else's group
 
 ---
 
 ## Performance Considerations
 
-1. **Query Efficiency**: The all-instructors query fetches all bookings for the week, which could be larger. Indexes on `date` and `instructor_id` are already in place.
-
-2. **Color Mapping**: Colors are determined by instructor index in the sorted list, ensuring consistency across renders.
-
-3. **Lazy Loading**: The `allInstructors` query only runs when `viewMode === 'all-instructors'`.
-
-4. **Cache Keys**: The query key includes `viewMode` to prevent stale data when switching modes.
-
----
-
-## Existing Patterns Followed
-
-1. **State Management**: Uses `useState` for view mode, consistent with existing `weekOffset` state
-2. **Queries**: Follows TanStack Query patterns from existing hooks
-3. **UI Components**: Uses shadcn/ui `Select`, `Collapsible`, `Card`, `Badge`
-4. **German Labels**: Consistent with existing German UI throughout the portal
-5. **Mobile-First**: All new UI elements are touch-friendly and responsive
-6. **Toast Notifications**: Uses `sonner` toast for booking info display
+1. **Query Optimization**: Single query with joins rather than multiple round trips
+2. **Optimistic Updates**: Immediate UI feedback for attendance toggles
+3. **Cache Keys**: Include `instanceId` in query keys for proper invalidation
+4. **Stale Time**: 30 seconds for group data (may change during the day)
