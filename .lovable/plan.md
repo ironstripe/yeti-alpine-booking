@@ -1,146 +1,10 @@
 
 
-# Create set-booking-confirmation Edge Function
+# Instructor Booking Confirmation UI
 
 ## Overview
 
-This edge function allows instructors to confirm or decline booking assignments from their instructor portal. It validates the instructor's identity, ensures they're authorized to modify the specific booking, updates the `ticket_items` table, and logs the activity to `instructor_activity_log`.
-
----
-
-## Implementation Details
-
-### 1. Create Edge Function
-
-**File:** `supabase/functions/set-booking-confirmation/index.ts`
-
-### Request Body
-```typescript
-{
-  ticketItemId: string;      // UUID of the ticket_items record
-  action: 'confirm' | 'decline';
-  reason?: string;           // Required if action is 'decline'
-}
-```
-
-### Response
-```typescript
-// Success
-{ success: true }
-
-// Error
-{ success: false, error: string }
-```
-
----
-
-## Authorization Flow
-
-```text
-┌─────────────────────────────────────────────────────────────────┐
-│ 1. Extract Authorization header                                 │
-│    └─> Return 401 if missing                                    │
-├─────────────────────────────────────────────────────────────────┤
-│ 2. Validate JWT and get user                                    │
-│    └─> Return 401 if invalid token                              │
-├─────────────────────────────────────────────────────────────────┤
-│ 3. Find instructor by user's email                              │
-│    └─> Return 403 if not an instructor                          │
-├─────────────────────────────────────────────────────────────────┤
-│ 4. Fetch ticket_item and verify instructor_id matches           │
-│    └─> Return 404 if not found                                  │
-│    └─> Return 403 if instructor not assigned to this booking    │
-├─────────────────────────────────────────────────────────────────┤
-│ 5. Validate action ('confirm' or 'decline')                     │
-│    └─> Return 400 if invalid action                             │
-│    └─> Return 400 if decline without reason                     │
-├─────────────────────────────────────────────────────────────────┤
-│ 6. Update ticket_items                                          │
-│    - instructor_confirmation = 'confirmed' or 'declined'        │
-│    - instructor_confirmed_at (if confirm)                       │
-│    - instructor_declined_at + instructor_decline_reason (if     │
-│      decline)                                                   │
-├─────────────────────────────────────────────────────────────────┤
-│ 7. Log to instructor_activity_log                               │
-│    - activity_type: 'booking_confirmed' or 'booking_declined'   │
-│    - description: Human-readable message                        │
-│    - created_by_user_id: Auth user ID                           │
-├─────────────────────────────────────────────────────────────────┤
-│ 8. Return success response                                      │
-└─────────────────────────────────────────────────────────────────┘
-```
-
----
-
-## Technical Implementation
-
-### Key Patterns from Existing Codebase
-
-1. **CORS Headers** - Required for browser calls:
-   ```typescript
-   const corsHeaders = {
-     "Access-Control-Allow-Origin": "*",
-     "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-   };
-   ```
-
-2. **Auth Pattern** - Uses authorization header to create user-scoped client:
-   ```typescript
-   const supabaseClient = createClient(url, anonKey, {
-     global: { headers: { Authorization: authHeader } }
-   });
-   ```
-
-3. **Instructor Lookup** - Match instructor by email (same as `get_instructor_for_user`):
-   ```typescript
-   const { data: instructor } = await supabaseAdmin
-     .from('instructors')
-     .select('id, first_name, last_name, email')
-     .eq('email', user.email.toLowerCase())
-     .maybeSingle();
-   ```
-
-### Database Operations
-
-**Update ticket_items (confirm):**
-```typescript
-{
-  instructor_confirmation: 'confirmed',
-  instructor_confirmed_at: new Date().toISOString()
-}
-```
-
-**Update ticket_items (decline):**
-```typescript
-{
-  instructor_confirmation: 'declined',
-  instructor_declined_at: new Date().toISOString(),
-  instructor_decline_reason: reason
-}
-```
-
-**Insert activity log:**
-```typescript
-{
-  instructor_id: instructor.id,
-  ticket_item_id: ticketItemId,
-  activity_type: action === 'confirm' ? 'booking_confirmed' : 'booking_declined',
-  description: '...',
-  created_by_user_id: user.id
-}
-```
-
----
-
-## Configuration
-
-Add to `supabase/config.toml`:
-```toml
-[functions.set-booking-confirmation]
-verify_jwt = false
-```
-
-We disable JWT verification at the gateway level and handle auth manually in the function code (following the project's established pattern).
+Implement the frontend components for instructors to confirm or decline their assigned bookings. This adds a new "Bestätigungen" tab to the instructor portal's bottom navigation with a badge showing pending count, a new confirmations page, and a decline modal.
 
 ---
 
@@ -148,32 +12,274 @@ We disable JWT verification at the gateway level and handle auth manually in the
 
 | File | Action | Description |
 |------|--------|-------------|
-| `supabase/functions/set-booking-confirmation/index.ts` | Create | Edge function implementation |
-| `supabase/config.toml` | Update | Add function configuration with `verify_jwt = false` |
+| `src/hooks/useConfirmBooking.ts` | Create | Mutation hook for calling `set-booking-confirmation` edge function |
+| `src/hooks/usePendingBookingsCount.ts` | Create | Query hook for fetching pending booking count (for badge) |
+| `src/components/instructor-portal/DeclineBookingModal.tsx` | Create | Modal for declining with reason |
+| `src/components/instructor-portal/PendingBookingCard.tsx` | Create | Card component displaying booking details with confirm/decline buttons |
+| `src/pages/InstructorConfirmations.tsx` | Create | New page listing pending bookings |
+| `src/components/instructor-portal/InstructorLayout.tsx` | Modify | Add 5th nav tab "Bestätigungen" with badge |
+| `src/App.tsx` | Modify | Add route for `/instructor/confirmations` |
 
 ---
 
-## Error Handling
+## Technical Implementation
 
-| Status | Condition |
-|--------|-----------|
-| 400 | Invalid request body (missing ticketItemId, invalid action) |
-| 400 | Action is 'decline' but no reason provided |
-| 401 | Missing or invalid authorization header |
-| 403 | User is not an instructor |
-| 403 | Instructor not assigned to this booking |
-| 404 | Ticket item not found |
-| 500 | Database error |
+### 1. useConfirmBooking Hook
+
+```text
+src/hooks/useConfirmBooking.ts
+```
+
+- Uses `useMutation` from TanStack Query
+- Calls `supabase.functions.invoke('set-booking-confirmation', { body })`
+- Invalidates queries: `instructor-pending-bookings`, `instructor-pending-count`
+- Shows toast on success/error (German labels)
+- Returns `mutate`, `isPending`, `isSuccess`
+
+### 2. usePendingBookingsCount Hook
+
+```text
+src/hooks/usePendingBookingsCount.ts
+```
+
+- Uses existing `useUserRole()` to get `instructorId`
+- Queries `ticket_items` with filters:
+  - `instructor_id = instructorId`
+  - `instructor_confirmation = 'pending'`
+  - `date >= today` (only future/today bookings)
+- Uses `{ count: 'exact', head: true }` for efficient count
+- `refetchInterval: 30000` for live updates
+- Returns `{ count, isLoading }`
+
+### 3. DeclineBookingModal Component
+
+```text
+src/components/instructor-portal/DeclineBookingModal.tsx
+```
+
+Props:
+```typescript
+interface DeclineBookingModalProps {
+  ticketItemId: string | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}
+```
+
+Features:
+- Uses `Dialog` from shadcn/ui
+- Required `Textarea` for decline reason
+- Warning message: "Das Büro wird benachrichtigt..."
+- Touch-friendly button sizes (min 44px height)
+- Disabled state while pending
+- Clears reason on close
+
+### 4. PendingBookingCard Component
+
+```text
+src/components/instructor-portal/PendingBookingCard.tsx
+```
+
+Props:
+```typescript
+interface PendingBookingCardProps {
+  booking: {
+    id: string;
+    date: string;
+    time_start: string | null;
+    time_end: string | null;
+    products: { name: string; type: string } | null;
+    tickets: { customers: { first_name: string | null; last_name: string } | null } | null;
+    customer_participants: Array<{
+      first_name: string;
+      last_name: string | null;
+      skill_levels: { name: string } | null;
+    }>;
+    internal_notes: string | null;
+    meeting_point: string | null;
+  };
+  onConfirm: () => void;
+  onDecline: () => void;
+  isConfirming: boolean;
+}
+```
+
+Features:
+- Collapsible card (like `LessonCard`)
+- Shows: date, time, product, customer, participants with levels
+- Meeting point and internal notes (if present)
+- Two full-width buttons: "Bestätigen" (green/primary) and "Ablehnen" (outline)
+- Touch-friendly 44px minimum button height
+- Uses date-fns for German date formatting
+
+### 5. InstructorConfirmations Page
+
+```text
+src/pages/InstructorConfirmations.tsx
+```
+
+Structure:
+```text
+InstructorLayout
+├── Header ("Bestätigungen" + count badge)
+├── Loading skeleton
+├── Error state
+├── Empty state (checkmark icon + "Alles erledigt!")
+└── List of PendingBookingCard components
+```
+
+Query:
+```typescript
+const { data, isLoading, error } = useQuery({
+  queryKey: ['instructor-pending-bookings', instructorId],
+  queryFn: async () => {
+    // Get instructor ID via useUserRole
+    // Query ticket_items with:
+    //   - instructor_id = instructorId
+    //   - instructor_confirmation = 'pending'
+    //   - date >= today
+    // Select:
+    //   - id, date, time_start, time_end, meeting_point, internal_notes
+    //   - products (name, type)
+    //   - tickets -> customers (first_name, last_name)
+    //   - customer_participants (first_name, last_name) -> skill_levels (name)
+    // Order by date ASC, time_start ASC
+  }
+});
+```
+
+### 6. InstructorLayout Navigation Update
+
+Add 5th navigation item with badge:
+
+```typescript
+// Updated navItems array
+const navItems = [
+  { title: "Heute", url: "/instructor", icon: Home },
+  { title: "Plan", url: "/instructor/schedule", icon: Calendar },
+  { title: "Bestätigen", url: "/instructor/confirmations", icon: ClipboardCheck },  // NEW
+  { title: "Abwesend", url: "/instructor/availability", icon: Hand },
+  { title: "Profil", url: "/instructor/profile", icon: User },
+];
+```
+
+Changes:
+- Import `ClipboardCheck` from lucide-react
+- Import `Badge` from components/ui/badge
+- Import `usePendingBookingsCount` hook
+- Add hook call: `const { data: pendingCount } = usePendingBookingsCount()`
+- Add "Bestätigungen" to navItems with badge overlay
+- Update side drawer navigation to include new item
+- Add page title case: `"/instructor/confirmations": "Bestätigungen"`
+
+Badge implementation in bottom nav:
+```typescript
+{item.url === "/instructor/confirmations" && pendingCount > 0 && (
+  <Badge 
+    variant="destructive" 
+    className="absolute -top-1 -right-2 h-5 min-w-5 flex items-center justify-center p-0 text-xs"
+  >
+    {pendingCount > 9 ? "9+" : pendingCount}
+  </Badge>
+)}
+```
+
+### 7. App.tsx Route Addition
+
+```typescript
+// Inside instructor routes section (line ~138)
+<Route path="/instructor/confirmations" element={<InstructorConfirmations />} />
+```
+
+Also add import at top:
+```typescript
+import InstructorConfirmations from "./pages/InstructorConfirmations";
+```
 
 ---
 
-## Security Considerations
+## UI/UX Specifications
 
-1. **Authorization Check**: Instructor must be the one assigned to the booking (`ticket_items.instructor_id` must match the authenticated instructor)
+### Mobile-First Design
+- All buttons minimum 44x44px touch target
+- Cards have adequate tap spacing
+- Bottom navigation accessible with thumb
+- Content has `pb-20` to avoid nav overlap
 
-2. **Email Matching**: Uses case-insensitive email matching (same as `get_instructor_for_user` function)
+### States
+- **Loading**: Skeleton cards matching final layout
+- **Empty**: Centered checkmark icon + "Alles erledigt!" message
+- **Error**: Alert with error message + retry hint
+- **Confirming**: Disabled buttons with spinner
 
-3. **Service Role for Admin Operations**: Uses service role key for database updates to bypass RLS (instructor may not have direct update rights on ticket_items)
+### German Translations
+| English | German |
+|---------|--------|
+| Confirmations | Bestätigungen |
+| Confirm | Bestätigen |
+| Decline | Ablehnen |
+| Cancel | Abbrechen |
+| pending bookings | offene Buchungen |
+| All done! | Alles erledigt! |
+| Customer | Kunde |
+| Participants | Teilnehmer |
+| Note from office | Notiz vom Büro |
 
-4. **Activity Logging**: All actions are logged for audit trail
+---
+
+## Data Flow
+
+```text
+┌─────────────────────────────────────────────────────────────────┐
+│ InstructorLayout                                                │
+│   └── usePendingBookingsCount() → Badge count                   │
+└─────────────────────────────────────────────────────────────────┘
+                            │
+                            ▼
+┌─────────────────────────────────────────────────────────────────┐
+│ InstructorConfirmations page                                    │
+│   └── useQuery(['instructor-pending-bookings'])                 │
+│       └── Maps to PendingBookingCard components                 │
+└─────────────────────────────────────────────────────────────────┘
+                            │
+            ┌───────────────┴───────────────┐
+            ▼                               ▼
+    ┌───────────────┐              ┌───────────────────┐
+    │ Click Confirm │              │ Click Decline     │
+    │               │              │                   │
+    │ useConfirmBooking()          │ Opens DeclineModal│
+    │   action: 'confirm'          │                   │
+    │                              │   User enters     │
+    │                              │   reason          │
+    │                              │                   │
+    │                              │ useConfirmBooking()
+    │                              │   action: 'decline'
+    └───────────────┘              │   reason: '...'   │
+            │                      └───────────────────┘
+            └───────────────┬───────────────┘
+                            ▼
+┌─────────────────────────────────────────────────────────────────┐
+│ Edge Function: set-booking-confirmation                         │
+│   • Updates ticket_items                                        │
+│   • Logs to instructor_activity_log                             │
+└─────────────────────────────────────────────────────────────────┘
+                            │
+                            ▼
+┌─────────────────────────────────────────────────────────────────┐
+│ Query Invalidation                                              │
+│   • ['instructor-pending-bookings'] → List refreshes            │
+│   • ['instructor-pending-count'] → Badge updates                │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Existing Patterns Followed
+
+1. **Layout**: Uses `InstructorLayout` wrapper like all other instructor pages
+2. **Hooks**: Follows `useInstructorPortalData.ts` pattern with `useUserRole().instructorId`
+3. **Cards**: Similar structure to `LessonCard.tsx` with collapsible content
+4. **Navigation**: Extends existing `navItems` array pattern
+5. **Styling**: Uses existing Tailwind classes and shadcn/ui components
+6. **German UI**: Consistent with existing German labels throughout
 
