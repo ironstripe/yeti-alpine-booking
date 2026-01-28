@@ -1326,6 +1326,67 @@ export type Database = {
           },
         ]
       }
+      instructor_notification_queue: {
+        Row: {
+          created_at: string | null
+          error_message: string | null
+          group_instance_id: string | null
+          id: string
+          instructor_id: string
+          notification_type: string
+          processed_at: string | null
+          status: string
+          template_data: Json
+          ticket_item_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          error_message?: string | null
+          group_instance_id?: string | null
+          id?: string
+          instructor_id: string
+          notification_type: string
+          processed_at?: string | null
+          status?: string
+          template_data?: Json
+          ticket_item_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          error_message?: string | null
+          group_instance_id?: string | null
+          id?: string
+          instructor_id?: string
+          notification_type?: string
+          processed_at?: string | null
+          status?: string
+          template_data?: Json
+          ticket_item_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "instructor_notification_queue_group_instance_id_fkey"
+            columns: ["group_instance_id"]
+            isOneToOne: false
+            referencedRelation: "group_course_instances"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "instructor_notification_queue_instructor_id_fkey"
+            columns: ["instructor_id"]
+            isOneToOne: false
+            referencedRelation: "instructors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "instructor_notification_queue_ticket_item_id_fkey"
+            columns: ["ticket_item_id"]
+            isOneToOne: false
+            referencedRelation: "ticket_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       instructors: {
         Row: {
           ahv_number: string | null
@@ -2988,6 +3049,7 @@ export type Database = {
         Returns: boolean
       }
       is_admin_or_office: { Args: { _user_id: string }; Returns: boolean }
+      queue_confirmation_reminders: { Args: never; Returns: number }
     }
     Enums: {
       app_role: "admin" | "office" | "teacher"

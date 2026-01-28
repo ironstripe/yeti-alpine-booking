@@ -9,6 +9,10 @@ export type NotificationType =
   | "payment.received"
   | "payment.reminder"
   | "instructor.lesson.assigned"
+  | "instructor.lesson.changed"
+  | "instructor.lesson.cancelled"
+  | "instructor.group.assigned"
+  | "instructor.confirmation.reminder"
   | "instructor.absence.approved"
   | "instructor.absence.rejected"
   | "system.voucher.expiring";
