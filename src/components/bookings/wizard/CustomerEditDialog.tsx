@@ -137,7 +137,7 @@ export function CustomerEditDialog({
         city: data.city || null,
         country: data.country || null,
         language: data.language || null,
-        holiday_address: data.holiday_address || null,
+        holiday_address: data.holiday_address || "",
       });
 
       // Return updated customer to update wizard state
@@ -152,7 +152,7 @@ export function CustomerEditDialog({
         city: data.city || null,
         country: data.country || null,
         language: data.language || null,
-        holiday_address: data.holiday_address || null,
+        holiday_address: data.holiday_address || "",
       };
 
       onSaved(updatedCustomer);
