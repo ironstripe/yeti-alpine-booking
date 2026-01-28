@@ -92,9 +92,22 @@ export function ParticipantBookingCard({
   // Check if adult (16+) - private only recommended
   const isAdult = age !== null && age >= 16;
 
-  // Fetch group courses
-  const { data: groupCourses = [] } = useQuery({
-    queryKey: ["group-courses-for-booking-card", booking.dates],
+  // Auto-navigate calendar to month of prefilled dates
+  useEffect(() => {
+    if (booking.dates.length > 0) {
+      const firstDate = parseISO(booking.dates[0]);
+      const currentMonthStart = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth(), 1);
+      const dateMonthStart = new Date(firstDate.getFullYear(), firstDate.getMonth(), 1);
+      
+      if (currentMonthStart.getTime() !== dateMonthStart.getTime()) {
+        setSelectedMonth(firstDate);
+      }
+    }
+  }, [booking.dates.length]); // Only run when dates array length changes (initial load)
+
+  // Fetch group courses with age in cache key
+  const { data: groupCourses = [], isLoading: coursesLoading } = useQuery({
+    queryKey: ["group-courses-for-booking-card", booking.dates, age],
     queryFn: async () => {
       if (booking.dates.length === 0) return [];
 
@@ -113,8 +126,13 @@ export function ParticipantBookingCard({
         `)
         .eq("is_active", true);
 
-      if (error) throw error;
-      if (!coursesData) return [];
+      if (error) {
+        console.error("Error fetching group courses:", error);
+        throw error;
+      }
+      if (!coursesData || coursesData.length === 0) {
+        return [];
+      }
 
       // Get enrollment counts
       const courseIds = coursesData.map((c) => c.id);
@@ -348,53 +366,66 @@ export function ParticipantBookingCard({
                   <Users className="h-3 w-3" />
                   Gruppe
                 </Label>
-                <Select
-                  value={booking.groupCourseId || ""}
-                  onValueChange={(v) =>
-                    onBookingChange({ ...booking, groupCourseId: v || null })
-                  }
-                >
-                  <SelectTrigger className="h-9">
-                    <SelectValue placeholder="Gruppe wählen" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {groupCourses.map((course) => {
-                      const isFull = course.currentCount >= course.max_participants;
-                      const isRecommended = course.id === recommendedCourseId;
-                      return (
-                        <SelectItem
-                          key={course.id}
-                          value={course.id}
-                          disabled={isFull}
-                          className={cn(isFull && "opacity-50")}
-                        >
-                          <div className="flex items-center gap-2">
-                            <div
-                              className="w-2 h-2 rounded-full"
-                              style={{ backgroundColor: course.color || "#6b7280" }}
-                            />
-                            <span>{course.name}</span>
-                            {isRecommended && !isFull && (
+                
+                {coursesLoading ? (
+                  <div className="text-xs text-muted-foreground py-2">Gruppen laden...</div>
+                ) : groupCourses.length === 0 ? (
+                  <div className="text-xs text-amber-600 py-2 bg-amber-50 rounded-md px-2">
+                    <AlertTriangle className="h-3 w-3 inline mr-1" />
+                    {age !== null 
+                      ? `Keine passenden Gruppen für Alter ${age} J. gefunden`
+                      : "Keine Gruppen verfügbar. Bitte wählen Sie zuerst Kurstage."
+                    }
+                  </div>
+                ) : (
+                  <Select
+                    value={booking.groupCourseId || ""}
+                    onValueChange={(v) =>
+                      onBookingChange({ ...booking, groupCourseId: v || null })
+                    }
+                  >
+                    <SelectTrigger className="h-9">
+                      <SelectValue placeholder="Gruppe wählen" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {groupCourses.map((course) => {
+                        const isFull = course.currentCount >= course.max_participants;
+                        const isRecommended = course.id === recommendedCourseId;
+                        return (
+                          <SelectItem
+                            key={course.id}
+                            value={course.id}
+                            disabled={isFull}
+                            className={cn(isFull && "opacity-50")}
+                          >
+                            <div className="flex items-center gap-2">
+                              <div
+                                className="w-2 h-2 rounded-full"
+                                style={{ backgroundColor: course.color || "#6b7280" }}
+                              />
+                              <span>{course.name}</span>
+                              {isRecommended && !isFull && (
+                                <Badge
+                                  variant="outline"
+                                  className="text-[10px] h-4 px-1 border-green-400 text-green-600"
+                                >
+                                  <Sparkles className="h-2 w-2 mr-0.5" />
+                                  Empfohlen
+                                </Badge>
+                              )}
                               <Badge
-                                variant="outline"
-                                className="text-[10px] h-4 px-1 border-green-400 text-green-600"
+                                variant={isFull ? "destructive" : "outline"}
+                                className="text-[10px] h-4 px-1"
                               >
-                                <Sparkles className="h-2 w-2 mr-0.5" />
-                                Empfohlen
+                                {course.currentCount}/{course.max_participants}
                               </Badge>
-                            )}
-                            <Badge
-                              variant={isFull ? "destructive" : "outline"}
-                              className="text-[10px] h-4 px-1"
-                            >
-                              {course.currentCount}/{course.max_participants}
-                            </Badge>
-                          </div>
-                        </SelectItem>
-                      );
-                    })}
-                  </SelectContent>
-                </Select>
+                            </div>
+                          </SelectItem>
+                        );
+                      })}
+                    </SelectContent>
+                  </Select>
+                )}
 
                 {/* Show auto-matched info */}
                 {booking.groupCourseId === recommendedCourseId && recommendedCourseId && (
