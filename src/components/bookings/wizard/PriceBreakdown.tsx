@@ -9,6 +9,8 @@ import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useBookingWizard } from "@/contexts/BookingWizardContext";
 import { usePrivateLessonRates, useHighSeasonPeriods } from "@/hooks/usePrivateLessonRates";
+import { useProducts, ProductWithTiers } from "@/hooks/useProducts";
+import { calculatePrice, formatPriceCHF } from "@/lib/pricing-utils";
 import {
   calculatePrivateLessonPrice,
   formatCHF,
@@ -21,6 +23,13 @@ interface PriceBreakdownProps {
   autoDiscountReason?: string;
 }
 
+interface ParticipantLineItem {
+  participantName: string;
+  courseName: string;
+  days: number;
+  price: number;
+}
+
 const VAT_RATE = 0.077; // 7.7%
 
 export function PriceBreakdown({
@@ -30,13 +39,19 @@ export function PriceBreakdown({
 }: PriceBreakdownProps) {
   const { state } = useBookingWizard();
 
-  // Fetch products from database
-  const { data: products = [], isLoading } = useQuery({
-    queryKey: ["products"],
+  // Fetch products with price tiers
+  const { data: products = [], isLoading: productsLoading } = useProducts({
+    isActive: true,
+    includeTiers: true,
+  });
+
+  // Fetch group courses to get product_id linkage
+  const { data: groupCourses = [], isLoading: coursesLoading } = useQuery({
+    queryKey: ["group-courses-for-pricing"],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("products")
-        .select("*")
+        .from("group_courses")
+        .select("id, name, product_id, price_per_day")
         .eq("is_active", true);
       if (error) throw error;
       return data;
@@ -47,7 +62,9 @@ export function PriceBreakdown({
   const { data: rates = [] } = usePrivateLessonRates();
   const { data: highSeasonPeriods = [] } = useHighSeasonPeriods();
 
-  // Calculate prices from real products
+  const isLoading = productsLoading || coursesLoading;
+
+  // Calculate prices
   const daysCount = state.selectedDates.length;
   const productType = state.productType || "private";
 
@@ -72,7 +89,90 @@ export function PriceBreakdown({
     );
   }, [productType, startTime, endTime, state.selectedDates, state.numberOfPersons, rates, highSeasonPeriods, daysCount]);
 
-  // Find matching product for group courses
+  // Calculate group course pricing with participant-specific mode support
+  const groupCourseCalculation = useMemo(() => {
+    if (productType !== "group") {
+      return { lineItems: [], totalCoursePrice: 0, productName: "" };
+    }
+
+    const lineItems: ParticipantLineItem[] = [];
+    let totalCoursePrice = 0;
+
+    // Check if we're in participant-specific booking mode
+    if (state.useParticipantSpecificBooking && Object.keys(state.participantBookings).length > 0) {
+      // Calculate for each participant individually
+      for (const participant of state.selectedParticipants) {
+        const booking = state.participantBookings[participant.id];
+        if (!booking) continue;
+
+        // Get the linked group course
+        const groupCourse = groupCourses.find(c => c.id === booking.groupCourseId);
+        if (!groupCourse) continue;
+
+        // Find the product linked to this group course
+        const product = products.find(p => p.id === groupCourse.product_id) as ProductWithTiers | undefined;
+        
+        // Calculate price based on number of days using tiered pricing
+        const participantDaysCount = booking.dates.length;
+        let price = 0;
+
+        if (product && product.pricing_type === "tiered" && product.price_tiers?.length) {
+          // Use tiered pricing from product_price_tiers
+          price = calculatePrice(product, participantDaysCount);
+        } else if (product) {
+          // Fallback to fixed price
+          price = (product.price || 0) * participantDaysCount;
+        } else {
+          // Fallback to group course price_per_day
+          price = (groupCourse.price_per_day || 0) * participantDaysCount;
+        }
+
+        lineItems.push({
+          participantName: `${participant.first_name} ${participant.last_name || ""}`.trim(),
+          courseName: groupCourse.name,
+          days: participantDaysCount,
+          price: price,
+        });
+
+        totalCoursePrice += price;
+      }
+    } else {
+      // Shared mode - all participants in same course
+      // Find the group product
+      const groupProduct = products.find(p => p.type === "group") as ProductWithTiers | undefined;
+      
+      let pricePerParticipant = 0;
+      
+      if (groupProduct && groupProduct.pricing_type === "tiered" && groupProduct.price_tiers?.length) {
+        // Use tiered pricing
+        pricePerParticipant = calculatePrice(groupProduct, daysCount);
+      } else if (groupProduct) {
+        pricePerParticipant = (groupProduct.price || 0) * daysCount;
+      }
+
+      // Multiply by number of participants
+      const participantCount = state.selectedParticipants.length || 1;
+      totalCoursePrice = pricePerParticipant * participantCount;
+
+      // Create a single line item for shared mode
+      if (participantCount > 1) {
+        lineItems.push({
+          participantName: `${participantCount} Teilnehmer`,
+          courseName: groupProduct?.name || "Gruppenkurs",
+          days: daysCount,
+          price: totalCoursePrice,
+        });
+      }
+    }
+
+    return { 
+      lineItems, 
+      totalCoursePrice,
+      productName: lineItems.length === 1 ? lineItems[0].courseName : "Gruppenkurs"
+    };
+  }, [productType, state.useParticipantSpecificBooking, state.participantBookings, state.selectedParticipants, groupCourses, products, daysCount]);
+
+  // Private lesson pricing
   let unitPrice = 0;
   let productName = "";
 
@@ -80,12 +180,6 @@ export function PriceBreakdown({
     unitPrice = privateLessonPrice.totalPrice;
     const duration = privateLessonPrice.durationHours;
     productName = `Privatstunde ${state.sport === "ski" ? "Ski" : state.sport === "snowboard" ? "Snowboard" : ""} ${duration}h`;
-  } else if (productType === "group") {
-    const product = products.find(
-      (p) => p.type === "group" && p.name.includes(`${daysCount} Tag`)
-    );
-    unitPrice = product?.price || 85;
-    productName = product?.name || `Gruppenkurs ${daysCount} Tag(e)`;
   }
 
   // Calculate lunch from lunchSelections (for group courses) or includeLunch (for private)
@@ -93,20 +187,26 @@ export function PriceBreakdown({
   const lunchPricePerDay = lunchProduct?.price || 25;
   
   let lunchTotal = 0;
+  let lunchDaysCount = 0;
   if (productType === "group" && Object.keys(state.lunchSelections).length > 0) {
     // Sum up all lunch days across all participants
-    const totalLunchDays = Object.values(state.lunchSelections)
+    lunchDaysCount = Object.values(state.lunchSelections)
       .reduce((sum, days) => sum + days.length, 0);
-    lunchTotal = totalLunchDays * lunchPricePerDay;
+    lunchTotal = lunchDaysCount * lunchPricePerDay;
   } else if (state.includeLunch && lunchProduct) {
+    lunchDaysCount = daysCount;
     lunchTotal = lunchProduct.price * daysCount;
   }
 
   // Combine manual and auto discounts
   const totalDiscountPercent = discountPercent + autoDiscountPercent;
 
-  const subtotal =
-    (productType === "private" ? unitPrice * daysCount : unitPrice) + lunchTotal;
+  // Calculate totals based on product type
+  const courseTotal = productType === "group" 
+    ? groupCourseCalculation.totalCoursePrice 
+    : (productType === "private" ? unitPrice * daysCount : 0);
+
+  const subtotal = courseTotal + lunchTotal;
   const discountAmount = subtotal * (totalDiscountPercent / 100);
   const afterDiscount = subtotal - discountAmount;
   const vatAmount = afterDiscount * VAT_RATE;
@@ -143,69 +243,94 @@ export function PriceBreakdown({
       <CardContent className="space-y-3">
         {/* Line items */}
         <div className="space-y-2">
-          <div className="flex justify-between">
-            <div>
-              <p className="font-medium">{productName}</p>
-              {productType === "private" && privateLessonPrice && (
-                <div className="text-sm text-muted-foreground space-y-0.5">
-                  <p className="flex items-center gap-1">
-                    <Clock className="h-3 w-3" />
-                    {state.timeSlot}
-                  </p>
-                  {/* Time slot breakdown */}
-                  {privateLessonPrice.breakdown.map((item, idx) => (
-                    <p key={idx} className="text-xs">
-                      {item.timeSlot}: {formatCHF(item.rate)} ({item.isPeak ? "Hauptzeit" : "Randzeit"})
+          {/* Group course - participant-specific mode */}
+          {productType === "group" && state.useParticipantSpecificBooking && groupCourseCalculation.lineItems.length > 0 && (
+            <>
+              {groupCourseCalculation.lineItems.map((item, idx) => (
+                <div key={idx} className="flex justify-between">
+                  <div>
+                    <p className="font-medium">{item.participantName}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {item.courseName} · {item.days} Tag{item.days > 1 ? "e" : ""}
                     </p>
-                  ))}
-                  {state.numberOfPersons > 1 && (
-                    <p className="flex items-center gap-1 text-xs">
-                      <Users className="h-3 w-3" />
-                      +{state.numberOfPersons - 1} Person(en) × {privateLessonPrice.durationHours}h × {formatCHF(ADDITIONAL_PERSON_RATE)}
-                    </p>
-                  )}
+                  </div>
+                  <span className="font-medium">{formatCurrency(item.price)}</span>
                 </div>
-              )}
-              {productType === "group" && (
-                <p className="text-sm text-muted-foreground">
-                  {daysCount} Tag{daysCount > 1 ? "e" : ""}
-                </p>
-              )}
-            </div>
-            <span className="font-medium">
-              {formatCurrency(
-                productType === "private" ? unitPrice * daysCount : unitPrice
-              )}
-            </span>
-          </div>
-
-          {/* Days breakdown for private lessons */}
-          {productType === "private" && daysCount > 1 && (
-            <p className="text-sm text-muted-foreground">
-              {daysCount} Tag{daysCount > 1 ? "e" : ""} × {formatCurrency(unitPrice)}
-            </p>
+              ))}
+            </>
           )}
 
+          {/* Group course - shared mode */}
+          {productType === "group" && !state.useParticipantSpecificBooking && (
+            <div className="flex justify-between">
+              <div>
+                <p className="font-medium">{groupCourseCalculation.productName || "Gruppenkurs"}</p>
+                <p className="text-sm text-muted-foreground">
+                  {state.selectedParticipants.length > 1 
+                    ? `${state.selectedParticipants.length} Teilnehmer × ${daysCount} Tag${daysCount > 1 ? "e" : ""}`
+                    : `${daysCount} Tag${daysCount > 1 ? "e" : ""}`
+                  }
+                </p>
+              </div>
+              <span className="font-medium">{formatCurrency(groupCourseCalculation.totalCoursePrice)}</span>
+            </div>
+          )}
+
+          {/* Private lesson */}
+          {productType === "private" && (
+            <div className="flex justify-between">
+              <div>
+                <p className="font-medium">{productName}</p>
+                {privateLessonPrice && (
+                  <div className="text-sm text-muted-foreground space-y-0.5">
+                    <p className="flex items-center gap-1">
+                      <Clock className="h-3 w-3" />
+                      {state.timeSlot}
+                    </p>
+                    {/* Time slot breakdown */}
+                    {privateLessonPrice.breakdown.map((item, idx) => (
+                      <p key={idx} className="text-xs">
+                        {item.timeSlot}: {formatCHF(item.rate)} ({item.isPeak ? "Hauptzeit" : "Randzeit"})
+                      </p>
+                    ))}
+                    {state.numberOfPersons > 1 && (
+                      <p className="flex items-center gap-1 text-xs">
+                        <Users className="h-3 w-3" />
+                        +{state.numberOfPersons - 1} Person(en) × {privateLessonPrice.durationHours}h × {formatCHF(ADDITIONAL_PERSON_RATE)}
+                      </p>
+                    )}
+                  </div>
+                )}
+                {daysCount > 1 && (
+                  <p className="text-sm text-muted-foreground">
+                    {daysCount} Tag{daysCount > 1 ? "e" : ""} × {formatCurrency(unitPrice)}
+                  </p>
+                )}
+              </div>
+              <span className="font-medium">
+                {formatCurrency(unitPrice * daysCount)}
+              </span>
+            </div>
+          )}
+
+          {/* High season badge for private lessons */}
+          {productType === "private" && privateLessonPrice?.isHighSeason && (
+            <Badge variant="secondary" className="bg-blue-100 text-blue-800">
+              Hochsaison
+            </Badge>
+          )}
+
+          {/* Lunch */}
           {lunchTotal > 0 && (
             <div className="flex justify-between">
               <div>
                 <p className="font-medium">Mittagsbetreuung</p>
                 <p className="text-sm text-muted-foreground">
-                  {productType === "group" && Object.keys(state.lunchSelections).length > 0
-                    ? `${Object.values(state.lunchSelections).reduce((sum, days) => sum + days.length, 0)} Tag(e) × ${formatCurrency(lunchPricePerDay)}`
-                    : `${daysCount} Tag${daysCount > 1 ? "e" : ""} × ${formatCurrency(lunchPricePerDay)}`
-                  }
+                  {lunchDaysCount} Tag{lunchDaysCount > 1 ? "e" : ""} × {formatCurrency(lunchPricePerDay)}
                 </p>
               </div>
               <span className="font-medium">{formatCurrency(lunchTotal)}</span>
             </div>
-          )}
-
-          {/* High season badge */}
-          {productType === "private" && privateLessonPrice?.isHighSeason && (
-            <Badge variant="secondary" className="bg-blue-100 text-blue-800">
-              Hochsaison
-            </Badge>
           )}
         </div>
 
