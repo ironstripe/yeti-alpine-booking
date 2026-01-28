@@ -1,148 +1,76 @@
 
-# Fix Group Course Matching via Direct Skill Level Link
+# Fix Group Course Recommendation and Date Synchronization
 
-## Current Problem
+## Problem Summary
 
-The current data model has a fundamental design issue:
+Two issues identified from your screenshot:
 
-| Table | Field | Current Value |
-|-------|-------|---------------|
-| `skill_levels` | `id` | `ski_blauer_prinz`, `ski_roter_koenig`, etc. (specific) |
-| `group_courses` | `skill_level` | `beginner`, `intermediate`, `advanced` (generic TEXT) |
+### Issue 1: Wrong Group Recommendation for Robin
+- **Current behavior**: Robin has level "Blauer Star" → System recommends "Blauer Star" course
+- **Expected behavior**: Robin ACHIEVED "Blauer Star" → Should be placed in NEXT course: "Red Prince/Princess"
 
-The code then uses a mapping function to convert participant levels → generic categories → match courses. This is:
-1. **Lossy** - Many skill levels map to the same category
-2. **Redundant** - The group courses ARE the skill levels (1:1 relationship by name)
-3. **Error-prone** - Mapping logic can get out of sync
+The business logic should be: if a participant has **achieved** level X, they should be enrolled in the course for their **next level** (progression). The database already has `next_level_id` in `skill_levels` table for exactly this purpose.
 
-### Your Database Data Shows the 1:1 Relationship
-
+```text
+Database shows:
+┌─────────────────┬─────────────┬────────────────────────┐
+│ Participant     │ Achieved    │ Should Book Course For │
+├─────────────────┼─────────────┼────────────────────────┤
+│ Robin           │ Blauer Star │ Red Prince/Princess    │
+│ (next_level_id) │             │ (ski_roter_prinz)      │
+└─────────────────┴─────────────┴────────────────────────┘
 ```
-Skill Level: ski_blauer_prinz    →  Group Course: Blauer Prinz/Prinzessin
-Skill Level: ski_blauer_star     →  Group Course: Blauer Star  
-Skill Level: ski_windel_wedel    →  Group Course: Windel Wedel Kurs
-Skill Level: ski_roter_prinz     →  Group Course: Red Prince/Princess
-```
+
+### Issue 2: Only First Date Syncing (Feb 9 only, not 10-12)
+- **Current behavior**: Main calendar selects Feb 9-12 → Participant card shows only Feb 9
+- **Root cause**: The sync logic in `setSelectedDates` only updates participant bookings when `booking.dates.length === 0`
+
+When individual mode auto-enables, `initializeParticipantBookings()` copies current dates. Later date changes are ignored because `booking.dates.length > 0`.
 
 ---
 
-## Proposed Fix: Direct Foreign Key Link
+## Solution
 
-### Database Schema Change
-
-Add a new column to `group_courses`:
-
-```sql
-ALTER TABLE group_courses 
-ADD COLUMN skill_level_id TEXT REFERENCES skill_levels(id);
-
--- Migrate existing data (match by name)
-UPDATE group_courses gc
-SET skill_level_id = sl.id
-FROM skill_levels sl
-WHERE (
-  gc.name ILIKE sl.name
-  OR gc.name ILIKE REPLACE(sl.name, 'König', 'King')
-  OR gc.name ILIKE REPLACE(sl.name, 'Prinz', 'Prince')
-  OR gc.name ILIKE REPLACE(sl.name, 'Prinzessin', 'Princess')
-)
-AND gc.discipline = sl.discipline
-AND sl.target_group = 'child';
-
--- Eventually remove the old TEXT column
--- ALTER TABLE group_courses DROP COLUMN skill_level;
-```
-
-### Simplified Matching Logic
-
-**Before (complex mapping):**
-```typescript
-// 1. Get participant's level: "ski_roter_koenig"
-// 2. Map to generic: mapLevelToCourseSkill() → "intermediate"  
-// 3. Find course where skill_level === "intermediate"
-// Result: Could match ANY intermediate course (wrong!)
-```
-
-**After (direct link):**
-```typescript
-// 1. Get participant's level: "ski_roter_koenig"
-// 2. Find course where skill_level_id === "ski_roter_koenig"
-// Result: Exact match to "Roter König/Königin" course (correct!)
-```
-
----
-
-## Implementation Steps
-
-### Step 1: Database Migration
-
-Add `skill_level_id` FK column and populate from existing data:
-
-```sql
--- Add the foreign key column
-ALTER TABLE group_courses 
-ADD COLUMN skill_level_id TEXT REFERENCES skill_levels(id);
-
--- Create index for performance
-CREATE INDEX idx_group_courses_skill_level_id ON group_courses(skill_level_id);
-```
-
-### Step 2: Populate Existing Data
-
-Run a migration to link existing courses to skill levels:
-
-| Group Course | → | Skill Level ID |
-|--------------|---|----------------|
-| Windel Wedel Kurs | → | `ski_windel_wedel` |
-| Blauer Prinz/Prinzessin (ski) | → | `ski_blauer_prinz` |
-| Blauer Prinz/Prinzessin (snowboard) | → | `sb_blauer_prinz` |
-| Blauer King/Queen | → | `ski_blauer_koenig` |
-| Blauer Star | → | `ski_blauer_star` |
-| Red Prince/Princess | → | `ski_roter_prinz` |
-| Red King/Queen | → | `ski_roter_koenig` |
-| Red Star | → | `ski_roter_star` |
-| Black Prince/Princess | → | `ski_schwarzer_prinz` |
-
-### Step 3: Update UI Components
+### Fix 1: Match on NEXT Level for Group Course Recommendation
 
 **File: `src/components/bookings/wizard/ParticipantBookingCard.tsx`**
 
-Change the matching logic:
+Fetch the participant's `next_level_id` from `skill_levels` and use that for matching:
 
 ```typescript
-// OLD: Map level to generic skill category
-const targetSkill = mapLevelToCourseSkill(participant.level_current_season);
-let match = groupCourses.find(c => c.skill_level === targetSkill);
+// Fetch participant's next level for group course matching
+const { data: skillLevelData } = useQuery({
+  queryKey: ["skill-level-next", participantSkillId],
+  queryFn: async () => {
+    if (!participantSkillId) return null;
+    const { data } = await supabase
+      .from("skill_levels")
+      .select("id, name, next_level_id")
+      .eq("id", participantSkillId)
+      .single();
+    return data;
+  },
+  enabled: !!participantSkillId,
+});
 
-// NEW: Direct match on skill_level_id
-const participantSkillId = participant.current_ski_level_id || 
-  mapLegacyLevelToSkillLevelId(participant.level_current_season, 'ski');
-let match = groupCourses.find(c => c.skill_level_id === participantSkillId);
+// Use next_level_id for matching (participant should progress to next course)
+const targetSkillLevelId = skillLevelData?.next_level_id || participantSkillId;
+
+// Match group course
+let match = groupCourses.find(
+  (c) => c.skill_level_id === targetSkillLevelId && c.currentCount < c.max_participants
+);
 ```
 
-**File: `src/components/trainings/TrainingFormModal.tsx`**
+This ensures:
+- Robin (Blauer Star) → matches "Red Prince/Princess" course (next level)
+- Already at highest level → stays in current level course
 
-Update the form to select a `skill_level_id` instead of a generic skill category dropdown.
-
-**File: `src/types/group-courses.ts`**
-
-Update the type:
-
-```typescript
-interface GroupCourse {
-  // ... existing fields
-  skill_level_id: string | null;  // NEW - FK to skill_levels
-  skill_level: string;            // DEPRECATED - keep for backward compat
-}
-```
-
-### Step 4: Fix Date Synchronization (Secondary Issue)
-
-The "empty dropdown" issue is also caused by participant bookings having empty dates.
+### Fix 2: Sync All Date Changes to Participant Bookings
 
 **File: `src/contexts/BookingWizardContext.tsx`**
 
-When `setSelectedDates` is called and `useParticipantSpecificBooking` is true, also update participant bookings:
+Update `setSelectedDates` to sync dates when they match the previous shared selection (not just when empty):
 
 ```typescript
 const setSelectedDates = (dates: string[]) => {
@@ -150,12 +78,22 @@ const setSelectedDates = (dates: string[]) => {
     const newState = { ...prev, selectedDates: dates };
     
     // Sync to participant bookings if in individual mode
-    if (prev.useParticipantSpecificBooking) {
+    if (prev.useParticipantSpecificBooking && Object.keys(prev.participantBookings).length > 0) {
+      const previousDates = prev.selectedDates;
       const updatedBookings = { ...prev.participantBookings };
+      
       for (const pId of Object.keys(updatedBookings)) {
         const booking = updatedBookings[pId];
-        // Only sync if not manually overridden
-        if (booking.dates.length === 0) {
+        
+        // Sync if:
+        // 1. Participant's dates are empty, OR
+        // 2. Participant's dates exactly match the previous shared dates (not manually overridden)
+        const shouldSync = 
+          booking.dates.length === 0 ||
+          (booking.dates.length === previousDates.length && 
+           booking.dates.every(d => previousDates.includes(d)));
+        
+        if (shouldSync) {
           updatedBookings[pId] = { ...booking, dates: [...dates] };
         }
       }
@@ -167,26 +105,40 @@ const setSelectedDates = (dates: string[]) => {
 };
 ```
 
+This ensures:
+- First date selection → syncs to all participants
+- Adding more dates → still syncs (because current dates match previous shared dates)
+- Manual override by participant → preserved (their dates won't match shared dates)
+
 ---
 
 ## Files to Modify
 
 | File | Changes |
 |------|---------|
-| Database Migration | Add `skill_level_id` FK column to `group_courses`, populate data |
-| `src/types/group-courses.ts` | Add `skill_level_id` field to interface |
-| `src/hooks/useGroupCourses.ts` | Include `skill_level_id` in queries |
-| `src/components/trainings/TrainingFormModal.tsx` | Replace skill category dropdown with skill level selector |
-| `src/components/bookings/wizard/ParticipantBookingCard.tsx` | Match on `skill_level_id` directly instead of mapped category |
-| `src/contexts/BookingWizardContext.tsx` | Sync dates to participant bookings |
-| `src/lib/level-utils.ts` | Eventually deprecate `mapLevelToCourseSkill()` |
+| `src/components/bookings/wizard/ParticipantBookingCard.tsx` | 1. Add query to fetch `next_level_id` from skill_levels<br>2. Use `next_level_id` for group course matching instead of current level |
+| `src/contexts/BookingWizardContext.tsx` | Update `setSelectedDates` sync logic to detect "matches previous shared dates" not just "is empty" |
 
 ---
 
 ## Expected Result
 
-1. Each group course links directly to exactly one skill level
-2. Participant matching is exact: "Roter König" participant → "Roter König/Königin" course
-3. No lossy mapping between skill categories
-4. Age remains a soft warning (already implemented)
-5. The "Gruppe" dropdown populates correctly because dates sync properly
+After these changes:
+
+1. **Robin (Blauer Star)** → Recommended "Red Prince/Princess" course
+2. **Lisa (if she's lower level)** → Recommended appropriate next-level course
+3. **All selected dates (Feb 9-12)** → Appear in all participant cards
+4. **Manual participant overrides** → Still preserved
+
+---
+
+## Verification Steps
+
+1. Create booking with 2 participants with different levels
+2. Select "Gruppenkurs" → Confirm individual mode auto-enables
+3. Pick dates Feb 9-12 in main calendar:
+   - All 4 dates should appear in BOTH participant cards
+4. Check recommendations:
+   - Participant with "Blauer Star" → Should show "Red Prince/Princess" as recommended
+   - Participant at highest level → Should show their current level course
+5. Manually change one participant's dates → Verify other participant still syncs from main calendar
