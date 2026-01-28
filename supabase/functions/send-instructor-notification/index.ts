@@ -4,6 +4,11 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
 const BATCH_SIZE = 10;
 
+// =================== TEST MODE CONFIGURATION ===================
+const TEST_MODE = true; // Set to `false` to go live
+const TEST_EMAIL_RECIPIENT = "ivo.streiff71@gmail.com";
+// ===============================================================
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
@@ -168,11 +173,27 @@ const handler = async (req: Request): Promise<Response> => {
           </html>
         `;
 
+        // Determine final recipient and subject based on test mode
+        const finalRecipient = TEST_MODE ? TEST_EMAIL_RECIPIENT : instructorData.email;
+        const finalSubject = TEST_MODE ? `[TEST] ${subject}` : subject;
+
+        // Add test mode info to email body if in test mode
+        const finalBody = TEST_MODE 
+          ? `
+            <div style="background: #fff3cd; padding: 10px; margin-bottom: 20px; border-radius: 4px; border: 1px solid #ffc107;">
+              <strong>⚠️ TEST MODE</strong><br>
+              Original recipient: ${instructorData.email}<br>
+              Instructor: ${instructorData.first_name} ${instructorData.last_name}
+            </div>
+            ${fullHtml}
+          `
+          : fullHtml;
+
         // Send the email
         const emailResult = await sendEmailWithResend(
-          instructorData.email,
-          subject,
-          fullHtml,
+          finalRecipient,
+          finalSubject,
+          finalBody,
           textBody || undefined
         );
 
@@ -180,7 +201,7 @@ const handler = async (req: Request): Promise<Response> => {
           throw new Error(emailResult.error);
         }
 
-        console.log(`Email sent to ${instructorData.email}: ${emailResult.id}`);
+        console.log(`Email sent to ${finalRecipient}${TEST_MODE ? ` (original: ${instructorData.email})` : ''}: ${emailResult.id}`);
 
         // Mark as sent
         await supabase
@@ -194,13 +215,17 @@ const handler = async (req: Request): Promise<Response> => {
         // Log to email_logs table
         await supabase.from("email_logs").insert({
           template_id: template.id,
-          recipient_email: instructorData.email,
+          recipient_email: TEST_MODE ? `${TEST_EMAIL_RECIPIENT} (original: ${instructorData.email})` : instructorData.email,
           recipient_name: `${instructorData.first_name} ${instructorData.last_name}`,
-          subject,
+          subject: finalSubject,
           status: "sent",
           sent_at: new Date().toISOString(),
           provider_message_id: emailResult.id,
-          metadata: notification.template_data,
+          metadata: {
+            ...notification.template_data,
+            test_mode: TEST_MODE,
+            original_recipient: instructorData.email,
+          },
         });
 
         processed++;
