@@ -1,134 +1,84 @@
 
-# Fix Group Course Price Calculation in Booking Summary
 
-## Problem Summary
+# Display Vegetarian Option in Price Breakdown and Summary
 
-The "Abschluss" (summary) step shows incorrect prices for group course bookings:
+## Problem
 
-1. **Not using correct product prices**: The system tries to match products by name (`"X Tag"`), which doesn't match actual product names
-2. **Not using tiered pricing**: Group courses have tiered pricing (1 day = CHF 150, 4 days = CHF 285, etc.) stored in `product_price_tiers` table, but this is not fetched
-3. **Not calculating per participant**: With 2 participants, the price should be calculated for each participant and summed
+The vegetarian option for Mittagsbetreuung (lunch care) is correctly stored and saved to the database in both shared and individual booking modes. However, it is **not displayed** in:
 
-## Current Database Structure
+1. **PriceBreakdown** - The lunch section only shows total days and price, not which participants have vegetarian meals
+2. **BookingSummaryCards** - Missing lunch details entirely for each participant
 
-```text
-┌─────────────────────────────────────────────────────────────────────────┐
-│ products table                                                          │
-├──────────────────────────────────────┬──────────────────────────────────┤
-│ id: 00bb1fd0...                      │ type: "group"                    │
-│ name: "Gruppenkurs"                  │ pricing_type: "tiered"           │
-│ price: 0 (not used for tiered)       │                                  │
-└──────────────────────────────────────┴──────────────────────────────────┘
+## Current Data Flow
 
-┌─────────────────────────────────────────────────────────────────────────┐
-│ product_price_tiers table                                               │
-├──────────────┬──────────────────┬───────────────────────────────────────┤
-│ day_count    │ cumulative_price │ product_id                            │
-├──────────────┼──────────────────┼───────────────────────────────────────┤
-│ 1            │ 150.00           │ 00bb1fd0...                           │
-│ 2            │ 200.00           │ 00bb1fd0...                           │
-│ 3            │ 245.00           │ 00bb1fd0...                           │
-│ 4            │ 285.00           │ 00bb1fd0...                           │
-│ 5            │ 320.00           │ 00bb1fd0...                           │
-└──────────────┴──────────────────┴───────────────────────────────────────┘
-```
+The vegetarian option is properly tracked in:
+- **Shared mode**: `state.vegetarianSelections[participantId]` 
+- **Individual mode**: `state.participantBookings[participantId].isVegetarian`
+
+Both paths correctly save to `ticket_items.is_vegetarian` during booking creation.
 
 ---
 
 ## Solution
 
-### Changes to `PriceBreakdown.tsx`
+### Changes to PriceBreakdown.tsx
 
-1. **Use `useProducts` hook** which already fetches price tiers
-2. **Handle participant-specific booking mode** - iterate over each participant's booking
-3. **Calculate tiered pricing correctly** using the `calculatePrice` utility
-4. **Display per-participant line items** showing each participant's course and price
+Add per-participant lunch breakdown with vegetarian indicator:
 
-### Pricing Logic
-
-**Participant-Specific Mode (Individual Booking)**:
 ```text
-For each participant:
-  1. Get their selected dates (e.g., 4 days)
-  2. Get their group course's linked product_id
-  3. Look up price tiers for that product
-  4. Calculate price for 4 days = CHF 285 (cumulative)
-  
-Total = Sum of all participant prices + Lunch total - Discounts
+Before:
+┌─────────────────────────────────────────────────────────┐
+│ Mittagsbetreuung                                        │
+│   8 Tage × CHF 25.00                    CHF 200.00      │
+└─────────────────────────────────────────────────────────┘
+
+After:
+┌─────────────────────────────────────────────────────────┐
+│ Mittagsbetreuung                                        │
+│   Robin Mustermann: 4 Tage 🥬           CHF 100.00      │
+│   Lisa Mustermann: 4 Tage               CHF 100.00      │
+└─────────────────────────────────────────────────────────┘
 ```
 
-**Shared Mode (All participants same course)**:
-```text
-1. Get shared dates (e.g., 4 days)
-2. Calculate single course price = CHF 285
-3. Multiply by participant count = CHF 285 × 2 = CHF 570
-4. Add lunch, apply discounts
-```
+### Changes to BookingSummaryCards.tsx
+
+Add a lunch section in the Course card showing:
+- Which participants have lunch
+- Which days for each participant
+- Vegetarian indicator (🥬 or badge)
 
 ---
 
 ## Implementation Steps
 
-### Step 1: Refactor Product Fetching
+### Step 1: Update PriceBreakdown.tsx
 
-Replace the simple products query with `useProducts` hook that includes price tiers:
+1. Build per-participant lunch data structure
+2. For **individual mode**: Read from `state.participantBookings[id].lunchDays` and `.isVegetarian`
+3. For **shared mode**: Read from `state.lunchSelections[id]` and `state.vegetarianSelections[id]`
+4. Render individual lunch lines with vegetarian badge
 
-```typescript
-// OLD:
-const { data: products = [], isLoading } = useQuery({
-  queryKey: ["products"],
-  queryFn: async () => { ... }
-});
+### Step 2: Update BookingSummaryCards.tsx
 
-// NEW:
-import { useProducts, ProductWithTiers } from "@/hooks/useProducts";
-import { calculatePrice } from "@/lib/pricing-utils";
+1. Add a new "Mittagsbetreuung" section in the summary
+2. Show each participant who has lunch days selected
+3. Display their selected days
+4. Show vegetarian indicator (Leaf icon or badge)
 
-const { data: products = [], isLoading } = useProducts({ 
-  isActive: true, 
-  includeTiers: true 
-});
-```
+---
 
-### Step 2: Handle Participant-Specific Mode
+## Files to Modify
 
-When `state.useParticipantSpecificBooking` is true:
+| File | Changes |
+|------|---------|
+| `src/components/bookings/wizard/PriceBreakdown.tsx` | 1. Calculate per-participant lunch details<br>2. Include vegetarian flag per participant<br>3. Display individual lunch lines with 🥬 indicator |
+| `src/components/bookings/wizard/BookingSummaryCards.tsx` | 1. Add lunch summary section<br>2. Show per-participant lunch days<br>3. Display vegetarian preference with badge |
 
-```typescript
-if (state.useParticipantSpecificBooking) {
-  // Calculate for each participant
-  const lineItems = [];
-  let totalCoursePrice = 0;
-  
-  for (const participant of state.selectedParticipants) {
-    const booking = state.participantBookings[participant.id];
-    if (!booking) continue;
-    
-    // Get the linked product from group course
-    const groupCourse = groupCourses.find(c => c.id === booking.groupCourseId);
-    const productId = groupCourse?.product_id;
-    const product = products.find(p => p.id === productId);
-    
-    // Calculate price based on number of days
-    const daysCount = booking.dates.length;
-    const price = calculatePrice(product, daysCount);
-    
-    lineItems.push({
-      participantName: `${participant.first_name} ${participant.last_name}`,
-      courseName: groupCourse?.name,
-      days: daysCount,
-      price: price,
-    });
-    
-    totalCoursePrice += price;
-  }
-}
-```
+---
 
-### Step 3: Update Display
+## Expected Result
 
-Show per-participant breakdown:
-
+### PriceBreakdown
 ```text
 ┌─────────────────────────────────────────────────────────┐
 │ Preisdetails                                            │
@@ -140,7 +90,8 @@ Show per-participant breakdown:
 │   Blue King/Queen · 4 Tage              CHF 285.00      │
 │                                                         │
 │ Mittagsbetreuung                                        │
-│   8 Tage × CHF 25.00                    CHF 200.00      │
+│   Robin: 4 Tage × CHF 25           🥬   CHF 100.00      │
+│   Lisa: 4 Tage × CHF 25                 CHF 100.00      │
 ├─────────────────────────────────────────────────────────┤
 │ Zwischensumme                           CHF 770.00      │
 │ MwSt. (7.7%)                            CHF  59.29      │
@@ -149,29 +100,16 @@ Show per-participant breakdown:
 └─────────────────────────────────────────────────────────┘
 ```
 
----
+### BookingSummaryCards - New Lunch Section
+```text
+┌─────────────────────────────────────────────────────────┐
+│ MITTAGSBETREUUNG                          [Ändern]      │
+├─────────────────────────────────────────────────────────┤
+│ 🍽️ Robin Mustermann                                     │
+│    Mo, Di, Mi, Do · 🥬 Vegetarisch                      │
+│                                                         │
+│ 🍽️ Lisa Mustermann                                      │
+│    Mo, Di, Mi, Do                                       │
+└─────────────────────────────────────────────────────────┘
+```
 
-## Files to Modify
-
-| File | Changes |
-|------|---------|
-| `src/components/bookings/wizard/PriceBreakdown.tsx` | 1. Use `useProducts` hook with tiers<br>2. Fetch group courses for product linkage<br>3. Handle participant-specific mode<br>4. Use `calculatePrice()` for tiered pricing<br>5. Display per-participant line items |
-
----
-
-## Additional Considerations
-
-1. **Group Courses Query**: Need to fetch group courses to get `product_id` linkage for each participant's selected course
-2. **Fallback for Shared Mode**: Keep original logic for non-participant-specific bookings but multiply by participant count
-3. **Lunch Calculation**: Already handles participant-specific lunch selections via `state.lunchSelections`
-
----
-
-## Expected Result
-
-After fix:
-- Robin (4 days, Red Prince) = CHF 285
-- Lisa (4 days, Blue King) = CHF 285
-- Total before lunch = CHF 570
-- With lunch (if selected) = CHF 570 + lunch total
-- Correct tiered pricing applied based on days per participant
