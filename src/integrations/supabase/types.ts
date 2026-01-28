@@ -2962,6 +2962,23 @@ export type Database = {
       }
     }
     Functions: {
+      assign_instructor_to_course_week: {
+        Args: {
+          p_assistant_instructor_id?: string
+          p_course_id: string
+          p_instructor_id: string
+          p_week_start_date: string
+        }
+        Returns: Json
+      }
+      copy_instructor_assignments_from_previous_week: {
+        Args: { p_target_week_start_date: string }
+        Returns: Json
+      }
+      generate_group_course_instances_for_week: {
+        Args: { p_week_start_date: string }
+        Returns: Json
+      }
       get_instructor_for_user: { Args: { _user_id: string }; Returns: string }
       has_role: {
         Args: {
