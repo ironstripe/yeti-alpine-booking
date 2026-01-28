@@ -1,115 +1,64 @@
 
 
-# Display Vegetarian Option in Price Breakdown and Summary
+# Fix Customer Edit Save Error
 
 ## Problem
 
-The vegetarian option for Mittagsbetreuung (lunch care) is correctly stored and saved to the database in both shared and individual booking modes. However, it is **not displayed** in:
+When editing a customer and changing **any field** (like country from Liechtenstein to Switzerland), the save fails with "Kunde konnte nicht aktualisiert werden" error.
 
-1. **PriceBreakdown** - The lunch section only shows total days and price, not which participants have vegetarian meals
-2. **BookingSummaryCards** - Missing lunch details entirely for each participant
+**Root Cause**: The `holiday_address` column in the database has:
+- `NOT NULL` constraint (is_nullable: NO)
+- Default value: `''` (empty string)
 
-## Current Data Flow
+But the code sends `null` when the field is empty:
 
-The vegetarian option is properly tracked in:
-- **Shared mode**: `state.vegetarianSelections[participantId]` 
-- **Individual mode**: `state.participantBookings[participantId].isVegetarian`
+```typescript
+// Line 140 - sends null for empty fields
+holiday_address: data.holiday_address || null,  // "" || null = null
+```
 
-Both paths correctly save to `ticket_items.is_vegetarian` during booking creation.
+Even though you only changed the country, the form sends ALL fields on submit, and the empty `holiday_address` gets converted to `null`, which violates the database constraint.
 
 ---
 
 ## Solution
 
-### Changes to PriceBreakdown.tsx
+Change `holiday_address: data.holiday_address || null` to `holiday_address: data.holiday_address || ""` to send an empty string instead of null.
 
-Add per-participant lunch breakdown with vegetarian indicator:
+**File: `src/components/bookings/wizard/CustomerEditDialog.tsx`**
 
-```text
-Before:
-┌─────────────────────────────────────────────────────────┐
-│ Mittagsbetreuung                                        │
-│   8 Tage × CHF 25.00                    CHF 200.00      │
-└─────────────────────────────────────────────────────────┘
+### Line 140 (API call):
+```typescript
+// Before:
+holiday_address: data.holiday_address || null,
 
-After:
-┌─────────────────────────────────────────────────────────┐
-│ Mittagsbetreuung                                        │
-│   Robin Mustermann: 4 Tage 🥬           CHF 100.00      │
-│   Lisa Mustermann: 4 Tage               CHF 100.00      │
-└─────────────────────────────────────────────────────────┘
+// After:
+holiday_address: data.holiday_address || "",
 ```
 
-### Changes to BookingSummaryCards.tsx
+### Line 155 (local state update):
+```typescript
+// Before:
+holiday_address: data.holiday_address || null,
 
-Add a lunch section in the Course card showing:
-- Which participants have lunch
-- Which days for each participant
-- Vegetarian indicator (🥬 or badge)
-
----
-
-## Implementation Steps
-
-### Step 1: Update PriceBreakdown.tsx
-
-1. Build per-participant lunch data structure
-2. For **individual mode**: Read from `state.participantBookings[id].lunchDays` and `.isVegetarian`
-3. For **shared mode**: Read from `state.lunchSelections[id]` and `state.vegetarianSelections[id]`
-4. Render individual lunch lines with vegetarian badge
-
-### Step 2: Update BookingSummaryCards.tsx
-
-1. Add a new "Mittagsbetreuung" section in the summary
-2. Show each participant who has lunch days selected
-3. Display their selected days
-4. Show vegetarian indicator (Leaf icon or badge)
+// After:
+holiday_address: data.holiday_address || "",
+```
 
 ---
 
 ## Files to Modify
 
-| File | Changes |
-|------|---------|
-| `src/components/bookings/wizard/PriceBreakdown.tsx` | 1. Calculate per-participant lunch details<br>2. Include vegetarian flag per participant<br>3. Display individual lunch lines with 🥬 indicator |
-| `src/components/bookings/wizard/BookingSummaryCards.tsx` | 1. Add lunch summary section<br>2. Show per-participant lunch days<br>3. Display vegetarian preference with badge |
+| File | Lines | Change |
+|------|-------|--------|
+| `src/components/bookings/wizard/CustomerEditDialog.tsx` | 140, 155 | Replace `\|\| null` with `\|\| ""` for `holiday_address` |
 
 ---
 
 ## Expected Result
 
-### PriceBreakdown
-```text
-┌─────────────────────────────────────────────────────────┐
-│ Preisdetails                                            │
-├─────────────────────────────────────────────────────────┤
-│ Robin Mustermann                                        │
-│   Red Prince/Princess · 4 Tage          CHF 285.00      │
-│                                                         │
-│ Lisa Mustermann                                         │
-│   Blue King/Queen · 4 Tage              CHF 285.00      │
-│                                                         │
-│ Mittagsbetreuung                                        │
-│   Robin: 4 Tage × CHF 25           🥬   CHF 100.00      │
-│   Lisa: 4 Tage × CHF 25                 CHF 100.00      │
-├─────────────────────────────────────────────────────────┤
-│ Zwischensumme                           CHF 770.00      │
-│ MwSt. (7.7%)                            CHF  59.29      │
-├─────────────────────────────────────────────────────────┤
-│ TOTAL                                   CHF 770.00      │
-└─────────────────────────────────────────────────────────┘
-```
-
-### BookingSummaryCards - New Lunch Section
-```text
-┌─────────────────────────────────────────────────────────┐
-│ MITTAGSBETREUUNG                          [Ändern]      │
-├─────────────────────────────────────────────────────────┤
-│ 🍽️ Robin Mustermann                                     │
-│    Mo, Di, Mi, Do · 🥬 Vegetarisch                      │
-│                                                         │
-│ 🍽️ Lisa Mustermann                                      │
-│    Mo, Di, Mi, Do                                       │
-└─────────────────────────────────────────────────────────┘
-```
+After this fix:
+- Changing country (or any other field) will save successfully
+- Empty holiday_address sends `""` (empty string) which is allowed by the database
+- All customer edits will work properly
 
