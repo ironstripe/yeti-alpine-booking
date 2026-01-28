@@ -1,10 +1,28 @@
-// Level hierarchy for ski/snowboard progression
+// =============================================
+// LEVEL UTILITIES
+// Provides backward-compatible level functions
+// alongside new database-backed skill level system
+// =============================================
+
+import { 
+  mapSkillLevelToGroupCourseSkill as newMapSkillLevel,
+  mapLegacyLevelToSkillLevelId,
+  getSkillLevelLabel
+} from "./skill-levels";
+import type { Discipline } from "@/types/skill-levels";
+
+// =============================================
+// LEGACY LEVEL CONSTANTS (kept for backward compatibility)
+// =============================================
+
 export const LEVEL_HIERARCHY = [
   "anfaenger",
   "blue_prince",
   "blue_king",
+  "blue_star",
   "red_prince",
   "red_king",
+  "red_star",
   "black_prince",
   "black_king",
 ] as const;
@@ -13,14 +31,23 @@ export type LevelValue = (typeof LEVEL_HIERARCHY)[number];
 
 export const LEVEL_OPTIONS = [
   { value: "anfaenger", label: "Anfänger" },
-  { value: "blue_prince", label: "Blue Prince" },
-  { value: "blue_king", label: "Blue King" },
-  { value: "red_prince", label: "Red Prince" },
-  { value: "red_king", label: "Red King" },
-  { value: "black_prince", label: "Black Prince" },
-  { value: "black_king", label: "Black King" },
+  { value: "blue_prince", label: "Blauer Prinz/Prinzessin" },
+  { value: "blue_king", label: "Blauer König/Königin" },
+  { value: "blue_star", label: "Blauer Star" },
+  { value: "red_prince", label: "Roter Prinz/Prinzessin" },
+  { value: "red_king", label: "Roter König/Königin" },
+  { value: "red_star", label: "Roter Star" },
+  { value: "black_prince", label: "Schwarzer Prinz/Prinzessin" },
+  { value: "black_king", label: "Academy" },
 ] as const;
 
+// =============================================
+// LEVEL UTILITY FUNCTIONS
+// =============================================
+
+/**
+ * Get next level in progression
+ */
 export function getNextLevel(currentLevel: string | null): string | null {
   if (!currentLevel) return null;
   const currentIndex = LEVEL_HIERARCHY.indexOf(currentLevel as LevelValue);
@@ -30,23 +57,60 @@ export function getNextLevel(currentLevel: string | null): string | null {
   return LEVEL_HIERARCHY[currentIndex + 1];
 }
 
+/**
+ * Get display label for a level value
+ * Supports both legacy string values and new skill_level IDs
+ */
 export function getLevelLabel(levelValue: string | null): string {
   if (!levelValue) return "Nicht angegeben";
+  
+  // Check if it's a new skill_level ID (starts with 'ski_' or 'sb_')
+  if (levelValue.startsWith('ski_') || levelValue.startsWith('sb_')) {
+    return getSkillLevelLabel(levelValue);
+  }
+  
+  // Legacy level lookup
   const found = LEVEL_OPTIONS.find((l) => l.value === levelValue);
   return found?.label ?? levelValue;
 }
 
+/**
+ * Get badge color class for a level
+ */
 export function getLevelBadgeColor(levelValue: string | null): string {
+  if (!levelValue) return "bg-muted text-muted-foreground";
+  
+  // Handle new skill_level IDs
+  if (levelValue.includes('_green') || levelValue === 'ski_adult_green' || levelValue === 'sb_adult_green') {
+    return "bg-green-100 text-green-800";
+  }
+  if (levelValue.includes('blauer') || levelValue.includes('blue') || 
+      levelValue === 'ski_adult_blue' || levelValue === 'sb_adult_blue') {
+    return "bg-blue-100 text-blue-800";
+  }
+  if (levelValue.includes('roter') || levelValue.includes('red') ||
+      levelValue === 'ski_adult_red' || levelValue === 'sb_adult_red') {
+    return "bg-red-100 text-red-800";
+  }
+  if (levelValue.includes('schwarzer') || levelValue.includes('black') || 
+      levelValue.includes('academy') ||
+      levelValue === 'ski_adult_black' || levelValue === 'sb_adult_black') {
+    return "bg-gray-800 text-gray-100";
+  }
+  
+  // Legacy level colors
   switch (levelValue) {
     case "anfaenger":
       return "bg-gray-100 text-gray-800";
     case "blue_prince":
       return "bg-blue-100 text-blue-800";
     case "blue_king":
+    case "blue_star":
       return "bg-blue-200 text-blue-900";
     case "red_prince":
       return "bg-red-100 text-red-800";
     case "red_king":
+    case "red_star":
       return "bg-red-200 text-red-900";
     case "black_prince":
       return "bg-gray-700 text-gray-100";
@@ -57,6 +121,9 @@ export function getLevelBadgeColor(levelValue: string | null): string {
   }
 }
 
+/**
+ * Check if current level is an upgrade from last season
+ */
 export function isLevelUpgrade(lastSeason: string | null, currentSeason: string | null): boolean {
   if (!lastSeason || !currentSeason) return false;
   const lastIndex = LEVEL_HIERARCHY.indexOf(lastSeason as LevelValue);
@@ -64,7 +131,10 @@ export function isLevelUpgrade(lastSeason: string | null, currentSeason: string 
   return currentIndex > lastIndex;
 }
 
-// Instructor discipline utilities
+// =============================================
+// INSTRUCTOR DISCIPLINE UTILITIES
+// =============================================
+
 export function formatDisciplines(specialization: string | null): string {
   switch (specialization) {
     case "ski": return "Ski";
@@ -111,33 +181,72 @@ export function isCrossDiscipline(
   return instructorSpecialization !== participantSport;
 }
 
+// =============================================
+// GROUP COURSE SKILL MAPPING
+// =============================================
+
 /**
  * Map participant skill level to group course skill level
  * This is used to auto-select the best matching group course
- * Note: Maps to only "beginner" or "advanced" since no "intermediate" courses exist
+ * Supports both legacy string values and new skill_level IDs
  */
 export function mapLevelToCourseSkill(participantLevel: string | null): string {
   if (!participantLevel) return "beginner";
   
+  // Handle new skill_level IDs
+  if (participantLevel.startsWith('ski_') || participantLevel.startsWith('sb_')) {
+    return newMapSkillLevel(participantLevel);
+  }
+  
+  // Legacy level mapping
   const normalizedLevel = participantLevel.toLowerCase();
   
   const levelMap: Record<string, string> = {
     // Beginners (Anfänger, no prior experience)
     anfaenger: "beginner",
     unknown: "beginner",
+    snow_kids_village: "beginner",
     
     // Intermediate (Blue Star = "Blauer Star" course)
     blue_star: "intermediate",
+    blue_king: "intermediate",
     
-    // Advanced (Prince/King levels)
-    blue_prince: "advanced",
-    blue_king: "advanced",
-    intermediate: "advanced",
+    // Advanced (Prince and higher levels)
+    blue_prince: "beginner", // Still learning basics
     red_prince: "advanced",
     red_king: "advanced",
+    red_star: "advanced",
     black_prince: "advanced",
     black_king: "advanced",
+    intermediate: "intermediate",
+    advanced: "advanced",
   };
   
   return levelMap[normalizedLevel] || "beginner";
+}
+
+/**
+ * Convert legacy level string to new skill_level ID
+ */
+export function convertToSkillLevelId(
+  legacyLevel: string | null, 
+  discipline: Discipline = 'ski'
+): string | null {
+  return mapLegacyLevelToSkillLevelId(legacyLevel, discipline);
+}
+
+/**
+ * Get effective level ID (handles both old and new formats)
+ * Prioritizes new skill_level_id columns, falls back to legacy
+ */
+export function getEffectiveLevelId(
+  skillLevelId: string | null,
+  legacyLevel: string | null,
+  discipline: Discipline = 'ski'
+): string | null {
+  // If we have a new skill_level_id, use it
+  if (skillLevelId) return skillLevelId;
+  
+  // Otherwise, convert legacy level
+  return mapLegacyLevelToSkillLevelId(legacyLevel, discipline);
 }

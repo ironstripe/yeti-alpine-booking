@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import type { AdultSelfAssessment } from "@/types/skill-levels";
 
 export interface CreateParticipantData {
   customer_id: string;
@@ -11,6 +12,11 @@ export interface CreateParticipantData {
   level_current_season?: string | null;
   sport?: string | null;
   notes?: string | null;
+  // New skill level system columns
+  current_ski_level_id?: string | null;
+  current_snowboard_level_id?: string | null;
+  self_assessed_ski_level?: AdultSelfAssessment | null;
+  self_assessed_snowboard_level?: AdultSelfAssessment | null;
 }
 
 export interface UpdateParticipantData {
@@ -21,6 +27,11 @@ export interface UpdateParticipantData {
   level_current_season?: string | null;
   sport?: string | null;
   notes?: string | null;
+  // New skill level system columns
+  current_ski_level_id?: string | null;
+  current_snowboard_level_id?: string | null;
+  self_assessed_ski_level?: AdultSelfAssessment | null;
+  self_assessed_snowboard_level?: AdultSelfAssessment | null;
 }
 
 export function useCreateParticipant(customerId: string) {
