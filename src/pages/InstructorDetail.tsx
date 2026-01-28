@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -9,6 +10,7 @@ import { ProfileInfoCard } from "@/components/instructors/detail/ProfileInfoCard
 import { TodayScheduleCard } from "@/components/instructors/detail/TodayScheduleCard";
 import { SeasonStatsCard } from "@/components/instructors/detail/SeasonStatsCard";
 import { AbsenceRequestCard } from "@/components/instructors/detail/AbsenceRequestCard";
+import { EditInstructorModal } from "@/components/instructors/EditInstructorModal";
 import { getSpecializationLabel } from "@/hooks/useInstructors";
 import { getLevelLabel } from "@/lib/instructor-utils";
 import { useUserRole } from "@/hooks/useUserRole";
@@ -22,6 +24,7 @@ export default function InstructorDetail() {
   const navigate = useNavigate();
   const { isTeacher, isAdminOrOffice, instructorId: currentUserInstructorId } = useUserRole();
   const inviteMutation = useInviteInstructor();
+  const [editModalOpen, setEditModalOpen] = useState(false);
   const {
     instructor,
     isLoading,
@@ -37,7 +40,7 @@ export default function InstructorDetail() {
   const isOwnProfile = isTeacher && currentUserInstructorId === id;
 
   const handleEdit = () => {
-    toast.info("Bearbeiten-Funktion kommt bald...");
+    setEditModalOpen(true);
   };
 
   const handleSendMessage = () => {
@@ -161,6 +164,15 @@ export default function InstructorDetail() {
           <SeasonStatsCard stats={seasonStats} />
         </div>
       </div>
+
+      {instructor && (
+        <EditInstructorModal
+          key={instructor.id}
+          open={editModalOpen}
+          onOpenChange={setEditModalOpen}
+          instructor={instructor}
+        />
+      )}
     </div>
   );
 }
