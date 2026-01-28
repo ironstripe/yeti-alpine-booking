@@ -1049,6 +1049,7 @@ export type Database = {
           price_per_day: number
           product_id: string | null
           skill_level: string
+          skill_level_id: string | null
           updated_at: string | null
         }
         Insert: {
@@ -1070,6 +1071,7 @@ export type Database = {
           price_per_day: number
           product_id?: string | null
           skill_level?: string
+          skill_level_id?: string | null
           updated_at?: string | null
         }
         Update: {
@@ -1091,6 +1093,7 @@ export type Database = {
           price_per_day?: number
           product_id?: string | null
           skill_level?: string
+          skill_level_id?: string | null
           updated_at?: string | null
         }
         Relationships: [
@@ -1099,6 +1102,13 @@ export type Database = {
             columns: ["product_id"]
             isOneToOne: false
             referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "group_courses_skill_level_id_fkey"
+            columns: ["skill_level_id"]
+            isOneToOne: false
+            referencedRelation: "skill_levels"
             referencedColumns: ["id"]
           },
         ]

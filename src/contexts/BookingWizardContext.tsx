@@ -13,6 +13,9 @@ export interface SelectedParticipant {
   level_current_season: string | null;
   sport: string | null;
   isGuest?: boolean;
+  // NEW: FK references to skill_levels table for direct 1:1 matching
+  current_ski_level_id?: string | null;
+  current_snowboard_level_id?: string | null;
 }
 
 // New: Support for variable appointments (Complex Mode)
@@ -294,7 +297,25 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
   };
 
   const setSelectedDates = (dates: string[]) => {
-    setState((prev) => ({ ...prev, selectedDates: dates }));
+    setState((prev) => {
+      const newState = { ...prev, selectedDates: dates };
+      
+      // Sync to participant bookings if in individual mode
+      // Only sync if participant's dates are empty (not manually overridden)
+      if (prev.useParticipantSpecificBooking && Object.keys(prev.participantBookings).length > 0) {
+        const updatedBookings = { ...prev.participantBookings };
+        for (const pId of Object.keys(updatedBookings)) {
+          const booking = updatedBookings[pId];
+          // Only sync if participant's dates are empty
+          if (booking.dates.length === 0) {
+            updatedBookings[pId] = { ...booking, dates: [...dates] };
+          }
+        }
+        newState.participantBookings = updatedBookings;
+      }
+      
+      return newState;
+    });
   };
 
   const setTimeSlot = (slot: string | null) => {

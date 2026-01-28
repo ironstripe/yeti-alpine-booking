@@ -61,6 +61,7 @@ interface GroupCourseOption {
   id: string;
   name: string;
   skill_level: string;
+  skill_level_id: string | null; // NEW: FK to skill_levels for direct matching
   max_participants: number;
   currentCount: number;
   color: string | null;
@@ -93,9 +94,12 @@ export function ParticipantBookingCard({
   const isAdult = age !== null && age >= 16;
 
   // Auto-navigate calendar to month of prefilled dates
+  // Use the actual first date string as dependency (not just length) to detect month changes
+  const firstDateStr = booking.dates.length > 0 ? booking.dates.sort()[0] : null;
+  
   useEffect(() => {
-    if (booking.dates.length > 0) {
-      const firstDate = parseISO(booking.dates[0]);
+    if (firstDateStr) {
+      const firstDate = parseISO(firstDateStr);
       const currentMonthStart = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth(), 1);
       const dateMonthStart = new Date(firstDate.getFullYear(), firstDate.getMonth(), 1);
       
@@ -103,7 +107,7 @@ export function ParticipantBookingCard({
         setSelectedMonth(firstDate);
       }
     }
-  }, [booking.dates.length]); // Only run when dates array length changes (initial load)
+  }, [firstDateStr]); // Now reacts to actual date value changes, not just length
 
   // Fetch group courses with age in cache key
   const { data: groupCourses = [], isLoading: coursesLoading } = useQuery({
@@ -111,20 +115,26 @@ export function ParticipantBookingCard({
     queryFn: async () => {
       if (booking.dates.length === 0) return [];
 
+      // Get participant's discipline for filtering
+      const participantDiscipline = participant.sport || 'ski';
+
       const { data: coursesData, error } = await supabase
         .from("group_courses")
         .select(`
           id,
           name,
           skill_level,
+          skill_level_id,
           max_participants,
           color,
           meeting_point,
           course_type,
           min_age,
-          max_age
+          max_age,
+          discipline
         `)
-        .eq("is_active", true);
+        .eq("is_active", true)
+        .or(`discipline.eq.${participantDiscipline},discipline.eq.both`);
 
       if (error) {
         console.error("Error fetching group courses:", error);
@@ -159,24 +169,37 @@ export function ParticipantBookingCard({
     enabled: booking.dates.length > 0 && booking.productType === "group",
   });
 
-  // Get recommended course based on participant's level (age already filtered in query)
+  // Get recommended course based on participant's skill_level_id (direct match)
   const recommendedCourseId = useMemo(() => {
     if (groupCourses.length === 0) return null;
     
-    const targetSkill = mapLevelToCourseSkill(participant.level_current_season);
+    // Get participant's skill level ID based on their sport
+    const participantSkillId = participant.sport === 'snowboard' 
+      ? participant.current_snowboard_level_id 
+      : participant.current_ski_level_id;
     
-    // First try: exact skill match with capacity
-    let match = groupCourses.find(
-      (c) => c.skill_level === targetSkill && c.currentCount < c.max_participants
-    );
+    // First try: DIRECT match on skill_level_id (1:1 relationship)
+    let match = participantSkillId 
+      ? groupCourses.find(
+          (c) => c.skill_level_id === participantSkillId && c.currentCount < c.max_participants
+        )
+      : null;
     
-    // Fallback: if no exact skill match, pick first age-appropriate course with capacity
+    // Fallback: if no direct match, use legacy mapping
+    if (!match) {
+      const targetSkill = mapLevelToCourseSkill(participant.level_current_season);
+      match = groupCourses.find(
+        (c) => c.skill_level === targetSkill && c.currentCount < c.max_participants
+      );
+    }
+    
+    // Last fallback: pick first course with capacity
     if (!match) {
       match = groupCourses.find((c) => c.currentCount < c.max_participants);
     }
     
     return match?.id || null;
-  }, [participant.level_current_season, groupCourses]);
+  }, [participant.current_ski_level_id, participant.current_snowboard_level_id, participant.sport, participant.level_current_season, groupCourses]);
 
   // Auto-select group if none selected and we have a recommendation
   useEffect(() => {
@@ -207,7 +230,14 @@ export function ParticipantBookingCard({
   const handleDateSelect = (dates: Date[] | undefined) => {
     if (dates) {
       const dateStrings = dates.map((d) => format(d, "yyyy-MM-dd"));
-      onBookingChange({ ...booking, dates: dateStrings });
+      // Filter lunch days to only include still-selected dates
+      const validLunchDays = booking.lunchDays.filter(d => dateStrings.includes(d));
+      onBookingChange({ 
+        ...booking, 
+        dates: dateStrings,
+        lunchDays: validLunchDays,
+        isVegetarian: validLunchDays.length > 0 ? booking.isVegetarian : false
+      });
     }
   };
 

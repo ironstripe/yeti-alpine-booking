@@ -37,6 +37,7 @@ import {
 import { Plus, Trash2, Info, Loader2, Calendar as CalendarIcon } from 'lucide-react';
 import { useCreateGroupCourse, useUpdateGroupCourse } from '@/hooks/useGroupCourses';
 import { useTrainingProducts } from '@/hooks/useProducts';
+import { useChildSkiLevels, useChildSnowboardLevels } from '@/hooks/useSkillLevels';
 import type { GroupCourseWithSchedules, GroupCourseFormData, CourseType } from '@/types/group-courses';
 import { SKILL_LEVELS, DISCIPLINES, DAYS_OF_WEEK, COURSE_COLORS, COURSE_TYPES } from '@/types/group-courses';
 import { generateSaturdays, calculatePeriodEndDate } from '@/lib/dates/saturday-generator';
@@ -46,6 +47,7 @@ const formSchema = z.object({
   name: z.string().min(1, 'Name ist erforderlich'),
   description: z.string().optional(),
   skill_level: z.enum(['beginner', 'intermediate', 'advanced']),
+  skill_level_id: z.string().nullable(), // NEW: FK to skill_levels
   discipline: z.enum(['ski', 'snowboard', 'both']),
   min_age: z.number().nullable(),
   max_age: z.number().nullable(),
@@ -70,6 +72,8 @@ export function TrainingFormModal({ open, onOpenChange, course, mode }: Training
   const createCourse = useCreateGroupCourse();
   const updateCourse = useUpdateGroupCourse();
   const { data: trainingProducts, isLoading: productsLoading } = useTrainingProducts();
+  const { data: skiLevels = [] } = useChildSkiLevels();
+  const { data: snowboardLevels = [] } = useChildSnowboardLevels();
   
   // Determine actual mode: explicit mode prop takes precedence
   const actualMode = mode ?? (course ? 'edit' : 'create');
@@ -87,6 +91,7 @@ export function TrainingFormModal({ open, onOpenChange, course, mode }: Training
       name: '',
       description: '',
       skill_level: 'beginner',
+      skill_level_id: null, // NEW
       discipline: 'ski',
       min_age: null,
       max_age: null,
@@ -125,6 +130,7 @@ export function TrainingFormModal({ open, onOpenChange, course, mode }: Training
         name: nameValue,
         description: course.description || '',
         skill_level: course.skill_level,
+        skill_level_id: course.skill_level_id || null, // NEW
         discipline: course.discipline,
         min_age: course.min_age,
         max_age: course.max_age,
@@ -190,6 +196,7 @@ export function TrainingFormModal({ open, onOpenChange, course, mode }: Training
       name: values.name,
       description: values.description || '',
       skill_level: values.skill_level,
+      skill_level_id: values.skill_level_id, // NEW
       discipline: values.discipline,
       min_age: values.min_age,
       max_age: values.max_age,
@@ -478,12 +485,59 @@ export function TrainingFormModal({ open, onOpenChange, course, mode }: Training
               />
 
               <div className="grid grid-cols-3 gap-4">
+                {/* Skill Level Direct Link (NEW) */}
+                <FormField
+                  control={form.control}
+                  name="skill_level_id"
+                  render={({ field }) => {
+                    // Get levels based on discipline
+                    const discipline = form.watch('discipline');
+                    const availableLevels = discipline === 'snowboard' 
+                      ? snowboardLevels 
+                      : skiLevels;
+                    
+                    return (
+                      <FormItem>
+                        <FormLabel>Skill Level (1:1) *</FormLabel>
+                        <Select 
+                          value={field.value || ''} 
+                          onValueChange={(v) => field.onChange(v || null)}
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Level wählen..." />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="">Kein Level</SelectItem>
+                            {availableLevels.map(level => (
+                              <SelectItem key={level.id} value={level.id}>
+                                <div className="flex items-center gap-2">
+                                  {level.color && (
+                                    <div 
+                                      className="w-3 h-3 rounded-full border" 
+                                      style={{ backgroundColor: level.color }}
+                                    />
+                                  )}
+                                  {level.name}
+                                </div>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    );
+                  }}
+                />
+
+                {/* Legacy skill_level (kept for backward compat) */}
                 <FormField
                   control={form.control}
                   name="skill_level"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Niveau *</FormLabel>
+                      <FormLabel>Niveau (Legacy)</FormLabel>
                       <Select value={field.value} onValueChange={field.onChange}>
                         <FormControl>
                           <SelectTrigger>
