@@ -301,13 +301,21 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
       const newState = { ...prev, selectedDates: dates };
       
       // Sync to participant bookings if in individual mode
-      // Only sync if participant's dates are empty (not manually overridden)
       if (prev.useParticipantSpecificBooking && Object.keys(prev.participantBookings).length > 0) {
+        const previousDates = prev.selectedDates;
         const updatedBookings = { ...prev.participantBookings };
+        
         for (const pId of Object.keys(updatedBookings)) {
           const booking = updatedBookings[pId];
-          // Only sync if participant's dates are empty
-          if (booking.dates.length === 0) {
+          
+          // Sync if:
+          // 1. Participant's dates are empty, OR
+          // 2. Participant's dates exactly match the previous shared dates (not manually overridden)
+          const sortedBookingDates = [...booking.dates].sort().join(',');
+          const sortedPreviousDates = [...previousDates].sort().join(',');
+          const shouldSync = booking.dates.length === 0 || sortedBookingDates === sortedPreviousDates;
+          
+          if (shouldSync) {
             updatedBookings[pId] = { ...booking, dates: [...dates] };
           }
         }
