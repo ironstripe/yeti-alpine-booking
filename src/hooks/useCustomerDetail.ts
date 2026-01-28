@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import type { AdultSelfAssessment } from "@/types/skill-levels";
 
 export interface Participant {
   id: string;
@@ -11,6 +12,11 @@ export interface Participant {
   sport: string | null;
   notes: string | null;
   created_at: string;
+  // New skill level system columns
+  current_ski_level_id: string | null;
+  current_snowboard_level_id: string | null;
+  self_assessed_ski_level: AdultSelfAssessment | null;
+  self_assessed_snowboard_level: AdultSelfAssessment | null;
 }
 
 export interface CustomerContact {
@@ -74,7 +80,7 @@ export function useCustomerDetail(customerId: string | undefined) {
         ...data,
         additional_phones: data.additional_phones as { label: string; number: string }[] | null,
         additional_emails: data.additional_emails as { label: string; email: string }[] | null,
-        participants: data.customer_participants || [],
+        participants: (data.customer_participants || []) as Participant[],
         customer_type: data.customer_type || 'private',
         organization_name: data.organization_name || null,
         billing_email: data.billing_email || null,

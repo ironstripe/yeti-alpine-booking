@@ -461,6 +461,8 @@ export type Database = {
         Row: {
           birth_date: string
           created_at: string
+          current_ski_level_id: string | null
+          current_snowboard_level_id: string | null
           customer_id: string
           first_name: string
           id: string
@@ -468,11 +470,15 @@ export type Database = {
           level_current_season: string | null
           level_last_season: string | null
           notes: string | null
+          self_assessed_ski_level: string | null
+          self_assessed_snowboard_level: string | null
           sport: string | null
         }
         Insert: {
           birth_date: string
           created_at?: string
+          current_ski_level_id?: string | null
+          current_snowboard_level_id?: string | null
           customer_id: string
           first_name: string
           id?: string
@@ -480,11 +486,15 @@ export type Database = {
           level_current_season?: string | null
           level_last_season?: string | null
           notes?: string | null
+          self_assessed_ski_level?: string | null
+          self_assessed_snowboard_level?: string | null
           sport?: string | null
         }
         Update: {
           birth_date?: string
           created_at?: string
+          current_ski_level_id?: string | null
+          current_snowboard_level_id?: string | null
           customer_id?: string
           first_name?: string
           id?: string
@@ -492,9 +502,25 @@ export type Database = {
           level_current_season?: string | null
           level_last_season?: string | null
           notes?: string | null
+          self_assessed_ski_level?: string | null
+          self_assessed_snowboard_level?: string | null
           sport?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "customer_participants_current_ski_level_id_fkey"
+            columns: ["current_ski_level_id"]
+            isOneToOne: false
+            referencedRelation: "skill_levels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_participants_current_snowboard_level_id_fkey"
+            columns: ["current_snowboard_level_id"]
+            isOneToOne: false
+            referencedRelation: "skill_levels"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "customer_participants_customer_id_fkey"
             columns: ["customer_id"]
@@ -1532,6 +1558,67 @@ export type Database = {
         }
         Relationships: []
       }
+      participant_level_history: {
+        Row: {
+          assessed_at: string | null
+          assessed_by: string | null
+          created_at: string | null
+          discipline: string
+          id: string
+          notes: string | null
+          participant_id: string
+          season: string
+          skill_level_id: string
+          source: string | null
+        }
+        Insert: {
+          assessed_at?: string | null
+          assessed_by?: string | null
+          created_at?: string | null
+          discipline: string
+          id?: string
+          notes?: string | null
+          participant_id: string
+          season: string
+          skill_level_id: string
+          source?: string | null
+        }
+        Update: {
+          assessed_at?: string | null
+          assessed_by?: string | null
+          created_at?: string | null
+          discipline?: string
+          id?: string
+          notes?: string | null
+          participant_id?: string
+          season?: string
+          skill_level_id?: string
+          source?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "participant_level_history_assessed_by_fkey"
+            columns: ["assessed_by"]
+            isOneToOne: false
+            referencedRelation: "instructors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "participant_level_history_participant_id_fkey"
+            columns: ["participant_id"]
+            isOneToOne: false
+            referencedRelation: "customer_participants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "participant_level_history_skill_level_id_fkey"
+            columns: ["skill_level_id"]
+            isOneToOne: false
+            referencedRelation: "skill_levels"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       payments: {
         Row: {
           amount: number
@@ -2118,6 +2205,62 @@ export type Database = {
             columns: ["linked_ticket_id"]
             isOneToOne: false
             referencedRelation: "tickets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      skill_levels: {
+        Row: {
+          color: string | null
+          created_at: string | null
+          description: string | null
+          discipline: string
+          id: string
+          is_active: boolean | null
+          max_age: number | null
+          min_age: number | null
+          name: string
+          next_level_id: string | null
+          short_description: string | null
+          sort_order: number
+          target_group: string
+        }
+        Insert: {
+          color?: string | null
+          created_at?: string | null
+          description?: string | null
+          discipline: string
+          id: string
+          is_active?: boolean | null
+          max_age?: number | null
+          min_age?: number | null
+          name: string
+          next_level_id?: string | null
+          short_description?: string | null
+          sort_order: number
+          target_group: string
+        }
+        Update: {
+          color?: string | null
+          created_at?: string | null
+          description?: string | null
+          discipline?: string
+          id?: string
+          is_active?: boolean | null
+          max_age?: number | null
+          min_age?: number | null
+          name?: string
+          next_level_id?: string | null
+          short_description?: string | null
+          sort_order?: number
+          target_group?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "skill_levels_next_level_id_fkey"
+            columns: ["next_level_id"]
+            isOneToOne: false
+            referencedRelation: "skill_levels"
             referencedColumns: ["id"]
           },
         ]
