@@ -5,7 +5,6 @@
 // =============================================
 
 import { 
-  mapSkillLevelToGroupCourseSkill as newMapSkillLevel,
   mapLegacyLevelToSkillLevelId,
   getSkillLevelLabel
 } from "./skill-levels";
@@ -182,23 +181,20 @@ export function isCrossDiscipline(
 }
 
 // =============================================
-// GROUP COURSE SKILL MAPPING
+// GROUP COURSE SKILL MAPPING (DEPRECATED)
+// With direct FK relationship, this is no longer needed for exact matching
+// Kept for backward compatibility with legacy level strings
 // =============================================
 
 /**
  * Map participant skill level to group course skill level
- * This is used to auto-select the best matching group course
- * Supports both legacy string values and new skill_level IDs
+ * @deprecated Use direct skill_level_id matching instead of category mapping
+ * This is used for backwards compatibility with legacy level strings only
  */
 export function mapLevelToCourseSkill(participantLevel: string | null): string {
   if (!participantLevel) return "beginner";
   
-  // Handle new skill_level IDs
-  if (participantLevel.startsWith('ski_') || participantLevel.startsWith('sb_')) {
-    return newMapSkillLevel(participantLevel);
-  }
-  
-  // Legacy level mapping
+  // Legacy level mapping (used when we only have legacy level strings)
   const normalizedLevel = participantLevel.toLowerCase();
   
   const levelMap: Record<string, string> = {

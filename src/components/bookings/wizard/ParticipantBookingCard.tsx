@@ -60,8 +60,7 @@ const skillLevelLabels: Record<string, string> = {
 interface GroupCourseOption {
   id: string;
   name: string;
-  skill_level: string;
-  skill_level_id: string | null; // NEW: FK to skill_levels for direct matching
+  skill_level_id: string; // FK to skill_levels for direct matching
   max_participants: number;
   currentCount: number;
   color: string | null;
@@ -123,7 +122,6 @@ export function ParticipantBookingCard({
         .select(`
           id,
           name,
-          skill_level,
           skill_level_id,
           max_participants,
           color,
@@ -206,11 +204,11 @@ export function ParticipantBookingCard({
         )
       : null;
     
-    // Fallback: if no direct match, use legacy mapping
+    // Fallback: if no direct match, use legacy level mapping
     if (!match) {
-      const targetSkill = mapLevelToCourseSkill(participant.level_current_season);
+      const targetSkillCategory = mapLevelToCourseSkill(participant.level_current_season);
       match = groupCourses.find(
-        (c) => c.skill_level === targetSkill && c.currentCount < c.max_participants
+        (c) => mapLevelToCourseSkill(c.skill_level_id) === targetSkillCategory && c.currentCount < c.max_participants
       );
     }
     

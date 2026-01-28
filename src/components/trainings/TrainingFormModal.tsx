@@ -39,15 +39,14 @@ import { useCreateGroupCourse, useUpdateGroupCourse } from '@/hooks/useGroupCour
 import { useTrainingProducts } from '@/hooks/useProducts';
 import { useChildSkiLevels, useChildSnowboardLevels } from '@/hooks/useSkillLevels';
 import type { GroupCourseWithSchedules, GroupCourseFormData, CourseType } from '@/types/group-courses';
-import { SKILL_LEVELS, DISCIPLINES, DAYS_OF_WEEK, COURSE_COLORS, COURSE_TYPES } from '@/types/group-courses';
+import { DISCIPLINES, DAYS_OF_WEEK, COURSE_COLORS, COURSE_TYPES } from '@/types/group-courses';
 import { generateSaturdays, calculatePeriodEndDate } from '@/lib/dates/saturday-generator';
 import { cn } from '@/lib/utils';
 
 const formSchema = z.object({
   name: z.string().min(1, 'Name ist erforderlich'),
   description: z.string().optional(),
-  skill_level: z.enum(['beginner', 'intermediate', 'advanced']),
-  skill_level_id: z.string().nullable(), // NEW: FK to skill_levels
+  skill_level_id: z.string().min(1, 'Niveau ist erforderlich'),
   discipline: z.enum(['ski', 'snowboard', 'both']),
   min_age: z.number().nullable(),
   max_age: z.number().nullable(),
@@ -90,8 +89,7 @@ export function TrainingFormModal({ open, onOpenChange, course, mode }: Training
     defaultValues: {
       name: '',
       description: '',
-      skill_level: 'beginner',
-      skill_level_id: null, // NEW
+      skill_level_id: '',
       discipline: 'ski',
       min_age: null,
       max_age: null,
@@ -129,8 +127,7 @@ export function TrainingFormModal({ open, onOpenChange, course, mode }: Training
       form.reset({
         name: nameValue,
         description: course.description || '',
-        skill_level: course.skill_level,
-        skill_level_id: course.skill_level_id || null, // NEW
+        skill_level_id: course.skill_level_id,
         discipline: course.discipline,
         min_age: course.min_age,
         max_age: course.max_age,
@@ -195,8 +192,7 @@ export function TrainingFormModal({ open, onOpenChange, course, mode }: Training
     const formData: GroupCourseFormData = {
       name: values.name,
       description: values.description || '',
-      skill_level: values.skill_level,
-      skill_level_id: values.skill_level_id, // NEW
+      skill_level_id: values.skill_level_id,
       discipline: values.discipline,
       min_age: values.min_age,
       max_age: values.max_age,
@@ -531,31 +527,6 @@ export function TrainingFormModal({ open, onOpenChange, course, mode }: Training
                   }}
                 />
 
-                {/* Legacy skill_level (kept for backward compat) */}
-                <FormField
-                  control={form.control}
-                  name="skill_level"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Niveau (Legacy)</FormLabel>
-                      <Select value={field.value} onValueChange={field.onChange}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {SKILL_LEVELS.map(level => (
-                            <SelectItem key={level.value} value={level.value}>
-                              {level.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
 
                 <FormField
                   control={form.control}

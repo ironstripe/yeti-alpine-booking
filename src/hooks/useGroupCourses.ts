@@ -193,8 +193,7 @@ export function useCreateGroupCourse() {
       const insertData: Record<string, unknown> = {
         name: formData.name,
         description: formData.description || null,
-        skill_level: formData.skill_level,
-        skill_level_id: formData.skill_level_id, // NEW: direct FK to skill_levels
+        skill_level_id: formData.skill_level_id,
         discipline: formData.discipline,
         min_age: formData.min_age,
         max_age: formData.max_age,

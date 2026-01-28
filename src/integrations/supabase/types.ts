@@ -1048,8 +1048,7 @@ export type Database = {
           price_full_week: number | null
           price_per_day: number
           product_id: string | null
-          skill_level: string
-          skill_level_id: string | null
+          skill_level_id: string
           updated_at: string | null
         }
         Insert: {
@@ -1070,8 +1069,7 @@ export type Database = {
           price_full_week?: number | null
           price_per_day: number
           product_id?: string | null
-          skill_level?: string
-          skill_level_id?: string | null
+          skill_level_id: string
           updated_at?: string | null
         }
         Update: {
@@ -1092,8 +1090,7 @@ export type Database = {
           price_full_week?: number | null
           price_per_day?: number
           product_id?: string | null
-          skill_level?: string
-          skill_level_id?: string | null
+          skill_level_id?: string
           updated_at?: string | null
         }
         Relationships: [
