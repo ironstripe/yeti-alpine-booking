@@ -10,7 +10,8 @@ import {
   Edit, 
   List,
   Snowflake,
-  AlertTriangle
+  AlertTriangle,
+  Copy
 } from 'lucide-react';
 import type { GroupCourseWithSchedules } from '@/types/group-courses';
 import { SKILL_LEVELS, DISCIPLINES, DAYS_OF_WEEK } from '@/types/group-courses';
@@ -18,10 +19,11 @@ import { SKILL_LEVELS, DISCIPLINES, DAYS_OF_WEEK } from '@/types/group-courses';
 interface TrainingCardProps {
   course: GroupCourseWithSchedules;
   onEdit: (course: GroupCourseWithSchedules) => void;
+  onCopy: (course: GroupCourseWithSchedules) => void;
   onViewInstances: (course: GroupCourseWithSchedules) => void;
 }
 
-export function TrainingCard({ course, onEdit, onViewInstances }: TrainingCardProps) {
+export function TrainingCard({ course, onEdit, onCopy, onViewInstances }: TrainingCardProps) {
   const skillLabel = SKILL_LEVELS.find(s => s.value === course.skill_level)?.label || course.skill_level;
   const disciplineLabel = DISCIPLINES.find(d => d.value === course.discipline)?.label || course.discipline;
 
@@ -182,6 +184,14 @@ export function TrainingCard({ course, onEdit, onViewInstances }: TrainingCardPr
           >
             <Edit className="h-4 w-4 mr-1" />
             Bearbeiten
+          </Button>
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={() => onCopy(course)}
+            title="Duplizieren"
+          >
+            <Copy className="h-4 w-4" />
           </Button>
           <Button 
             variant="outline" 

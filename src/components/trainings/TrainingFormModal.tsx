@@ -62,13 +62,17 @@ interface TrainingFormModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   course?: GroupCourseWithSchedules | null;
+  mode?: 'create' | 'edit' | 'copy';
 }
 
-export function TrainingFormModal({ open, onOpenChange, course }: TrainingFormModalProps) {
+export function TrainingFormModal({ open, onOpenChange, course, mode }: TrainingFormModalProps) {
   const createCourse = useCreateGroupCourse();
   const updateCourse = useUpdateGroupCourse();
   const { data: trainingProducts, isLoading: productsLoading } = useTrainingProducts();
-  const isEditing = !!course;
+  
+  // Determine actual mode: explicit mode prop takes precedence
+  const actualMode = mode ?? (course ? 'edit' : 'create');
+  const isEditing = actualMode === 'edit';
 
   // Separate state for schedule configuration
   const [selectedDays, setSelectedDays] = useState<number[]>([1, 2, 3, 4, 5]); // Mon-Fri default
@@ -108,11 +112,14 @@ export function TrainingFormModal({ open, onOpenChange, course }: TrainingFormMo
     return generateSaturdays(periodStartDate, periodEndDate);
   }, [courseType, periodStartDate, periodEndDate]);
 
-  // Reset form when course changes
+  // Reset form when course changes or modal opens
   useEffect(() => {
     if (course) {
+      // For copy mode, append " (Kopie)" to the name
+      const nameValue = actualMode === 'copy' ? `${course.name} (Kopie)` : course.name;
+      
       form.reset({
-        name: course.name,
+        name: nameValue,
         description: course.description || '',
         skill_level: course.skill_level,
         discipline: course.discipline,
@@ -143,7 +150,7 @@ export function TrainingFormModal({ open, onOpenChange, course }: TrainingFormMo
       setSelectedDays([1, 2, 3, 4, 5]);
       setTimeSlots([{ start_time: '10:00', end_time: '12:00' }]);
     }
-  }, [course, form]);
+  }, [course, form, actualMode]);
 
   // Auto-calculate end date when start date changes for Saturday courses
   useEffect(() => {
@@ -200,7 +207,8 @@ export function TrainingFormModal({ open, onOpenChange, course }: TrainingFormMo
     };
 
     try {
-      if (isEditing && course) {
+      // For edit mode, update; for create and copy mode, create new
+      if (actualMode === 'edit' && course) {
         await updateCourse.mutateAsync({ id: course.id, data: formData });
       } else {
         await createCourse.mutateAsync(formData);
@@ -220,7 +228,11 @@ export function TrainingFormModal({ open, onOpenChange, course }: TrainingFormMo
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
-            {isEditing ? 'Training bearbeiten' : 'Neues Training erstellen'}
+            {actualMode === 'edit' 
+              ? 'Training bearbeiten' 
+              : actualMode === 'copy' 
+                ? 'Training duplizieren' 
+                : 'Neues Training erstellen'}
           </DialogTitle>
         </DialogHeader>
 
