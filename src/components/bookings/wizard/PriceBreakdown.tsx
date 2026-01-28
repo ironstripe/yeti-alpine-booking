@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Check, Clock, Users } from "lucide-react";
+import { Check, Clock, Users, Leaf } from "lucide-react";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
@@ -27,6 +27,14 @@ interface ParticipantLineItem {
   participantName: string;
   courseName: string;
   days: number;
+  price: number;
+}
+
+interface ParticipantLunchItem {
+  participantId: string;
+  participantName: string;
+  days: number;
+  isVegetarian: boolean;
   price: number;
 }
 
@@ -186,13 +194,51 @@ export function PriceBreakdown({
   const lunchProduct = products.find((p) => p.type === "lunch");
   const lunchPricePerDay = lunchProduct?.price || 25;
   
+  // Build per-participant lunch data
+  const participantLunchItems = useMemo((): ParticipantLunchItem[] => {
+    const items: ParticipantLunchItem[] = [];
+    
+    if (productType === "group") {
+      // Check individual booking mode first
+      if (state.useParticipantSpecificBooking && Object.keys(state.participantBookings).length > 0) {
+        for (const participant of state.selectedParticipants) {
+          const booking = state.participantBookings[participant.id];
+          if (booking && booking.lunchDays.length > 0) {
+            items.push({
+              participantId: participant.id,
+              participantName: `${participant.first_name} ${participant.last_name || ""}`.trim(),
+              days: booking.lunchDays.length,
+              isVegetarian: booking.isVegetarian,
+              price: booking.lunchDays.length * lunchPricePerDay,
+            });
+          }
+        }
+      } else {
+        // Shared mode - use lunchSelections and vegetarianSelections
+        for (const participant of state.selectedParticipants) {
+          const days = state.lunchSelections[participant.id] || [];
+          if (days.length > 0) {
+            items.push({
+              participantId: participant.id,
+              participantName: `${participant.first_name} ${participant.last_name || ""}`.trim(),
+              days: days.length,
+              isVegetarian: state.vegetarianSelections[participant.id] || false,
+              price: days.length * lunchPricePerDay,
+            });
+          }
+        }
+      }
+    }
+    
+    return items;
+  }, [productType, state.useParticipantSpecificBooking, state.participantBookings, state.selectedParticipants, state.lunchSelections, state.vegetarianSelections, lunchPricePerDay]);
+  
   let lunchTotal = 0;
   let lunchDaysCount = 0;
-  if (productType === "group" && Object.keys(state.lunchSelections).length > 0) {
-    // Sum up all lunch days across all participants
-    lunchDaysCount = Object.values(state.lunchSelections)
-      .reduce((sum, days) => sum + days.length, 0);
-    lunchTotal = lunchDaysCount * lunchPricePerDay;
+  
+  if (participantLunchItems.length > 0) {
+    lunchTotal = participantLunchItems.reduce((sum, item) => sum + item.price, 0);
+    lunchDaysCount = participantLunchItems.reduce((sum, item) => sum + item.days, 0);
   } else if (state.includeLunch && lunchProduct) {
     lunchDaysCount = daysCount;
     lunchTotal = lunchProduct.price * daysCount;
@@ -320,8 +366,31 @@ export function PriceBreakdown({
             </Badge>
           )}
 
-          {/* Lunch */}
-          {lunchTotal > 0 && (
+          {/* Lunch - Per participant breakdown */}
+          {participantLunchItems.length > 0 && (
+            <>
+              <div className="font-medium text-sm text-muted-foreground mt-2">Mittagsbetreuung</div>
+              {participantLunchItems.map((item) => (
+                <div key={item.participantId} className="flex justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm">
+                      {item.participantName}: {item.days} Tag{item.days > 1 ? "e" : ""}
+                    </span>
+                    {item.isVegetarian && (
+                      <Badge variant="secondary" className="bg-green-100 text-green-800 gap-1 text-xs">
+                        <Leaf className="h-3 w-3" />
+                        Vegi
+                      </Badge>
+                    )}
+                  </div>
+                  <span className="text-sm">{formatCurrency(item.price)}</span>
+                </div>
+              ))}
+            </>
+          )}
+
+          {/* Lunch - Simple display for private lessons */}
+          {lunchTotal > 0 && participantLunchItems.length === 0 && (
             <div className="flex justify-between">
               <div>
                 <p className="font-medium">Mittagsbetreuung</p>
