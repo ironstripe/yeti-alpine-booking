@@ -26,3 +26,6 @@ verify_jwt = false
 
 [functions.approve-booking-confirmation]
 verify_jwt = false
+
+[functions.set-booking-confirmation]
+verify_jwt = false
