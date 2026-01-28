@@ -150,28 +150,11 @@ export function ParticipantBookingCard({
         );
       });
 
-      // Filter by participant age and map to options
-      return coursesData
-        .filter((course) => {
-          // If participant has no birth date, show all courses
-          if (age === null) return true;
-          
-          // Check min_age constraint (if set)
-          if (course.min_age != null && age < course.min_age) {
-            return false;
-          }
-          
-          // Check max_age constraint (if set)
-          if (course.max_age != null && age > course.max_age) {
-            return false;
-          }
-          
-          return true;
-        })
-        .map((course) => ({
-          ...course,
-          currentCount: enrollmentMap[course.id] || 0,
-        })) as GroupCourseOption[];
+      // Map all courses - no age filtering (age is a soft warning only)
+      return coursesData.map((course) => ({
+        ...course,
+        currentCount: enrollmentMap[course.id] || 0,
+      })) as GroupCourseOption[];
     },
     enabled: booking.dates.length > 0 && booking.productType === "group",
   });
@@ -379,10 +362,7 @@ export function ParticipantBookingCard({
                 ) : groupCourses.length === 0 ? (
                   <div className="text-xs text-amber-600 py-2 bg-amber-50 rounded-md px-2">
                     <AlertTriangle className="h-3 w-3 inline mr-1" />
-                    {age !== null 
-                      ? `Keine passenden Gruppen für Alter ${age} J. gefunden`
-                      : "Keine Gruppen verfügbar. Bitte wählen Sie zuerst Kurstage."
-                    }
+                    Keine Gruppen verfügbar. Bitte wählen Sie zuerst Kurstage.
                   </div>
                 ) : (
                   <Select
@@ -398,6 +378,7 @@ export function ParticipantBookingCard({
                       {groupCourses.map((course) => {
                         const isFull = course.currentCount >= course.max_participants;
                         const isRecommended = course.id === recommendedCourseId;
+                        const isAgeWarning = age !== null && course.max_age != null && age > course.max_age;
                         return (
                           <SelectItem
                             key={course.id}
@@ -405,7 +386,7 @@ export function ParticipantBookingCard({
                             disabled={isFull}
                             className={cn(isFull && "opacity-50")}
                           >
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 flex-wrap">
                               <div
                                 className="w-2 h-2 rounded-full"
                                 style={{ backgroundColor: course.color || "#6b7280" }}
@@ -418,6 +399,15 @@ export function ParticipantBookingCard({
                                 >
                                   <Sparkles className="h-2 w-2 mr-0.5" />
                                   Empfohlen
+                                </Badge>
+                              )}
+                              {isAgeWarning && (
+                                <Badge
+                                  variant="outline"
+                                  className="text-[10px] h-4 px-1 border-amber-400 text-amber-600"
+                                >
+                                  <AlertTriangle className="h-2 w-2 mr-0.5" />
+                                  &gt;{course.max_age}J
                                 </Badge>
                               )}
                               <Badge
