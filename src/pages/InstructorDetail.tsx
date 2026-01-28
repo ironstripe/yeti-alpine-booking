@@ -2,7 +2,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, MessageCircle, CalendarPlus } from "lucide-react";
+import { ArrowLeft, MessageCircle, CalendarPlus, Mail, Loader2 } from "lucide-react";
 import { useInstructorDetail } from "@/hooks/useInstructorDetail";
 import { StatusToggle } from "@/components/instructors/detail/StatusToggle";
 import { ProfileInfoCard } from "@/components/instructors/detail/ProfileInfoCard";
@@ -12,6 +12,7 @@ import { AbsenceRequestCard } from "@/components/instructors/detail/AbsenceReque
 import { getSpecializationLabel } from "@/hooks/useInstructors";
 import { getLevelLabel } from "@/lib/instructor-utils";
 import { useUserRole } from "@/hooks/useUserRole";
+import { useInviteInstructor } from "@/hooks/useInviteInstructor";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
@@ -19,7 +20,8 @@ import { de } from "date-fns/locale";
 export default function InstructorDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { isTeacher, instructorId: currentUserInstructorId } = useUserRole();
+  const { isTeacher, isAdminOrOffice, instructorId: currentUserInstructorId } = useUserRole();
+  const inviteMutation = useInviteInstructor();
   const {
     instructor,
     isLoading,
@@ -81,6 +83,21 @@ export default function InstructorDetail() {
           Übersicht
         </Button>
         <div className="flex gap-2">
+          {isAdminOrOffice && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => instructor?.id && inviteMutation.mutate(instructor.id)}
+              disabled={inviteMutation.isPending}
+            >
+              {inviteMutation.isPending ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Mail className="h-4 w-4 mr-2" />
+              )}
+              <span className="hidden sm:inline">Einladen</span>
+            </Button>
+          )}
           <Button variant="outline" size="sm" onClick={handleSendMessage}>
             <MessageCircle className="h-4 w-4 mr-2" />
             <span className="hidden sm:inline">Nachricht</span>

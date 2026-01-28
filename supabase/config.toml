@@ -32,3 +32,6 @@ verify_jwt = false
 
 [functions.send-instructor-notification]
 verify_jwt = false
+
+[functions.invite-instructor]
+verify_jwt = false
