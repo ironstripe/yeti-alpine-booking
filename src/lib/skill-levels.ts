@@ -143,29 +143,6 @@ export async function getLevelsForBooking(
   };
 }
 
-/**
- * Map new skill level ID to group course skill level (beginner/intermediate/advanced)
- * Used for matching participants to appropriate group courses
- */
-export function mapSkillLevelToGroupCourseSkill(levelId: string | null): string {
-  if (!levelId) return 'beginner';
-
-  const beginnerLevels = [
-    'ski_windel_wedel', 'ski_snow_kids', 'ski_blauer_prinz',
-    'sb_snow_kids', 'sb_blauer_prinz',
-    'ski_adult_green', 'sb_adult_green'
-  ];
-  
-  const intermediateLevels = [
-    'ski_blauer_koenig', 'ski_blauer_star',
-    'sb_blauer_koenig', 'sb_blauer_star',
-    'ski_adult_blue', 'sb_adult_blue'
-  ];
-  
-  if (beginnerLevels.includes(levelId)) return 'beginner';
-  if (intermediateLevels.includes(levelId)) return 'intermediate';
-  return 'advanced';
-}
 
 /**
  * Map legacy level string to new skill level ID

@@ -7,7 +7,8 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Search } from 'lucide-react';
-import { SKILL_LEVELS, DISCIPLINES } from '@/types/group-courses';
+import { DISCIPLINES } from '@/types/group-courses';
+import { useAllSkillLevels } from '@/hooks/useSkillLevels';
 
 interface TrainingsFiltersProps {
   search: string;
@@ -30,6 +31,11 @@ export function TrainingsFilters({
   statusFilter,
   onStatusFilterChange,
 }: TrainingsFiltersProps) {
+  const { data: skillLevels = [] } = useAllSkillLevels();
+  
+  // Filter to only child levels for training courses
+  const childSkillLevels = skillLevels.filter(level => level.target_group === 'child');
+
   return (
     <div className="flex flex-col sm:flex-row gap-3 mb-6">
       {/* Search */}
@@ -50,9 +56,9 @@ export function TrainingsFilters({
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="all">Alle Niveaus</SelectItem>
-          {SKILL_LEVELS.map(level => (
-            <SelectItem key={level.value} value={level.value}>
-              {level.label}
+          {childSkillLevels.map(level => (
+            <SelectItem key={level.id} value={level.id}>
+              {level.name}
             </SelectItem>
           ))}
         </SelectContent>

@@ -15,7 +15,8 @@ import {
   Trash2
 } from 'lucide-react';
 import type { GroupCourseWithSchedules } from '@/types/group-courses';
-import { SKILL_LEVELS, DISCIPLINES, DAYS_OF_WEEK } from '@/types/group-courses';
+import { DISCIPLINES, DAYS_OF_WEEK } from '@/types/group-courses';
+import { getSkillLevelLabel } from '@/lib/skill-levels';
 
 interface TrainingCardProps {
   course: GroupCourseWithSchedules;
@@ -26,7 +27,7 @@ interface TrainingCardProps {
 }
 
 export function TrainingCard({ course, onEdit, onCopy, onViewInstances, onDelete }: TrainingCardProps) {
-  const skillLabel = SKILL_LEVELS.find(s => s.value === course.skill_level)?.label || course.skill_level;
+  const skillLabel = getSkillLevelLabel(course.skill_level_id);
   const disciplineLabel = DISCIPLINES.find(d => d.value === course.discipline)?.label || course.discipline;
 
   const isSaturdayCourse = course.course_type === 'saturday_course';

@@ -38,7 +38,7 @@ interface GroupCourseWithCapacity {
   id: string;
   name: string;
   discipline: string;
-  skill_level: string;
+  skill_level_id: string;
   max_participants: number;
   color: string | null;
   meeting_point: string | null;
@@ -85,7 +85,7 @@ export function GroupSelector({
           id,
           name,
           discipline,
-          skill_level,
+          skill_level_id,
           max_participants,
           color,
           meeting_point,
@@ -176,12 +176,13 @@ export function GroupSelector({
     
     const targetSkill = mapLevelToCourseSkill(primaryLevel);
     
-    // Find best matching course (matching skill level + has capacity for all participants)
+    // Find best matching course using skill level comparison
     const spotsNeeded = Math.max(participants.length, 1);
     let matchingCourse = filteredCourses.find((course) => {
       const spotsAvailable = course.max_participants - course.currentCount;
       const hasCapacity = spotsAvailable >= spotsNeeded;
-      const matchesLevel = course.skill_level === targetSkill;
+      // Use legacy mapping for now since we're matching participant level strings
+      const matchesLevel = mapLevelToCourseSkill(course.skill_level_id) === targetSkill;
       return hasCapacity && matchesLevel;
     });
     
@@ -206,7 +207,7 @@ export function GroupSelector({
   // Find mismatched participants for the selected course
   const mismatchedParticipants = useMemo(() => {
     if (!selectedCourse || participants.length === 0) return [];
-    const courseSkill = selectedCourse.skill_level;
+    const courseSkill = mapLevelToCourseSkill(selectedCourse.skill_level_id);
     
     return participants.filter(p => {
       const participantSkill = mapLevelToCourseSkill(p.level_current_season);
@@ -257,7 +258,8 @@ export function GroupSelector({
               const spotsNeeded = Math.max(participants.length, 1);
               const spotsAvailable = course.max_participants - course.currentCount;
               const isFull = spotsAvailable < spotsNeeded;
-              const isRecommended = recommendedSkill && course.skill_level === recommendedSkill;
+              const courseSkill = mapLevelToCourseSkill(course.skill_level_id);
+              const isRecommended = recommendedSkill && courseSkill === recommendedSkill;
 
               return (
                 <SelectItem
@@ -313,7 +315,7 @@ export function GroupSelector({
           <AlertTriangle className="h-4 w-4 text-orange-600" />
           <AlertDescription className="text-xs text-orange-700">
             {mismatchedParticipants.map(p => p.first_name).join(", ")} passt/passen 
-            nicht zum Kursniveau "{selectedCourse.skill_level}".
+            nicht zum Kursniveau.
           </AlertDescription>
         </Alert>
       )}
@@ -324,7 +326,7 @@ export function GroupSelector({
           <div className="flex items-center gap-2">
             <Calendar className="h-3 w-3" />
             <span>
-              {selectedCourse.skill_level} • {selectedCourse.discipline === "ski" ? "Ski" : "Snowboard"}
+              {selectedCourse.discipline === "ski" ? "Ski" : "Snowboard"}
             </span>
           </div>
           {selectedCourse.meeting_point && (

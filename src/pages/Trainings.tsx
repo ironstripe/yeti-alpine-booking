@@ -42,8 +42,8 @@ const Trainings = () => {
         return false;
       }
 
-      // Skill level filter
-      if (skillFilter !== 'all' && course.skill_level !== skillFilter) {
+      // Skill level filter - now uses skill_level_id
+      if (skillFilter !== 'all' && course.skill_level_id !== skillFilter) {
         return false;
       }
 

@@ -6,8 +6,7 @@ export interface GroupCourse {
   id: string;
   name: string;
   description: string | null;
-  skill_level: 'beginner' | 'intermediate' | 'advanced';
-  skill_level_id: string | null; // NEW: FK to skill_levels.id for direct 1:1 matching
+  skill_level_id: string; // FK to skill_levels.id for direct 1:1 matching
   discipline: 'ski' | 'snowboard' | 'both';
   min_age: number | null;
   max_age: number | null;
@@ -122,8 +121,7 @@ export interface GroupCourseWithSchedules extends GroupCourse {
 export interface GroupCourseFormData {
   name: string;
   description: string;
-  skill_level: 'beginner' | 'intermediate' | 'advanced';
-  skill_level_id: string | null; // NEW: FK to skill_levels.id
+  skill_level_id: string; // FK to skill_levels.id
   discipline: 'ski' | 'snowboard' | 'both';
   min_age: number | null;
   max_age: number | null;
@@ -142,12 +140,6 @@ export interface GroupCourseFormData {
 }
 
 // Helper constants
-export const SKILL_LEVELS = [
-  { value: 'beginner', label: 'Anfänger' },
-  { value: 'intermediate', label: 'Fortgeschritten' },
-  { value: 'advanced', label: 'Experte' },
-] as const;
-
 export const DISCIPLINES = [
   { value: 'ski', label: 'Ski' },
   { value: 'snowboard', label: 'Snowboard' },
