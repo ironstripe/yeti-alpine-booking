@@ -9,6 +9,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
 } from '@/components/ui/dialog';
 import {
   Form,
@@ -114,6 +115,8 @@ export function TrainingFormModal({ open, onOpenChange, course, mode }: Training
 
   // Reset form when course changes or modal opens
   useEffect(() => {
+    if (!open) return; // Skip reset when modal is closed
+    
     if (course) {
       // For copy mode, append " (Kopie)" to the name
       const nameValue = actualMode === 'copy' ? `${course.name} (Kopie)` : course.name;
@@ -150,7 +153,7 @@ export function TrainingFormModal({ open, onOpenChange, course, mode }: Training
       setSelectedDays([1, 2, 3, 4, 5]);
       setTimeSlots([{ start_time: '10:00', end_time: '12:00' }]);
     }
-  }, [course, form, actualMode]);
+  }, [open, course, form, actualMode]);
 
   // Auto-calculate end date when start date changes for Saturday courses
   useEffect(() => {
@@ -234,6 +237,13 @@ export function TrainingFormModal({ open, onOpenChange, course, mode }: Training
                 ? 'Training duplizieren' 
                 : 'Neues Training erstellen'}
           </DialogTitle>
+          <DialogDescription>
+            {actualMode === 'edit' 
+              ? 'Bearbeite die Details dieses Trainings.' 
+              : actualMode === 'copy' 
+                ? 'Erstelle eine Kopie dieses Trainings mit angepassten Details.' 
+                : 'Erstelle ein neues Training für Gruppenkurse.'}
+          </DialogDescription>
         </DialogHeader>
 
         <Form {...form}>
