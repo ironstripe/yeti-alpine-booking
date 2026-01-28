@@ -1,116 +1,170 @@
 
-# Change Age Filtering to Soft Warning
+# Fix Group Course Matching via Direct Skill Level Link
 
-## Summary
-Remove age-based filtering from group course selection. Instead, show all courses and display a soft warning badge when a participant's age exceeds the course's `max_age`.
+## Current Problem
 
----
+The current data model has a fundamental design issue:
 
-## Current Behavior (Problem)
+| Table | Field | Current Value |
+|-------|-------|---------------|
+| `skill_levels` | `id` | `ski_blauer_prinz`, `ski_roter_koenig`, etc. (specific) |
+| `group_courses` | `skill_level` | `beginner`, `intermediate`, `advanced` (generic TEXT) |
+
+The code then uses a mapping function to convert participant levels → generic categories → match courses. This is:
+1. **Lossy** - Many skill levels map to the same category
+2. **Redundant** - The group courses ARE the skill levels (1:1 relationship by name)
+3. **Error-prone** - Mapping logic can get out of sync
+
+### Your Database Data Shows the 1:1 Relationship
 
 ```
-Age = 10, Course max_age = 8  →  Course is HIDDEN from dropdown
-```
-
-Result: User sees "Keine passenden Gruppen für Alter 10 J. gefunden"
-
----
-
-## New Behavior (Solution)
-
-```
-Age = 10, Course max_age = 8  →  Course is SHOWN with amber warning badge
-```
-
-Result: User can still select course, but sees warning like "Alter 10 > max. 8 J."
-
----
-
-## Changes
-
-### File: `src/components/bookings/wizard/ParticipantBookingCard.tsx`
-
-#### 1. Remove Age Filtering from Query
-
-**Before:**
-```typescript
-return coursesData
-  .filter((course) => {
-    if (age === null) return true;
-    if (course.min_age != null && age < course.min_age) return false;
-    if (course.max_age != null && age > course.max_age) return false;
-    return true;
-  })
-  .map(...)
-```
-
-**After:**
-```typescript
-// No age filtering - show all courses
-return coursesData.map((course) => ({
-  ...course,
-  currentCount: enrollmentMap[course.id] || 0,
-})) as GroupCourseOption[];
-```
-
-#### 2. Add Age Warning Logic to SelectItem
-
-Calculate whether participant age exceeds course max_age:
-
-```typescript
-const isAgeWarning = age !== null && course.max_age != null && age > course.max_age;
-```
-
-#### 3. Display Soft Warning Badge in Dropdown
-
-```tsx
-{isAgeWarning && (
-  <Badge
-    variant="outline"
-    className="text-[10px] h-4 px-1 border-amber-400 text-amber-600"
-  >
-    <AlertTriangle className="h-2 w-2 mr-0.5" />
-    Alter {age} &gt; max. {course.max_age}
-  </Badge>
-)}
-```
-
-#### 4. Update Empty State Message
-
-The message "Keine passenden Gruppen für Alter X J. gefunden" becomes obsolete since courses are no longer filtered by age. Update to only show if truly no courses exist:
-
-```typescript
-{groupCourses.length === 0 ? (
-  <div className="text-xs text-amber-600 py-2 bg-amber-50 rounded-md px-2">
-    <AlertTriangle className="h-3 w-3 inline mr-1" />
-    Keine Gruppen verfügbar. Bitte wählen Sie zuerst Kurstage.
-  </div>
-) : ( ... )}
+Skill Level: ski_blauer_prinz    →  Group Course: Blauer Prinz/Prinzessin
+Skill Level: ski_blauer_star     →  Group Course: Blauer Star  
+Skill Level: ski_windel_wedel    →  Group Course: Windel Wedel Kurs
+Skill Level: ski_roter_prinz     →  Group Course: Red Prince/Princess
 ```
 
 ---
 
-## Visual Comparison
+## Proposed Fix: Direct Foreign Key Link
 
-### Before (Course hidden)
-```
-┌─────────────────────────────────────┐
-│ Gruppe                              │
-│ ⚠️ Keine passenden Gruppen für      │
-│    Alter 10 J. gefunden             │
-└─────────────────────────────────────┘
+### Database Schema Change
+
+Add a new column to `group_courses`:
+
+```sql
+ALTER TABLE group_courses 
+ADD COLUMN skill_level_id TEXT REFERENCES skill_levels(id);
+
+-- Migrate existing data (match by name)
+UPDATE group_courses gc
+SET skill_level_id = sl.id
+FROM skill_levels sl
+WHERE (
+  gc.name ILIKE sl.name
+  OR gc.name ILIKE REPLACE(sl.name, 'König', 'King')
+  OR gc.name ILIKE REPLACE(sl.name, 'Prinz', 'Prince')
+  OR gc.name ILIKE REPLACE(sl.name, 'Prinzessin', 'Princess')
+)
+AND gc.discipline = sl.discipline
+AND sl.target_group = 'child';
+
+-- Eventually remove the old TEXT column
+-- ALTER TABLE group_courses DROP COLUMN skill_level;
 ```
 
-### After (Course visible with warning)
+### Simplified Matching Logic
+
+**Before (complex mapping):**
+```typescript
+// 1. Get participant's level: "ski_roter_koenig"
+// 2. Map to generic: mapLevelToCourseSkill() → "intermediate"  
+// 3. Find course where skill_level === "intermediate"
+// Result: Could match ANY intermediate course (wrong!)
 ```
-┌─────────────────────────────────────┐
-│ Gruppe                              │
-│ ┌─────────────────────────────────┐ │
-│ │ ● Blue Prince           [3/10] │ │
-│ │ ● Black King  ⚠️ >8J    [5/12] │ │  ← Soft warning
-│ │ ● Windel Wedel          [2/8]  │ │
-│ └─────────────────────────────────┘ │
-└─────────────────────────────────────┘
+
+**After (direct link):**
+```typescript
+// 1. Get participant's level: "ski_roter_koenig"
+// 2. Find course where skill_level_id === "ski_roter_koenig"
+// Result: Exact match to "Roter König/Königin" course (correct!)
+```
+
+---
+
+## Implementation Steps
+
+### Step 1: Database Migration
+
+Add `skill_level_id` FK column and populate from existing data:
+
+```sql
+-- Add the foreign key column
+ALTER TABLE group_courses 
+ADD COLUMN skill_level_id TEXT REFERENCES skill_levels(id);
+
+-- Create index for performance
+CREATE INDEX idx_group_courses_skill_level_id ON group_courses(skill_level_id);
+```
+
+### Step 2: Populate Existing Data
+
+Run a migration to link existing courses to skill levels:
+
+| Group Course | → | Skill Level ID |
+|--------------|---|----------------|
+| Windel Wedel Kurs | → | `ski_windel_wedel` |
+| Blauer Prinz/Prinzessin (ski) | → | `ski_blauer_prinz` |
+| Blauer Prinz/Prinzessin (snowboard) | → | `sb_blauer_prinz` |
+| Blauer King/Queen | → | `ski_blauer_koenig` |
+| Blauer Star | → | `ski_blauer_star` |
+| Red Prince/Princess | → | `ski_roter_prinz` |
+| Red King/Queen | → | `ski_roter_koenig` |
+| Red Star | → | `ski_roter_star` |
+| Black Prince/Princess | → | `ski_schwarzer_prinz` |
+
+### Step 3: Update UI Components
+
+**File: `src/components/bookings/wizard/ParticipantBookingCard.tsx`**
+
+Change the matching logic:
+
+```typescript
+// OLD: Map level to generic skill category
+const targetSkill = mapLevelToCourseSkill(participant.level_current_season);
+let match = groupCourses.find(c => c.skill_level === targetSkill);
+
+// NEW: Direct match on skill_level_id
+const participantSkillId = participant.current_ski_level_id || 
+  mapLegacyLevelToSkillLevelId(participant.level_current_season, 'ski');
+let match = groupCourses.find(c => c.skill_level_id === participantSkillId);
+```
+
+**File: `src/components/trainings/TrainingFormModal.tsx`**
+
+Update the form to select a `skill_level_id` instead of a generic skill category dropdown.
+
+**File: `src/types/group-courses.ts`**
+
+Update the type:
+
+```typescript
+interface GroupCourse {
+  // ... existing fields
+  skill_level_id: string | null;  // NEW - FK to skill_levels
+  skill_level: string;            // DEPRECATED - keep for backward compat
+}
+```
+
+### Step 4: Fix Date Synchronization (Secondary Issue)
+
+The "empty dropdown" issue is also caused by participant bookings having empty dates.
+
+**File: `src/contexts/BookingWizardContext.tsx`**
+
+When `setSelectedDates` is called and `useParticipantSpecificBooking` is true, also update participant bookings:
+
+```typescript
+const setSelectedDates = (dates: string[]) => {
+  setState((prev) => {
+    const newState = { ...prev, selectedDates: dates };
+    
+    // Sync to participant bookings if in individual mode
+    if (prev.useParticipantSpecificBooking) {
+      const updatedBookings = { ...prev.participantBookings };
+      for (const pId of Object.keys(updatedBookings)) {
+        const booking = updatedBookings[pId];
+        // Only sync if not manually overridden
+        if (booking.dates.length === 0) {
+          updatedBookings[pId] = { ...booking, dates: [...dates] };
+        }
+      }
+      newState.participantBookings = updatedBookings;
+    }
+    
+    return newState;
+  });
+};
 ```
 
 ---
@@ -119,13 +173,20 @@ The message "Keine passenden Gruppen für Alter X J. gefunden" becomes obsolete 
 
 | File | Changes |
 |------|---------|
-| `src/components/bookings/wizard/ParticipantBookingCard.tsx` | 1. Remove age filter from query<br>2. Add age warning calculation in SelectItem<br>3. Show amber warning badge for age > max_age<br>4. Simplify empty state message |
+| Database Migration | Add `skill_level_id` FK column to `group_courses`, populate data |
+| `src/types/group-courses.ts` | Add `skill_level_id` field to interface |
+| `src/hooks/useGroupCourses.ts` | Include `skill_level_id` in queries |
+| `src/components/trainings/TrainingFormModal.tsx` | Replace skill category dropdown with skill level selector |
+| `src/components/bookings/wizard/ParticipantBookingCard.tsx` | Match on `skill_level_id` directly instead of mapped category |
+| `src/contexts/BookingWizardContext.tsx` | Sync dates to participant bookings |
+| `src/lib/level-utils.ts` | Eventually deprecate `mapLevelToCourseSkill()` |
 
 ---
 
-## Expected Outcome
+## Expected Result
 
-1. All group courses appear in dropdown regardless of participant age
-2. Courses where participant age exceeds max_age show amber warning badge
-3. Course recommendations still work based on skill level (primary factor)
-4. Age is secondary - informational only, not blocking
+1. Each group course links directly to exactly one skill level
+2. Participant matching is exact: "Roter König" participant → "Roter König/Königin" course
+3. No lossy mapping between skill categories
+4. Age remains a soft warning (already implemented)
+5. The "Gruppe" dropdown populates correctly because dates sync properly
