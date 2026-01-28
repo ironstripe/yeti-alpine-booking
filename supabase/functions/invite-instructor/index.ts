@@ -20,27 +20,30 @@ serve(async (req) => {
     // Create admin client for auth operations
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Create user client to verify caller's role
+    // Get the authorization header
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) {
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      console.error("Missing or invalid Authorization header");
       return new Response(
         JSON.stringify({ error: "Nicht authentifiziert" }),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    const supabaseUser = createClient(supabaseUrl, supabaseAnonKey, {
-      global: { headers: { Authorization: authHeader } },
-    });
-
-    // 1. Verify the caller is authenticated
-    const { data: { user }, error: userError } = await supabaseUser.auth.getUser();
-    if (userError || !user) {
+    // Extract the token and verify it using the admin client
+    const token = authHeader.replace("Bearer ", "");
+    const { data: userData, error: userError } = await supabaseAdmin.auth.getUser(token);
+    
+    if (userError || !userData?.user) {
+      console.error("JWT validation error:", userError);
       return new Response(
         JSON.stringify({ error: "Nicht authentifiziert" }),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
+    const user = userData.user;
+    console.log("Authenticated user:", user.id);
 
     // 2. Verify the caller has admin/office role
     const { data: roles } = await supabaseAdmin
