@@ -1,89 +1,113 @@
 
-# Add Copy/Duplicate Functionality for Group Trainings
+# Fix Training Copy Functionality
 
-## Overview
-Enable users to duplicate existing group trainings with a single click. The copied training will open in the form modal pre-filled with all data from the original, but treated as a new training (create mode, not edit mode).
+## Problem Summary
+
+The copy/duplicate functionality for trainings is not working. When a user clicks "Duplizieren", the form opens correctly but submitting the form **updates the original training** instead of **creating a new copy**.
+
+## Root Cause Analysis
+
+### Console Warning (Non-blocking)
+There's a React ref warning about `FormField` in the modal. This is a cosmetic warning and not the cause of the copy failure.
+
+### Actual Issue
+The issue is a **state persistence problem** with how the modal handles mode changes:
+
+1. **Radix Dialog keeps content mounted** - When the dialog closes, the component isn't unmounted, just hidden
+2. **Stale form state** - When reopening with the same `course` but different `mode`, the `useEffect` that resets the form may not trigger reliably because:
+   - The `course` object reference might be the same (from React Query cache)
+   - React might batch state updates when the modal is closed
+3. **Effect dependency timing** - The `useEffect` depends on `[course, form, actualMode]`, but when switching from `edit` to `copy` on the same course, the effect might not re-run if the course reference is identical
+
+### Evidence
+Network request shows a **PATCH** (update) operation instead of **POST** (insert) when trying to copy, indicating `actualMode === 'edit'` evaluated to `true` during submission.
 
 ---
 
-## Implementation Plan
+## Solution
 
-### 1. Update TrainingFormModal Props and Logic
+### Fix 1: Add `open` prop to form reset useEffect
+
+Add the `open` state to the dependency array to ensure the form resets every time the modal opens:
 
 **File:** `src/components/trainings/TrainingFormModal.tsx`
 
-Add a new `mode` prop to distinguish between create, edit, and copy:
-
 ```typescript
-interface TrainingFormModalProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  course?: GroupCourseWithSchedules | null;
-  mode?: 'create' | 'edit' | 'copy';  // New prop
-}
+// Add 'open' to the component props destructuring
+export function TrainingFormModal({ open, onOpenChange, course, mode }: TrainingFormModalProps) {
+  // ... existing code ...
+
+  // Update useEffect to include 'open' in dependencies
+  useEffect(() => {
+    if (!open) return; // Skip reset when modal is closed
+    
+    if (course) {
+      const nameValue = actualMode === 'copy' ? `${course.name} (Kopie)` : course.name;
+      form.reset({
+        // ... existing reset values
+      });
+      // ... existing schedule setup
+    } else {
+      form.reset();
+      setSelectedDays([1, 2, 3, 4, 5]);
+      setTimeSlots([{ start_time: '10:00', end_time: '12:00' }]);
+    }
+  }, [open, course, form, actualMode]); // Added 'open' to dependencies
 ```
 
-**Changes:**
-- Accept `mode` prop (defaults to 'create' when no course, 'edit' when course provided)
-- When mode is 'copy':
-  - Pre-fill form with course data (like edit)
-  - Append " (Kopie)" to the name
-  - Use `createCourse` mutation (not update)
-  - Show title "Training duplizieren"
-- Update the `isEditing` logic to be: `mode === 'edit'`
+### Fix 2: Add key to force remount when mode changes
 
-### 2. Update TrainingCard to Include Copy Button
-
-**File:** `src/components/trainings/TrainingCard.tsx`
-
-Add a copy/duplicate action:
-
-```typescript
-interface TrainingCardProps {
-  course: GroupCourseWithSchedules;
-  onEdit: (course: GroupCourseWithSchedules) => void;
-  onCopy: (course: GroupCourseWithSchedules) => void;  // New callback
-  onViewInstances: (course: GroupCourseWithSchedules) => void;
-}
-```
-
-**UI Changes:**
-- Add a dropdown menu (DropdownMenu) with actions:
-  - **Bearbeiten** (Edit) - existing functionality
-  - **Duplizieren** (Copy) - new functionality  
-  - **Instanzen/Termine** - existing functionality
-- Replace the two inline buttons with a compact actions menu using `MoreHorizontal` icon
-- OR keep buttons but add a third "Duplizieren" button with Copy icon
-
-### 3. Update Trainings Page State
+Add a unique key to the Dialog that changes when mode or course changes:
 
 **File:** `src/pages/Trainings.tsx`
 
-Add state for modal mode:
-
 ```typescript
-const [modalMode, setModalMode] = useState<'create' | 'edit' | 'copy'>('create');
-
-const handleCreateClick = () => {
-  setSelectedCourse(undefined);
-  setModalMode('create');
-  setIsModalOpen(true);
-};
-
-const handleEditClick = (course: GroupCourseWithSchedules) => {
-  setSelectedCourse(course);
-  setModalMode('edit');
-  setIsModalOpen(true);
-};
-
-const handleCopyClick = (course: GroupCourseWithSchedules) => {
-  setSelectedCourse(course);
-  setModalMode('copy');
-  setIsModalOpen(true);
-};
+<TrainingFormModal
+  key={`${selectedCourse?.id ?? 'new'}-${modalMode}`}
+  open={isModalOpen}
+  onOpenChange={setIsModalOpen}
+  course={selectedCourse}
+  mode={modalMode}
+/>
 ```
 
-Pass `mode` to modal and `onCopy` to TrainingCard.
+This ensures a fresh component instance for each unique course+mode combination.
+
+### Fix 3: Add DialogDescription for accessibility
+
+Fix the console warning about missing `Description`:
+
+**File:** `src/components/trainings/TrainingFormModal.tsx`
+
+Add `DialogDescription` to the modal header:
+
+```typescript
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription, // Add this import
+} from '@/components/ui/dialog';
+
+// In the render:
+<DialogHeader>
+  <DialogTitle>
+    {actualMode === 'edit' 
+      ? 'Training bearbeiten' 
+      : actualMode === 'copy' 
+        ? 'Training duplizieren' 
+        : 'Neues Training erstellen'}
+  </DialogTitle>
+  <DialogDescription>
+    {actualMode === 'edit' 
+      ? 'Bearbeite die Details dieses Trainings.' 
+      : actualMode === 'copy' 
+        ? 'Erstelle eine Kopie dieses Trainings mit angepassten Details.' 
+        : 'Erstelle ein neues Training für Gruppenkurse.'}
+  </DialogDescription>
+</DialogHeader>
+```
 
 ---
 
@@ -91,60 +115,23 @@ Pass `mode` to modal and `onCopy` to TrainingCard.
 
 | File | Changes |
 |------|---------|
-| `src/components/trainings/TrainingFormModal.tsx` | Add `mode` prop; update title logic; handle copy mode in submit |
-| `src/components/trainings/TrainingCard.tsx` | Add `onCopy` prop; add "Duplizieren" button with Copy icon |
-| `src/pages/Trainings.tsx` | Add `modalMode` state; add `handleCopyClick` handler; pass props to components |
+| `src/components/trainings/TrainingFormModal.tsx` | 1. Add `open` to useEffect dependencies with early return when closed<br>2. Add `DialogDescription` for accessibility |
+| `src/pages/Trainings.tsx` | Add `key` prop to force component remount on mode/course change |
 
 ---
 
-## UI Design
+## Expected Outcome
 
-### TrainingCard Actions (Updated)
-
-The card will have 3 action buttons:
-
-```
-┌─────────────────────────────────────────┐
-│ [Edit icon] Bearbeiten                  │
-├─────────────────────────────────────────┤
-│ [Copy icon] Duplizieren                 │
-├─────────────────────────────────────────┤
-│ [List icon] Instanzen/Termine           │
-└─────────────────────────────────────────┘
-```
-
-Alternative: Use a dropdown menu to keep the card compact:
-
-```
-[Bearbeiten]  [Instanzen ▼]
-                └─ Duplizieren
-                └─ Löschen
-```
-
-### Modal Title States
-
-| Mode | Title |
-|------|-------|
-| create | "Neues Training erstellen" |
-| edit | "Training bearbeiten" |
-| copy | "Training duplizieren" |
-
----
-
-## Expected Behavior
-
-1. User clicks "Duplizieren" on a training card
-2. Modal opens with all data pre-filled from the original training
-3. Name field shows "Original Name (Kopie)"
-4. User can modify any fields as needed
-5. On submit, a new training is created (original unchanged)
-6. Success toast: "Training erfolgreich erstellt"
+After these fixes:
+1. Clicking "Duplizieren" will open the form pre-filled with course data
+2. The name will show "(Kopie)" suffix
+3. Submitting will **create a new training** instead of updating the original
+4. The console warning about missing DialogDescription will be resolved
 
 ---
 
 ## Technical Notes
 
-- The `useEffect` that resets the form when `course` changes will handle pre-filling
-- For copy mode, we modify the name by appending " (Kopie)" before setting form values
-- Saturday course dates will be regenerated for the copy (new dates, not duplicated)
-- No ID conflict since copy creates a new record
+- The key prop approach (Fix 2) is the most reliable as it guarantees a fresh component state
+- Adding `open` to dependencies (Fix 1) is a good practice for modal forms in general
+- Both fixes together provide defense-in-depth against state persistence issues
