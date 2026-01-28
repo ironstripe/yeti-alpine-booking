@@ -1,114 +1,153 @@
 
-# Fix Group Course Recommendation and Date Synchronization
+# Fix Group Course Price Calculation in Booking Summary
 
 ## Problem Summary
 
-Two issues identified from your screenshot:
+The "Abschluss" (summary) step shows incorrect prices for group course bookings:
 
-### Issue 1: Wrong Group Recommendation for Robin
-- **Current behavior**: Robin has level "Blauer Star" → System recommends "Blauer Star" course
-- **Expected behavior**: Robin ACHIEVED "Blauer Star" → Should be placed in NEXT course: "Red Prince/Princess"
+1. **Not using correct product prices**: The system tries to match products by name (`"X Tag"`), which doesn't match actual product names
+2. **Not using tiered pricing**: Group courses have tiered pricing (1 day = CHF 150, 4 days = CHF 285, etc.) stored in `product_price_tiers` table, but this is not fetched
+3. **Not calculating per participant**: With 2 participants, the price should be calculated for each participant and summed
 
-The business logic should be: if a participant has **achieved** level X, they should be enrolled in the course for their **next level** (progression). The database already has `next_level_id` in `skill_levels` table for exactly this purpose.
+## Current Database Structure
 
 ```text
-Database shows:
-┌─────────────────┬─────────────┬────────────────────────┐
-│ Participant     │ Achieved    │ Should Book Course For │
-├─────────────────┼─────────────┼────────────────────────┤
-│ Robin           │ Blauer Star │ Red Prince/Princess    │
-│ (next_level_id) │             │ (ski_roter_prinz)      │
-└─────────────────┴─────────────┴────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────┐
+│ products table                                                          │
+├──────────────────────────────────────┬──────────────────────────────────┤
+│ id: 00bb1fd0...                      │ type: "group"                    │
+│ name: "Gruppenkurs"                  │ pricing_type: "tiered"           │
+│ price: 0 (not used for tiered)       │                                  │
+└──────────────────────────────────────┴──────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│ product_price_tiers table                                               │
+├──────────────┬──────────────────┬───────────────────────────────────────┤
+│ day_count    │ cumulative_price │ product_id                            │
+├──────────────┼──────────────────┼───────────────────────────────────────┤
+│ 1            │ 150.00           │ 00bb1fd0...                           │
+│ 2            │ 200.00           │ 00bb1fd0...                           │
+│ 3            │ 245.00           │ 00bb1fd0...                           │
+│ 4            │ 285.00           │ 00bb1fd0...                           │
+│ 5            │ 320.00           │ 00bb1fd0...                           │
+└──────────────┴──────────────────┴───────────────────────────────────────┘
 ```
-
-### Issue 2: Only First Date Syncing (Feb 9 only, not 10-12)
-- **Current behavior**: Main calendar selects Feb 9-12 → Participant card shows only Feb 9
-- **Root cause**: The sync logic in `setSelectedDates` only updates participant bookings when `booking.dates.length === 0`
-
-When individual mode auto-enables, `initializeParticipantBookings()` copies current dates. Later date changes are ignored because `booking.dates.length > 0`.
 
 ---
 
 ## Solution
 
-### Fix 1: Match on NEXT Level for Group Course Recommendation
+### Changes to `PriceBreakdown.tsx`
 
-**File: `src/components/bookings/wizard/ParticipantBookingCard.tsx`**
+1. **Use `useProducts` hook** which already fetches price tiers
+2. **Handle participant-specific booking mode** - iterate over each participant's booking
+3. **Calculate tiered pricing correctly** using the `calculatePrice` utility
+4. **Display per-participant line items** showing each participant's course and price
 
-Fetch the participant's `next_level_id` from `skill_levels` and use that for matching:
+### Pricing Logic
+
+**Participant-Specific Mode (Individual Booking)**:
+```text
+For each participant:
+  1. Get their selected dates (e.g., 4 days)
+  2. Get their group course's linked product_id
+  3. Look up price tiers for that product
+  4. Calculate price for 4 days = CHF 285 (cumulative)
+  
+Total = Sum of all participant prices + Lunch total - Discounts
+```
+
+**Shared Mode (All participants same course)**:
+```text
+1. Get shared dates (e.g., 4 days)
+2. Calculate single course price = CHF 285
+3. Multiply by participant count = CHF 285 × 2 = CHF 570
+4. Add lunch, apply discounts
+```
+
+---
+
+## Implementation Steps
+
+### Step 1: Refactor Product Fetching
+
+Replace the simple products query with `useProducts` hook that includes price tiers:
 
 ```typescript
-// Fetch participant's next level for group course matching
-const { data: skillLevelData } = useQuery({
-  queryKey: ["skill-level-next", participantSkillId],
-  queryFn: async () => {
-    if (!participantSkillId) return null;
-    const { data } = await supabase
-      .from("skill_levels")
-      .select("id, name, next_level_id")
-      .eq("id", participantSkillId)
-      .single();
-    return data;
-  },
-  enabled: !!participantSkillId,
+// OLD:
+const { data: products = [], isLoading } = useQuery({
+  queryKey: ["products"],
+  queryFn: async () => { ... }
 });
 
-// Use next_level_id for matching (participant should progress to next course)
-const targetSkillLevelId = skillLevelData?.next_level_id || participantSkillId;
+// NEW:
+import { useProducts, ProductWithTiers } from "@/hooks/useProducts";
+import { calculatePrice } from "@/lib/pricing-utils";
 
-// Match group course
-let match = groupCourses.find(
-  (c) => c.skill_level_id === targetSkillLevelId && c.currentCount < c.max_participants
-);
+const { data: products = [], isLoading } = useProducts({ 
+  isActive: true, 
+  includeTiers: true 
+});
 ```
 
-This ensures:
-- Robin (Blauer Star) → matches "Red Prince/Princess" course (next level)
-- Already at highest level → stays in current level course
+### Step 2: Handle Participant-Specific Mode
 
-### Fix 2: Sync All Date Changes to Participant Bookings
-
-**File: `src/contexts/BookingWizardContext.tsx`**
-
-Update `setSelectedDates` to sync dates when they match the previous shared selection (not just when empty):
+When `state.useParticipantSpecificBooking` is true:
 
 ```typescript
-const setSelectedDates = (dates: string[]) => {
-  setState((prev) => {
-    const newState = { ...prev, selectedDates: dates };
+if (state.useParticipantSpecificBooking) {
+  // Calculate for each participant
+  const lineItems = [];
+  let totalCoursePrice = 0;
+  
+  for (const participant of state.selectedParticipants) {
+    const booking = state.participantBookings[participant.id];
+    if (!booking) continue;
     
-    // Sync to participant bookings if in individual mode
-    if (prev.useParticipantSpecificBooking && Object.keys(prev.participantBookings).length > 0) {
-      const previousDates = prev.selectedDates;
-      const updatedBookings = { ...prev.participantBookings };
-      
-      for (const pId of Object.keys(updatedBookings)) {
-        const booking = updatedBookings[pId];
-        
-        // Sync if:
-        // 1. Participant's dates are empty, OR
-        // 2. Participant's dates exactly match the previous shared dates (not manually overridden)
-        const shouldSync = 
-          booking.dates.length === 0 ||
-          (booking.dates.length === previousDates.length && 
-           booking.dates.every(d => previousDates.includes(d)));
-        
-        if (shouldSync) {
-          updatedBookings[pId] = { ...booking, dates: [...dates] };
-        }
-      }
-      newState.participantBookings = updatedBookings;
-    }
+    // Get the linked product from group course
+    const groupCourse = groupCourses.find(c => c.id === booking.groupCourseId);
+    const productId = groupCourse?.product_id;
+    const product = products.find(p => p.id === productId);
     
-    return newState;
-  });
-};
+    // Calculate price based on number of days
+    const daysCount = booking.dates.length;
+    const price = calculatePrice(product, daysCount);
+    
+    lineItems.push({
+      participantName: `${participant.first_name} ${participant.last_name}`,
+      courseName: groupCourse?.name,
+      days: daysCount,
+      price: price,
+    });
+    
+    totalCoursePrice += price;
+  }
+}
 ```
 
-This ensures:
-- First date selection → syncs to all participants
-- Adding more dates → still syncs (because current dates match previous shared dates)
-- Manual override by participant → preserved (their dates won't match shared dates)
+### Step 3: Update Display
+
+Show per-participant breakdown:
+
+```text
+┌─────────────────────────────────────────────────────────┐
+│ Preisdetails                                            │
+├─────────────────────────────────────────────────────────┤
+│ Robin Mustermann                                        │
+│   Red Prince/Princess · 4 Tage          CHF 285.00      │
+│                                                         │
+│ Lisa Mustermann                                         │
+│   Blue King/Queen · 4 Tage              CHF 285.00      │
+│                                                         │
+│ Mittagsbetreuung                                        │
+│   8 Tage × CHF 25.00                    CHF 200.00      │
+├─────────────────────────────────────────────────────────┤
+│ Zwischensumme                           CHF 770.00      │
+│ MwSt. (7.7%)                            CHF  59.29      │
+├─────────────────────────────────────────────────────────┤
+│ TOTAL                                   CHF 770.00      │
+└─────────────────────────────────────────────────────────┘
+```
 
 ---
 
@@ -116,29 +155,23 @@ This ensures:
 
 | File | Changes |
 |------|---------|
-| `src/components/bookings/wizard/ParticipantBookingCard.tsx` | 1. Add query to fetch `next_level_id` from skill_levels<br>2. Use `next_level_id` for group course matching instead of current level |
-| `src/contexts/BookingWizardContext.tsx` | Update `setSelectedDates` sync logic to detect "matches previous shared dates" not just "is empty" |
+| `src/components/bookings/wizard/PriceBreakdown.tsx` | 1. Use `useProducts` hook with tiers<br>2. Fetch group courses for product linkage<br>3. Handle participant-specific mode<br>4. Use `calculatePrice()` for tiered pricing<br>5. Display per-participant line items |
+
+---
+
+## Additional Considerations
+
+1. **Group Courses Query**: Need to fetch group courses to get `product_id` linkage for each participant's selected course
+2. **Fallback for Shared Mode**: Keep original logic for non-participant-specific bookings but multiply by participant count
+3. **Lunch Calculation**: Already handles participant-specific lunch selections via `state.lunchSelections`
 
 ---
 
 ## Expected Result
 
-After these changes:
-
-1. **Robin (Blauer Star)** → Recommended "Red Prince/Princess" course
-2. **Lisa (if she's lower level)** → Recommended appropriate next-level course
-3. **All selected dates (Feb 9-12)** → Appear in all participant cards
-4. **Manual participant overrides** → Still preserved
-
----
-
-## Verification Steps
-
-1. Create booking with 2 participants with different levels
-2. Select "Gruppenkurs" → Confirm individual mode auto-enables
-3. Pick dates Feb 9-12 in main calendar:
-   - All 4 dates should appear in BOTH participant cards
-4. Check recommendations:
-   - Participant with "Blauer Star" → Should show "Red Prince/Princess" as recommended
-   - Participant at highest level → Should show their current level course
-5. Manually change one participant's dates → Verify other participant still syncs from main calendar
+After fix:
+- Robin (4 days, Red Prince) = CHF 285
+- Lisa (4 days, Blue King) = CHF 285
+- Total before lunch = CHF 570
+- With lunch (if selected) = CHF 570 + lunch total
+- Correct tiered pricing applied based on days per participant
