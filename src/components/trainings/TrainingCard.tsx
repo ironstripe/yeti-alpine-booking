@@ -11,7 +11,8 @@ import {
   List,
   Snowflake,
   AlertTriangle,
-  Copy
+  Copy,
+  Trash2
 } from 'lucide-react';
 import type { GroupCourseWithSchedules } from '@/types/group-courses';
 import { SKILL_LEVELS, DISCIPLINES, DAYS_OF_WEEK } from '@/types/group-courses';
@@ -21,9 +22,10 @@ interface TrainingCardProps {
   onEdit: (course: GroupCourseWithSchedules) => void;
   onCopy: (course: GroupCourseWithSchedules) => void;
   onViewInstances: (course: GroupCourseWithSchedules) => void;
+  onDelete: (course: GroupCourseWithSchedules) => void;
 }
 
-export function TrainingCard({ course, onEdit, onCopy, onViewInstances }: TrainingCardProps) {
+export function TrainingCard({ course, onEdit, onCopy, onViewInstances, onDelete }: TrainingCardProps) {
   const skillLabel = SKILL_LEVELS.find(s => s.value === course.skill_level)?.label || course.skill_level;
   const disciplineLabel = DISCIPLINES.find(d => d.value === course.discipline)?.label || course.discipline;
 
@@ -175,7 +177,7 @@ export function TrainingCard({ course, onEdit, onCopy, onViewInstances }: Traini
         )}
 
         {/* Actions */}
-        <div className="flex gap-2 pt-2">
+        <div className="flex flex-wrap gap-2 pt-2">
           <Button 
             variant="outline" 
             size="sm" 
@@ -201,6 +203,15 @@ export function TrainingCard({ course, onEdit, onCopy, onViewInstances }: Traini
           >
             <List className="h-4 w-4 mr-1" />
             {isSaturdayCourse ? 'Termine' : 'Instanzen'}
+          </Button>
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={() => onDelete(course)}
+            title="Löschen"
+            className="text-destructive hover:text-destructive hover:bg-destructive/10"
+          >
+            <Trash2 className="h-4 w-4" />
           </Button>
         </div>
       </CardContent>

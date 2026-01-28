@@ -8,12 +8,16 @@ import { TrainingCard } from '@/components/trainings/TrainingCard';
 import { TrainingFormModal } from '@/components/trainings/TrainingFormModal';
 import { TrainingsFilters } from '@/components/trainings/TrainingsFilters';
 import { TrainingsEmptyState } from '@/components/trainings/TrainingsEmptyState';
-import { useGroupCourses } from '@/hooks/useGroupCourses';
+import { useGroupCourses, useDeleteGroupCourse } from '@/hooks/useGroupCourses';
+import { useConfirmDialog } from '@/components/ui/confirm-dialog';
+import { toast } from '@/hooks/use-toast';
 import type { GroupCourseWithSchedules } from '@/types/group-courses';
 
 const Trainings = () => {
   const navigate = useNavigate();
   const { data: courses, isLoading } = useGroupCourses();
+  const deleteCourse = useDeleteGroupCourse();
+  const { confirm, dialog } = useConfirmDialog();
 
   // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -81,6 +85,34 @@ const Trainings = () => {
     navigate(`/trainings/${course.id}/instances`);
   };
 
+  const handleDeleteClick = async (course: GroupCourseWithSchedules) => {
+    const confirmed = await confirm({
+      title: 'Training löschen',
+      description: `Bist du sicher, dass du "${course.name}" löschen möchtest? Diese Aktion kann nicht rückgängig gemacht werden.`,
+      confirmLabel: 'Löschen',
+      cancelLabel: 'Abbrechen',
+      variant: 'destructive',
+    });
+
+    if (confirmed) {
+      deleteCourse.mutate(course.id, {
+        onSuccess: () => {
+          toast({
+            title: 'Training gelöscht',
+            description: `"${course.name}" wurde erfolgreich gelöscht.`,
+          });
+        },
+        onError: () => {
+          toast({
+            title: 'Fehler',
+            description: 'Das Training konnte nicht gelöscht werden.',
+            variant: 'destructive',
+          });
+        },
+      });
+    }
+  };
+
   return (
     <>
       <PageHeader
@@ -120,6 +152,7 @@ const Trainings = () => {
               onEdit={handleEditClick}
               onCopy={handleCopyClick}
               onViewInstances={handleViewInstances}
+              onDelete={handleDeleteClick}
             />
           ))}
         </div>
@@ -137,6 +170,8 @@ const Trainings = () => {
         course={selectedCourse}
         mode={modalMode}
       />
+
+      {dialog}
     </>
   );
 };
