@@ -29,3 +29,6 @@ verify_jwt = false
 
 [functions.set-booking-confirmation]
 verify_jwt = false
+
+[functions.send-instructor-notification]
+verify_jwt = false
