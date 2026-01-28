@@ -21,7 +21,8 @@ export function useGroupCourses(options?: { activeOnly?: boolean }) {
         .from('group_courses')
         .select(`
           *,
-          product:product_id(id, name, price, type)
+          product:product_id(id, name, price, type),
+          linked_skill_level:skill_level_id(id, name, color, description)
         `)
         .order('name');
 
@@ -193,6 +194,7 @@ export function useCreateGroupCourse() {
         name: formData.name,
         description: formData.description || null,
         skill_level: formData.skill_level,
+        skill_level_id: formData.skill_level_id, // NEW: direct FK to skill_levels
         discipline: formData.discipline,
         min_age: formData.min_age,
         max_age: formData.max_age,
