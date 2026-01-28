@@ -153,12 +153,19 @@ export function ParticipantBookingCard({
       // Filter by participant age and map to options
       return coursesData
         .filter((course) => {
-          // Filter by age if participant has birth date and course has age constraints
-          if (age !== null && course.min_age != null && course.max_age != null) {
-            if (age < course.min_age || age > course.max_age) {
-              return false;
-            }
+          // If participant has no birth date, show all courses
+          if (age === null) return true;
+          
+          // Check min_age constraint (if set)
+          if (course.min_age != null && age < course.min_age) {
+            return false;
           }
+          
+          // Check max_age constraint (if set)
+          if (course.max_age != null && age > course.max_age) {
+            return false;
+          }
+          
           return true;
         })
         .map((course) => ({
