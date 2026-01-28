@@ -18,6 +18,7 @@ const Trainings = () => {
   // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedCourse, setSelectedCourse] = useState<GroupCourseWithSchedules | undefined>();
+  const [modalMode, setModalMode] = useState<'create' | 'edit' | 'copy'>('create');
 
   // Filter state
   const [search, setSearch] = useState('');
@@ -60,11 +61,19 @@ const Trainings = () => {
 
   const handleCreateClick = () => {
     setSelectedCourse(undefined);
+    setModalMode('create');
     setIsModalOpen(true);
   };
 
   const handleEditClick = (course: GroupCourseWithSchedules) => {
     setSelectedCourse(course);
+    setModalMode('edit');
+    setIsModalOpen(true);
+  };
+
+  const handleCopyClick = (course: GroupCourseWithSchedules) => {
+    setSelectedCourse(course);
+    setModalMode('copy');
     setIsModalOpen(true);
   };
 
@@ -109,6 +118,7 @@ const Trainings = () => {
               key={course.id}
               course={course}
               onEdit={handleEditClick}
+              onCopy={handleCopyClick}
               onViewInstances={handleViewInstances}
             />
           ))}
@@ -124,6 +134,7 @@ const Trainings = () => {
         open={isModalOpen}
         onOpenChange={setIsModalOpen}
         course={selectedCourse}
+        mode={modalMode}
       />
     </>
   );
