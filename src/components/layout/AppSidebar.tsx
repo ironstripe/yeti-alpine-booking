@@ -39,6 +39,7 @@ const navItems = [
   { title: "Berichte", url: "/reports", icon: BarChart3 },
   { title: "Tagesabschluss", url: "/reconciliation", icon: Calculator },
   { title: "Trainings", url: "/trainings", icon: GraduationCap },
+  { title: "Wochenplanung", url: "/trainings/planning", icon: LayoutGrid },
   { title: "Einstellungen", url: "/settings", icon: Settings },
 ];
 
