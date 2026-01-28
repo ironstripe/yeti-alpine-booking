@@ -1,6 +1,6 @@
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
-import { User, Users, Calendar, MapPin, MessageSquare, GraduationCap } from "lucide-react";
+import { User, Users, Calendar, MapPin, MessageSquare, GraduationCap, UtensilsCrossed, Leaf } from "lucide-react";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,17 @@ import { useBookingWizard, WizardStep } from "@/contexts/BookingWizardContext";
 import { calculateAge, getAgeDisplay, getLevelLabel } from "@/lib/participant-utils";
 import { getLevelLabel as getInstructorLevel } from "@/lib/instructor-utils";
 import { getSpecializationLabel } from "@/hooks/useInstructors";
+
+// Helper to format dates as short day names
+const formatDayNames = (dates: string[]): string => {
+  const dayAbbreviations: Record<string, string> = {
+    "Mo": "Mo", "Di": "Di", "Mi": "Mi", "Do": "Do", "Fr": "Fr", "Sa": "Sa", "So": "So"
+  };
+  return dates
+    .map(d => format(new Date(d), "EEE", { locale: de }))
+    .map(day => dayAbbreviations[day] || day)
+    .join(", ");
+};
 
 interface BookingSummaryCardsProps {
   onEditStep: (step: WizardStep) => void;
@@ -129,6 +140,77 @@ export function BookingSummaryCards({ onEditStep }: BookingSummaryCardsProps) {
           </div>
         </CardContent>
       </Card>
+
+      {/* Lunch Care Card - Only for group courses with lunch selections */}
+      {state.productType === "group" && (() => {
+        // Collect lunch data from either individual or shared mode
+        const lunchData: Array<{
+          participantId: string;
+          participantName: string;
+          days: string[];
+          isVegetarian: boolean;
+        }> = [];
+        
+        if (state.useParticipantSpecificBooking && Object.keys(state.participantBookings).length > 0) {
+          for (const participant of state.selectedParticipants) {
+            const booking = state.participantBookings[participant.id];
+            if (booking && booking.lunchDays.length > 0) {
+              lunchData.push({
+                participantId: participant.id,
+                participantName: `${participant.first_name} ${participant.last_name || ""}`.trim(),
+                days: booking.lunchDays,
+                isVegetarian: booking.isVegetarian,
+              });
+            }
+          }
+        } else {
+          for (const participant of state.selectedParticipants) {
+            const days = state.lunchSelections[participant.id] || [];
+            if (days.length > 0) {
+              lunchData.push({
+                participantId: participant.id,
+                participantName: `${participant.first_name} ${participant.last_name || ""}`.trim(),
+                days: days,
+                isVegetarian: state.vegetarianSelections[participant.id] || false,
+              });
+            }
+          }
+        }
+        
+        if (lunchData.length === 0) return null;
+        
+        return (
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
+                Mittagsbetreuung
+              </CardTitle>
+              <Button variant="ghost" size="sm" onClick={() => onEditStep(2)}>
+                Ändern
+              </Button>
+            </CardHeader>
+            <CardContent className="space-y-2 pt-0">
+              {lunchData.map((item) => (
+                <div key={item.participantId} className="flex items-start gap-3">
+                  <UtensilsCrossed className="h-4 w-4 text-muted-foreground mt-0.5" />
+                  <div className="flex-1">
+                    <span className="font-medium">{item.participantName}</span>
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <span>{formatDayNames(item.days)}</span>
+                      {item.isVegetarian && (
+                        <Badge variant="secondary" className="bg-green-100 text-green-800 gap-1 text-xs">
+                          <Leaf className="h-3 w-3" />
+                          Vegetarisch
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        );
+      })()}
 
       {/* Instructor & Details Card */}
       <Card>
