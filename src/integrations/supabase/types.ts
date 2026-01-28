@@ -1281,6 +1281,54 @@ export type Database = {
           },
         ]
       }
+      instructor_activity_log: {
+        Row: {
+          activity_type: string
+          created_at: string
+          created_by_user_id: string | null
+          description: string
+          id: string
+          instructor_id: string
+          metadata: Json | null
+          ticket_item_id: string
+        }
+        Insert: {
+          activity_type: string
+          created_at?: string
+          created_by_user_id?: string | null
+          description: string
+          id?: string
+          instructor_id: string
+          metadata?: Json | null
+          ticket_item_id: string
+        }
+        Update: {
+          activity_type?: string
+          created_at?: string
+          created_by_user_id?: string | null
+          description?: string
+          id?: string
+          instructor_id?: string
+          metadata?: Json | null
+          ticket_item_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "instructor_activity_log_instructor_id_fkey"
+            columns: ["instructor_id"]
+            isOneToOne: false
+            referencedRelation: "instructors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "instructor_activity_log_ticket_item_id_fkey"
+            columns: ["ticket_item_id"]
+            isOneToOne: false
+            referencedRelation: "ticket_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       instructors: {
         Row: {
           ahv_number: string | null
@@ -2344,6 +2392,8 @@ export type Database = {
           id: string
           instructor_confirmation: string | null
           instructor_confirmed_at: string | null
+          instructor_decline_reason: string | null
+          instructor_declined_at: string | null
           instructor_id: string | null
           instructor_notes: string | null
           internal_notes: string | null
@@ -2374,6 +2424,8 @@ export type Database = {
           id?: string
           instructor_confirmation?: string | null
           instructor_confirmed_at?: string | null
+          instructor_decline_reason?: string | null
+          instructor_declined_at?: string | null
           instructor_id?: string | null
           instructor_notes?: string | null
           internal_notes?: string | null
@@ -2404,6 +2456,8 @@ export type Database = {
           id?: string
           instructor_confirmation?: string | null
           instructor_confirmed_at?: string | null
+          instructor_decline_reason?: string | null
+          instructor_declined_at?: string | null
           instructor_id?: string | null
           instructor_notes?: string | null
           internal_notes?: string | null
@@ -2845,6 +2899,51 @@ export type Database = {
             referencedColumns: ["customer_id"]
           },
         ]
+      }
+      whatsapp_notifications: {
+        Row: {
+          created_at: string
+          delivered_at: string | null
+          error_message: string | null
+          id: string
+          message_type: string
+          phone_number: string
+          recipient_id: string
+          recipient_type: string
+          sent_at: string | null
+          status: string
+          template_name: string | null
+          whatsapp_message_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          delivered_at?: string | null
+          error_message?: string | null
+          id?: string
+          message_type: string
+          phone_number: string
+          recipient_id: string
+          recipient_type: string
+          sent_at?: string | null
+          status?: string
+          template_name?: string | null
+          whatsapp_message_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          delivered_at?: string | null
+          error_message?: string | null
+          id?: string
+          message_type?: string
+          phone_number?: string
+          recipient_id?: string
+          recipient_type?: string
+          sent_at?: string | null
+          status?: string
+          template_name?: string | null
+          whatsapp_message_id?: string | null
+        }
+        Relationships: []
       }
     }
     Views: {
