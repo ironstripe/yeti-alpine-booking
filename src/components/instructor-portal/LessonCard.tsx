@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -12,7 +13,8 @@ import {
   Users, 
   FileText,
   CheckCircle2,
-  Clock
+  Clock,
+  UserCog
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format, differenceInYears } from "date-fns";
@@ -28,7 +30,7 @@ interface LessonCardProps {
 
 export function LessonCard({ lesson, onMarkAttendance }: LessonCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
-
+  const navigate = useNavigate();
   const getAge = (birthDate: string) => {
     return differenceInYears(new Date(), new Date(birthDate));
   };
@@ -218,6 +220,18 @@ export function LessonCard({ lesson, onMarkAttendance }: LessonCardProps) {
             <div className="text-xs text-muted-foreground">
               Ticket: {lesson.ticketNumber}
             </div>
+
+            {/* Group Management Button - for group courses */}
+            {(lesson.productType === "group_kids" || lesson.productType === "group_adults") && 
+             lesson.groupCourseInstanceId && (
+              <Button 
+                className="w-full" 
+                onClick={() => navigate(`/instructor/group/${lesson.groupCourseInstanceId}`)}
+              >
+                <UserCog className="h-4 w-4 mr-2" />
+                Gruppe verwalten
+              </Button>
+            )}
 
             {/* Attendance Button */}
             {onMarkAttendance && (
