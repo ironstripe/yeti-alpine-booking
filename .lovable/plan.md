@@ -1,62 +1,26 @@
 
 
-# Invite Instructor Feature
+# Instructor Profile Edit Feature
 
 ## Overview
 
-Implement a complete "Invite Instructor" feature that allows admin/office staff to invite existing instructors (who were imported from the old system) to create an auth account and join the platform.
-
-**Current State:**
-- Instructors are linked to users via **email matching** (`useUserRole.ts` line 50)
-- There is **no `user_id` column** on the `instructors` table
-- Most imported instructors have no corresponding `auth.users` account
-- The `user_roles` table uses the `app_role` enum: `admin`, `office`, `teacher`
+Implement an edit modal for the instructor profile page that allows admin/office staff to modify instructor details by clicking the "Bearbeiten" button on the ProfileInfoCard component.
 
 ---
 
-## Architecture
+## Current State
 
-```text
-┌─────────────────────────────────────────────────────────────────┐
-│                     INVITE INSTRUCTOR FLOW                       │
-└─────────────────────────────────────────────────────────────────┘
+- The `ProfileInfoCard` component already has a "Bearbeiten" button that calls `onEdit()`
+- The `InstructorDetail` page currently shows a toast placeholder: "Bearbeiten-Funktion kommt bald..."
+- There is **no** `useUpdateInstructor` hook yet
+- The `NewInstructorModal` contains all form fields and validation logic we can reuse
+- The pattern from `CustomerInfoCard` shows inline editing, but a modal approach (like `NewInstructorModal`) is more appropriate for the amount of fields
 
-  Admin clicks "Einladen" button
-            │
-            ▼
-  ┌───────────────────────┐
-  │ Frontend calls Edge   │
-  │ Function with         │
-  │ instructor_id         │
-  └───────────┬───────────┘
-              │
-              ▼
-  ┌───────────────────────┐
-  │ Edge Function         │
-  │ (invite-instructor)   │
-  │                       │
-  │ 1. Verify caller is   │
-  │    admin/office       │
-  │                       │
-  │ 2. Check instructor   │
-  │    email not already  │
-  │    in auth.users      │
-  │                       │
-  │ 3. Call supabase      │
-  │    .auth.admin        │
-  │    .inviteUserByEmail │
-  │                       │
-  │ 4. Insert teacher     │
-  │    role in user_roles │
-  └───────────┬───────────┘
-              │
-              ▼
-  ┌───────────────────────┐
-  │ Supabase sends        │
-  │ magic link email      │
-  │ to instructor         │
-  └───────────────────────┘
-```
+---
+
+## Implementation Approach
+
+I will create an **EditInstructorModal** component (dialog-based) that reuses the form structure from `NewInstructorModal` but pre-populates it with existing instructor data.
 
 ---
 
@@ -64,204 +28,64 @@ Implement a complete "Invite Instructor" feature that allows admin/office staff 
 
 | File | Purpose |
 |------|---------|
-| `supabase/functions/invite-instructor/index.ts` | Edge Function to handle invitation |
-| `src/hooks/useInviteInstructor.ts` | React hook with mutation logic |
+| `src/hooks/useUpdateInstructor.ts` | Mutation hook for updating instructor data |
+| `src/components/instructors/EditInstructorModal.tsx` | Edit dialog with form |
 
 ## Files to Modify
 
 | File | Changes |
 |------|---------|
-| `src/pages/InstructorDetail.tsx` | Add "Einladen" button |
-| `src/hooks/useInstructorDetail.ts` | Add `hasAuthAccount` check |
-| `supabase/config.toml` | Register new Edge Function |
+| `src/pages/InstructorDetail.tsx` | Add modal state and render EditInstructorModal |
 
 ---
 
 ## Technical Implementation
 
-### 1. Edge Function: `invite-instructor`
+### 1. Create `useUpdateInstructor` Hook
 
 ```typescript
-// supabase/functions/invite-instructor/index.ts
+// src/hooks/useUpdateInstructor.ts
 
-import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
-
-serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
-  }
-
-  try {
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
-    
-    // Create admin client for auth operations
-    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
-    
-    // Create user client to verify caller's role
-    const authHeader = req.headers.get("Authorization")!;
-    const supabaseUser = createClient(supabaseUrl, supabaseAnonKey, {
-      global: { headers: { Authorization: authHeader } }
-    });
-    
-    // 1. Verify the caller is authenticated and has admin/office role
-    const { data: { user } } = await supabaseUser.auth.getUser();
-    if (!user) {
-      return new Response(
-        JSON.stringify({ error: "Nicht authentifiziert" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-    
-    const { data: roles } = await supabaseAdmin
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", user.id);
-    
-    const userRoles = roles?.map(r => r.role) || [];
-    if (!userRoles.includes("admin") && !userRoles.includes("office")) {
-      return new Response(
-        JSON.stringify({ error: "Keine Berechtigung. Nur Admin/Büro kann einladen." }),
-        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-    
-    // 2. Get instructor data
-    const { instructor_id } = await req.json();
-    
-    const { data: instructor, error: instructorError } = await supabaseAdmin
-      .from("instructors")
-      .select("id, email, first_name, last_name")
-      .eq("id", instructor_id)
-      .single();
-    
-    if (instructorError || !instructor) {
-      return new Response(
-        JSON.stringify({ error: "Skilehrer nicht gefunden" }),
-        { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-    
-    // 3. Check if user already exists in auth.users
-    const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers();
-    const existingUser = existingUsers?.users?.find(
-      u => u.email?.toLowerCase() === instructor.email.toLowerCase()
-    );
-    
-    if (existingUser) {
-      return new Response(
-        JSON.stringify({ error: `${instructor.first_name} hat bereits einen Account` }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-    
-    // 4. Invite user by email
-    const { data: inviteData, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(
-      instructor.email,
-      {
-        data: {
-          first_name: instructor.first_name,
-          last_name: instructor.last_name,
-        },
-        redirectTo: "https://yeti-alpine-booking.lovable.app/instructor"
-      }
-    );
-    
-    if (inviteError) {
-      console.error("Invite error:", inviteError);
-      return new Response(
-        JSON.stringify({ error: `Einladung fehlgeschlagen: ${inviteError.message}` }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-    
-    // 5. Assign teacher role to the new user
-    if (inviteData.user) {
-      await supabaseAdmin
-        .from("user_roles")
-        .insert({
-          user_id: inviteData.user.id,
-          role: "teacher"
-        });
-    }
-    
-    return new Response(
-      JSON.stringify({
-        success: true,
-        message: `Einladung an ${instructor.email} gesendet`
-      }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
-    
-  } catch (error) {
-    console.error("Error:", error);
-    return new Response(
-      JSON.stringify({ error: error.message }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
-  }
-});
-```
-
-### 2. Add Hook: `useInviteInstructor`
-
-```typescript
-// src/hooks/useInviteInstructor.ts
-
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import type { TablesUpdate } from "@/integrations/supabase/types";
 
-export function useHasAuthAccount(instructorEmail: string | undefined) {
-  return useQuery({
-    queryKey: ["instructor-has-auth", instructorEmail],
-    queryFn: async () => {
-      if (!instructorEmail) return false;
-      
-      // Check if user exists by trying to fetch auth users via an RPC
-      // Since we can't query auth.users directly, we use email matching logic
-      const { data: users } = await supabase
-        .from("user_roles")
-        .select("user_id")
-        .limit(1);
-      
-      // For now, we'll let the Edge Function handle the check
-      // This query is a placeholder - the actual check happens server-side
-      return false;
-    },
-    enabled: !!instructorEmail,
-  });
-}
+type InstructorUpdate = TablesUpdate<"instructors">;
 
-export function useInviteInstructor() {
+export function useUpdateInstructor(instructorId: string) {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
-    mutationFn: async (instructorId: string) => {
-      const { data, error } = await supabase.functions.invoke("invite-instructor", {
-        body: { instructor_id: instructorId },
-      });
-      
-      if (error) throw new Error(error.message);
-      if (data?.error) throw new Error(data.error);
-      
+    mutationFn: async (updates: InstructorUpdate) => {
+      const { data, error } = await supabase
+        .from("instructors")
+        .update(updates)
+        .eq("id", instructorId)
+        .select()
+        .single();
+
+      if (error) {
+        if (error.code === "23505") {
+          if (error.message.includes("email")) {
+            throw new Error("Diese E-Mail-Adresse wird bereits verwendet.");
+          }
+          if (error.message.includes("phone")) {
+            throw new Error("Diese Telefonnummer wird bereits verwendet.");
+          }
+        }
+        throw error;
+      }
+
       return data;
     },
-    onSuccess: (data) => {
-      toast.success("Einladung gesendet!", {
-        description: data.message,
-      });
-      queryClient.invalidateQueries({ queryKey: ["instructor"] });
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["instructor", instructorId] });
+      queryClient.invalidateQueries({ queryKey: ["instructors"] });
+      toast.success("Skilehrer aktualisiert");
     },
     onError: (error) => {
-      toast.error("Einladung fehlgeschlagen", {
+      toast.error("Fehler beim Speichern", {
         description: error.message,
       });
     },
@@ -269,80 +93,109 @@ export function useInviteInstructor() {
 }
 ```
 
-### 3. Modify `InstructorDetail.tsx`
+### 2. Create `EditInstructorModal` Component
 
-Add the invite button to the action buttons section:
+The modal will:
+- Accept `instructor` prop with current data
+- Use `useForm` with Zod validation (same schema as NewInstructorModal)
+- Pre-populate form with existing instructor values
+- Use `useEffect` with `open` dependency for proper reset (following memory pattern)
+- Include all editable fields from the instructors table
 
-```tsx
-// Add imports
-import { Mail, Loader2 } from "lucide-react";
-import { useInviteInstructor } from "@/hooks/useInviteInstructor";
-import { useUserRole } from "@/hooks/useUserRole";
+Form sections:
+1. **Persönliche Daten** - first_name, last_name, birth_date, gender
+2. **Kontaktdaten** - email, phone
+3. **Adresse** - street, zip, city, country
+4. **Qualifikationen** - level, specialization, languages
+5. **Anstellung** - hourly_rate, status, role, entry_date
+6. **Bankverbindung** - bank_name, iban, ahv_number
+7. **Notizen** - notes
 
-// Inside component, add hook calls
-const { isAdminOrOffice } = useUserRole();
-const inviteMutation = useInviteInstructor();
+### 3. Update `InstructorDetail.tsx`
 
-// Add to the button group (around line 83-92)
-{isAdminOrOffice && (
-  <Button 
-    variant="outline" 
-    size="sm" 
-    onClick={() => instructor?.id && inviteMutation.mutate(instructor.id)}
-    disabled={inviteMutation.isPending}
-  >
-    {inviteMutation.isPending ? (
-      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-    ) : (
-      <Mail className="h-4 w-4 mr-2" />
-    )}
-    <span className="hidden sm:inline">Einladen</span>
-  </Button>
+```typescript
+// Add state and modal
+const [editModalOpen, setEditModalOpen] = useState(false);
+
+// Update handleEdit
+const handleEdit = () => {
+  setEditModalOpen(true);
+};
+
+// Add modal to render
+{instructor && (
+  <EditInstructorModal
+    key={instructor.id}
+    open={editModalOpen}
+    onOpenChange={setEditModalOpen}
+    instructor={instructor}
+  />
 )}
 ```
 
-### 4. Update `supabase/config.toml`
+---
 
-Add the new Edge Function registration:
+## Schema Alignment
 
-```toml
-[functions.invite-instructor]
-verify_jwt = true
+Based on the `instructors` table schema, all these fields will be editable:
+
+| Field | Type | Required |
+|-------|------|----------|
+| first_name | string | Yes |
+| last_name | string | Yes |
+| email | string | Yes |
+| phone | string | Yes |
+| birth_date | date | No |
+| gender | string | No |
+| level | string | No |
+| specialization | string | No |
+| hourly_rate | number | Yes |
+| status | string | No |
+| role | string | No |
+| entry_date | date | No |
+| languages | string[] | No |
+| street | string | No |
+| zip | string | No |
+| city | string | No |
+| country | string | No |
+| bank_name | string | No |
+| iban | string | No |
+| ahv_number | string | No |
+| notes | string | No |
+
+---
+
+## Form Reset Strategy
+
+Following the project's established pattern from memory:
+1. Pass a unique `key` prop based on `instructor.id` to force remount
+2. Include `open` state in `useEffect` dependency array for form reset
+
+```typescript
+useEffect(() => {
+  if (open && instructor) {
+    reset({
+      first_name: instructor.first_name,
+      last_name: instructor.last_name,
+      // ... all fields
+    });
+    setIbanValue(instructor.iban || "");
+    setAhvValue(instructor.ahv_number || "");
+  }
+}, [open, instructor, reset]);
 ```
 
 ---
 
-## Security Considerations
+## UI Details
 
-| Check | Implementation |
-|-------|----------------|
-| Authentication | Edge Function verifies `Authorization` header |
-| Authorization | Checks `user_roles` for `admin` or `office` role |
-| Email validation | Supabase handles email format validation |
-| Duplicate prevention | Checks `auth.users` before sending invite |
-| Role assignment | Automatically assigns `teacher` role on invite |
-
----
-
-## Email Flow
-
-When `inviteUserByEmail` is called:
-1. Supabase sends a magic link to the instructor's email
-2. The email uses Supabase's built-in template (or custom if configured)
-3. Clicking the link redirects to `/instructor` with the user authenticated
-4. The `useUserRole` hook automatically matches the new auth user to the instructor via email
-
----
-
-## UI States
-
-| State | Button Appearance |
-|-------|-------------------|
-| Normal | "Einladen" with Mail icon |
-| Loading | Spinner + "Einladen" |
-| Success | Toast: "Einladung gesendet!" |
-| Error | Toast: "Einladung fehlgeschlagen" with error message |
-| Already has account | Edge Function returns error, toast shows message |
+| Element | Behavior |
+|---------|----------|
+| Modal title | "Skilehrer bearbeiten" |
+| Save button | "Speichern" with loading spinner |
+| Cancel button | "Abbrechen" - resets form and closes |
+| Validation errors | Red text below each field |
+| IBAN/AHV | Format on blur, show green check when valid |
 
 ---
 
@@ -350,56 +203,30 @@ When `inviteUserByEmail` is called:
 
 | Key | Translation |
 |-----|-------------|
-| Invite button | Einladen |
-| Success toast | Einladung gesendet! |
-| Error toast | Einladung fehlgeschlagen |
-| Already has account | {Name} hat bereits einen Account |
-| Permission denied | Keine Berechtigung. Nur Admin/Büro kann einladen. |
-| Not authenticated | Nicht authentifiziert |
-| Instructor not found | Skilehrer nicht gefunden |
+| Modal title | Skilehrer bearbeiten |
+| Save button | Speichern |
+| Cancel button | Abbrechen |
+| Success toast | Skilehrer aktualisiert |
+| Error toast | Fehler beim Speichern |
+
+---
+
+## Security Considerations
+
+- Only admin/office users can see the ProfileInfoCard with edit button (via `useUserRole`)
+- RLS policies on `instructors` table already allow authenticated users to update
+- The modal is only rendered when instructor data exists
 
 ---
 
 ## Testing Checklist
 
-1. **Permission Check**
-   - Login as office/admin user
-   - Navigate to an instructor's detail page
-   - Verify "Einladen" button is visible
-   
-2. **Login as Teacher**
-   - Login as a teacher user
-   - Navigate to an instructor's detail page
-   - Verify "Einladen" button is NOT visible
-
-3. **Send Invitation**
-   - Click "Einladen" on an instructor without account
-   - Verify loading spinner appears
-   - Verify success toast appears
-   
-4. **Check Email Delivery**
-   - Check instructor's email inbox
-   - Verify magic link email arrives
-   
-5. **Verify Role Assignment**
-   - After invitation, query `user_roles` table
-   - Verify `teacher` role was created for the new user
-
-6. **Duplicate Prevention**
-   - Try to invite an instructor who already has an account
-   - Verify error message is shown
-
-7. **Test Magic Link**
-   - Click the magic link in the email
-   - Verify redirect to `/instructor` page
-   - Verify user is logged in and can access instructor features
-
----
-
-## Future Enhancements
-
-1. **Bulk Invite** - Allow inviting multiple instructors at once from the list view
-2. **Resend Invite** - Add ability to resend invitation if original expired
-3. **Invite Status** - Show "Einladung ausstehend" badge for invited but not yet confirmed instructors
-4. **Custom Email Template** - Create branded invitation email template
+1. Navigate to `/instructors/:id` page
+2. Click "Bearbeiten" button in ProfileInfoCard
+3. Verify modal opens with pre-populated data
+4. Modify some fields
+5. Click "Speichern" - verify success toast and data update
+6. Reopen modal - verify new data persists
+7. Test validation by clearing required fields
+8. Test cancel button resets changes
 
