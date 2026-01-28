@@ -54,9 +54,9 @@ export function TrainingInstancesView({ courseId, onBack }: TrainingInstancesVie
   // Generate instances for this week if none exist
   useEffect(() => {
     if (course && instances !== undefined && instances.length === 0 && course.schedules.length > 0) {
-      generateInstances.mutate({ courseId, weekStart });
+      generateInstances.mutate({ weekStart });
     }
-  }, [course, instances, courseId, weekStart]);
+  }, [course, instances, weekStart]);
 
   const navigateWeek = (direction: 'prev' | 'next') => {
     setWeekStart(prev => direction === 'prev' ? subWeeks(prev, 1) : addWeeks(prev, 1));

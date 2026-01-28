@@ -400,61 +400,46 @@ export function useDeleteGroupCourse() {
   });
 }
 
-// Generate instances for a week
+// RPC response type for group planning functions
+interface GroupPlanningRpcResponse {
+  status: 'success' | 'error';
+  message: string;
+  instances_created?: number;
+  instances_updated?: number;
+  courses_copied?: number;
+  week_start?: string;
+  week_end?: string;
+  source_week?: string;
+  target_week?: string;
+  course_id?: string;
+  instructor_id?: string;
+  assistant_instructor_id?: string | null;
+}
+
+// Generate instances for a week using RPC
 export function useGenerateInstances() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ courseId, weekStart }: { courseId: string; weekStart: Date }) => {
-      // Get course schedules
-      const { data: schedules, error: schedError } = await supabase
-        .from('group_course_schedules')
-        .select('*')
-        .eq('course_id', courseId)
-        .eq('is_active', true);
-
-      if (schedError) throw schedError;
-      if (!schedules?.length) return [];
-
-      const weekEnd = endOfWeek(weekStart, { weekStartsOn: 1 });
-      const daysInWeek = eachDayOfInterval({ start: weekStart, end: weekEnd });
-
-      const instancesToCreate: Omit<GroupCourseInstance, 'id' | 'created_at' | 'course' | 'instructor' | 'assistant_instructor'>[] = [];
-
-      for (const day of daysInWeek) {
-        const dayOfWeek = getDay(day);
-        const matchingSchedules = schedules.filter(s => s.day_of_week === dayOfWeek);
-
-        for (const schedule of matchingSchedules) {
-          instancesToCreate.push({
-            course_id: courseId,
-            schedule_id: schedule.id,
-            date: format(day, 'yyyy-MM-dd'),
-            start_time: schedule.start_time,
-            end_time: schedule.end_time,
-            instructor_id: null,
-            assistant_instructor_id: null,
-            status: 'scheduled',
-            current_participants: 0,
-            notes: null,
-          });
-        }
-      }
-
-      // Upsert instances (don't create duplicates)
+    mutationFn: async ({ weekStart }: { weekStart: Date }) => {
       const { data, error } = await supabase
-        .from('group_course_instances')
-        .upsert(instancesToCreate, {
-          onConflict: 'course_id,date,start_time',
-          ignoreDuplicates: true,
-        })
-        .select();
+        .rpc('generate_group_course_instances_for_week', {
+          p_week_start_date: format(weekStart, 'yyyy-MM-dd')
+        });
 
       if (error) throw error;
-      return data;
+      const result = data as unknown as GroupPlanningRpcResponse;
+      if (result?.status === 'error') throw new Error(result.message);
+      return result;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['group-course-instances'] });
+      queryClient.invalidateQueries({ queryKey: ['group-courses'] });
+      toast.success(`${data.instances_created || 0} Instanzen generiert`);
+    },
+    onError: (error) => {
+      console.error('Error generating instances:', error);
+      toast.error('Fehler beim Generieren der Instanzen');
     },
   });
 }
@@ -495,7 +480,7 @@ export function useAssignInstructor() {
   });
 }
 
-// Bulk assign instructor to all instances in a week
+// Bulk assign instructor to all instances in a week using RPC
 export function useBulkAssignInstructor() {
   const queryClient = useQueryClient();
 
@@ -503,30 +488,61 @@ export function useBulkAssignInstructor() {
     mutationFn: async ({ 
       courseId, 
       weekStart, 
-      instructorId 
+      instructorId,
+      assistantInstructorId
     }: { 
       courseId: string; 
       weekStart: Date;
       instructorId: string;
+      assistantInstructorId?: string | null;
     }) => {
-      const weekEnd = endOfWeek(weekStart, { weekStartsOn: 1 });
-
-      const { error } = await supabase
-        .from('group_course_instances')
-        .update({ instructor_id: instructorId })
-        .eq('course_id', courseId)
-        .gte('date', format(weekStart, 'yyyy-MM-dd'))
-        .lte('date', format(weekEnd, 'yyyy-MM-dd'));
+      const { data, error } = await supabase
+        .rpc('assign_instructor_to_course_week', {
+          p_course_id: courseId,
+          p_week_start_date: format(weekStart, 'yyyy-MM-dd'),
+          p_instructor_id: instructorId,
+          p_assistant_instructor_id: assistantInstructorId || null
+        });
 
       if (error) throw error;
+      const result = data as unknown as GroupPlanningRpcResponse;
+      if (result?.status === 'error') throw new Error(result.message);
+      return result;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['group-course-instances'] });
-      toast.success('Lehrer für gesamte Woche zugewiesen');
+      toast.success(`${data.instances_updated || 0} Instanzen aktualisiert`);
     },
     onError: (error) => {
       console.error('Error bulk assigning instructor:', error);
       toast.error('Fehler beim Zuweisen des Lehrers');
+    },
+  });
+}
+
+// Copy instructor assignments from previous week using RPC
+export function useCopyPreviousWeekAssignments() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ targetWeekStart }: { targetWeekStart: Date }) => {
+      const { data, error } = await supabase
+        .rpc('copy_instructor_assignments_from_previous_week', {
+          p_target_week_start_date: format(targetWeekStart, 'yyyy-MM-dd')
+        });
+
+      if (error) throw error;
+      const result = data as unknown as GroupPlanningRpcResponse;
+      if (result?.status === 'error') throw new Error(result.message);
+      return result;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['group-course-instances'] });
+      toast.success(`Zuweisungen von ${data.courses_copied || 0} Kursen kopiert`);
+    },
+    onError: (error) => {
+      console.error('Error copying assignments:', error);
+      toast.error('Fehler beim Kopieren der Zuweisungen');
     },
   });
 }
