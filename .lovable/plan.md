@@ -1,41 +1,111 @@
 
 
-# Fix: Allow Resending Invitations to Users Who Haven't Set Password Yet
+# Fix: Set Password Page Not Establishing Session from Recovery Link
 
 ## Problem Identified
 
-The edge function returns **"Ivo hat bereits einen aktiven Account"** when trying to resend an invitation.
+When clicking the invitation link:
+1. User clicks link → Supabase `/verify` validates token successfully (303 redirect)
+2. Browser redirects to `/set-password#access_token=xxx&refresh_token=xxx&type=recovery`
+3. **The Supabase JS client does NOT automatically establish a session from the hash**
+4. `SetPassword` component waits for auth events, but none arrive
+5. After 5 seconds timeout → shows "expired" message
 
-**Root Cause:** The current logic checks `last_sign_in_at` to determine if a user has an "active account". However:
-- Clicking the invitation link triggers a recovery session, which populates `last_sign_in_at`
-- The user may not have actually completed setting their password
-- This blocks all future invitation resends even if the user never finished onboarding
-
-```text
-Current Flow:
-1. User receives invitation email
-2. User clicks link → session created → last_sign_in_at = now()
-3. User sees password form but doesn't complete it (or link expired)
-4. Office tries to resend invitation → "bereits einen aktiven Account" ❌
-```
+**Why this happens**: The Supabase client's automatic hash detection doesn't always work reliably, especially:
+- When the page loads before the client is fully initialized
+- In recovery flows where timing is critical
+- When there's existing session state that interferes
 
 ---
 
 ## Solution
 
-Instead of checking `last_sign_in_at`, check if the user has an **encrypted password set**. This accurately determines if they completed the onboarding:
+Manually extract the tokens from the URL hash and explicitly call `supabase.auth.setSession()` to establish the session. This is a proven pattern from Supabase community solutions.
 
-- `encrypted_password` is empty/null → user never set a password → allow resend
-- `encrypted_password` is set → user has a working account → block resend (or show different message)
+### Key Changes to `SetPassword.tsx`:
 
-**Note:** The `encrypted_password` field is not directly accessible via the Admin API's `listUsers()`. However, we can check:
-1. **`email_confirmed_at`** - set when user confirms email
-2. **`confirmed_at`** - general confirmation timestamp
-3. Or simply **remove the blocking check entirely** and always allow resending
+1. **Parse URL hash manually** - Extract `access_token` and `refresh_token` from hash
+2. **Call `setSession()` explicitly** - Establish the session before the timeout
+3. **Handle errors gracefully** - If `setSession` fails, show the expired message
 
-### Recommended Approach: Always Allow Resend
+---
 
-Since recovery links expire anyway and generate new tokens each time, there's no security risk in allowing resends. The office should always be able to send a fresh invitation.
+## Technical Implementation
+
+```typescript
+// src/pages/SetPassword.tsx
+
+useEffect(() => {
+  const establishSession = async () => {
+    // If already verified or user exists, skip
+    if (verificationComplete.current || user) {
+      setIsVerifying(false);
+      return;
+    }
+
+    // Parse tokens from URL hash
+    const hash = window.location.hash.substring(1); // Remove #
+    const params = new URLSearchParams(hash);
+    const accessToken = params.get('access_token');
+    const refreshToken = params.get('refresh_token');
+    const type = params.get('type');
+
+    console.log("SetPassword: Checking URL hash", { 
+      hasAccessToken: !!accessToken, 
+      hasRefreshToken: !!refreshToken, 
+      type 
+    });
+
+    if (!accessToken || !refreshToken) {
+      // No tokens in URL - check if we already have a session
+      if (!user) {
+        console.log("SetPassword: No tokens and no user, marking as expired");
+        setIsVerifying(false);
+        verificationComplete.current = true;
+      }
+      return;
+    }
+
+    // Explicitly establish session from tokens
+    try {
+      console.log("SetPassword: Establishing session from URL tokens");
+      const { data, error } = await supabase.auth.setSession({
+        access_token: accessToken,
+        refresh_token: refreshToken,
+      });
+
+      if (error) {
+        console.error("SetPassword: Failed to establish session", error);
+        setIsVerifying(false);
+        verificationComplete.current = true;
+        return;
+      }
+
+      if (data.session) {
+        console.log("SetPassword: Session established successfully");
+        // Clear the hash from URL for cleanliness (optional)
+        window.history.replaceState(null, '', window.location.pathname + window.location.search);
+      }
+    } catch (err) {
+      console.error("SetPassword: Error establishing session", err);
+    }
+
+    setIsVerifying(false);
+    verificationComplete.current = true;
+  };
+
+  establishSession();
+}, [user]);
+```
+
+---
+
+## Why This Works
+
+1. **Explicit token handling** - We don't rely on Supabase's automatic hash detection
+2. **`setSession()` is reliable** - This API is designed exactly for this use case
+3. **Immediate feedback** - No need for timeout; we know immediately if tokens are valid
+4. **Clean URL** - After establishing session, we remove the tokens from the URL
 
 ---
 
@@ -43,71 +113,39 @@ Since recovery links expire anyway and generate new tokens each time, there's no
 
 | File | Changes |
 |------|---------|
-| `supabase/functions/invite-instructor/index.ts` | Remove the "active account" blocking logic, always allow resend |
+| `src/pages/SetPassword.tsx` | Replace the current useEffect with explicit token parsing and `setSession()` call |
 
 ---
 
-## Technical Changes
+## Expected Flow After Fix
 
-**Before (lines 139-146):**
-```typescript
-if (existingUser) {
-  // User already exists - check if they have signed in
-  if (existingUser.last_sign_in_at) {
-    return new Response(
-      JSON.stringify({ error: `${instructor.first_name} hat bereits einen aktiven Account` }),
-      { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
-  }
-  // ...
-}
-```
-
-**After:**
-```typescript
-if (existingUser) {
-  // User already exists - allow resending invitation
-  // The recovery link will generate fresh tokens
-  authUserId = existingUser.id;
-  console.log("Existing user found, will resend invitation:", authUserId);
-} else {
-  // Create new user
-  // ...
-}
-```
-
-Optionally, we can add an **info log** noting whether the user previously signed in, but don't block the resend.
+1. User clicks invitation link
+2. Supabase verifies token, redirects to `/set-password#access_token=xxx&refresh_token=xxx`
+3. Page loads, extracts tokens from hash
+4. Calls `supabase.auth.setSession({ access_token, refresh_token })`
+5. Session established → `user` becomes available via `onAuthStateChange`
+6. Page shows password form immediately (no 5 second wait)
+7. User sets password → redirected to instructor portal
 
 ---
 
-## Alternative: Add "Account aktiviert" Status in UI
+## Edge Cases Handled
 
-If the office needs to know whether an instructor has actually activated their account, we could add a UI indicator on the instructor detail page showing:
-- "Eingeladen, noch nicht aktiviert"
-- "Konto aktiv"
-
-This would be based on whether the user has ever set a password (which we can track via a new column or by checking if they can log in).
-
----
-
-## Expected Behavior After Fix
-
-| Scenario | Current | After Fix |
-|----------|---------|-----------|
-| First invitation | ✅ Works | ✅ Works |
-| User clicked link but didn't set password | ❌ "Active account" error | ✅ Resends invitation |
-| User set password and logged in | ❌ "Active account" error | ✅ Resends new recovery link |
+| Scenario | Behavior |
+|----------|----------|
+| Valid recovery link | Extracts tokens → `setSession` succeeds → shows form |
+| Expired/used link | Tokens invalid → `setSession` fails → shows "expired" |
+| No tokens in URL | Immediately shows "expired" |
+| Already logged in user | Skips token handling → shows form |
 
 ---
 
 ## Testing Checklist
 
-1. Delete existing auth user for test email OR use current blocked instructor
-2. Click "Einladen" on instructor detail page
-3. Verify invitation email is received
-4. Click invitation link → see password form
-5. Don't set password, close page
-6. Click "Einladen" again → should succeed and send new email
-7. Complete password setup with new email link
-8. Verify login works with new password
+1. Send new invitation via "Einladen" button
+2. Click link in email within seconds of receiving
+3. Should immediately see password form (no spinner wait)
+4. Set password → redirected to `/instructor`
+5. Click same link again → should show "expired" (correct)
+6. Verify login works with new password
 
