@@ -3143,6 +3143,10 @@ export type Database = {
       }
       is_admin_or_office: { Args: { _user_id: string }; Returns: boolean }
       queue_confirmation_reminders: { Args: never; Returns: number }
+      set_instructor_capabilities: {
+        Args: { p_capability_ids: string[]; p_instructor_id: string }
+        Returns: undefined
+      }
     }
     Enums: {
       app_role: "admin" | "office" | "teacher"
