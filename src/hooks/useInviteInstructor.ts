@@ -39,8 +39,15 @@ export function useInviteInstructor() {
       queryClient.invalidateQueries({ queryKey: ["instructors"] });
     },
     onError: (error: Error) => {
+      // Check for Resend sandbox error
+      const isSandboxError = error.message.includes("Testmodus") || 
+                             error.message.includes("testing emails") ||
+                             error.message.includes("verify a domain");
+      
       toast.error("Einladung fehlgeschlagen", {
-        description: error.message,
+        description: isSandboxError 
+          ? "E-Mail-System im Testmodus. Domain-Verifizierung erforderlich."
+          : error.message,
       });
     },
   });
