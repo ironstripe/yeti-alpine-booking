@@ -215,8 +215,8 @@ function InstanceCard({ instance, instructors, maxParticipants, onAssignInstruct
       <div className="space-y-1">
         <label className="text-xs text-muted-foreground">Lehrer</label>
         <Select
-          value={instance.instructor_id || ''}
-          onValueChange={(value) => onAssignInstructor(instance.id, value || null)}
+          value={instance.instructor_id || 'none'}
+          onValueChange={(value) => onAssignInstructor(instance.id, value === 'none' ? null : value)}
         >
           <SelectTrigger className={!hasInstructor ? 'border-destructive' : ''}>
             <SelectValue placeholder="Lehrer zuweisen">
@@ -227,7 +227,7 @@ function InstanceCard({ instance, instructors, maxParticipants, onAssignInstruct
             </SelectValue>
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">Nicht zugewiesen</SelectItem>
+            <SelectItem value="none">Nicht zugewiesen</SelectItem>
             {instructors.map(instructor => (
               <SelectItem key={instructor.id} value={instructor.id}>
                 <div className="flex items-center gap-2">
