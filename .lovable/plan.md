@@ -1,151 +1,175 @@
 
+# Database Extension for Advanced User Management
 
-# Fix: Set Password Page Not Establishing Session from Recovery Link
+## Overview
 
-## Problem Identified
+This migration will create a flexible system for managing instructor types (teacher vs assistant) and their teaching capabilities/qualifications.
 
-When clicking the invitation link:
-1. User clicks link → Supabase `/verify` validates token successfully (303 redirect)
-2. Browser redirects to `/set-password#access_token=xxx&refresh_token=xxx&type=recovery`
-3. **The Supabase JS client does NOT automatically establish a session from the hash**
-4. `SetPassword` component waits for auth events, but none arrive
-5. After 5 seconds timeout → shows "expired" message
+## Current State Analysis
 
-**Why this happens**: The Supabase client's automatic hash detection doesn't always work reliably, especially:
-- When the page loads before the client is fully initialized
-- In recovery flows where timing is critical
-- When there's existing session state that interferes
+| Component | Status |
+|-----------|--------|
+| `instructors` table | Exists with 24 columns |
+| `instructor_type` column | Does not exist |
+| `capabilities` table | Does not exist |
+| `instructor_capabilities` join table | Does not exist |
+| `instructor_role_type` ENUM | Does not exist |
+| Existing ENUM (`app_role`) | Exists: `admin`, `office`, `teacher` |
+
+## Changes to Implement
+
+### 1. Create `instructor_role_type` ENUM
+
+New ENUM with two values:
+- `teacher` (main instructor/group leader)
+- `assistant` (assistant instructor)
+
+### 2. Add `instructor_type` Column to `instructors` Table
+
+| Property | Value |
+|----------|-------|
+| Column name | `instructor_type` |
+| Type | `instructor_role_type` |
+| Default | `teacher` |
+| Nullable | NOT NULL |
+
+### 3. Create `capabilities` Table
+
+| Column | Type | Constraints |
+|--------|------|-------------|
+| `id` | UUID | PRIMARY KEY, gen_random_uuid() |
+| `name` | TEXT | NOT NULL, UNIQUE |
+| `category` | TEXT | Nullable (for filtering) |
+| `created_at` | TIMESTAMPTZ | DEFAULT now() |
+
+### 4. Create `instructor_capabilities` Join Table
+
+| Column | Type | Constraints |
+|--------|------|-------------|
+| `id` | UUID | PRIMARY KEY, gen_random_uuid() |
+| `instructor_id` | UUID | REFERENCES instructors(id) ON DELETE CASCADE |
+| `capability_id` | UUID | REFERENCES capabilities(id) ON DELETE CASCADE |
+| `created_at` | TIMESTAMPTZ | DEFAULT now() |
+| | | UNIQUE(instructor_id, capability_id) |
+
+### 5. Populate Capabilities
+
+25 capabilities to be inserted, organized by category:
+
+**Ski (15 capabilities)**
+- Windel-Wedelkurs
+- Swiss Snow Kids Village
+- Blauer Prinz/Prinzessin
+- Blauer König/Königin
+- Blauer Star
+- Roter Prinz/Prinzessin
+- Roter König/Königin
+- Roter Star
+- Schwarzer Prinz/Prinzessin
+- Schwarzer König/Königin
+- Swiss Snow Academy
+- Erwachsene Anfänger
+- Erwachsene Fortgeschritten
+- Erwachsene Wiedereinsteiger
+- Kinder Fortgeschritten
+
+**Snowboard (2 capabilities)**
+- Anfänger
+- Fortgeschritten
+
+**Betreuung (1 capability)**
+- Mittagsbetreuung
+
+**Gästerennen (4 capabilities)**
+- SKI-Rennen Kinder
+- SB-Rennen Kinder
+- SKI-Rennen Erwachsene
+- SB-Rennen Erwachsene
+
+**Skitage (2 capabilities)**
+- Anfänger
+- Fortgeschritten
+
+**Jugendhaus (1 capability)**
+- Anfänger
 
 ---
 
-## Solution
+## Technical Details
 
-Manually extract the tokens from the URL hash and explicitly call `supabase.auth.setSession()` to establish the session. This is a proven pattern from Supabase community solutions.
+### RLS Policies
 
-### Key Changes to `SetPassword.tsx`:
+Both new tables need RLS policies:
 
-1. **Parse URL hash manually** - Extract `access_token` and `refresh_token` from hash
-2. **Call `setSession()` explicitly** - Establish the session before the timeout
-3. **Handle errors gracefully** - If `setSession` fails, show the expired message
+**`capabilities` table:**
+- Read access: Authenticated users (all staff need to see available capabilities)
+- Write access: Admin/Office only (manage capability list)
 
----
+**`instructor_capabilities` table:**
+- Read access: Authenticated users (needed for scheduling)
+- Write access: Admin/Office only (assign capabilities to instructors)
 
-## Technical Implementation
+### Migration SQL Structure
 
-```typescript
-// src/pages/SetPassword.tsx
+```text
+-- 1. Create ENUM (idempotent with DO block)
+DO $$ BEGIN
+  CREATE TYPE instructor_role_type AS ENUM ('teacher', 'assistant');
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
 
-useEffect(() => {
-  const establishSession = async () => {
-    // If already verified or user exists, skip
-    if (verificationComplete.current || user) {
-      setIsVerifying(false);
-      return;
-    }
+-- 2. Add column to instructors (idempotent)
+ALTER TABLE instructors 
+ADD COLUMN IF NOT EXISTS instructor_type instructor_role_type NOT NULL DEFAULT 'teacher';
 
-    // Parse tokens from URL hash
-    const hash = window.location.hash.substring(1); // Remove #
-    const params = new URLSearchParams(hash);
-    const accessToken = params.get('access_token');
-    const refreshToken = params.get('refresh_token');
-    const type = params.get('type');
+-- 3. Create capabilities table
+CREATE TABLE IF NOT EXISTS capabilities (...);
 
-    console.log("SetPassword: Checking URL hash", { 
-      hasAccessToken: !!accessToken, 
-      hasRefreshToken: !!refreshToken, 
-      type 
-    });
+-- 4. Create instructor_capabilities join table
+CREATE TABLE IF NOT EXISTS instructor_capabilities (...);
 
-    if (!accessToken || !refreshToken) {
-      // No tokens in URL - check if we already have a session
-      if (!user) {
-        console.log("SetPassword: No tokens and no user, marking as expired");
-        setIsVerifying(false);
-        verificationComplete.current = true;
-      }
-      return;
-    }
+-- 5. Insert capabilities (ON CONFLICT DO NOTHING for idempotency)
+INSERT INTO capabilities (name, category) VALUES 
+  ('Ski Windel-Wedelkurs', 'Ski'),
+  ...
+ON CONFLICT (name) DO NOTHING;
 
-    // Explicitly establish session from tokens
-    try {
-      console.log("SetPassword: Establishing session from URL tokens");
-      const { data, error } = await supabase.auth.setSession({
-        access_token: accessToken,
-        refresh_token: refreshToken,
-      });
-
-      if (error) {
-        console.error("SetPassword: Failed to establish session", error);
-        setIsVerifying(false);
-        verificationComplete.current = true;
-        return;
-      }
-
-      if (data.session) {
-        console.log("SetPassword: Session established successfully");
-        // Clear the hash from URL for cleanliness (optional)
-        window.history.replaceState(null, '', window.location.pathname + window.location.search);
-      }
-    } catch (err) {
-      console.error("SetPassword: Error establishing session", err);
-    }
-
-    setIsVerifying(false);
-    verificationComplete.current = true;
-  };
-
-  establishSession();
-}, [user]);
+-- 6. Enable RLS and create policies
+ALTER TABLE capabilities ENABLE ROW LEVEL SECURITY;
+ALTER TABLE instructor_capabilities ENABLE ROW LEVEL SECURITY;
 ```
 
 ---
 
-## Why This Works
+## File Changes Summary
 
-1. **Explicit token handling** - We don't rely on Supabase's automatic hash detection
-2. **`setSession()` is reliable** - This API is designed exactly for this use case
-3. **Immediate feedback** - No need for timeout; we know immediately if tokens are valid
-4. **Clean URL** - After establishing session, we remove the tokens from the URL
+| File | Action |
+|------|--------|
+| `supabase/migrations/[timestamp]_instructor_capabilities.sql` | Create new migration file |
 
----
-
-## Files to Modify
-
-| File | Changes |
-|------|---------|
-| `src/pages/SetPassword.tsx` | Replace the current useEffect with explicit token parsing and `setSession()` call |
+No code changes needed immediately - the TypeScript types will auto-regenerate after migration runs.
 
 ---
 
-## Expected Flow After Fix
+## Future Code Integration Points
 
-1. User clicks invitation link
-2. Supabase verifies token, redirects to `/set-password#access_token=xxx&refresh_token=xxx`
-3. Page loads, extracts tokens from hash
-4. Calls `supabase.auth.setSession({ access_token, refresh_token })`
-5. Session established → `user` becomes available via `onAuthStateChange`
-6. Page shows password form immediately (no 5 second wait)
-7. User sets password → redirected to instructor portal
+After migration, these components will need updates to use the new fields:
 
----
-
-## Edge Cases Handled
-
-| Scenario | Behavior |
-|----------|----------|
-| Valid recovery link | Extracts tokens → `setSession` succeeds → shows form |
-| Expired/used link | Tokens invalid → `setSession` fails → shows "expired" |
-| No tokens in URL | Immediately shows "expired" |
-| Already logged in user | Skips token handling → shows form |
+1. **Instructor Detail Page** - Display/edit `instructor_type` and capabilities
+2. **Instructor Filters** - Filter by type (teacher/assistant) and capabilities
+3. **Group Course Assignment** - Use capabilities to suggest qualified instructors
+4. **Instructor Forms** - Add capability selection checkboxes
 
 ---
 
-## Testing Checklist
+## Testing Verification
 
-1. Send new invitation via "Einladen" button
-2. Click link in email within seconds of receiving
-3. Should immediately see password form (no spinner wait)
-4. Set password → redirected to `/instructor`
-5. Click same link again → should show "expired" (correct)
-6. Verify login works with new password
+After running the migration, verify:
 
+1. `SELECT * FROM pg_type WHERE typname = 'instructor_role_type'` returns the ENUM
+2. `\d instructors` shows `instructor_type` column with default `teacher`
+3. `SELECT COUNT(*) FROM capabilities` returns 25
+4. Can insert into `instructor_capabilities` linking an instructor to a capability
+5. Deleting an instructor cascades to remove their capability assignments
+6. Deleting a capability cascades to remove related instructor assignments
