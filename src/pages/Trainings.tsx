@@ -164,7 +164,7 @@ const Trainings = () => {
       )}
 
       <TrainingFormModal
-        key={`${selectedCourse?.id ?? 'new'}-${modalMode}`}
+        key={isModalOpen ? `${selectedCourse?.id ?? 'new'}-${modalMode}` : 'closed'}
         open={isModalOpen}
         onOpenChange={setIsModalOpen}
         course={selectedCourse}
