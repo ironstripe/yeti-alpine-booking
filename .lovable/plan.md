@@ -1,53 +1,27 @@
 
 
-# Fix: TrainingDetail Page Crashes App Due to Navigate During Render
+# Fix: TrainingFormModal Crashes Due to Empty Select.Item Value
 
 ## Problem
 
-The app is showing the ErrorBoundary error screen ("Etwas ist schiefgelaufen") because the `TrainingDetail` page calls `navigate()` during the render phase, which is a React anti-pattern that causes infinite loops or crashes.
-
-## Root Cause
-
-In `src/pages/TrainingDetail.tsx` (lines 8-11):
-
-```typescript
-if (!id) {
-  navigate('/trainings');  // Called during render!
-  return null;
-}
+The app crashes with the error:
+```
+Error: A <Select.Item /> must have a value prop that is not an empty string.
 ```
 
-Calling `navigate()` during the render phase violates React's rules. Navigation must happen in:
-- Event handlers
-- `useEffect` hooks
-- Or using the `<Navigate>` component
+This occurs in `TrainingFormModal.tsx` on **line 508**, where a `SelectItem` component uses an empty string as its value:
 
-This causes the entire React Router to break, crashing the whole app - even on unrelated pages like `/login`.
+```tsx
+<SelectItem value="">Kein Level</SelectItem>
+```
+
+Radix UI's Select component explicitly prohibits empty string values for items because the empty string is reserved for "clearing the selection" (showing the placeholder).
 
 ---
 
 ## Solution
 
-Replace the imperative `navigate()` call with React Router's declarative `<Navigate>` component:
-
-```typescript
-import { Navigate, useNavigate, useParams } from 'react-router-dom';
-
-const TrainingDetail = () => {
-  const { id } = useParams<{ id: string }>();
-  const navigate = useNavigate();
-
-  if (!id) {
-    return <Navigate to="/trainings" replace />;
-  }
-
-  const handleBack = () => {
-    navigate('/trainings');
-  };
-
-  return <TrainingInstancesView courseId={id} onBack={handleBack} />;
-};
-```
+Replace the empty string value with a placeholder string like `"none"` and update the `onValueChange` handler to convert `"none"` back to `null`.
 
 ---
 
@@ -55,49 +29,75 @@ const TrainingDetail = () => {
 
 | File | Change |
 |------|--------|
-| `src/pages/TrainingDetail.tsx` | Replace `navigate()` with `<Navigate>` component |
+| `src/components/trainings/TrainingFormModal.tsx` | Change empty string value to `"none"` and handle conversion |
 
 ---
 
 ## Technical Details
 
-### Changes to TrainingDetail.tsx
+### Lines 498-522 - skill_level_id Select
 
-**Line 1** - Update import to include `Navigate`:
-```typescript
-import { Navigate, useNavigate, useParams } from 'react-router-dom';
+**Current code (line 498-508):**
+```tsx
+<Select 
+  value={field.value || ''} 
+  onValueChange={(v) => field.onChange(v || null)}
+>
+  <FormControl>
+    <SelectTrigger>
+      <SelectValue placeholder="Level wählen..." />
+    </SelectTrigger>
+  </FormControl>
+  <SelectContent>
+    <SelectItem value="">Kein Level</SelectItem>  {/* BROKEN! */}
 ```
 
-**Lines 8-11** - Replace imperative navigation with declarative:
-```typescript
-// Before (broken):
-if (!id) {
-  navigate('/trainings');
-  return null;
-}
-
-// After (fixed):
-if (!id) {
-  return <Navigate to="/trainings" replace />;
-}
+**Fixed code:**
+```tsx
+<Select 
+  value={field.value || 'none'} 
+  onValueChange={(v) => field.onChange(v === 'none' ? null : v)}
+>
+  <FormControl>
+    <SelectTrigger>
+      <SelectValue placeholder="Level wählen..." />
+    </SelectTrigger>
+  </FormControl>
+  <SelectContent>
+    <SelectItem value="none">Kein Level</SelectItem>  {/* FIXED */}
 ```
 
 ---
 
-## Why This Fixes the Issue
+## Why This Was Working Before
 
-1. `<Navigate>` is a component that React Router handles correctly during the render phase
-2. It schedules the navigation after the render completes, not during it
-3. The `replace` prop prevents the broken state from being added to browser history
+Looking at the memories and recent changes:
+- The `TrainingFormModal` was likely working before because it may not have been rendering (due to the modal key changes)
+- Or the "Kein Level" option was added recently
+- The route changes and navigate fixes exposed this issue because now the modal actually opens and renders
+
+---
+
+## Additional Check
+
+The `product_id` field also uses a similar pattern (line 631-633):
+```tsx
+value={field.value || ''} 
+onValueChange={(v) => field.onChange(v || null)}
+```
+
+But looking at line 648-658, there's no `<SelectItem value="">` option for products - it only maps over `trainingProducts`. So that one is safe.
 
 ---
 
 ## Testing Checklist
 
-1. Navigate to `/login` - verify the login page loads correctly
-2. Log in and navigate to `/trainings` page
-3. Click "Instanzen" on any training card - verify it navigates to training detail
-4. Click the back button - verify it returns to the trainings list
-5. Navigate directly to `/trainings/invalid-id` - verify it redirects to `/trainings`
-6. Test "Bearbeiten" button on training cards - verify the modal opens
+After the fix:
+1. Navigate to `/trainings`
+2. Click "Bearbeiten" on any training card
+3. Verify the modal opens without errors
+4. Check the skill level dropdown shows "Kein Level" as an option
+5. Select "Kein Level" and verify it saves correctly (sets `skill_level_id` to null)
+6. Test creating a new training
+7. Test duplicating a training
 
