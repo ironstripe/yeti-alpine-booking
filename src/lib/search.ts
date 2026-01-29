@@ -66,3 +66,40 @@ export async function searchInstructors(query: string) {
   if (error) throw error;
   return data || [];
 }
+
+export interface ParticipantSearchResult {
+  id: string;
+  first_name: string;
+  last_name: string | null;
+  birth_date: string;
+  customer_id: string;
+  customer_name: string;
+}
+
+export async function searchParticipants(query: string): Promise<ParticipantSearchResult[]> {
+  const { data, error } = await supabase
+    .from("customer_participants")
+    .select(`
+      id, 
+      first_name, 
+      last_name, 
+      birth_date,
+      customer_id,
+      customers (first_name, last_name)
+    `)
+    .or(`first_name.ilike.%${query}%,last_name.ilike.%${query}%`)
+    .limit(5);
+
+  if (error) throw error;
+
+  return (data || []).map((p) => ({
+    id: p.id,
+    first_name: p.first_name,
+    last_name: p.last_name,
+    birth_date: p.birth_date,
+    customer_id: p.customer_id,
+    customer_name: p.customers
+      ? `${p.customers.first_name || ""} ${p.customers.last_name}`.trim()
+      : "Unbekannt",
+  }));
+}
