@@ -1,135 +1,103 @@
 
-# Fix: Training Edit Modal ("Bearbeiten") Not Working
 
-## Investigation Summary
+# Fix: TrainingDetail Page Crashes App Due to Navigate During Render
 
-After thoroughly examining the code, I found the following:
+## Problem
 
-### Code That Looks Correct
-1. **Trainings.tsx** - Modal state management is properly implemented:
-   - `handleEditClick` correctly sets `selectedCourse`, `modalMode: 'edit'`, and `isModalOpen: true`
-   - `TrainingFormModal` receives `open={isModalOpen}` and `onOpenChange={setIsModalOpen}`
-   
-2. **TrainingFormModal.tsx** - Dialog is correctly configured:
-   - Line 233: `<Dialog open={open} onOpenChange={onOpenChange}>` - passes props correctly
-   - `useEffect` properly resets form when `open` changes
+The app is showing the ErrorBoundary error screen ("Etwas ist schiefgelaufen") because the `TrainingDetail` page calls `navigate()` during the render phase, which is a React anti-pattern that causes infinite loops or crashes.
 
-### Potential Issue Found: Route Ordering
+## Root Cause
 
-The route order in `App.tsx` has `trainings/:id` before `trainings/planning`:
+In `src/pages/TrainingDetail.tsx` (lines 8-11):
 
-```
-Line 157: <Route path="trainings" element={<Trainings />} />
-Line 158: <Route path="trainings/:id" element={<TrainingDetail />} />
-Line 159: <Route path="trainings/:id/instances" element={<TrainingDetail />} />
-Line 160: <Route path="trainings/planning" element={<GroupCoursePlanning />} />
+```typescript
+if (!id) {
+  navigate('/trainings');  // Called during render!
+  return null;
+}
 ```
 
-While React Router v6 has intelligent route scoring, having static routes after dynamic routes can sometimes cause issues.
+Calling `navigate()` during the render phase violates React's rules. Navigation must happen in:
+- Event handlers
+- `useEffect` hooks
+- Or using the `<Navigate>` component
 
-### Most Likely Root Cause
-
-Since you mentioned this **was once working properly**, the issue likely stems from:
-1. A race condition or stale state issue between the modal and data loading
-2. The `key` prop on the modal causing remounting issues
+This causes the entire React Router to break, crashing the whole app - even on unrelated pages like `/login`.
 
 ---
 
 ## Solution
 
-### Fix 1: Route Ordering (Precautionary)
+Replace the imperative `navigate()` call with React Router's declarative `<Navigate>` component:
 
-Move `trainings/planning` route BEFORE the dynamic `:id` routes:
-
-**File**: `src/App.tsx`
-
-**Change**:
 ```typescript
-// Current order (problematic):
-<Route path="trainings" element={<Trainings />} />
-<Route path="trainings/:id" element={<TrainingDetail />} />
-<Route path="trainings/:id/instances" element={<TrainingDetail />} />
-<Route path="trainings/planning" element={<GroupCoursePlanning />} />
+import { Navigate, useNavigate, useParams } from 'react-router-dom';
 
-// New order (correct):
-<Route path="trainings" element={<Trainings />} />
-<Route path="trainings/planning" element={<GroupCoursePlanning />} />
-<Route path="trainings/:id" element={<TrainingDetail />} />
-<Route path="trainings/:id/instances" element={<TrainingDetail />} />
+const TrainingDetail = () => {
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+
+  if (!id) {
+    return <Navigate to="/trainings" replace />;
+  }
+
+  const handleBack = () => {
+    navigate('/trainings');
+  };
+
+  return <TrainingInstancesView courseId={id} onBack={handleBack} />;
+};
 ```
-
-### Fix 2: Modal Key Prop Improvement
-
-The current key pattern might be causing issues when switching between courses:
-
-**File**: `src/pages/Trainings.tsx` (Line 166-172)
-
-**Current**:
-```tsx
-<TrainingFormModal
-  key={`${selectedCourse?.id ?? 'new'}-${modalMode}`}
-  open={isModalOpen}
-  onOpenChange={setIsModalOpen}
-  course={selectedCourse}
-  mode={modalMode}
-/>
-```
-
-**Change to**:
-```tsx
-<TrainingFormModal
-  key={isModalOpen ? `${selectedCourse?.id ?? 'new'}-${modalMode}` : 'closed'}
-  open={isModalOpen}
-  onOpenChange={setIsModalOpen}
-  course={selectedCourse}
-  mode={modalMode}
-/>
-```
-
-This ensures the modal properly remounts when opened with new data.
 
 ---
 
-## Files to Modify
+## File to Modify
 
 | File | Change |
 |------|--------|
-| `src/App.tsx` | Reorder routes - move `trainings/planning` before dynamic routes |
-| `src/pages/Trainings.tsx` | Update modal key prop pattern |
+| `src/pages/TrainingDetail.tsx` | Replace `navigate()` with `<Navigate>` component |
 
 ---
 
 ## Technical Details
 
-### Route Reordering (App.tsx)
+### Changes to TrainingDetail.tsx
 
-Lines 157-160 will be changed to:
+**Line 1** - Update import to include `Navigate`:
 ```typescript
-<Route path="trainings" element={<Trainings />} />
-<Route path="trainings/planning" element={<GroupCoursePlanning />} />
-<Route path="trainings/:id" element={<TrainingDetail />} />
-<Route path="trainings/:id/instances" element={<TrainingDetail />} />
+import { Navigate, useNavigate, useParams } from 'react-router-dom';
 ```
 
-### Modal Key Pattern (Trainings.tsx)
+**Lines 8-11** - Replace imperative navigation with declarative:
+```typescript
+// Before (broken):
+if (!id) {
+  navigate('/trainings');
+  return null;
+}
 
-Line 167 will change from:
-```tsx
-key={`${selectedCourse?.id ?? 'new'}-${modalMode}`}
+// After (fixed):
+if (!id) {
+  return <Navigate to="/trainings" replace />;
+}
 ```
-to:
-```tsx
-key={isModalOpen ? `${selectedCourse?.id ?? 'new'}-${modalMode}` : 'closed'}
-```
+
+---
+
+## Why This Fixes the Issue
+
+1. `<Navigate>` is a component that React Router handles correctly during the render phase
+2. It schedules the navigation after the render completes, not during it
+3. The `replace` prop prevents the broken state from being added to browser history
 
 ---
 
 ## Testing Checklist
 
-1. Navigate to `/trainings` page
-2. Click "Bearbeiten" on any training card
-3. Verify modal opens with pre-populated course data
-4. Edit a field and click "Speichern" - verify changes persist
-5. Close and reopen the modal - verify data reloads correctly
-6. Test "Duplizieren" (copy) and "Neues Training" (create) buttons
-7. Verify `/trainings/planning` route still works correctly
+1. Navigate to `/login` - verify the login page loads correctly
+2. Log in and navigate to `/trainings` page
+3. Click "Instanzen" on any training card - verify it navigates to training detail
+4. Click the back button - verify it returns to the trainings list
+5. Navigate directly to `/trainings/invalid-id` - verify it redirects to `/trainings`
+6. Test "Bearbeiten" button on training cards - verify the modal opens
+
