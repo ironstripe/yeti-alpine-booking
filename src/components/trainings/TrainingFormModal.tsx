@@ -2,8 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { format, addWeeks, isSaturday } from 'date-fns';
-import { de } from 'date-fns/locale';
+import { format, isSaturday } from 'date-fns';
 import {
   Dialog,
   DialogContent,
@@ -14,6 +13,7 @@ import {
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -34,10 +34,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Plus, Trash2, Info, Loader2, Calendar as CalendarIcon } from 'lucide-react';
-import { useCreateGroupCourse, useUpdateGroupCourse } from '@/hooks/useGroupCourses';
+import { Plus, Trash2, Info, Loader2, Calendar as CalendarIcon, ArrowRight } from 'lucide-react';
+import { useCreateGroupCourse, useUpdateGroupCourse, useGroupCourses } from '@/hooks/useGroupCourses';
 import { useTrainingProducts } from '@/hooks/useProducts';
-import { useChildSkiLevels, useChildSnowboardLevels } from '@/hooks/useSkillLevels';
 import type { GroupCourseWithSchedules, GroupCourseFormData, CourseType } from '@/types/group-courses';
 import { DISCIPLINES, DAYS_OF_WEEK, COURSE_COLORS, COURSE_TYPES } from '@/types/group-courses';
 import { generateSaturdays, calculatePeriodEndDate } from '@/lib/dates/saturday-generator';
@@ -46,7 +45,6 @@ import { cn } from '@/lib/utils';
 const formSchema = z.object({
   name: z.string().min(1, 'Name ist erforderlich'),
   description: z.string().optional(),
-  skill_level_id: z.string().min(1, 'Niveau ist erforderlich'),
   discipline: z.enum(['ski', 'snowboard', 'both']),
   min_age: z.number().nullable(),
   max_age: z.number().nullable(),
@@ -58,6 +56,7 @@ const formSchema = z.object({
   course_type: z.enum(['weekly', 'saturday_course', 'custom']),
   period_start_date: z.date().nullable(),
   period_end_date: z.date().nullable(),
+  next_training_id: z.string().nullable(),
 });
 
 interface TrainingFormModalProps {
@@ -71,8 +70,7 @@ export function TrainingFormModal({ open, onOpenChange, course, mode }: Training
   const createCourse = useCreateGroupCourse();
   const updateCourse = useUpdateGroupCourse();
   const { data: trainingProducts, isLoading: productsLoading } = useTrainingProducts();
-  const { data: skiLevels = [] } = useChildSkiLevels();
-  const { data: snowboardLevels = [] } = useChildSnowboardLevels();
+  const { data: allCourses = [] } = useGroupCourses();
   
   // Determine actual mode: explicit mode prop takes precedence
   const actualMode = mode ?? (course ? 'edit' : 'create');
@@ -89,7 +87,6 @@ export function TrainingFormModal({ open, onOpenChange, course, mode }: Training
     defaultValues: {
       name: '',
       description: '',
-      skill_level_id: '',
       discipline: 'ski',
       min_age: null,
       max_age: null,
@@ -101,12 +98,14 @@ export function TrainingFormModal({ open, onOpenChange, course, mode }: Training
       course_type: 'weekly',
       period_start_date: null,
       period_end_date: null,
+      next_training_id: null,
     },
   });
 
   const courseType = form.watch('course_type');
   const periodStartDate = form.watch('period_start_date');
   const periodEndDate = form.watch('period_end_date');
+  const currentDiscipline = form.watch('discipline');
 
   // Generate preview of Saturdays
   const previewSaturdays = useMemo(() => {
@@ -115,6 +114,17 @@ export function TrainingFormModal({ open, onOpenChange, course, mode }: Training
     }
     return generateSaturdays(periodStartDate, periodEndDate);
   }, [courseType, periodStartDate, periodEndDate]);
+
+  // Filter courses for "next training" dropdown - same discipline, not self
+  const availableNextCourses = useMemo(() => {
+    return allCourses.filter(c => {
+      // Exclude current course
+      if (course && c.id === course.id) return false;
+      // Must be same discipline or both
+      if (currentDiscipline !== 'both' && c.discipline !== 'both' && c.discipline !== currentDiscipline) return false;
+      return true;
+    });
+  }, [allCourses, course, currentDiscipline]);
 
   // Reset form when course changes or modal opens
   useEffect(() => {
@@ -127,7 +137,6 @@ export function TrainingFormModal({ open, onOpenChange, course, mode }: Training
       form.reset({
         name: nameValue,
         description: course.description || '',
-        skill_level_id: course.skill_level_id,
         discipline: course.discipline,
         min_age: course.min_age,
         max_age: course.max_age,
@@ -139,6 +148,7 @@ export function TrainingFormModal({ open, onOpenChange, course, mode }: Training
         course_type: (course.course_type as CourseType) || 'weekly',
         period_start_date: course.period_start_date ? new Date(course.period_start_date) : null,
         period_end_date: course.period_end_date ? new Date(course.period_end_date) : null,
+        next_training_id: course.next_training_id || null,
       });
 
       // Extract schedule info
@@ -192,7 +202,6 @@ export function TrainingFormModal({ open, onOpenChange, course, mode }: Training
     const formData: GroupCourseFormData = {
       name: values.name,
       description: values.description || '',
-      skill_level_id: values.skill_level_id,
       discipline: values.discipline,
       min_age: values.min_age,
       max_age: values.max_age,
@@ -204,6 +213,7 @@ export function TrainingFormModal({ open, onOpenChange, course, mode }: Training
       course_type: values.course_type,
       period_start_date: values.period_start_date ? format(values.period_start_date, 'yyyy-MM-dd') : null,
       period_end_date: values.period_end_date ? format(values.period_end_date, 'yyyy-MM-dd') : null,
+      next_training_id: values.next_training_id,
       schedules: {
         days: values.course_type === 'saturday_course' ? [6] : selectedDays, // Saturday = 6
         time_slots: values.course_type === 'saturday_course' 
@@ -245,7 +255,7 @@ export function TrainingFormModal({ open, onOpenChange, course, mode }: Training
               ? 'Bearbeite die Details dieses Trainings.' 
               : actualMode === 'copy' 
                 ? 'Erstelle eine Kopie dieses Trainings mit angepassten Details.' 
-                : 'Erstelle ein neues Training für Gruppenkurse.'}
+                : 'Erstelle ein neues Training für Gruppenkurse. Das Training selbst definiert das Niveau.'}
           </DialogDescription>
         </DialogHeader>
 
@@ -414,10 +424,13 @@ export function TrainingFormModal({ open, onOpenChange, course, mode }: Training
                   name="name"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Name *</FormLabel>
+                      <FormLabel>Name (= Niveau) *</FormLabel>
                       <FormControl>
                         <Input placeholder="Blauer Prinz" {...field} />
                       </FormControl>
+                      <FormDescription className="text-xs">
+                        Der Name definiert gleichzeitig das Kursniveau
+                      </FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -481,53 +494,6 @@ export function TrainingFormModal({ open, onOpenChange, course, mode }: Training
               />
 
               <div className="grid grid-cols-3 gap-4">
-                {/* Skill Level Direct Link (NEW) */}
-                <FormField
-                  control={form.control}
-                  name="skill_level_id"
-                  render={({ field }) => {
-                    // Get levels based on discipline
-                    const discipline = form.watch('discipline');
-                    const availableLevels = discipline === 'snowboard' 
-                      ? snowboardLevels 
-                      : skiLevels;
-                    
-                    return (
-                      <FormItem>
-                        <FormLabel>Skill Level (1:1) *</FormLabel>
-                        <Select 
-                          value={field.value || 'none'} 
-                          onValueChange={(v) => field.onChange(v === 'none' ? null : v)}
-                        >
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Level wählen..." />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="none">Kein Level</SelectItem>
-                            {availableLevels.map(level => (
-                              <SelectItem key={level.id} value={level.id}>
-                                <div className="flex items-center gap-2">
-                                  {level.color && (
-                                    <div 
-                                      className="w-3 h-3 rounded-full border" 
-                                      style={{ backgroundColor: level.color }}
-                                    />
-                                  )}
-                                  {level.name}
-                                </div>
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    );
-                  }}
-                />
-
-
                 <FormField
                   control={form.control}
                   name="discipline"
@@ -568,6 +534,45 @@ export function TrainingFormModal({ open, onOpenChange, course, mode }: Training
                           onChange={e => field.onChange(parseInt(e.target.value) || 8)}
                         />
                       </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {/* Next Training (Progression) */}
+                <FormField
+                  control={form.control}
+                  name="next_training_id"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="flex items-center gap-1">
+                        <ArrowRight className="h-3 w-3" />
+                        Nächstes Training
+                      </FormLabel>
+                      <Select 
+                        value={field.value || 'none'} 
+                        onValueChange={(v) => field.onChange(v === 'none' ? null : v)}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Kein Folgetraining" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="none">Kein Folgetraining</SelectItem>
+                          {availableNextCourses.map(c => (
+                            <SelectItem key={c.id} value={c.id}>
+                              <div className="flex items-center gap-2">
+                                <div 
+                                  className="w-3 h-3 rounded-full" 
+                                  style={{ backgroundColor: c.color }}
+                                />
+                                {c.name}
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                       <FormMessage />
                     </FormItem>
                   )}

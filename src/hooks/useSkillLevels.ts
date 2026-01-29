@@ -2,13 +2,14 @@ import { useQuery } from '@tanstack/react-query';
 import { 
   getSkillLevels, 
   getAllSkillLevels, 
-  getLevelsForBooking,
   getSkillLevelById 
 } from '@/lib/skill-levels';
-import type { Discipline, TargetGroup, ParticipantWithLevels, SkillLevel } from '@/types/skill-levels';
+import type { Discipline, TargetGroup, SkillLevel } from '@/types/skill-levels';
 
 /**
  * Hook to fetch skill levels for a specific discipline and target group
+ * NOTE: For children, use trainings (group_courses) directly instead of skill_levels
+ * This is now primarily for adult self-assessment in private lessons
  */
 export function useSkillLevels(discipline: Discipline, targetGroup: TargetGroup) {
   return useQuery({
@@ -19,7 +20,8 @@ export function useSkillLevels(discipline: Discipline, targetGroup: TargetGroup)
 }
 
 /**
- * Hook to fetch all skill levels (for admin or comprehensive dropdowns)
+ * Hook to fetch all skill levels
+ * NOTE: Primarily for adult levels now - children use trainings directly
  */
 export function useAllSkillLevels() {
   return useQuery({
@@ -42,44 +44,14 @@ export function useSkillLevel(levelId: string | null) {
 }
 
 /**
- * Hook to get appropriate levels for a booking scenario
- */
-export function useBookingLevels(
-  participant: ParticipantWithLevels | null,
-  discipline: Discipline,
-  isGroupCourse: boolean
-) {
-  return useQuery({
-    queryKey: ['booking-levels', participant?.id, discipline, isGroupCourse],
-    queryFn: () => getLevelsForBooking(participant!, discipline, isGroupCourse),
-    enabled: !!participant,
-    staleTime: 1000 * 60 * 60,
-  });
-}
-
-/**
- * Hook to fetch child ski levels (commonly used in booking wizard)
- */
-export function useChildSkiLevels() {
-  return useSkillLevels('ski', 'child');
-}
-
-/**
- * Hook to fetch child snowboard levels
- */
-export function useChildSnowboardLevels() {
-  return useSkillLevels('snowboard', 'child');
-}
-
-/**
- * Hook to fetch adult ski levels
+ * Hook to fetch adult ski levels (for private lesson self-assessment)
  */
 export function useAdultSkiLevels() {
   return useSkillLevels('ski', 'adult');
 }
 
 /**
- * Hook to fetch adult snowboard levels
+ * Hook to fetch adult snowboard levels (for private lesson self-assessment)
  */
 export function useAdultSnowboardLevels() {
   return useSkillLevels('snowboard', 'adult');
@@ -87,6 +59,7 @@ export function useAdultSnowboardLevels() {
 
 /**
  * Get skill levels grouped by discipline and target group
+ * Primarily used for adult levels now
  */
 export function useGroupedSkillLevels() {
   const { data: allLevels, ...rest } = useAllSkillLevels();
@@ -104,9 +77,7 @@ export function useGroupedSkillLevels() {
     ...rest,
     data: allLevels,
     grouped: grouped || {},
-    skiChild: grouped?.['ski_child'] || [],
     skiAdult: grouped?.['ski_adult'] || [],
-    snowboardChild: grouped?.['snowboard_child'] || [],
     snowboardAdult: grouped?.['snowboard_adult'] || [],
   };
 }

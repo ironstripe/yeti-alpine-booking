@@ -1,4 +1,5 @@
 // Types for Group Courses (Trainings) module
+// NOTE: Trainings ARE skill levels for children - no separate skill_level_id needed
 
 export type CourseType = 'weekly' | 'saturday_course' | 'custom';
 
@@ -6,7 +7,7 @@ export interface GroupCourse {
   id: string;
   name: string;
   description: string | null;
-  skill_level_id: string; // FK to skill_levels.id for direct 1:1 matching
+  // REMOVED: skill_level_id - training itself IS the skill level
   discipline: 'ski' | 'snowboard' | 'both';
   min_age: number | null;
   max_age: number | null;
@@ -20,6 +21,9 @@ export interface GroupCourse {
   course_type: CourseType;
   period_start_date: string | null;
   period_end_date: string | null;
+  // NEW: Progression tracking - which training comes next
+  next_training_id: string | null;
+  sort_order: number;
   created_at: string;
   updated_at: string;
 }
@@ -116,12 +120,17 @@ export interface GroupCourseWithSchedules extends GroupCourse {
   } | null;
   // For Saturday courses
   course_dates?: TrainingCourseDate[];
+  // For display - next training in progression
+  next_training?: {
+    id: string;
+    name: string;
+  } | null;
 }
 
 export interface GroupCourseFormData {
   name: string;
   description: string;
-  skill_level_id: string; // FK to skill_levels.id
+  // REMOVED: skill_level_id - training itself IS the skill level
   discipline: 'ski' | 'snowboard' | 'both';
   min_age: number | null;
   max_age: number | null;
@@ -133,6 +142,8 @@ export interface GroupCourseFormData {
   course_type: CourseType;
   period_start_date: string | null;
   period_end_date: string | null;
+  // NEW: Progression tracking
+  next_training_id: string | null;
   schedules: {
     days: number[];
     time_slots: { start_time: string; end_time: string }[];

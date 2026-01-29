@@ -12,11 +12,11 @@ import {
   Snowflake,
   AlertTriangle,
   Copy,
-  Trash2
+  Trash2,
+  ArrowRight
 } from 'lucide-react';
 import type { GroupCourseWithSchedules } from '@/types/group-courses';
 import { DISCIPLINES, DAYS_OF_WEEK } from '@/types/group-courses';
-import { getSkillLevelLabel } from '@/lib/skill-levels';
 
 interface TrainingCardProps {
   course: GroupCourseWithSchedules;
@@ -27,7 +27,6 @@ interface TrainingCardProps {
 }
 
 export function TrainingCard({ course, onEdit, onCopy, onViewInstances, onDelete }: TrainingCardProps) {
-  const skillLabel = getSkillLevelLabel(course.skill_level_id);
   const disciplineLabel = DISCIPLINES.find(d => d.value === course.discipline)?.label || course.discipline;
 
   const isSaturdayCourse = course.course_type === 'saturday_course';
@@ -81,9 +80,14 @@ export function TrainingCard({ course, onEdit, onCopy, onViewInstances, onDelete
           </div>
         </div>
         <div className="flex flex-wrap gap-1.5 mt-1">
-          <Badge variant="outline">{skillLabel}</Badge>
           <Badge variant="outline">{disciplineLabel}</Badge>
           {ageRange && <Badge variant="outline">{ageRange}</Badge>}
+          {course.next_training && (
+            <Badge variant="outline" className="flex items-center gap-1">
+              <ArrowRight className="h-3 w-3" />
+              {course.next_training.name}
+            </Badge>
+          )}
         </div>
       </CardHeader>
 

@@ -462,7 +462,9 @@ export type Database = {
           birth_date: string
           created_at: string
           current_ski_level_id: string | null
+          current_ski_training_id: string | null
           current_snowboard_level_id: string | null
+          current_snowboard_training_id: string | null
           customer_id: string
           first_name: string
           id: string
@@ -478,7 +480,9 @@ export type Database = {
           birth_date: string
           created_at?: string
           current_ski_level_id?: string | null
+          current_ski_training_id?: string | null
           current_snowboard_level_id?: string | null
+          current_snowboard_training_id?: string | null
           customer_id: string
           first_name: string
           id?: string
@@ -494,7 +498,9 @@ export type Database = {
           birth_date?: string
           created_at?: string
           current_ski_level_id?: string | null
+          current_ski_training_id?: string | null
           current_snowboard_level_id?: string | null
+          current_snowboard_training_id?: string | null
           customer_id?: string
           first_name?: string
           id?: string
@@ -515,10 +521,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "customer_participants_current_ski_training_id_fkey"
+            columns: ["current_ski_training_id"]
+            isOneToOne: false
+            referencedRelation: "group_courses"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "customer_participants_current_snowboard_level_id_fkey"
             columns: ["current_snowboard_level_id"]
             isOneToOne: false
             referencedRelation: "skill_levels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_participants_current_snowboard_training_id_fkey"
+            columns: ["current_snowboard_training_id"]
+            isOneToOne: false
+            referencedRelation: "group_courses"
             referencedColumns: ["id"]
           },
           {
@@ -1043,12 +1063,14 @@ export type Database = {
           meeting_point: string | null
           min_age: number | null
           name: string
+          next_training_id: string | null
           period_end_date: string | null
           period_start_date: string | null
           price_full_week: number | null
           price_per_day: number
           product_id: string | null
           skill_level_id: string
+          sort_order: number | null
           updated_at: string | null
         }
         Insert: {
@@ -1064,12 +1086,14 @@ export type Database = {
           meeting_point?: string | null
           min_age?: number | null
           name: string
+          next_training_id?: string | null
           period_end_date?: string | null
           period_start_date?: string | null
           price_full_week?: number | null
           price_per_day: number
           product_id?: string | null
           skill_level_id: string
+          sort_order?: number | null
           updated_at?: string | null
         }
         Update: {
@@ -1085,15 +1109,24 @@ export type Database = {
           meeting_point?: string | null
           min_age?: number | null
           name?: string
+          next_training_id?: string | null
           period_end_date?: string | null
           period_start_date?: string | null
           price_full_week?: number | null
           price_per_day?: number
           product_id?: string | null
           skill_level_id?: string
+          sort_order?: number | null
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "group_courses_next_training_id_fkey"
+            columns: ["next_training_id"]
+            isOneToOne: false
+            referencedRelation: "group_courses"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "group_courses_product_id_fkey"
             columns: ["product_id"]

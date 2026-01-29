@@ -12,11 +12,15 @@ export interface CreateParticipantData {
   level_current_season?: string | null;
   sport?: string | null;
   notes?: string | null;
-  // New skill level system columns
-  current_ski_level_id?: string | null;
-  current_snowboard_level_id?: string | null;
+  // NEW: Training-based levels for children (FK to group_courses)
+  current_ski_training_id?: string | null;
+  current_snowboard_training_id?: string | null;
+  // Adult self-assessment
   self_assessed_ski_level?: AdultSelfAssessment | null;
   self_assessed_snowboard_level?: AdultSelfAssessment | null;
+  // Legacy columns (kept for backward compatibility)
+  current_ski_level_id?: string | null;
+  current_snowboard_level_id?: string | null;
 }
 
 export interface UpdateParticipantData {
@@ -27,11 +31,15 @@ export interface UpdateParticipantData {
   level_current_season?: string | null;
   sport?: string | null;
   notes?: string | null;
-  // New skill level system columns
-  current_ski_level_id?: string | null;
-  current_snowboard_level_id?: string | null;
+  // NEW: Training-based levels for children (FK to group_courses)
+  current_ski_training_id?: string | null;
+  current_snowboard_training_id?: string | null;
+  // Adult self-assessment
   self_assessed_ski_level?: AdultSelfAssessment | null;
   self_assessed_snowboard_level?: AdultSelfAssessment | null;
+  // Legacy columns (kept for backward compatibility)
+  current_ski_level_id?: string | null;
+  current_snowboard_level_id?: string | null;
 }
 
 export function useCreateParticipant(customerId: string) {

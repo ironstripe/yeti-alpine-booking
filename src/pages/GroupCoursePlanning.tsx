@@ -11,7 +11,7 @@ import { GroupPlanningCourseCard } from '@/components/planning/GroupPlanningCour
 import { DailyAssignmentModal } from '@/components/planning/DailyAssignmentModal';
 import { useGroupPlanningData, type GroupPlanningCourse } from '@/hooks/useGroupPlanningData';
 import { useInstructors } from '@/hooks/useInstructors';
-import { useGenerateInstances, useCopyPreviousWeekAssignments } from '@/hooks/useGroupCourses';
+import { useGenerateInstances, useCopyWeekAssignments } from '@/hooks/useGroupCourses';
 
 function LoadingSkeleton() {
   return (
@@ -87,14 +87,17 @@ export default function GroupCoursePlanning() {
   const { data: instructors = [] } = useInstructors();
 
   const generateMutation = useGenerateInstances();
-  const copyMutation = useCopyPreviousWeekAssignments();
+  const copyMutation = useCopyWeekAssignments();
 
   const handleGenerate = () => {
     generateMutation.mutate({ weekStart: currentWeek });
   };
 
   const handleCopyFromPrevious = () => {
-    copyMutation.mutate({ targetWeekStart: currentWeek });
+    // Calculate previous week
+    const previousWeek = new Date(currentWeek);
+    previousWeek.setDate(previousWeek.getDate() - 7);
+    copyMutation.mutate({ sourceWeekStart: previousWeek, targetWeekStart: currentWeek });
   };
 
   return (

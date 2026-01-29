@@ -8,13 +8,10 @@ import {
 } from '@/components/ui/select';
 import { Search } from 'lucide-react';
 import { DISCIPLINES } from '@/types/group-courses';
-import { useAllSkillLevels } from '@/hooks/useSkillLevels';
 
 interface TrainingsFiltersProps {
   search: string;
   onSearchChange: (value: string) => void;
-  skillFilter: string;
-  onSkillFilterChange: (value: string) => void;
   disciplineFilter: string;
   onDisciplineFilterChange: (value: string) => void;
   statusFilter: string;
@@ -24,18 +21,11 @@ interface TrainingsFiltersProps {
 export function TrainingsFilters({
   search,
   onSearchChange,
-  skillFilter,
-  onSkillFilterChange,
   disciplineFilter,
   onDisciplineFilterChange,
   statusFilter,
   onStatusFilterChange,
 }: TrainingsFiltersProps) {
-  const { data: skillLevels = [] } = useAllSkillLevels();
-  
-  // Filter to only child levels for training courses
-  const childSkillLevels = skillLevels.filter(level => level.target_group === 'child');
-
   return (
     <div className="flex flex-col sm:flex-row gap-3 mb-6">
       {/* Search */}
@@ -48,21 +38,6 @@ export function TrainingsFilters({
           className="pl-9"
         />
       </div>
-
-      {/* Skill level filter */}
-      <Select value={skillFilter} onValueChange={onSkillFilterChange}>
-        <SelectTrigger className="w-40">
-          <SelectValue placeholder="Niveau" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">Alle Niveaus</SelectItem>
-          {childSkillLevels.map(level => (
-            <SelectItem key={level.id} value={level.id}>
-              {level.name}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
 
       {/* Discipline filter */}
       <Select value={disciplineFilter} onValueChange={onDisciplineFilterChange}>
