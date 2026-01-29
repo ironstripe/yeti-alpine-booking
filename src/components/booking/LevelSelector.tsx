@@ -60,16 +60,16 @@ export function LevelSelector({
 }: LevelSelectorProps) {
   const isChildParticipant = isChild(participant.birth_date);
 
-  // For children in group courses, fetch trainings (group_courses)
-  // For adults or private lessons, use adult self-assessment levels
+  // For children (≤16): fetch training-based levels from group_courses
+  // For adults (>16): use color-based self-assessment levels
   const { data, isLoading } = useQuery({
-    queryKey: ['level-options', discipline, isChildParticipant, isGroupCourse],
+    queryKey: ['level-options', discipline, isChildParticipant],
     queryFn: async (): Promise<{ 
       availableLevels: LevelOption[]; 
       suggestedLevel: LevelOption | null;
       fallbackLevel: LevelOption | null;
     }> => {
-      if (isChildParticipant && isGroupCourse) {
+      if (isChildParticipant) {
         // Fetch trainings for children
         const { data: trainings, error } = await supabase
           .from('group_courses')
