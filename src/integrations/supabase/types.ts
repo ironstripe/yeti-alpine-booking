@@ -1069,7 +1069,7 @@ export type Database = {
           price_full_week: number | null
           price_per_day: number
           product_id: string | null
-          skill_level_id: string
+          skill_level_id: string | null
           sort_order: number | null
           updated_at: string | null
         }
@@ -1092,7 +1092,7 @@ export type Database = {
           price_full_week?: number | null
           price_per_day: number
           product_id?: string | null
-          skill_level_id: string
+          skill_level_id?: string | null
           sort_order?: number | null
           updated_at?: string | null
         }
@@ -1115,7 +1115,7 @@ export type Database = {
           price_full_week?: number | null
           price_per_day?: number
           product_id?: string | null
-          skill_level_id?: string
+          skill_level_id?: string | null
           sort_order?: number | null
           updated_at?: string | null
         }
