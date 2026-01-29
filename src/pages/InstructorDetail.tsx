@@ -10,6 +10,7 @@ import { ProfileInfoCard } from "@/components/instructors/detail/ProfileInfoCard
 import { TodayScheduleCard } from "@/components/instructors/detail/TodayScheduleCard";
 import { SeasonStatsCard } from "@/components/instructors/detail/SeasonStatsCard";
 import { AbsenceRequestCard } from "@/components/instructors/detail/AbsenceRequestCard";
+import { RolesCapabilitiesCard } from "@/components/instructors/detail/RolesCapabilitiesCard";
 import { EditInstructorModal } from "@/components/instructors/EditInstructorModal";
 import { getSpecializationLabel } from "@/hooks/useInstructors";
 import { getLevelLabel } from "@/lib/instructor-utils";
@@ -162,6 +163,12 @@ export default function InstructorDetail() {
             />
           )}
           <SeasonStatsCard stats={seasonStats} />
+          {isAdminOrOffice && id && instructor && (
+            <RolesCapabilitiesCard
+              instructorId={id}
+              currentType={instructor.instructor_type}
+            />
+          )}
         </div>
       </div>
 

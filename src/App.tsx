@@ -4,12 +4,14 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { ActiveRoleProvider } from "@/contexts/ActiveRoleContext";
 import { AppLayout } from "@/components/layout";
 import { InstallBanner } from "@/components/pwa/InstallBanner";
 import { OfflineIndicator } from "@/components/pwa/OfflineIndicator";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { OnboardingDialog } from "@/components/onboarding/OnboardingDialog";
 import { SessionTimeoutWarning } from "@/components/auth/SessionTimeoutWarning";
+import { RoleSwitcherModal } from "@/components/auth/RoleSwitcherModal";
 import { Loader2 } from "lucide-react";
 
 // Pages
@@ -114,6 +116,7 @@ function AuthenticatedComponents() {
     <>
       <OnboardingDialog />
       <SessionTimeoutWarning />
+      <RoleSwitcherModal />
     </>
   );
 }
@@ -205,10 +208,12 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <AuthProvider>
-            <OfflineIndicator />
-            <AppRoutes />
-            <InstallBanner />
-            <AuthenticatedComponents />
+            <ActiveRoleProvider>
+              <OfflineIndicator />
+              <AppRoutes />
+              <InstallBanner />
+              <AuthenticatedComponents />
+            </ActiveRoleProvider>
           </AuthProvider>
         </BrowserRouter>
       </TooltipProvider>
