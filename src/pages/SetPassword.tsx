@@ -24,60 +24,65 @@ export default function SetPassword() {
 
   const nextPath = searchParams.get("next") || "/instructor";
 
-  // Check for recovery tokens in URL and wait for auth to complete
+  // Explicitly establish session from URL hash tokens
   useEffect(() => {
-    // If already verified or user exists, skip
-    if (verificationComplete.current || user) {
-      setIsVerifying(false);
-      return;
-    }
+    const establishSession = async () => {
+      // If already verified or user exists, skip
+      if (verificationComplete.current || user) {
+        setIsVerifying(false);
+        return;
+      }
 
-    // Check if URL has recovery tokens (indicates we came from email link)
-    const hash = window.location.hash;
-    const hasRecoveryTokens = hash.includes('access_token') || hash.includes('type=recovery');
-    
-    console.log("SetPassword: Checking for recovery tokens", { hash: hash.substring(0, 50), hasRecoveryTokens, user: !!user });
-    
-    if (!hasRecoveryTokens && !user) {
-      // No tokens in URL and no user - link was likely already used or expired
-      console.log("SetPassword: No recovery tokens and no user, marking as expired");
+      // Parse tokens from URL hash
+      const hash = window.location.hash.substring(1); // Remove #
+      const params = new URLSearchParams(hash);
+      const accessToken = params.get('access_token');
+      const refreshToken = params.get('refresh_token');
+      const type = params.get('type');
+
+      console.log("SetPassword: Checking URL hash", { 
+        hasAccessToken: !!accessToken, 
+        hasRefreshToken: !!refreshToken, 
+        type 
+      });
+
+      if (!accessToken || !refreshToken) {
+        // No tokens in URL - link was likely already used or expired
+        console.log("SetPassword: No tokens in URL, marking as expired");
+        setIsVerifying(false);
+        verificationComplete.current = true;
+        return;
+      }
+
+      // Explicitly establish session from tokens
+      try {
+        console.log("SetPassword: Establishing session from URL tokens");
+        const { data, error: sessionError } = await supabase.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken,
+        });
+
+        if (sessionError) {
+          console.error("SetPassword: Failed to establish session", sessionError);
+          setIsVerifying(false);
+          verificationComplete.current = true;
+          return;
+        }
+
+        if (data.session) {
+          console.log("SetPassword: Session established successfully");
+          // Clear the hash from URL for cleanliness
+          window.history.replaceState(null, '', window.location.pathname + window.location.search);
+        }
+      } catch (err) {
+        console.error("SetPassword: Error establishing session", err);
+      }
+
       setIsVerifying(false);
       verificationComplete.current = true;
-      return;
-    }
-
-    // Listen for auth state changes (recovery link will set session)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      console.log("SetPassword: Auth event received", { event, hasSession: !!session });
-      
-      if (event === "PASSWORD_RECOVERY" || event === "SIGNED_IN") {
-        // Successfully authenticated via recovery link
-        console.log("SetPassword: Recovery/SignIn event - showing password form");
-        setIsVerifying(false);
-        setError(null);
-        verificationComplete.current = true;
-      }
-      
-      if (event === "TOKEN_REFRESHED" || event === "USER_UPDATED") {
-        // Session established
-        setIsVerifying(false);
-        verificationComplete.current = true;
-      }
-    });
-
-    // Timeout fallback - if no auth event after 5 seconds, assume link is invalid
-    const timeout = setTimeout(() => {
-      if (!verificationComplete.current) {
-        console.log("SetPassword: Timeout reached, checking final state", { user: !!user });
-        setIsVerifying(false);
-        verificationComplete.current = true;
-      }
-    }, 5000);
-
-    return () => {
-      subscription.unsubscribe();
-      clearTimeout(timeout);
     };
+
+    establishSession();
   }, [user]);
 
   const validatePassword = () => {
