@@ -256,6 +256,27 @@ export type Database = {
         }
         Relationships: []
       }
+      capabilities: {
+        Row: {
+          category: string | null
+          created_at: string
+          id: string
+          name: string
+        }
+        Insert: {
+          category?: string | null
+          created_at?: string
+          id?: string
+          name: string
+        }
+        Update: {
+          category?: string | null
+          created_at?: string
+          id?: string
+          name?: string
+        }
+        Relationships: []
+      }
       closure_dates: {
         Row: {
           created_at: string | null
@@ -1359,6 +1380,42 @@ export type Database = {
           },
         ]
       }
+      instructor_capabilities: {
+        Row: {
+          capability_id: string
+          created_at: string
+          id: string
+          instructor_id: string
+        }
+        Insert: {
+          capability_id: string
+          created_at?: string
+          id?: string
+          instructor_id: string
+        }
+        Update: {
+          capability_id?: string
+          created_at?: string
+          id?: string
+          instructor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "instructor_capabilities_capability_id_fkey"
+            columns: ["capability_id"]
+            isOneToOne: false
+            referencedRelation: "capabilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "instructor_capabilities_instructor_id_fkey"
+            columns: ["instructor_id"]
+            isOneToOne: false
+            referencedRelation: "instructors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       instructor_notification_queue: {
         Row: {
           created_at: string | null
@@ -1435,6 +1492,7 @@ export type Database = {
           hourly_rate: number
           iban: string | null
           id: string
+          instructor_type: Database["public"]["Enums"]["instructor_role_type"]
           languages: string[] | null
           last_name: string
           level: string | null
@@ -1461,6 +1519,7 @@ export type Database = {
           hourly_rate: number
           iban?: string | null
           id?: string
+          instructor_type?: Database["public"]["Enums"]["instructor_role_type"]
           languages?: string[] | null
           last_name: string
           level?: string | null
@@ -1487,6 +1546,7 @@ export type Database = {
           hourly_rate?: number
           iban?: string | null
           id?: string
+          instructor_type?: Database["public"]["Enums"]["instructor_role_type"]
           languages?: string[] | null
           last_name?: string
           level?: string | null
@@ -3086,6 +3146,7 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "office" | "teacher"
+      instructor_role_type: "teacher" | "assistant"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -3214,6 +3275,7 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "office", "teacher"],
+      instructor_role_type: ["teacher", "assistant"],
     },
   },
 } as const
