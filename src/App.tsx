@@ -21,6 +21,7 @@ import Customers from "./pages/Customers";
 import Instructors from "./pages/Instructors";
 import InstructorDetail from "./pages/InstructorDetail";
 import Trainings from "./pages/Trainings";
+import TrainingDetail from "./pages/TrainingDetail";
 import GroupCoursePlanning from "./pages/GroupCoursePlanning";
 import Login from "./pages/Login";
 import NotFound from "./pages/NotFound";
@@ -154,6 +155,8 @@ const AppRoutes = () => (
       <Route path="instructors" element={<Instructors />} />
       <Route path="instructors/:id" element={<InstructorDetail />} />
       <Route path="trainings" element={<Trainings />} />
+      <Route path="trainings/:id" element={<TrainingDetail />} />
+      <Route path="trainings/:id/instances" element={<TrainingDetail />} />
       <Route path="trainings/planning" element={<GroupCoursePlanning />} />
       <Route path="reconciliation" element={<Reconciliation />} />
       <Route path="lists" element={<Lists />} />
