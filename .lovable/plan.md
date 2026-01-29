@@ -1,152 +1,279 @@
 
 
-# Backend Function for Managing Instructor Capabilities
+# Frontend Implementation for Advanced User Management
 
 ## Overview
 
-Create a new database RPC function `set_instructor_capabilities` that allows admin/office staff to manage the many-to-many relationship between instructors and their teaching capabilities.
+This implementation adds role switching for multi-role users and a capabilities management UI for instructors on the detail page.
 
-## Current State
+---
+
+## Current State Analysis
 
 | Component | Status |
 |-----------|--------|
-| `instructor_capabilities` table | Exists (created in previous migration) |
-| `capabilities` table | Exists with 25 entries |
-| `is_admin_or_office()` function | Exists for authorization checks |
-| `set_instructor_capabilities` function | Does not exist |
+| `useUserRole` hook | Exists - fetches user roles from `user_roles` table |
+| Role switching | Not implemented |
+| `instructor_type` field | Exists in DB, not shown in UI |
+| `capabilities` table | Populated with 25 entries |
+| `set_instructor_capabilities` RPC | Created in previous migration |
+| Instructor Detail Page | Exists with profile, schedule, stats cards |
 
 ---
 
-## Function Specification
+## Implementation Plan
 
-### Signature
+### 1. Create Active Role Context
 
-| Property | Value |
-|----------|-------|
-| Name | `set_instructor_capabilities` |
-| Parameters | `p_instructor_id UUID`, `p_capability_ids UUID[]` |
-| Returns | `void` |
-| Language | `plpgsql` |
-| Security | `SECURITY DEFINER` |
+A new context to manage which role the user is currently using.
 
-### Logic Flow
+**File**: `src/contexts/ActiveRoleContext.tsx`
 
+```typescript
+interface ActiveRoleContextType {
+  activeRole: AppRole | null;
+  setActiveRole: (role: AppRole) => void;
+  clearActiveRole: () => void;
+}
+```
+
+**Features**:
+- Stores selected role in localStorage (`yety_active_role`)
+- Auto-clears on logout
+- Provides `activeRole` to all components
+
+### 2. Create Role Switcher Modal
+
+**File**: `src/components/auth/RoleSwitcherModal.tsx`
+
+**UI Design**:
+- Non-dismissible dialog (no close button, no click-outside)
+- Title: "Rolle auswählen" (Choose Your Role)
+- Subtitle: "Sie haben mehrere Rollen. Bitte wählen Sie, mit welcher Rolle Sie sich anmelden möchten."
+- Buttons for each role with clear German labels:
+  - `admin` → "Als Administrator anmelden"
+  - `office` → "Als Büro-Mitarbeiter anmelden"  
+  - `teacher` → "Als Skilehrer anmelden"
+
+**Logic**:
+- Rendered in `AuthenticatedComponents` when:
+  - User is logged in
+  - User has multiple roles
+  - No active role is set
+- On selection:
+  - Saves role to ActiveRoleContext
+  - Redirects based on role:
+    - `admin`/`office` → `/` (admin dashboard)
+    - `teacher` → `/instructor` (instructor portal)
+
+### 3. Update App Navigation Logic
+
+**Modify**: `src/App.tsx` - `AuthenticatedComponents`
+
+- Add `RoleSwitcherModal` component
+- Integrate with `ActiveRoleProvider`
+
+**Modify**: `src/App.tsx` - Wrap with `ActiveRoleProvider`
+
+### 4. Create Capabilities Hook
+
+**File**: `src/hooks/useCapabilities.ts`
+
+```typescript
+export function useCapabilities() {
+  // Fetch all capabilities
+  return useQuery({
+    queryKey: ["capabilities"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("capabilities")
+        .select("*")
+        .order("category")
+        .order("name");
+      return data;
+    }
+  });
+}
+```
+
+### 5. Create Instructor Capabilities Hook
+
+**File**: `src/hooks/useInstructorCapabilities.ts`
+
+```typescript
+export function useInstructorCapabilities(instructorId: string) {
+  // Fetch instructor's current capabilities
+  const query = useQuery({
+    queryKey: ["instructor-capabilities", instructorId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("instructor_capabilities")
+        .select("capability_id")
+        .eq("instructor_id", instructorId);
+      return data?.map(r => r.capability_id) || [];
+    }
+  });
+
+  // Mutation to set capabilities using RPC
+  const mutation = useMutation({
+    mutationFn: async (capabilityIds: string[]) => {
+      await supabase.rpc("set_instructor_capabilities", {
+        p_instructor_id: instructorId,
+        p_capability_ids: capabilityIds
+      });
+    }
+  });
+
+  return { ...query, setCapabilities: mutation };
+}
+```
+
+### 6. Create Capabilities Manager Component
+
+**File**: `src/components/instructors/detail/CapabilitiesManager.tsx`
+
+**UI Design**:
+- Grouped checkboxes by category (Ski, Snowboard, Betreuung, etc.)
+- Each category as a collapsible accordion section
+- Checkboxes with capability names
+- Save button at bottom
+- Loading states and success/error toasts
+
+**Structure**:
 ```text
-1. Authorization Check
-   └── Verify auth.uid() has admin or office role
-   └── If not → RAISE EXCEPTION
-
-2. Delete Existing Capabilities
-   └── DELETE FROM instructor_capabilities WHERE instructor_id = p_instructor_id
-
-3. Insert New Capabilities
-   └── If p_capability_ids is not null/empty:
-       └── FOREACH capability_id IN ARRAY:
-           └── INSERT INTO instructor_capabilities
+┌─────────────────────────────────────────┐
+│ Qualifikationen                         │
+├─────────────────────────────────────────┤
+│ ▼ Ski (12)                              │
+│   ☑ Windel-Wedelkurs                    │
+│   ☐ Swiss Snow Kids Village             │
+│   ☑ Blauer Prinz/Prinzessin             │
+│   ...                                   │
+├─────────────────────────────────────────┤
+│ ▼ Snowboard (2)                         │
+│   ☐ Anfänger                            │
+│   ☐ Fortgeschritten                     │
+├─────────────────────────────────────────┤
+│ ▼ Betreuung (1)                         │
+│   ☑ Mittagsbetreuung                    │
+├─────────────────────────────────────────┤
+│ ▼ Gästerennen (4)                       │
+│   ☐ SKI-Rennen Kinder                   │
+│   ...                                   │
+├─────────────────────────────────────────┤
+│           [Speichern]                   │
+└─────────────────────────────────────────┘
 ```
+
+### 7. Create Roles & Capabilities Card
+
+**File**: `src/components/instructors/detail/RolesCapabilitiesCard.tsx`
+
+**Sections**:
+1. **Instructor Type Select**
+   - Label: "Typ"
+   - Options: "Lehrer" (teacher), "Assistent" (assistant)
+   - Updates immediately on change via `useUpdateInstructor`
+
+2. **Capabilities Manager** (embedded component)
+
+### 8. Update Instructor Detail Page
+
+**Modify**: `src/pages/InstructorDetail.tsx`
+
+- Import `RolesCapabilitiesCard`
+- Add card to the right column below `SeasonStatsCard`
+- Only visible to admin/office users
 
 ---
 
-## Implementation Details
-
-### Migration SQL
-
-```sql
-CREATE OR REPLACE FUNCTION public.set_instructor_capabilities(
-  p_instructor_id UUID,
-  p_capability_ids UUID[]
-)
-RETURNS void
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-DECLARE
-  v_capability_id UUID;
-BEGIN
-  -- 1. Authorization Check
-  IF NOT public.is_admin_or_office(auth.uid()) THEN
-    RAISE EXCEPTION 'Permission denied: You must be admin or office staff to set instructor capabilities.';
-  END IF;
-
-  -- 2. Delete Existing Capabilities
-  DELETE FROM public.instructor_capabilities
-  WHERE instructor_id = p_instructor_id;
-
-  -- 3. Insert New Capabilities (if any provided)
-  IF p_capability_ids IS NOT NULL AND array_length(p_capability_ids, 1) > 0 THEN
-    FOREACH v_capability_id IN ARRAY p_capability_ids LOOP
-      INSERT INTO public.instructor_capabilities (instructor_id, capability_id)
-      VALUES (p_instructor_id, v_capability_id);
-    END LOOP;
-  END IF;
-END;
-$$;
-```
-
-### Why This Approach
-
-- **Delete-then-insert** is simpler and more reliable than complex upserts for many-to-many relationships
-- **Idempotent** - calling with the same array produces the same result
-- **Empty array or NULL** clears all capabilities (intended behavior)
-- **SECURITY DEFINER** allows the function to modify tables even if user doesn't have direct write access
-
----
-
-## File Changes
+## File Changes Summary
 
 | File | Action |
 |------|--------|
-| `supabase/migrations/[timestamp]_set_instructor_capabilities.sql` | Create new migration |
+| `src/contexts/ActiveRoleContext.tsx` | Create |
+| `src/components/auth/RoleSwitcherModal.tsx` | Create |
+| `src/hooks/useCapabilities.ts` | Create |
+| `src/hooks/useInstructorCapabilities.ts` | Create |
+| `src/components/instructors/detail/CapabilitiesManager.tsx` | Create |
+| `src/components/instructors/detail/RolesCapabilitiesCard.tsx` | Create |
+| `src/App.tsx` | Modify - add ActiveRoleProvider + RoleSwitcherModal |
+| `src/pages/InstructorDetail.tsx` | Modify - add RolesCapabilitiesCard |
+| `src/hooks/useUserRole.ts` | Modify - add activeRole integration |
 
 ---
 
-## Usage from Frontend
+## Technical Implementation Details
+
+### ActiveRoleContext Integration
 
 ```typescript
-// Example: Set capabilities for an instructor
-const { error } = await supabase.rpc('set_instructor_capabilities', {
-  p_instructor_id: instructorId,
-  p_capability_ids: ['uuid1', 'uuid2', 'uuid3']
-});
-
-// Clear all capabilities
-const { error } = await supabase.rpc('set_instructor_capabilities', {
-  p_instructor_id: instructorId,
-  p_capability_ids: []
-});
+// App.tsx structure after changes
+<ErrorBoundary>
+  <QueryClientProvider>
+    <TooltipProvider>
+      <BrowserRouter>
+        <AuthProvider>
+          <ActiveRoleProvider>
+            <AppRoutes />
+            <AuthenticatedComponents /> {/* Now includes RoleSwitcherModal */}
+          </ActiveRoleProvider>
+        </AuthProvider>
+      </BrowserRouter>
+    </TooltipProvider>
+  </QueryClientProvider>
+</ErrorBoundary>
 ```
+
+### Role Labels (German)
+
+| Role | Display Label | Button Label |
+|------|---------------|--------------|
+| `admin` | Administrator | Als Administrator anmelden |
+| `office` | Büro | Als Büro-Mitarbeiter anmelden |
+| `teacher` | Skilehrer | Als Skilehrer anmelden |
+
+### Instructor Type Labels (German)
+
+| Value | Display Label |
+|-------|---------------|
+| `teacher` | Lehrer (Gruppenleiter) |
+| `assistant` | Assistent |
 
 ---
 
-## Testing Verification
+## UI/UX Considerations
 
-After migration, verify:
+1. **Role Switcher Modal**:
+   - Shows full-screen on mobile
+   - Cannot be dismissed without selection
+   - Clear visual hierarchy for role options
 
-| Test Case | Expected Result |
-|-----------|-----------------|
-| Admin calls with valid IDs | Capabilities updated successfully |
-| Admin calls with empty array `[]` | All capabilities removed |
-| Admin calls with `null` | All capabilities removed |
-| Teacher role calls function | Exception: "Permission denied" |
-| Unauthenticated call | Exception raised |
-| Invalid instructor_id | No error, but no rows affected |
-| Invalid capability_id | Foreign key constraint error |
+2. **Capabilities Manager**:
+   - Accordion grouping for easy navigation
+   - Category counts show how many are selected
+   - Optimistic UI with rollback on error
+
+3. **Instructor Type**:
+   - Inline select for quick changes
+   - Immediate feedback with toast
 
 ---
 
-## Type Updates
+## Testing Checklist
 
-After migration, TypeScript types will auto-update to include:
+**Role Switcher**:
+- Multi-role user sees modal on login
+- Single-role user redirects directly
+- Role persists across page refresh
+- Logout clears active role
 
-```typescript
-// In types.ts Functions section
-set_instructor_capabilities: {
-  Args: {
-    p_instructor_id: string
-    p_capability_ids: string[]
-  }
-  Returns: undefined
-}
-```
+**Instructor Detail - Roles & Capabilities Card**:
+- Only visible to admin/office
+- Instructor type shows correct current value
+- Changing instructor type updates database
+- All 25 capabilities are listed and grouped
+- Current capabilities are pre-selected
+- Save button calls RPC and shows feedback
+- Error handling with toast notifications
 
