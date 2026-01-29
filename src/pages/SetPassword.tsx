@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -19,21 +19,66 @@ export default function SetPassword() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isVerifying, setIsVerifying] = useState(true);
+  const verificationComplete = useRef(false);
 
   const nextPath = searchParams.get("next") || "/instructor";
 
-  // Check for auth session after magic link redirect
+  // Check for recovery tokens in URL and wait for auth to complete
   useEffect(() => {
-    // Listen for auth state changes (magic link will set session)
+    // If already verified or user exists, skip
+    if (verificationComplete.current || user) {
+      setIsVerifying(false);
+      return;
+    }
+
+    // Check if URL has recovery tokens (indicates we came from email link)
+    const hash = window.location.hash;
+    const hasRecoveryTokens = hash.includes('access_token') || hash.includes('type=recovery');
+    
+    console.log("SetPassword: Checking for recovery tokens", { hash: hash.substring(0, 50), hasRecoveryTokens, user: !!user });
+    
+    if (!hasRecoveryTokens && !user) {
+      // No tokens in URL and no user - link was likely already used or expired
+      console.log("SetPassword: No recovery tokens and no user, marking as expired");
+      setIsVerifying(false);
+      verificationComplete.current = true;
+      return;
+    }
+
+    // Listen for auth state changes (recovery link will set session)
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log("SetPassword: Auth event received", { event, hasSession: !!session });
+      
       if (event === "PASSWORD_RECOVERY" || event === "SIGNED_IN") {
-        // User has been authenticated via the recovery link
+        // Successfully authenticated via recovery link
+        console.log("SetPassword: Recovery/SignIn event - showing password form");
+        setIsVerifying(false);
         setError(null);
+        verificationComplete.current = true;
+      }
+      
+      if (event === "TOKEN_REFRESHED" || event === "USER_UPDATED") {
+        // Session established
+        setIsVerifying(false);
+        verificationComplete.current = true;
       }
     });
 
-    return () => subscription.unsubscribe();
-  }, []);
+    // Timeout fallback - if no auth event after 5 seconds, assume link is invalid
+    const timeout = setTimeout(() => {
+      if (!verificationComplete.current) {
+        console.log("SetPassword: Timeout reached, checking final state", { user: !!user });
+        setIsVerifying(false);
+        verificationComplete.current = true;
+      }
+    }, 5000);
+
+    return () => {
+      subscription.unsubscribe();
+      clearTimeout(timeout);
+    };
+  }, [user]);
 
   const validatePassword = () => {
     if (password.length < 6) {
@@ -83,13 +128,13 @@ export default function SetPassword() {
     }
   };
 
-  // Show loading while checking auth
-  if (authLoading) {
+  // Show loading while checking auth or verifying recovery tokens
+  if (authLoading || isVerifying) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          <p className="text-sm text-muted-foreground">Wird geladen...</p>
+          <p className="text-sm text-muted-foreground">Link wird überprüft...</p>
         </div>
       </div>
     );
