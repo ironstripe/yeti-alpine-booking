@@ -23,6 +23,7 @@ import {
   searchCustomers,
   searchBookings,
   searchInstructors,
+  searchParticipants,
 } from "@/lib/search";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
@@ -50,9 +51,9 @@ export function CommandBar({ open, onOpenChange }: CommandBarProps) {
   };
 
   return (
-    <CommandDialog open={open} onOpenChange={onOpenChange}>
+    <CommandDialog open={open} onOpenChange={onOpenChange} commandProps={{ shouldFilter: false }}>
       <CommandInput
-        placeholder="Suchen nach Kunden, Buchungen, Lehrern..."
+        placeholder="Suchen nach Kunden, Buchungen, Lehrern, Teilnehmern..."
         value={query}
         onValueChange={setQuery}
       />
@@ -81,6 +82,7 @@ export function CommandBar({ open, onOpenChange }: CommandBarProps) {
         {debouncedQuery.length >= 2 && (
           <>
             <CustomerResults query={debouncedQuery} onSelect={handleSelect} />
+            <ParticipantResults query={debouncedQuery} onSelect={handleSelect} />
             <BookingResults query={debouncedQuery} onSelect={handleSelect} />
             <InstructorResults query={debouncedQuery} onSelect={handleSelect} />
           </>
@@ -196,6 +198,44 @@ function InstructorResults({
             </span>
             <span className="text-xs text-muted-foreground">
               {instructor.phone || instructor.email}
+            </span>
+          </div>
+        </CommandItem>
+      ))}
+    </CommandGroup>
+  );
+}
+
+function ParticipantResults({
+  query,
+  onSelect,
+}: {
+  query: string;
+  onSelect: (path: string) => void;
+}) {
+  const { data: participants, isLoading } = useQuery({
+    queryKey: ["command-participant-search", query],
+    queryFn: () => searchParticipants(query),
+    enabled: query.length >= 2,
+  });
+
+  if (isLoading || !participants?.length) return null;
+
+  return (
+    <CommandGroup heading="Teilnehmer">
+      {participants.map((participant) => (
+        <CommandItem
+          key={participant.id}
+          onSelect={() => onSelect(`/customers/${participant.customer_id}`)}
+          className="flex items-center gap-3"
+        >
+          <User className="h-4 w-4 text-muted-foreground" />
+          <div className="flex flex-col">
+            <span className="font-medium">
+              {participant.first_name} {participant.last_name}
+            </span>
+            <span className="text-xs text-muted-foreground">
+              Teilnehmer bei {participant.customer_name}
             </span>
           </div>
         </CommandItem>
