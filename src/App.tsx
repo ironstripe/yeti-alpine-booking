@@ -68,6 +68,7 @@ import SettingsNotifications from "./pages/SettingsNotifications";
 import SettingsAI from "./pages/SettingsAI";
 import SettingsDataImport from "./pages/SettingsDataImport";
 import SettingsSystem from "./pages/SettingsSystem";
+import SetPassword from "./pages/SetPassword";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -127,6 +128,9 @@ const AppRoutes = () => (
 
     {/* Public Booking Portal Routes */}
     <Route path="/book" element={<BookingLanding />} />
+    
+    {/* Password setup for invited instructors */}
+    <Route path="/set-password" element={<SetPassword />} />
     <Route path="/book/private" element={<PrivateBookingForm />} />
     <Route path="/book/group" element={<GroupBookingForm />} />
     <Route path="/book/request/:token" element={<RequestConfirmation />} />
