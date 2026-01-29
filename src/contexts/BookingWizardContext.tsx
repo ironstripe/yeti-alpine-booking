@@ -13,9 +13,12 @@ export interface SelectedParticipant {
   level_current_season: string | null;
   sport: string | null;
   isGuest?: boolean;
-  // NEW: FK references to skill_levels table for direct 1:1 matching
+  // Skill level IDs (points to skill_levels table for progression)
   current_ski_level_id?: string | null;
   current_snowboard_level_id?: string | null;
+  // Training IDs (points to group_courses table) - for future use
+  current_ski_training_id?: string | null;
+  current_snowboard_training_id?: string | null;
 }
 
 // New: Support for variable appointments (Complex Mode)
