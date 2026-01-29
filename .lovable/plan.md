@@ -1,26 +1,24 @@
 
+# Training Detail Page - Missing Route Fix
 
-# Instructor Profile Edit Feature
+## Problem
 
-## Overview
+When clicking "Instanzen" or "Termine" on a training card, the app navigates to `/trainings/{id}/instances`, but this route doesn't exist in `App.tsx`. This causes the user to see the 404 NotFound page instead of the training details.
 
-Implement an edit modal for the instructor profile page that allows admin/office staff to modify instructor details by clicking the "Bearbeiten" button on the ProfileInfoCard component.
+## Root Cause
 
----
-
-## Current State
-
-- The `ProfileInfoCard` component already has a "Bearbeiten" button that calls `onEdit()`
-- The `InstructorDetail` page currently shows a toast placeholder: "Bearbeiten-Funktion kommt bald..."
-- There is **no** `useUpdateInstructor` hook yet
-- The `NewInstructorModal` contains all form fields and validation logic we can reuse
-- The pattern from `CustomerInfoCard` shows inline editing, but a modal approach (like `NewInstructorModal`) is more appropriate for the amount of fields
+- `Trainings.tsx` line 85 navigates to `/trainings/${course.id}/instances`
+- `App.tsx` only has routes for `/trainings` and `/trainings/planning` (no `:id` parameter)
+- `TrainingInstancesView` component exists but is designed as a child component, not a routed page
 
 ---
 
-## Implementation Approach
+## Solution
 
-I will create an **EditInstructorModal** component (dialog-based) that reuses the form structure from `NewInstructorModal` but pre-populates it with existing instructor data.
+Create a new **TrainingDetail page** that:
+1. Extracts the `courseId` from the URL parameter
+2. Wraps the existing `TrainingInstancesView` component
+3. Handles navigation back to the trainings list
 
 ---
 
@@ -28,205 +26,73 @@ I will create an **EditInstructorModal** component (dialog-based) that reuses th
 
 | File | Purpose |
 |------|---------|
-| `src/hooks/useUpdateInstructor.ts` | Mutation hook for updating instructor data |
-| `src/components/instructors/EditInstructorModal.tsx` | Edit dialog with form |
+| `src/pages/TrainingDetail.tsx` | Detail page for trainings with instances view |
 
 ## Files to Modify
 
 | File | Changes |
 |------|---------|
-| `src/pages/InstructorDetail.tsx` | Add modal state and render EditInstructorModal |
+| `src/App.tsx` | Add routes for `/trainings/:id` and `/trainings/:id/instances` |
 
 ---
 
-## Technical Implementation
+## Implementation Details
 
-### 1. Create `useUpdateInstructor` Hook
-
-```typescript
-// src/hooks/useUpdateInstructor.ts
-
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
-import { toast } from "sonner";
-import type { TablesUpdate } from "@/integrations/supabase/types";
-
-type InstructorUpdate = TablesUpdate<"instructors">;
-
-export function useUpdateInstructor(instructorId: string) {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (updates: InstructorUpdate) => {
-      const { data, error } = await supabase
-        .from("instructors")
-        .update(updates)
-        .eq("id", instructorId)
-        .select()
-        .single();
-
-      if (error) {
-        if (error.code === "23505") {
-          if (error.message.includes("email")) {
-            throw new Error("Diese E-Mail-Adresse wird bereits verwendet.");
-          }
-          if (error.message.includes("phone")) {
-            throw new Error("Diese Telefonnummer wird bereits verwendet.");
-          }
-        }
-        throw error;
-      }
-
-      return data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["instructor", instructorId] });
-      queryClient.invalidateQueries({ queryKey: ["instructors"] });
-      toast.success("Skilehrer aktualisiert");
-    },
-    onError: (error) => {
-      toast.error("Fehler beim Speichern", {
-        description: error.message,
-      });
-    },
-  });
-}
-```
-
-### 2. Create `EditInstructorModal` Component
-
-The modal will:
-- Accept `instructor` prop with current data
-- Use `useForm` with Zod validation (same schema as NewInstructorModal)
-- Pre-populate form with existing instructor values
-- Use `useEffect` with `open` dependency for proper reset (following memory pattern)
-- Include all editable fields from the instructors table
-
-Form sections:
-1. **Persönliche Daten** - first_name, last_name, birth_date, gender
-2. **Kontaktdaten** - email, phone
-3. **Adresse** - street, zip, city, country
-4. **Qualifikationen** - level, specialization, languages
-5. **Anstellung** - hourly_rate, status, role, entry_date
-6. **Bankverbindung** - bank_name, iban, ahv_number
-7. **Notizen** - notes
-
-### 3. Update `InstructorDetail.tsx`
+### 1. Create TrainingDetail.tsx
 
 ```typescript
-// Add state and modal
-const [editModalOpen, setEditModalOpen] = useState(false);
+// src/pages/TrainingDetail.tsx
 
-// Update handleEdit
-const handleEdit = () => {
-  setEditModalOpen(true);
+import { useNavigate, useParams } from 'react-router-dom';
+import { TrainingInstancesView } from '@/components/trainings/TrainingInstancesView';
+
+const TrainingDetail = () => {
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+
+  if (!id) {
+    navigate('/trainings');
+    return null;
+  }
+
+  const handleBack = () => {
+    navigate('/trainings');
+  };
+
+  return <TrainingInstancesView courseId={id} onBack={handleBack} />;
 };
 
-// Add modal to render
-{instructor && (
-  <EditInstructorModal
-    key={instructor.id}
-    open={editModalOpen}
-    onOpenChange={setEditModalOpen}
-    instructor={instructor}
-  />
-)}
+export default TrainingDetail;
 ```
 
----
+### 2. Update App.tsx Routes
 
-## Schema Alignment
-
-Based on the `instructors` table schema, all these fields will be editable:
-
-| Field | Type | Required |
-|-------|------|----------|
-| first_name | string | Yes |
-| last_name | string | Yes |
-| email | string | Yes |
-| phone | string | Yes |
-| birth_date | date | No |
-| gender | string | No |
-| level | string | No |
-| specialization | string | No |
-| hourly_rate | number | Yes |
-| status | string | No |
-| role | string | No |
-| entry_date | date | No |
-| languages | string[] | No |
-| street | string | No |
-| zip | string | No |
-| city | string | No |
-| country | string | No |
-| bank_name | string | No |
-| iban | string | No |
-| ahv_number | string | No |
-| notes | string | No |
-
----
-
-## Form Reset Strategy
-
-Following the project's established pattern from memory:
-1. Pass a unique `key` prop based on `instructor.id` to force remount
-2. Include `open` state in `useEffect` dependency array for form reset
+Add two new routes inside the `AppLayout` route group:
 
 ```typescript
-useEffect(() => {
-  if (open && instructor) {
-    reset({
-      first_name: instructor.first_name,
-      last_name: instructor.last_name,
-      // ... all fields
-    });
-    setIbanValue(instructor.iban || "");
-    setAhvValue(instructor.ahv_number || "");
-  }
-}, [open, instructor, reset]);
+// Add after line 156 (trainings route)
+<Route path="trainings/:id" element={<TrainingDetail />} />
+<Route path="trainings/:id/instances" element={<TrainingDetail />} />
+```
+
+Also add the import:
+```typescript
+import TrainingDetail from "./pages/TrainingDetail";
 ```
 
 ---
 
-## UI Details
+## Result
 
-| Element | Behavior |
-|---------|----------|
-| Modal title | "Skilehrer bearbeiten" |
-| Save button | "Speichern" with loading spinner |
-| Cancel button | "Abbrechen" - resets form and closes |
-| Validation errors | Red text below each field |
-| IBAN/AHV | Format on blur, show green check when valid |
+After this change:
+- Clicking "Instanzen" or "Termine" on a training card will navigate to `/trainings/{id}/instances`
+- The `TrainingDetail` page will render with the `TrainingInstancesView` component
+- The back button will return to `/trainings`
 
 ---
 
-## German Translations
+## Technical Notes
 
-| Key | Translation |
-|-----|-------------|
-| Modal title | Skilehrer bearbeiten |
-| Save button | Speichern |
-| Cancel button | Abbrechen |
-| Success toast | Skilehrer aktualisiert |
-| Error toast | Fehler beim Speichern |
-
----
-
-## Security Considerations
-
-- Only admin/office users can see the ProfileInfoCard with edit button (via `useUserRole`)
-- RLS policies on `instructors` table already allow authenticated users to update
-- The modal is only rendered when instructor data exists
-
----
-
-## Testing Checklist
-
-1. Navigate to `/instructors/:id` page
-2. Click "Bearbeiten" button in ProfileInfoCard
-3. Verify modal opens with pre-populated data
-4. Modify some fields
-5. Click "Speichern" - verify success toast and data update
-6. Reopen modal - verify new data persists
-7. Test validation by clearing required fields
-8. Test cancel button resets changes
-
+- Both `/trainings/:id` and `/trainings/:id/instances` point to the same page for simplicity
+- The `TrainingInstancesView` component already handles all the instance display and instructor assignment logic
+- No database changes needed
