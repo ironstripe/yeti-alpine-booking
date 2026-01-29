@@ -155,9 +155,9 @@ const AppRoutes = () => (
       <Route path="instructors" element={<Instructors />} />
       <Route path="instructors/:id" element={<InstructorDetail />} />
       <Route path="trainings" element={<Trainings />} />
+      <Route path="trainings/planning" element={<GroupCoursePlanning />} />
       <Route path="trainings/:id" element={<TrainingDetail />} />
       <Route path="trainings/:id/instances" element={<TrainingDetail />} />
-      <Route path="trainings/planning" element={<GroupCoursePlanning />} />
       <Route path="reconciliation" element={<Reconciliation />} />
       <Route path="lists" element={<Lists />} />
       <Route path="shop" element={<Shop />} />
