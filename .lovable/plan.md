@@ -1,94 +1,130 @@
 
-Goal: Fix instructor invitations so “Einladen” reliably results in a delivered email, and the recipient can actually access the instructor portal. Right now the backend successfully creates the invited user, but no email is delivered.
 
-What I found (from logs + DB):
-- The backend function `invite-instructor` is being called successfully (HTTP 200) and returns `{ success: true }`.
-- The function logs show: “Successfully invited instructor …”.
-- The invited user record exists in the authentication system (`auth.users`) with `invited_at` set and `last_sign_in_at` still null → this confirms the invite was created, but the email never reached the recipient.
-- The current invite flow relies on the platform’s built-in invitation email delivery (triggered by `inviteUserByEmail`). In your case, that delivery step is unreliable/blocked.
-- Additionally, the function uses a hardcoded redirect URL (`https://yeti-alpine-booking.lovable.app/instructor`). In Lovable Cloud there are separate “test/preview” and “live/published” environments; hardcoding the published URL can cause “invite created in test, link opens live” problems later. Even if the email arrives, the link can land in the wrong environment.
+# Fix: Invitation Link Shows "Expired" Prematurely
 
-High-level solution
-1) Stop relying on the built-in invite email delivery.
-2) Generate the invite/reset link ourselves in the backend function and send it via your existing Resend integration (which we can also log and troubleshoot).
-3) Add a small “Set password” page so invited instructors can set a password and later log in normally (your current Login page is password-only and “Forgot password” is not implemented yet).
+## Problem Identified
 
-Important constraint to be aware of (Resend test mode)
-- Your Resend setup is currently in “testing/sandbox” mode. I can see recent `email_logs` errors like:
-  “You can only send testing emails to your own email address (ivo.streiff71@gmail.com). To send emails to other recipients, please verify a domain…”
-- That means sending invitations to `ivo@shopable.one` will fail until you verify a sending domain in Resend and switch the From address to that domain.
-- However, after we implement the Resend-based invitation, invitations to the allowed testing recipient should work immediately, and invitations to other addresses will fail with a clear error message (instead of “success but no email”).
+When clicking the invitation link, users see "Link ungültig oder abgelaufen" even though the link is valid.
 
-Implementation plan (code changes)
+**Root Cause:** Race condition in the authentication flow:
 
-A) Backend function: `supabase/functions/invite-instructor/index.ts`
-Replace the current step:
-- `supabaseAdmin.auth.admin.inviteUserByEmail(...)`
+1. User clicks link → Supabase `/verify` validates token → redirects to `/set-password` with auth tokens in URL hash
+2. `SetPassword` component renders immediately and checks `!user`
+3. Auth tokens haven't been parsed yet → `user` is `null` → shows "expired" message
+4. A moment later, `onAuthStateChange` fires with the session, but UI already shows error
 
-With a manual + transparent flow:
-1. Authenticate caller + role check (keep as-is).
-2. Load instructor by `instructor_id` (keep as-is).
-3. Determine the correct redirect base URL dynamically:
-   - Prefer `req.headers.get("origin")` (this will be preview URL when you invite from preview, and published URL when you invite from published).
-   - Fallback to the published URL if origin is missing.
-4. Find-or-create the auth user:
-   - First try to find by email using `auth.admin.listUsers()` with pagination (the current code only checks the first page; that can break once you have >50 users).
-   - If not found: create user with `auth.admin.createUser({ email, user_metadata: {...} })`.
-5. Ensure the “teacher” role is present:
-   - Use `upsert` into `user_roles` with `onConflict: "user_id,role"` so it’s idempotent.
-6. Generate an action link:
-   - Use `auth.admin.generateLink({ type: "recovery" (or "invite"), email, options: { redirectTo: `${origin}/set-password?next=/instructor` } })`
-   - This gives us a link we can email ourselves.
-7. Send the email using Resend (same approach as `send-notification`):
-   - If Resend rejects the recipient (sandbox limitation), return a 400/500 with a friendly, actionable message (e.g. “Email system is in test mode; please verify a domain to send to external addresses.”).
-8. Write an `email_logs` record for invitations:
-   - `template_id: null`
-   - `subject: "Einladung Lehrer-Portal"`
-   - `metadata: { type: "instructor.invite", instructor_id, email, redirect_to, environment_hint }`
-   - Update status `sent/failed` depending on Resend response.
+The auth logs confirm the link **was valid** - verification succeeded at 18:18:15 with `user_signedup` event.
 
-Expected outcome:
-- The “Einladen” button will only show success if the email was accepted by Resend.
-- If it cannot be sent (e.g. to `ivo@shopable.one` while in Resend test mode), the UI will show a meaningful error instead of silently “success”.
+---
 
-B) Add “Set Password” page (new file): `src/pages/SetPassword.tsx`
-Purpose: let invited instructors set a password after clicking the invite link.
+## Solution
 
-Behavior:
-- On load: check if the user is authenticated (AuthContext session present). If not:
-  - Show “Link ungültig oder abgelaufen” + button to go to `/login`.
-- Show a form: new password + confirm (validate min length).
-- On submit: call `supabase.auth.updateUser({ password: newPassword })`.
-- On success: toast “Passwort gesetzt” and navigate to `next` param (default `/instructor`).
+Add a dedicated "recovery pending" state that waits for the URL hash tokens to be processed before concluding the link is invalid.
 
-C) Register the route in `src/App.tsx`
-- Add a public route:
-  - `<Route path="/set-password" element={<SetPassword />} />`
+### Key Changes to `SetPassword.tsx`:
 
-D) (Optional but recommended) Improve the invite UX text in the office UI
-In `src/hooks/useInviteInstructor.ts` and/or the toast:
-- If backend returns an explicit Resend sandbox error, show a short explanation:
-  - “E-Mail konnte nicht gesendet werden (Testmodus). Domain-Verifizierung erforderlich.”
+1. **Add `isVerifying` state** - tracks whether we're still waiting for the recovery flow
+2. **Check for recovery tokens in URL** - if `#access_token` or `#type=recovery` is present, wait for auth
+3. **Add timeout** - if no session after reasonable time (e.g., 5 seconds), then show expired
+4. **Listen specifically for `PASSWORD_RECOVERY` event** - this is the event Supabase fires for recovery links
 
-Testing checklist (end-to-end)
-1) In preview (test environment):
-   - Invite to `ivo.streiff71@gmail.com`.
-   - Confirm you receive the email.
-   - Click the link → you land on `/set-password`.
-   - Set password → redirected to `/instructor`.
-   - Sign out → verify you can sign in on `/login` with email+password.
-2) Domain verification step (needed for real instructor emails):
-   - Verify a domain in Resend and change the “From” address accordingly (we can keep it configurable if you want).
-3) Invite to `ivo@shopable.one`:
-   - Confirm email is delivered.
-   - Confirm link takes them to the correct environment (preview vs published depending on where you clicked “Einladen”).
+---
 
-Notes / risks addressed
-- Fixes the “success but no email received” problem by moving delivery to Resend where we can see explicit errors and log outcomes.
-- Fixes the “wrong environment redirect” risk by deriving redirect URL from request origin.
-- Makes invited instructors usable long-term by giving them a real password flow (your current UI otherwise has no password reset and no magic-link login button).
+## Technical Implementation
 
-If you approve this plan, I’ll implement:
-- The updated invitation backend function (Resend + logging + dynamic redirect).
-- The `/set-password` page + route wiring.
-- Small UI/toast improvements so failures are obvious and actionable.
+```typescript
+// Add new state
+const [isVerifying, setIsVerifying] = useState(true);
+
+useEffect(() => {
+  // Check if URL has recovery tokens (indicates we came from email link)
+  const hash = window.location.hash;
+  const hasRecoveryTokens = hash.includes('access_token') || hash.includes('type=recovery');
+  
+  if (!hasRecoveryTokens && !user) {
+    // No tokens in URL and no user - link was likely already used or expired
+    setIsVerifying(false);
+    return;
+  }
+
+  const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    console.log("Auth event:", event);
+    
+    if (event === "PASSWORD_RECOVERY" || event === "SIGNED_IN") {
+      // Successfully authenticated via recovery link
+      setIsVerifying(false);
+      setError(null);
+    }
+    
+    if (event === "TOKEN_REFRESHED" || event === "USER_UPDATED") {
+      // Session established
+      setIsVerifying(false);
+    }
+  });
+
+  // Timeout fallback - if no auth event after 5 seconds, assume link is invalid
+  const timeout = setTimeout(() => {
+    if (!user) {
+      setIsVerifying(false);
+    }
+  }, 5000);
+
+  return () => {
+    subscription.unsubscribe();
+    clearTimeout(timeout);
+  };
+}, [user]);
+
+// Show loading while verifying (instead of immediately showing "expired")
+if (authLoading || isVerifying) {
+  return (
+    <div className="...">
+      <Loader2 className="animate-spin" />
+      <p>Link wird überprüft...</p>
+    </div>
+  );
+}
+```
+
+---
+
+## Files to Modify
+
+| File | Changes |
+|------|---------|
+| `src/pages/SetPassword.tsx` | Add `isVerifying` state, check URL hash, wait for auth events |
+
+---
+
+## Expected Flow After Fix
+
+1. User clicks invitation link
+2. Redirected to `/set-password` with `#access_token=...` in URL
+3. Page shows "Link wird überprüft..." spinner
+4. Supabase client parses tokens, fires `PASSWORD_RECOVERY` event
+5. `isVerifying` becomes `false`, `user` is now set
+6. Page shows password form
+7. User sets password → redirected to instructor portal
+
+---
+
+## Edge Cases Handled
+
+| Scenario | Behavior |
+|----------|----------|
+| Valid link, first click | Shows spinner → shows password form |
+| Link clicked twice | Shows spinner → timeout → shows "expired" (correct) |
+| Direct navigation to `/set-password` (no tokens) | Immediately shows "expired" |
+| Already logged in user visits page | Shows password form (they can reset password) |
+
+---
+
+## Testing Checklist
+
+1. Send new invitation to `ivo.streiff71@gmail.com`
+2. Click link in email the first time
+3. Should see "Link wird überprüft..." briefly
+4. Should then see password form
+5. Set password → should redirect to `/instructor`
+6. Click same link again → should show "expired" (correct behavior)
+
