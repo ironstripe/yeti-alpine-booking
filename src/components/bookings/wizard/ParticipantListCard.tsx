@@ -130,6 +130,10 @@ export function ParticipantListCard({
         level_last_season: newParticipant.level_last_season,
         level_current_season: newParticipant.level_current_season,
         sport: newParticipant.sport,
+        current_ski_level_id: newParticipant.current_ski_level_id,
+        current_snowboard_level_id: newParticipant.current_snowboard_level_id,
+        current_ski_training_id: newParticipant.current_ski_training_id,
+        current_snowboard_training_id: newParticipant.current_snowboard_training_id,
       });
 
       refetch();
@@ -205,6 +209,10 @@ export function ParticipantListCard({
                     level_last_season: participant.level_last_season,
                     level_current_season: participant.level_current_season,
                     sport: participant.sport,
+                    current_ski_level_id: participant.current_ski_level_id,
+                    current_snowboard_level_id: participant.current_snowboard_level_id,
+                    current_ski_training_id: participant.current_ski_training_id,
+                    current_snowboard_training_id: participant.current_snowboard_training_id,
                   });
                 }}
               >

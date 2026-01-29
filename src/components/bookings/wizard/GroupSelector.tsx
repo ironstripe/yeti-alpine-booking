@@ -20,7 +20,10 @@ interface Participant {
   first_name: string;
   last_name?: string | null;
   level_current_season: string | null;
-  // New training-based level fields
+  // Skill level IDs (points to skill_levels table)
+  current_ski_level_id?: string | null;
+  current_snowboard_level_id?: string | null;
+  // Training IDs (points to group_courses table) - for future use
   current_ski_training_id?: string | null;
   current_snowboard_training_id?: string | null;
 }
@@ -43,7 +46,7 @@ interface GroupCourseWithCapacity {
   color: string | null;
   meeting_point: string | null;
   course_type: string | null;
-  next_training_id: string | null;
+  skill_level_id: string | null;
   currentCount: number;
   schedules: Array<{
     day_of_week: number;
@@ -60,28 +63,44 @@ export function GroupSelector({
   selectedGroupId,
   onGroupSelect,
 }: GroupSelectorProps) {
-  // Get participant's current training ID based on sport
-  const getParticipantTrainingId = (participant: Participant): string | null => {
+  // Get participant's skill level ID based on sport (uses skill_levels table)
+  const getParticipantLevelId = (participant: Participant): string | null => {
     if (sport === 'ski') {
-      return participant.current_ski_training_id || null;
+      return participant.current_ski_level_id || null;
     } else if (sport === 'snowboard') {
-      return participant.current_snowboard_training_id || null;
+      return participant.current_snowboard_level_id || null;
     }
     return null;
   };
 
-  // Use first participant's training ID for recommendations
-  const primaryTrainingId = participants.length > 0 
-    ? getParticipantTrainingId(participants[0])
+  // Use first participant's level ID for recommendations
+  const primaryLevelId = participants.length > 0 
+    ? getParticipantLevelId(participants[0])
     : null;
 
-  // Check if participants have different training levels
-  const trainingMismatch = useMemo(() => {
+  // Check if participants have different skill levels
+  const levelMismatch = useMemo(() => {
     if (participants.length < 2) return false;
-    const trainingIds = participants.map(p => getParticipantTrainingId(p));
-    const unique = new Set(trainingIds.filter(Boolean));
+    const levelIds = participants.map(p => getParticipantLevelId(p));
+    const unique = new Set(levelIds.filter(Boolean));
     return unique.size > 1;
   }, [participants, sport]);
+
+  // Fetch skill level with next_level_id for progression
+  const { data: skillLevelData } = useQuery({
+    queryKey: ["group-selector-skill-level", primaryLevelId],
+    queryFn: async () => {
+      if (!primaryLevelId) return null;
+      const { data, error } = await supabase
+        .from("skill_levels")
+        .select("id, name, next_level_id")
+        .eq("id", primaryLevelId)
+        .maybeSingle();
+      if (error) return null;
+      return data;
+    },
+    enabled: !!primaryLevelId,
+  });
 
   // Fetch active group courses with their schedules
   const { data: courses = [], isLoading } = useQuery({
@@ -100,7 +119,7 @@ export function GroupSelector({
           color,
           meeting_point,
           course_type,
-          next_training_id,
+          skill_level_id,
           schedules:group_course_schedules(day_of_week, start_time, end_time)
         `)
         .eq("is_active", true);
@@ -177,27 +196,29 @@ export function GroupSelector({
     return spotsAvailable < spotsNeeded;
   }, [selectedCourse, participants.length]);
 
-  // Find the recommended course: the NEXT training in progression
-  // If participant has training_id, find the course that comes after it
+  // Find recommended course based on skill_levels progression
+  // Target = next level in progression (or current if at max level)
   const recommendedCourseId = useMemo(() => {
-    if (!primaryTrainingId) return null;
+    if (!filteredCourses.length) return null;
     
-    // Find a course that has this training as its "previous" training
-    // i.e., find a course where another course's next_training_id points to it
-    // OR find the course itself if participant is at this level
+    // Determine target level: next in progression, or current if at max
+    const targetLevelId = skillLevelData?.next_level_id || primaryLevelId;
     
-    // First, check if participant's current training has a next_training_id
-    const currentTraining = filteredCourses.find(c => c.id === primaryTrainingId);
-    if (currentTraining?.next_training_id) {
-      // Recommend the next training in progression
-      return currentTraining.next_training_id;
-    }
+    // Find course that matches this skill level
+    const match = targetLevelId
+      ? filteredCourses.find(c => 
+          c.skill_level_id === targetLevelId && 
+          c.currentCount < c.max_participants
+        )
+      : null;
     
-    // If no next training, recommend current level
-    return primaryTrainingId;
-  }, [primaryTrainingId, filteredCourses]);
+    // Fallback: first course with capacity
+    return match?.id || filteredCourses.find(c => 
+      c.currentCount < c.max_participants
+    )?.id || null;
+  }, [filteredCourses, skillLevelData, primaryLevelId]);
 
-  // Auto-select matching course based on training progression
+  // Auto-select matching course based on skill level progression
   useEffect(() => {
     // Only auto-select if no group is currently selected
     if (selectedGroupId || filteredCourses.length === 0) return;
@@ -232,21 +253,22 @@ export function GroupSelector({
     if (!selectedCourse || participants.length === 0) return [];
     
     return participants.filter(p => {
-      const participantTrainingId = getParticipantTrainingId(p);
-      if (!participantTrainingId) return false;
+      const participantLevelId = getParticipantLevelId(p);
+      if (!participantLevelId) return false;
       
       // Check if this course is appropriate for the participant
       // Course is appropriate if:
-      // 1. It matches participant's current training
-      // 2. It's the next training in progression
-      const isCurrentTraining = participantTrainingId === selectedCourse.id;
-      const isNextTraining = filteredCourses.find(c => 
-        c.id === participantTrainingId && c.next_training_id === selectedCourse.id
-      );
+      // 1. It matches participant's current skill level
+      // 2. It's the next level in progression
+      const isCurrentLevel = participantLevelId === selectedCourse.skill_level_id;
       
-      return !isCurrentTraining && !isNextTraining;
+      // Check if participant's level has this course as its next step
+      // We need to check if skill_level.next_level_id matches course.skill_level_id
+      const isNextLevel = skillLevelData?.next_level_id === selectedCourse.skill_level_id;
+      
+      return !isCurrentLevel && !isNextLevel;
     });
-  }, [selectedCourse, participants, filteredCourses, sport]);
+  }, [selectedCourse, participants, skillLevelData, sport]);
 
   if (selectedDates.length === 0) {
     return (
@@ -263,8 +285,8 @@ export function GroupSelector({
         Gruppe auswählen
       </Label>
 
-      {/* Training level mismatch warning */}
-      {trainingMismatch && participants.length > 1 && (
+      {/* Skill level mismatch warning */}
+      {levelMismatch && participants.length > 1 && (
         <Alert className="bg-amber-50 border-amber-200 py-2">
           <AlertTriangle className="h-4 w-4 text-amber-600" />
           <AlertDescription className="text-xs text-amber-700">
