@@ -16,7 +16,9 @@ import {
   Loader2,
   Eye,
   Pencil,
+  XCircle,
 } from "lucide-react";
+import { CancellationDialog } from "@/components/bookings/CancellationDialog";
 import { PageHeader } from "@/components/layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -48,6 +50,9 @@ const BookingDetail = () => {
   
   const [showInvoicePreview, setShowInvoicePreview] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<string | null>(null);
+  const [showCancellation, setShowCancellation] = useState(false);
+  
+  const queryClient = useQueryClient();
   
   const { data: schoolSettings } = useSchoolSettings();
   const createInvoice = useCreateInvoice();
@@ -454,6 +459,15 @@ const BookingDetail = () => {
                 <Clock className="h-4 w-4 mr-2" />
                 Erinnerung senden
               </Button>
+              
+              <Button 
+                variant="outline" 
+                className="w-full justify-start text-destructive hover:text-destructive"
+                onClick={() => setShowCancellation(true)}
+              >
+                <XCircle className="h-4 w-4 mr-2" />
+                Buchung stornieren
+              </Button>
             </CardContent>
           </Card>
 
@@ -583,6 +597,30 @@ const BookingDetail = () => {
           />
         )}
       </div>
+
+      {/* Cancellation Dialog */}
+      {ticket && (
+        <CancellationDialog
+          booking={{
+            id: ticket.id,
+            ticket_number: ticket.ticket_number,
+            customer_id: ticket.customer_id,
+            customer_name: `${ticket.customer?.first_name || ''} ${ticket.customer?.last_name || ''}`.trim(),
+            product_name: ticket.items?.[0]?.product?.name || 'Buchung',
+            start_date: ticket.items?.[0]?.date || '',
+            end_date: ticket.items?.[ticket.items.length - 1]?.date || '',
+            start_time: ticket.items?.[0]?.time_start || undefined,
+            total_amount: ticket.total_amount || 0,
+            amount_paid: ticket.paid_amount || 0,
+            booking_days: ticket.items?.map((item: any) => item.date).filter(Boolean) || [],
+          }}
+          open={showCancellation}
+          onOpenChange={setShowCancellation}
+          onSuccess={() => {
+            queryClient.invalidateQueries({ queryKey: ["ticket-detail", id] });
+          }}
+        />
+      )}
     </>
   );
 };
