@@ -137,16 +137,11 @@ serve(async (req) => {
     let authUserId: string;
 
     if (existingUser) {
-      // User already exists - check if they have signed in
-      if (existingUser.last_sign_in_at) {
-        return new Response(
-          JSON.stringify({ error: `${instructor.first_name} hat bereits einen aktiven Account` }),
-          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-      // User exists but never signed in - we can resend invitation
+      // User already exists - always allow resending invitation
+      // Recovery links expire anyway and generate fresh tokens each time
       authUserId = existingUser.id;
-      console.log("Existing user found, will resend invitation:", authUserId);
+      console.log("Existing user found, will resend invitation:", authUserId, 
+        existingUser.last_sign_in_at ? "(has signed in before)" : "(never signed in)");
     } else {
       // Create new user
       const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
