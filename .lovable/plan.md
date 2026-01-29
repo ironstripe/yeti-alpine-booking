@@ -1,279 +1,111 @@
 
 
-# Frontend Implementation for Advanced User Management
+# Fix Skill Level Selection for Private Lessons
 
-## Overview
+## Problem
 
-This implementation adds role switching for multi-role users and a capabilities management UI for instructors on the detail page.
-
----
-
-## Current State Analysis
-
-| Component | Status |
-|-----------|--------|
-| `useUserRole` hook | Exists - fetches user roles from `user_roles` table |
-| Role switching | Not implemented |
-| `instructor_type` field | Exists in DB, not shown in UI |
-| `capabilities` table | Populated with 25 entries |
-| `set_instructor_capabilities` RPC | Created in previous migration |
-| Instructor Detail Page | Exists with profile, schedule, stats cards |
-
----
-
-## Implementation Plan
-
-### 1. Create Active Role Context
-
-A new context to manage which role the user is currently using.
-
-**File**: `src/contexts/ActiveRoleContext.tsx`
+The `LevelSelector` component currently has incorrect logic:
 
 ```typescript
-interface ActiveRoleContextType {
-  activeRole: AppRole | null;
-  setActiveRole: (role: AppRole) => void;
-  clearActiveRole: () => void;
+if (isChildParticipant && isGroupCourse) {
+  // Shows training levels (Blue Prince, Red King, etc.)
+} else {
+  // Shows adult levels (Green, Blue, Red, Black)
 }
 ```
 
-**Features**:
-- Stores selected role in localStorage (`yety_active_role`)
-- Auto-clears on logout
-- Provides `activeRole` to all components
+**Current behavior:**
+| Age | Group Course | Private Lesson |
+|-----|--------------|----------------|
+| Child (≤16) | Training levels (Blue Prince, etc.) | Adult levels (Green, Blue, Red, Black) |
+| Adult (>16) | Adult levels | Adult levels |
 
-### 2. Create Role Switcher Modal
-
-**File**: `src/components/auth/RoleSwitcherModal.tsx`
-
-**UI Design**:
-- Non-dismissible dialog (no close button, no click-outside)
-- Title: "Rolle auswählen" (Choose Your Role)
-- Subtitle: "Sie haben mehrere Rollen. Bitte wählen Sie, mit welcher Rolle Sie sich anmelden möchten."
-- Buttons for each role with clear German labels:
-  - `admin` → "Als Administrator anmelden"
-  - `office` → "Als Büro-Mitarbeiter anmelden"  
-  - `teacher` → "Als Skilehrer anmelden"
-
-**Logic**:
-- Rendered in `AuthenticatedComponents` when:
-  - User is logged in
-  - User has multiple roles
-  - No active role is set
-- On selection:
-  - Saves role to ActiveRoleContext
-  - Redirects based on role:
-    - `admin`/`office` → `/` (admin dashboard)
-    - `teacher` → `/instructor` (instructor portal)
-
-### 3. Update App Navigation Logic
-
-**Modify**: `src/App.tsx` - `AuthenticatedComponents`
-
-- Add `RoleSwitcherModal` component
-- Integrate with `ActiveRoleProvider`
-
-**Modify**: `src/App.tsx` - Wrap with `ActiveRoleProvider`
-
-### 4. Create Capabilities Hook
-
-**File**: `src/hooks/useCapabilities.ts`
-
-```typescript
-export function useCapabilities() {
-  // Fetch all capabilities
-  return useQuery({
-    queryKey: ["capabilities"],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("capabilities")
-        .select("*")
-        .order("category")
-        .order("name");
-      return data;
-    }
-  });
-}
-```
-
-### 5. Create Instructor Capabilities Hook
-
-**File**: `src/hooks/useInstructorCapabilities.ts`
-
-```typescript
-export function useInstructorCapabilities(instructorId: string) {
-  // Fetch instructor's current capabilities
-  const query = useQuery({
-    queryKey: ["instructor-capabilities", instructorId],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("instructor_capabilities")
-        .select("capability_id")
-        .eq("instructor_id", instructorId);
-      return data?.map(r => r.capability_id) || [];
-    }
-  });
-
-  // Mutation to set capabilities using RPC
-  const mutation = useMutation({
-    mutationFn: async (capabilityIds: string[]) => {
-      await supabase.rpc("set_instructor_capabilities", {
-        p_instructor_id: instructorId,
-        p_capability_ids: capabilityIds
-      });
-    }
-  });
-
-  return { ...query, setCapabilities: mutation };
-}
-```
-
-### 6. Create Capabilities Manager Component
-
-**File**: `src/components/instructors/detail/CapabilitiesManager.tsx`
-
-**UI Design**:
-- Grouped checkboxes by category (Ski, Snowboard, Betreuung, etc.)
-- Each category as a collapsible accordion section
-- Checkboxes with capability names
-- Save button at bottom
-- Loading states and success/error toasts
-
-**Structure**:
-```text
-┌─────────────────────────────────────────┐
-│ Qualifikationen                         │
-├─────────────────────────────────────────┤
-│ ▼ Ski (12)                              │
-│   ☑ Windel-Wedelkurs                    │
-│   ☐ Swiss Snow Kids Village             │
-│   ☑ Blauer Prinz/Prinzessin             │
-│   ...                                   │
-├─────────────────────────────────────────┤
-│ ▼ Snowboard (2)                         │
-│   ☐ Anfänger                            │
-│   ☐ Fortgeschritten                     │
-├─────────────────────────────────────────┤
-│ ▼ Betreuung (1)                         │
-│   ☑ Mittagsbetreuung                    │
-├─────────────────────────────────────────┤
-│ ▼ Gästerennen (4)                       │
-│   ☐ SKI-Rennen Kinder                   │
-│   ...                                   │
-├─────────────────────────────────────────┤
-│           [Speichern]                   │
-└─────────────────────────────────────────┘
-```
-
-### 7. Create Roles & Capabilities Card
-
-**File**: `src/components/instructors/detail/RolesCapabilitiesCard.tsx`
-
-**Sections**:
-1. **Instructor Type Select**
-   - Label: "Typ"
-   - Options: "Lehrer" (teacher), "Assistent" (assistant)
-   - Updates immediately on change via `useUpdateInstructor`
-
-2. **Capabilities Manager** (embedded component)
-
-### 8. Update Instructor Detail Page
-
-**Modify**: `src/pages/InstructorDetail.tsx`
-
-- Import `RolesCapabilitiesCard`
-- Add card to the right column below `SeasonStatsCard`
-- Only visible to admin/office users
+**Expected behavior (per your discussion):**
+| Age | Group Course | Private Lesson |
+|-----|--------------|----------------|
+| Child (≤16) | Training levels (Blue Prince, etc.) | Training levels (Blue Prince, etc.) |
+| Adult (>16) | N/A (adults don't do group courses) | Adult levels (Green, Blue, Red, Black) |
 
 ---
 
-## File Changes Summary
+## Solution
+
+Change the condition from `isChildParticipant && isGroupCourse` to just `isChildParticipant`:
+
+```typescript
+if (isChildParticipant) {
+  // For children: fetch training-based levels
+  // (Blue Prince, Red King, etc. from group_courses table)
+} else {
+  // For adults: use static self-assessment levels
+  // (Green/Anfänger, Blue/Fortgeschritten, Red/Geübt, Black/Experte)
+}
+```
+
+---
+
+## File Changes
 
 | File | Action |
 |------|--------|
-| `src/contexts/ActiveRoleContext.tsx` | Create |
-| `src/components/auth/RoleSwitcherModal.tsx` | Create |
-| `src/hooks/useCapabilities.ts` | Create |
-| `src/hooks/useInstructorCapabilities.ts` | Create |
-| `src/components/instructors/detail/CapabilitiesManager.tsx` | Create |
-| `src/components/instructors/detail/RolesCapabilitiesCard.tsx` | Create |
-| `src/App.tsx` | Modify - add ActiveRoleProvider + RoleSwitcherModal |
-| `src/pages/InstructorDetail.tsx` | Modify - add RolesCapabilitiesCard |
-| `src/hooks/useUserRole.ts` | Modify - add activeRole integration |
+| `src/components/booking/LevelSelector.tsx` | Modify logic - remove `&& isGroupCourse` condition |
 
 ---
 
-## Technical Implementation Details
+## Detailed Changes
 
-### ActiveRoleContext Integration
+### `src/components/booking/LevelSelector.tsx`
 
+**Before (line 72):**
 ```typescript
-// App.tsx structure after changes
-<ErrorBoundary>
-  <QueryClientProvider>
-    <TooltipProvider>
-      <BrowserRouter>
-        <AuthProvider>
-          <ActiveRoleProvider>
-            <AppRoutes />
-            <AuthenticatedComponents /> {/* Now includes RoleSwitcherModal */}
-          </ActiveRoleProvider>
-        </AuthProvider>
-      </BrowserRouter>
-    </TooltipProvider>
-  </QueryClientProvider>
-</ErrorBoundary>
+if (isChildParticipant && isGroupCourse) {
 ```
 
-### Role Labels (German)
+**After:**
+```typescript
+if (isChildParticipant) {
+```
 
-| Role | Display Label | Button Label |
-|------|---------------|--------------|
-| `admin` | Administrator | Als Administrator anmelden |
-| `office` | Büro | Als Büro-Mitarbeiter anmelden |
-| `teacher` | Skilehrer | Als Skilehrer anmelden |
+Also update the comment above this condition to reflect the correct logic:
 
-### Instructor Type Labels (German)
+**Before:**
+```typescript
+// For children in group courses, fetch trainings (group_courses)
+// For adults or private lessons, use adult self-assessment levels
+```
 
-| Value | Display Label |
-|-------|---------------|
-| `teacher` | Lehrer (Gruppenleiter) |
-| `assistant` | Assistent |
+**After:**
+```typescript
+// For children (≤16): fetch training-based levels from group_courses
+// For adults (>16): use color-based self-assessment levels
+```
 
 ---
 
-## UI/UX Considerations
+## Additional Consideration
 
-1. **Role Switcher Modal**:
-   - Shows full-screen on mobile
-   - Cannot be dismissed without selection
-   - Clear visual hierarchy for role options
-
-2. **Capabilities Manager**:
-   - Accordion grouping for easy navigation
-   - Category counts show how many are selected
-   - Optimistic UI with rollback on error
-
-3. **Instructor Type**:
-   - Inline select for quick changes
-   - Immediate feedback with toast
+The `isGroupCourse` prop can be removed from the component entirely since it's no longer needed for the level selection logic. However, to keep changes minimal and maintain backward compatibility, we can keep the prop but simply not use it in the condition.
 
 ---
 
 ## Testing Checklist
 
-**Role Switcher**:
-- Multi-role user sees modal on login
-- Single-role user redirects directly
-- Role persists across page refresh
-- Logout clears active role
+1. **Child in Private Lesson:**
+   - Select a child participant (age ≤16)
+   - Create a private lesson booking
+   - Verify the level selector shows training levels (Blue Prince, Red King, etc.)
 
-**Instructor Detail - Roles & Capabilities Card**:
-- Only visible to admin/office
-- Instructor type shows correct current value
-- Changing instructor type updates database
-- All 25 capabilities are listed and grouped
-- Current capabilities are pre-selected
-- Save button calls RPC and shows feedback
-- Error handling with toast notifications
+2. **Child in Group Course:**
+   - Select a child participant
+   - Create a group course booking
+   - Verify the level selector still shows training levels
+
+3. **Adult in Private Lesson:**
+   - Select an adult participant (age >16)
+   - Create a private lesson booking
+   - Verify the level selector shows adult levels (Anfänger, Fortgeschritten, Geübt, Experte)
+
+4. **Level Suggestion:**
+   - Verify that for children, the suggested level is based on their `current_ski_training_id` or `current_snowboard_training_id`
+   - Verify that for adults, the suggested level is based on their `self_assessed_ski_level` or `self_assessed_snowboard_level`
 
