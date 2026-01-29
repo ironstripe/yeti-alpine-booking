@@ -1,207 +1,94 @@
 
+Goal: Fix instructor invitations so “Einladen” reliably results in a delivered email, and the recipient can actually access the instructor portal. Right now the backend successfully creates the invited user, but no email is delivered.
 
-# Fix: Global Search Shows All Matching Results + Add Participants
+What I found (from logs + DB):
+- The backend function `invite-instructor` is being called successfully (HTTP 200) and returns `{ success: true }`.
+- The function logs show: “Successfully invited instructor …”.
+- The invited user record exists in the authentication system (`auth.users`) with `invited_at` set and `last_sign_in_at` still null → this confirms the invite was created, but the email never reached the recipient.
+- The current invite flow relies on the platform’s built-in invitation email delivery (triggered by `inviteUserByEmail`). In your case, that delivery step is unreliable/blocked.
+- Additionally, the function uses a hardcoded redirect URL (`https://yeti-alpine-booking.lovable.app/instructor`). In Lovable Cloud there are separate “test/preview” and “live/published” environments; hardcoding the published URL can cause “invite created in test, link opens live” problems later. Even if the email arrives, the link can land in the wrong environment.
 
-## Problem Summary
+High-level solution
+1) Stop relying on the built-in invite email delivery.
+2) Generate the invite/reset link ourselves in the backend function and send it via your existing Resend integration (which we can also log and troubleshoot).
+3) Add a small “Set password” page so invited instructors can set a password and later log in normally (your current Login page is password-only and “Forgot password” is not implemented yet).
 
-1. **Search results hidden**: The `cmdk` library applies client-side filtering that hides valid server-side results. When typing "Ivo", results may be filtered out if cmdk's internal matching doesn't find them.
+Important constraint to be aware of (Resend test mode)
+- Your Resend setup is currently in “testing/sandbox” mode. I can see recent `email_logs` errors like:
+  “You can only send testing emails to your own email address (ivo.streiff71@gmail.com). To send emails to other recipients, please verify a domain…”
+- That means sending invitations to `ivo@shopable.one` will fail until you verify a sending domain in Resend and switch the From address to that domain.
+- However, after we implement the Resend-based invitation, invitations to the allowed testing recipient should work immediately, and invitations to other addresses will fail with a clear error message (instead of “success but no email”).
 
-2. **No participant search**: The global search only covers Customers, Instructors, and Bookings. Participants (children) are not searchable.
+Implementation plan (code changes)
 
----
+A) Backend function: `supabase/functions/invite-instructor/index.ts`
+Replace the current step:
+- `supabaseAdmin.auth.admin.inviteUserByEmail(...)`
 
-## Current Search Scope
+With a manual + transparent flow:
+1. Authenticate caller + role check (keep as-is).
+2. Load instructor by `instructor_id` (keep as-is).
+3. Determine the correct redirect base URL dynamically:
+   - Prefer `req.headers.get("origin")` (this will be preview URL when you invite from preview, and published URL when you invite from published).
+   - Fallback to the published URL if origin is missing.
+4. Find-or-create the auth user:
+   - First try to find by email using `auth.admin.listUsers()` with pagination (the current code only checks the first page; that can break once you have >50 users).
+   - If not found: create user with `auth.admin.createUser({ email, user_metadata: {...} })`.
+5. Ensure the “teacher” role is present:
+   - Use `upsert` into `user_roles` with `onConflict: "user_id,role"` so it’s idempotent.
+6. Generate an action link:
+   - Use `auth.admin.generateLink({ type: "recovery" (or "invite"), email, options: { redirectTo: `${origin}/set-password?next=/instructor` } })`
+   - This gives us a link we can email ourselves.
+7. Send the email using Resend (same approach as `send-notification`):
+   - If Resend rejects the recipient (sandbox limitation), return a 400/500 with a friendly, actionable message (e.g. “Email system is in test mode; please verify a domain to send to external addresses.”).
+8. Write an `email_logs` record for invitations:
+   - `template_id: null`
+   - `subject: "Einladung Lehrer-Portal"`
+   - `metadata: { type: "instructor.invite", instructor_id, email, redirect_to, environment_hint }`
+   - Update status `sent/failed` depending on Resend response.
 
-| Entity | Fields Searched | Status |
-|--------|-----------------|--------|
-| Customers | first_name, last_name, email, phone | ✅ Works (but hidden) |
-| Instructors | first_name, last_name, email | ✅ Works (but hidden) |
-| Bookings | ticket_number only | ✅ Works |
-| **Participants** | - | ❌ Missing |
+Expected outcome:
+- The “Einladen” button will only show success if the email was accepted by Resend.
+- If it cannot be sent (e.g. to `ivo@shopable.one` while in Resend test mode), the UI will show a meaningful error instead of silently “success”.
 
----
+B) Add “Set Password” page (new file): `src/pages/SetPassword.tsx`
+Purpose: let invited instructors set a password after clicking the invite link.
 
-## Solution
+Behavior:
+- On load: check if the user is authenticated (AuthContext session present). If not:
+  - Show “Link ungültig oder abgelaufen” + button to go to `/login`.
+- Show a form: new password + confirm (validate min length).
+- On submit: call `supabase.auth.updateUser({ password: newPassword })`.
+- On success: toast “Passwort gesetzt” and navigate to `next` param (default `/instructor`).
 
-### Part 1: Disable cmdk Client-Side Filtering
+C) Register the route in `src/App.tsx`
+- Add a public route:
+  - `<Route path="/set-password" element={<SetPassword />} />`
 
-Update the `CommandDialog` to accept `commandProps` so we can pass `shouldFilter={false}`:
+D) (Optional but recommended) Improve the invite UX text in the office UI
+In `src/hooks/useInviteInstructor.ts` and/or the toast:
+- If backend returns an explicit Resend sandbox error, show a short explanation:
+  - “E-Mail konnte nicht gesendet werden (Testmodus). Domain-Verifizierung erforderlich.”
 
-**File: `src/components/ui/command.tsx`**
-- Add `commandProps` to `CommandDialogProps` interface
-- Spread `commandProps` onto the inner `Command` component
+Testing checklist (end-to-end)
+1) In preview (test environment):
+   - Invite to `ivo.streiff71@gmail.com`.
+   - Confirm you receive the email.
+   - Click the link → you land on `/set-password`.
+   - Set password → redirected to `/instructor`.
+   - Sign out → verify you can sign in on `/login` with email+password.
+2) Domain verification step (needed for real instructor emails):
+   - Verify a domain in Resend and change the “From” address accordingly (we can keep it configurable if you want).
+3) Invite to `ivo@shopable.one`:
+   - Confirm email is delivered.
+   - Confirm link takes them to the correct environment (preview vs published depending on where you clicked “Einladen”).
 
-**File: `src/components/CommandBar.tsx`**
-- Pass `commandProps={{ shouldFilter: false }}` to disable double-filtering
+Notes / risks addressed
+- Fixes the “success but no email received” problem by moving delivery to Resend where we can see explicit errors and log outcomes.
+- Fixes the “wrong environment redirect” risk by deriving redirect URL from request origin.
+- Makes invited instructors usable long-term by giving them a real password flow (your current UI otherwise has no password reset and no magic-link login button).
 
-### Part 2: Add Participant Search
-
-**File: `src/lib/search.ts`**
-- Add new `searchParticipants()` function that searches the `customer_participants` table by first_name, last_name
-
-**File: `src/components/CommandBar.tsx`**
-- Add `ParticipantResults` component that displays matching participants
-- Navigate to the parent customer's detail page when selected
-
----
-
-## Files to Modify
-
-| File | Changes |
-|------|---------|
-| `src/components/ui/command.tsx` | Add `commandProps` passthrough to CommandDialog |
-| `src/components/CommandBar.tsx` | Disable filtering + add ParticipantResults component |
-| `src/lib/search.ts` | Add `searchParticipants()` function |
-
----
-
-## Technical Details
-
-### 1. command.tsx - Add commandProps
-
-```tsx
-interface CommandDialogProps extends DialogProps {
-  commandProps?: React.ComponentPropsWithoutRef<typeof CommandPrimitive>;
-}
-
-const CommandDialog = ({ children, commandProps, ...props }: CommandDialogProps) => {
-  return (
-    <Dialog {...props}>
-      <DialogContent className="overflow-hidden p-0 shadow-lg">
-        <Command className="..." {...commandProps}>
-          {children}
-        </Command>
-      </DialogContent>
-    </Dialog>
-  );
-};
-```
-
-### 2. CommandBar.tsx - Disable filter + add participants
-
-```tsx
-<CommandDialog 
-  open={open} 
-  onOpenChange={onOpenChange} 
-  commandProps={{ shouldFilter: false }}
->
-```
-
-Add participant search section:
-```tsx
-{debouncedQuery.length >= 2 && (
-  <>
-    <CustomerResults query={debouncedQuery} onSelect={handleSelect} />
-    <ParticipantResults query={debouncedQuery} onSelect={handleSelect} />
-    <BookingResults query={debouncedQuery} onSelect={handleSelect} />
-    <InstructorResults query={debouncedQuery} onSelect={handleSelect} />
-  </>
-)}
-```
-
-### 3. search.ts - Add participant search
-
-```typescript
-export interface ParticipantSearchResult {
-  id: string;
-  first_name: string;
-  last_name: string | null;
-  birth_date: string;
-  customer_id: string;
-  customer_name: string;
-}
-
-export async function searchParticipants(query: string): Promise<ParticipantSearchResult[]> {
-  const { data, error } = await supabase
-    .from("customer_participants")
-    .select(`
-      id, 
-      first_name, 
-      last_name, 
-      birth_date,
-      customer_id,
-      customers (first_name, last_name)
-    `)
-    .or(`first_name.ilike.%${query}%,last_name.ilike.%${query}%`)
-    .limit(5);
-
-  if (error) throw error;
-
-  return (data || []).map((p) => ({
-    id: p.id,
-    first_name: p.first_name,
-    last_name: p.last_name,
-    birth_date: p.birth_date,
-    customer_id: p.customer_id,
-    customer_name: p.customers
-      ? `${p.customers.first_name || ""} ${p.customers.last_name}`.trim()
-      : "Unbekannt",
-  }));
-}
-```
-
-### 4. ParticipantResults Component
-
-```tsx
-function ParticipantResults({
-  query,
-  onSelect,
-}: {
-  query: string;
-  onSelect: (path: string) => void;
-}) {
-  const { data: participants, isLoading } = useQuery({
-    queryKey: ["command-participant-search", query],
-    queryFn: () => searchParticipants(query),
-    enabled: query.length >= 2,
-  });
-
-  if (isLoading || !participants?.length) return null;
-
-  return (
-    <CommandGroup heading="Teilnehmer">
-      {participants.map((participant) => (
-        <CommandItem
-          key={participant.id}
-          onSelect={() => onSelect(`/customers/${participant.customer_id}`)}
-          className="flex items-center gap-3"
-        >
-          <User className="h-4 w-4 text-muted-foreground" />
-          <div className="flex flex-col">
-            <span className="font-medium">
-              {participant.first_name} {participant.last_name}
-            </span>
-            <span className="text-xs text-muted-foreground">
-              Teilnehmer bei {participant.customer_name}
-            </span>
-          </div>
-        </CommandItem>
-      ))}
-    </CommandGroup>
-  );
-}
-```
-
----
-
-## Expected Behavior After Fix
-
-| Search Query | Results Shown |
-|--------------|---------------|
-| "Ivo" | All customers, instructors, participants with "Ivo" in name |
-| "Ivo St" | Filtered to those matching "Ivo St" (e.g., "Ivo Streiff") |
-| "Robin" | Participants named Robin + any customers/instructors |
-| "T-2025-001" | Booking with that ticket number |
-
----
-
-## Testing Checklist
-
-1. Press Cmd+K to open Command Bar
-2. Type "Ivo" - should show Ivo Streiff immediately
-3. Type "Ivo St" - results narrow down to Streiff matches
-4. Type "Robin" - should show Robin as a participant
-5. Click a participant result - navigates to parent customer page
-6. Verify quick actions still show when search is empty
-7. Verify instructors and bookings still searchable
-
+If you approve this plan, I’ll implement:
+- The updated invitation backend function (Resend + logging + dynamic redirect).
+- The `/set-password` page + route wiring.
+- Small UI/toast improvements so failures are obvious and actionable.
