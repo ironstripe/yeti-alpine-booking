@@ -132,6 +132,91 @@ export type Database = {
         }
         Relationships: []
       }
+      booking_cancellations: {
+        Row: {
+          amount_already_paid: number
+          cancellation_reason: string
+          cancellation_type: string
+          cancelled_amount: number
+          cancelled_at: string | null
+          cancelled_by: string | null
+          cancelled_item_ids: string[] | null
+          created_at: string | null
+          credit_action: string | null
+          credit_amount: number
+          customer_credit_id: string | null
+          fee_according_to_agb: number
+          fee_charged: number
+          hours_before_start: number | null
+          id: string
+          original_booking_amount: number
+          ticket_id: string
+          waiver_reason: string | null
+        }
+        Insert: {
+          amount_already_paid?: number
+          cancellation_reason: string
+          cancellation_type: string
+          cancelled_amount: number
+          cancelled_at?: string | null
+          cancelled_by?: string | null
+          cancelled_item_ids?: string[] | null
+          created_at?: string | null
+          credit_action?: string | null
+          credit_amount?: number
+          customer_credit_id?: string | null
+          fee_according_to_agb: number
+          fee_charged?: number
+          hours_before_start?: number | null
+          id?: string
+          original_booking_amount: number
+          ticket_id: string
+          waiver_reason?: string | null
+        }
+        Update: {
+          amount_already_paid?: number
+          cancellation_reason?: string
+          cancellation_type?: string
+          cancelled_amount?: number
+          cancelled_at?: string | null
+          cancelled_by?: string | null
+          cancelled_item_ids?: string[] | null
+          created_at?: string | null
+          credit_action?: string | null
+          credit_amount?: number
+          customer_credit_id?: string | null
+          fee_according_to_agb?: number
+          fee_charged?: number
+          hours_before_start?: number | null
+          id?: string
+          original_booking_amount?: number
+          ticket_id?: string
+          waiver_reason?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "booking_cancellations_customer_credit_id_fkey"
+            columns: ["customer_credit_id"]
+            isOneToOne: false
+            referencedRelation: "customer_credits"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "booking_cancellations_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "pending_booking_confirmations"
+            referencedColumns: ["ticket_id"]
+          },
+          {
+            foreignKeyName: "booking_cancellations_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "tickets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       booking_requests: {
         Row: {
           converted_ticket_id: string | null
@@ -471,6 +556,112 @@ export type Database = {
           },
           {
             foreignKeyName: "customer_contacts_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "pending_booking_confirmations"
+            referencedColumns: ["customer_id"]
+          },
+        ]
+      }
+      customer_credit_usage: {
+        Row: {
+          amount_used: number
+          credit_id: string
+          id: string
+          ticket_id: string | null
+          used_at: string | null
+          used_by: string | null
+        }
+        Insert: {
+          amount_used: number
+          credit_id: string
+          id?: string
+          ticket_id?: string | null
+          used_at?: string | null
+          used_by?: string | null
+        }
+        Update: {
+          amount_used?: number
+          credit_id?: string
+          id?: string
+          ticket_id?: string | null
+          used_at?: string | null
+          used_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_credit_usage_credit_id_fkey"
+            columns: ["credit_id"]
+            isOneToOne: false
+            referencedRelation: "customer_credits"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_credit_usage_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "pending_booking_confirmations"
+            referencedColumns: ["ticket_id"]
+          },
+          {
+            foreignKeyName: "customer_credit_usage_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "tickets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      customer_credits: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          customer_id: string
+          description: string
+          id: string
+          original_amount: number
+          remaining_amount: number
+          source_reference_id: string | null
+          source_type: string
+          status: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          customer_id: string
+          description: string
+          id?: string
+          original_amount: number
+          remaining_amount: number
+          source_reference_id?: string | null
+          source_type: string
+          status?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          customer_id?: string
+          description?: string
+          id?: string
+          original_amount?: number
+          remaining_amount?: number
+          source_reference_id?: string | null
+          source_type?: string
+          status?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_credits_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_credits_customer_id_fkey"
             columns: ["customer_id"]
             isOneToOne: false
             referencedRelation: "pending_booking_confirmations"
@@ -2057,6 +2248,83 @@ export type Database = {
           vat_rate?: number | null
         }
         Relationships: []
+      }
+      refund_requests: {
+        Row: {
+          account_holder: string | null
+          amount: number
+          cancellation_id: string | null
+          created_at: string | null
+          credit_id: string
+          customer_id: string
+          iban: string | null
+          id: string
+          notes: string | null
+          processed_at: string | null
+          processed_by: string | null
+          refund_method: string
+          status: string | null
+        }
+        Insert: {
+          account_holder?: string | null
+          amount: number
+          cancellation_id?: string | null
+          created_at?: string | null
+          credit_id: string
+          customer_id: string
+          iban?: string | null
+          id?: string
+          notes?: string | null
+          processed_at?: string | null
+          processed_by?: string | null
+          refund_method: string
+          status?: string | null
+        }
+        Update: {
+          account_holder?: string | null
+          amount?: number
+          cancellation_id?: string | null
+          created_at?: string | null
+          credit_id?: string
+          customer_id?: string
+          iban?: string | null
+          id?: string
+          notes?: string | null
+          processed_at?: string | null
+          processed_by?: string | null
+          refund_method?: string
+          status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "refund_requests_cancellation_id_fkey"
+            columns: ["cancellation_id"]
+            isOneToOne: false
+            referencedRelation: "booking_cancellations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "refund_requests_credit_id_fkey"
+            columns: ["credit_id"]
+            isOneToOne: false
+            referencedRelation: "customer_credits"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "refund_requests_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "refund_requests_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "pending_booking_confirmations"
+            referencedColumns: ["customer_id"]
+          },
+        ]
       }
       school_settings: {
         Row: {
