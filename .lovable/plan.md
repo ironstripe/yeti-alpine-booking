@@ -1,90 +1,41 @@
 
 
-# Fix: Invitation Link Shows "Expired" Prematurely
+# Fix: Allow Resending Invitations to Users Who Haven't Set Password Yet
 
 ## Problem Identified
 
-When clicking the invitation link, users see "Link ungültig oder abgelaufen" even though the link is valid.
+The edge function returns **"Ivo hat bereits einen aktiven Account"** when trying to resend an invitation.
 
-**Root Cause:** Race condition in the authentication flow:
+**Root Cause:** The current logic checks `last_sign_in_at` to determine if a user has an "active account". However:
+- Clicking the invitation link triggers a recovery session, which populates `last_sign_in_at`
+- The user may not have actually completed setting their password
+- This blocks all future invitation resends even if the user never finished onboarding
 
-1. User clicks link → Supabase `/verify` validates token → redirects to `/set-password` with auth tokens in URL hash
-2. `SetPassword` component renders immediately and checks `!user`
-3. Auth tokens haven't been parsed yet → `user` is `null` → shows "expired" message
-4. A moment later, `onAuthStateChange` fires with the session, but UI already shows error
-
-The auth logs confirm the link **was valid** - verification succeeded at 18:18:15 with `user_signedup` event.
+```text
+Current Flow:
+1. User receives invitation email
+2. User clicks link → session created → last_sign_in_at = now()
+3. User sees password form but doesn't complete it (or link expired)
+4. Office tries to resend invitation → "bereits einen aktiven Account" ❌
+```
 
 ---
 
 ## Solution
 
-Add a dedicated "recovery pending" state that waits for the URL hash tokens to be processed before concluding the link is invalid.
+Instead of checking `last_sign_in_at`, check if the user has an **encrypted password set**. This accurately determines if they completed the onboarding:
 
-### Key Changes to `SetPassword.tsx`:
+- `encrypted_password` is empty/null → user never set a password → allow resend
+- `encrypted_password` is set → user has a working account → block resend (or show different message)
 
-1. **Add `isVerifying` state** - tracks whether we're still waiting for the recovery flow
-2. **Check for recovery tokens in URL** - if `#access_token` or `#type=recovery` is present, wait for auth
-3. **Add timeout** - if no session after reasonable time (e.g., 5 seconds), then show expired
-4. **Listen specifically for `PASSWORD_RECOVERY` event** - this is the event Supabase fires for recovery links
+**Note:** The `encrypted_password` field is not directly accessible via the Admin API's `listUsers()`. However, we can check:
+1. **`email_confirmed_at`** - set when user confirms email
+2. **`confirmed_at`** - general confirmation timestamp
+3. Or simply **remove the blocking check entirely** and always allow resending
 
----
+### Recommended Approach: Always Allow Resend
 
-## Technical Implementation
-
-```typescript
-// Add new state
-const [isVerifying, setIsVerifying] = useState(true);
-
-useEffect(() => {
-  // Check if URL has recovery tokens (indicates we came from email link)
-  const hash = window.location.hash;
-  const hasRecoveryTokens = hash.includes('access_token') || hash.includes('type=recovery');
-  
-  if (!hasRecoveryTokens && !user) {
-    // No tokens in URL and no user - link was likely already used or expired
-    setIsVerifying(false);
-    return;
-  }
-
-  const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-    console.log("Auth event:", event);
-    
-    if (event === "PASSWORD_RECOVERY" || event === "SIGNED_IN") {
-      // Successfully authenticated via recovery link
-      setIsVerifying(false);
-      setError(null);
-    }
-    
-    if (event === "TOKEN_REFRESHED" || event === "USER_UPDATED") {
-      // Session established
-      setIsVerifying(false);
-    }
-  });
-
-  // Timeout fallback - if no auth event after 5 seconds, assume link is invalid
-  const timeout = setTimeout(() => {
-    if (!user) {
-      setIsVerifying(false);
-    }
-  }, 5000);
-
-  return () => {
-    subscription.unsubscribe();
-    clearTimeout(timeout);
-  };
-}, [user]);
-
-// Show loading while verifying (instead of immediately showing "expired")
-if (authLoading || isVerifying) {
-  return (
-    <div className="...">
-      <Loader2 className="animate-spin" />
-      <p>Link wird überprüft...</p>
-    </div>
-  );
-}
-```
+Since recovery links expire anyway and generate new tokens each time, there's no security risk in allowing resends. The office should always be able to send a fresh invitation.
 
 ---
 
@@ -92,39 +43,71 @@ if (authLoading || isVerifying) {
 
 | File | Changes |
 |------|---------|
-| `src/pages/SetPassword.tsx` | Add `isVerifying` state, check URL hash, wait for auth events |
+| `supabase/functions/invite-instructor/index.ts` | Remove the "active account" blocking logic, always allow resend |
 
 ---
 
-## Expected Flow After Fix
+## Technical Changes
 
-1. User clicks invitation link
-2. Redirected to `/set-password` with `#access_token=...` in URL
-3. Page shows "Link wird überprüft..." spinner
-4. Supabase client parses tokens, fires `PASSWORD_RECOVERY` event
-5. `isVerifying` becomes `false`, `user` is now set
-6. Page shows password form
-7. User sets password → redirected to instructor portal
+**Before (lines 139-146):**
+```typescript
+if (existingUser) {
+  // User already exists - check if they have signed in
+  if (existingUser.last_sign_in_at) {
+    return new Response(
+      JSON.stringify({ error: `${instructor.first_name} hat bereits einen aktiven Account` }),
+      { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+  // ...
+}
+```
+
+**After:**
+```typescript
+if (existingUser) {
+  // User already exists - allow resending invitation
+  // The recovery link will generate fresh tokens
+  authUserId = existingUser.id;
+  console.log("Existing user found, will resend invitation:", authUserId);
+} else {
+  // Create new user
+  // ...
+}
+```
+
+Optionally, we can add an **info log** noting whether the user previously signed in, but don't block the resend.
 
 ---
 
-## Edge Cases Handled
+## Alternative: Add "Account aktiviert" Status in UI
 
-| Scenario | Behavior |
-|----------|----------|
-| Valid link, first click | Shows spinner → shows password form |
-| Link clicked twice | Shows spinner → timeout → shows "expired" (correct) |
-| Direct navigation to `/set-password` (no tokens) | Immediately shows "expired" |
-| Already logged in user visits page | Shows password form (they can reset password) |
+If the office needs to know whether an instructor has actually activated their account, we could add a UI indicator on the instructor detail page showing:
+- "Eingeladen, noch nicht aktiviert"
+- "Konto aktiv"
+
+This would be based on whether the user has ever set a password (which we can track via a new column or by checking if they can log in).
+
+---
+
+## Expected Behavior After Fix
+
+| Scenario | Current | After Fix |
+|----------|---------|-----------|
+| First invitation | ✅ Works | ✅ Works |
+| User clicked link but didn't set password | ❌ "Active account" error | ✅ Resends invitation |
+| User set password and logged in | ❌ "Active account" error | ✅ Resends new recovery link |
 
 ---
 
 ## Testing Checklist
 
-1. Send new invitation to `ivo.streiff71@gmail.com`
-2. Click link in email the first time
-3. Should see "Link wird überprüft..." briefly
-4. Should then see password form
-5. Set password → should redirect to `/instructor`
-6. Click same link again → should show "expired" (correct behavior)
+1. Delete existing auth user for test email OR use current blocked instructor
+2. Click "Einladen" on instructor detail page
+3. Verify invitation email is received
+4. Click invitation link → see password form
+5. Don't set password, close page
+6. Click "Einladen" again → should succeed and send new email
+7. Complete password setup with new email link
+8. Verify login works with new password
 
