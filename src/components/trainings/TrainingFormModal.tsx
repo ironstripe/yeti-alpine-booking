@@ -496,8 +496,8 @@ export function TrainingFormModal({ open, onOpenChange, course, mode }: Training
                       <FormItem>
                         <FormLabel>Skill Level (1:1) *</FormLabel>
                         <Select 
-                          value={field.value || ''} 
-                          onValueChange={(v) => field.onChange(v || null)}
+                          value={field.value || 'none'} 
+                          onValueChange={(v) => field.onChange(v === 'none' ? null : v)}
                         >
                           <FormControl>
                             <SelectTrigger>
@@ -505,7 +505,7 @@ export function TrainingFormModal({ open, onOpenChange, course, mode }: Training
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            <SelectItem value="">Kein Level</SelectItem>
+                            <SelectItem value="none">Kein Level</SelectItem>
                             {availableLevels.map(level => (
                               <SelectItem key={level.id} value={level.id}>
                                 <div className="flex items-center gap-2">
