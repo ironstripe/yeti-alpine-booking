@@ -1,4 +1,4 @@
-import { useNavigate, useParams } from 'react-router-dom';
+import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import { TrainingInstancesView } from '@/components/trainings/TrainingInstancesView';
 
 const TrainingDetail = () => {
@@ -6,8 +6,7 @@ const TrainingDetail = () => {
   const navigate = useNavigate();
 
   if (!id) {
-    navigate('/trainings');
-    return null;
+    return <Navigate to="/trainings" replace />;
   }
 
   const handleBack = () => {
