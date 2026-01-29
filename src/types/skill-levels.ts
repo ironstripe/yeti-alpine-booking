@@ -5,6 +5,10 @@ export type TargetGroup = 'child' | 'adult';
 export type SkillColor = 'green' | 'blue' | 'red' | 'black';
 export type AdultSelfAssessment = 'green' | 'blue' | 'red' | 'black';
 
+/**
+ * Skill level - NOW ONLY USED FOR ADULT SELF-ASSESSMENT IN PRIVATE LESSONS
+ * Children's levels are defined by the trainings (group_courses) themselves
+ */
 export interface SkillLevel {
   id: string;
   name: string;
@@ -21,16 +25,23 @@ export interface SkillLevel {
   created_at?: string;
 }
 
+/**
+ * Participant with training-based levels for children and self-assessment for adults
+ */
 export interface ParticipantWithLevels {
   id: string;
   first_name: string;
   last_name: string | null;
   birth_date: string | null;
-  current_ski_level_id: string | null;
-  current_snowboard_level_id: string | null;
+  // NEW: Training-based levels for children (FK to group_courses)
+  current_ski_training_id: string | null;
+  current_snowboard_training_id: string | null;
+  // Adult self-assessment (only for private lessons)
   self_assessed_ski_level: AdultSelfAssessment | null;
   self_assessed_snowboard_level: AdultSelfAssessment | null;
-  // Legacy fields (kept for backward compatibility)
+  // Legacy fields (kept for backward compatibility during migration)
+  current_ski_level_id?: string | null;
+  current_snowboard_level_id?: string | null;
   level_current_season?: string | null;
   level_last_season?: string | null;
   sport?: string | null;
@@ -93,7 +104,8 @@ export function getSkillBadgeClass(color: SkillColor | null): string {
 }
 
 /**
- * Adult self-assessment options
+ * Adult self-assessment options - ONLY FOR PRIVATE LESSONS
+ * Children use trainings (group_courses) directly for their levels
  */
 export const ADULT_LEVEL_OPTIONS: { value: AdultSelfAssessment; label: string; description: string }[] = [
   { value: 'green', label: 'Anfänger', description: 'Kompletter Anfänger, keine Erfahrung' },

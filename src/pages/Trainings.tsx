@@ -24,26 +24,20 @@ const Trainings = () => {
   const [selectedCourse, setSelectedCourse] = useState<GroupCourseWithSchedules | undefined>();
   const [modalMode, setModalMode] = useState<'create' | 'edit' | 'copy'>('create');
 
-  // Filter state
+  // Filter state - removed skill level filter since training name IS the level
   const [search, setSearch] = useState('');
-  const [skillFilter, setSkillFilter] = useState('all');
   const [disciplineFilter, setDisciplineFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
 
-  const hasFilters = search !== '' || skillFilter !== 'all' || disciplineFilter !== 'all' || statusFilter !== 'all';
+  const hasFilters = search !== '' || disciplineFilter !== 'all' || statusFilter !== 'all';
 
   // Filter courses
   const filteredCourses = useMemo(() => {
     if (!courses) return [];
 
     return courses.filter(course => {
-      // Search filter
+      // Search filter - search by name (which IS the level)
       if (search && !course.name.toLowerCase().includes(search.toLowerCase())) {
-        return false;
-      }
-
-      // Skill level filter - now uses skill_level_id
-      if (skillFilter !== 'all' && course.skill_level_id !== skillFilter) {
         return false;
       }
 
@@ -61,7 +55,7 @@ const Trainings = () => {
 
       return true;
     });
-  }, [courses, search, skillFilter, disciplineFilter, statusFilter]);
+  }, [courses, search, disciplineFilter, statusFilter]);
 
   const handleCreateClick = () => {
     setSelectedCourse(undefined);
@@ -117,7 +111,7 @@ const Trainings = () => {
     <>
       <PageHeader
         title="Trainings"
-        description="Verwalte wiederkehrende Gruppenkurse und deren Instanzen."
+        description="Verwalte wiederkehrende Gruppenkurse und deren Instanzen. Jedes Training definiert ein Niveau."
         actions={
           <Button size="sm" onClick={handleCreateClick}>
             <Plus className="h-4 w-4 mr-2" />
@@ -129,8 +123,6 @@ const Trainings = () => {
       <TrainingsFilters
         search={search}
         onSearchChange={setSearch}
-        skillFilter={skillFilter}
-        onSkillFilterChange={setSkillFilter}
         disciplineFilter={disciplineFilter}
         onDisciplineFilterChange={setDisciplineFilter}
         statusFilter={statusFilter}

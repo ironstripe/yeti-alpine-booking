@@ -14,14 +14,15 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { mapLevelToCourseSkill } from "@/lib/level-utils";
-import type { Tables } from "@/integrations/supabase/types";
 
 interface Participant {
   id: string;
   first_name: string;
   last_name?: string | null;
   level_current_season: string | null;
+  // New training-based level fields
+  current_ski_training_id?: string | null;
+  current_snowboard_training_id?: string | null;
 }
 
 interface GroupSelectorProps {
@@ -38,11 +39,11 @@ interface GroupCourseWithCapacity {
   id: string;
   name: string;
   discipline: string;
-  skill_level_id: string;
   max_participants: number;
   color: string | null;
   meeting_point: string | null;
   course_type: string | null;
+  next_training_id: string | null;
   currentCount: number;
   schedules: Array<{
     day_of_week: number;
@@ -59,18 +60,28 @@ export function GroupSelector({
   selectedGroupId,
   onGroupSelect,
 }: GroupSelectorProps) {
-  // Use first participant's level as fallback for backwards compatibility
-  const primaryLevel = participants.length > 0 
-    ? participants[0].level_current_season 
-    : level;
+  // Get participant's current training ID based on sport
+  const getParticipantTrainingId = (participant: Participant): string | null => {
+    if (sport === 'ski') {
+      return participant.current_ski_training_id || null;
+    } else if (sport === 'snowboard') {
+      return participant.current_snowboard_training_id || null;
+    }
+    return null;
+  };
 
-  // Check if participants have different levels
-  const levelMismatch = useMemo(() => {
+  // Use first participant's training ID for recommendations
+  const primaryTrainingId = participants.length > 0 
+    ? getParticipantTrainingId(participants[0])
+    : null;
+
+  // Check if participants have different training levels
+  const trainingMismatch = useMemo(() => {
     if (participants.length < 2) return false;
-    const levels = participants.map(p => mapLevelToCourseSkill(p.level_current_season));
-    const unique = new Set(levels);
+    const trainingIds = participants.map(p => getParticipantTrainingId(p));
+    const unique = new Set(trainingIds.filter(Boolean));
     return unique.size > 1;
-  }, [participants]);
+  }, [participants, sport]);
 
   // Fetch active group courses with their schedules
   const { data: courses = [], isLoading } = useQuery({
@@ -85,11 +96,11 @@ export function GroupSelector({
           id,
           name,
           discipline,
-          skill_level_id,
           max_participants,
           color,
           meeting_point,
           course_type,
+          next_training_id,
           schedules:group_course_schedules(day_of_week, start_time, end_time)
         `)
         .eq("is_active", true);
@@ -149,7 +160,7 @@ export function GroupSelector({
   // Filter by discipline if sport is specified
   const filteredCourses = useMemo(() => {
     return courses.filter(c => {
-      if (sport && c.discipline && c.discipline !== sport) return false;
+      if (sport && c.discipline && c.discipline !== sport && c.discipline !== 'both') return false;
       return true;
     });
   }, [courses, sport]);
@@ -166,54 +177,76 @@ export function GroupSelector({
     return spotsAvailable < spotsNeeded;
   }, [selectedCourse, participants.length]);
 
-  // Auto-select matching course based on skill level
+  // Find the recommended course: the NEXT training in progression
+  // If participant has training_id, find the course that comes after it
+  const recommendedCourseId = useMemo(() => {
+    if (!primaryTrainingId) return null;
+    
+    // Find a course that has this training as its "previous" training
+    // i.e., find a course where another course's next_training_id points to it
+    // OR find the course itself if participant is at this level
+    
+    // First, check if participant's current training has a next_training_id
+    const currentTraining = filteredCourses.find(c => c.id === primaryTrainingId);
+    if (currentTraining?.next_training_id) {
+      // Recommend the next training in progression
+      return currentTraining.next_training_id;
+    }
+    
+    // If no next training, recommend current level
+    return primaryTrainingId;
+  }, [primaryTrainingId, filteredCourses]);
+
+  // Auto-select matching course based on training progression
   useEffect(() => {
     // Only auto-select if no group is currently selected
     if (selectedGroupId || filteredCourses.length === 0) return;
     
-    // If no level provided, skip auto-select
-    if (!primaryLevel) return;
-    
-    const targetSkill = mapLevelToCourseSkill(primaryLevel);
-    
-    // Find best matching course using skill level comparison
     const spotsNeeded = Math.max(participants.length, 1);
-    let matchingCourse = filteredCourses.find((course) => {
+    
+    // Try to select recommended course first
+    if (recommendedCourseId) {
+      const recommendedCourse = filteredCourses.find(c => c.id === recommendedCourseId);
+      if (recommendedCourse) {
+        const spotsAvailable = recommendedCourse.max_participants - recommendedCourse.currentCount;
+        if (spotsAvailable >= spotsNeeded) {
+          onGroupSelect(recommendedCourse.id);
+          return;
+        }
+      }
+    }
+    
+    // Fallback: If no recommended course or it's full, pick first course with capacity
+    const fallbackCourse = filteredCourses.find((course) => {
       const spotsAvailable = course.max_participants - course.currentCount;
-      const hasCapacity = spotsAvailable >= spotsNeeded;
-      // Use legacy mapping for now since we're matching participant level strings
-      const matchesLevel = mapLevelToCourseSkill(course.skill_level_id) === targetSkill;
-      return hasCapacity && matchesLevel;
+      return spotsAvailable >= spotsNeeded;
     });
     
-    // Fallback: If no exact match, pick first course with capacity
-    if (!matchingCourse) {
-      matchingCourse = filteredCourses.find((course) => {
-        const spotsAvailable = course.max_participants - course.currentCount;
-        return spotsAvailable >= spotsNeeded;
-      });
+    if (fallbackCourse) {
+      onGroupSelect(fallbackCourse.id);
     }
-    
-    if (matchingCourse) {
-      onGroupSelect(matchingCourse.id);
-    }
-  }, [filteredCourses, primaryLevel, selectedGroupId, onGroupSelect, participants.length]);
-
-  // Get recommended skill for highlighting
-  const recommendedSkill = useMemo(() => {
-    return primaryLevel ? mapLevelToCourseSkill(primaryLevel) : null;
-  }, [primaryLevel]);
+  }, [filteredCourses, recommendedCourseId, selectedGroupId, onGroupSelect, participants.length]);
 
   // Find mismatched participants for the selected course
   const mismatchedParticipants = useMemo(() => {
     if (!selectedCourse || participants.length === 0) return [];
-    const courseSkill = mapLevelToCourseSkill(selectedCourse.skill_level_id);
     
     return participants.filter(p => {
-      const participantSkill = mapLevelToCourseSkill(p.level_current_season);
-      return participantSkill !== courseSkill;
+      const participantTrainingId = getParticipantTrainingId(p);
+      if (!participantTrainingId) return false;
+      
+      // Check if this course is appropriate for the participant
+      // Course is appropriate if:
+      // 1. It matches participant's current training
+      // 2. It's the next training in progression
+      const isCurrentTraining = participantTrainingId === selectedCourse.id;
+      const isNextTraining = filteredCourses.find(c => 
+        c.id === participantTrainingId && c.next_training_id === selectedCourse.id
+      );
+      
+      return !isCurrentTraining && !isNextTraining;
     });
-  }, [selectedCourse, participants]);
+  }, [selectedCourse, participants, filteredCourses, sport]);
 
   if (selectedDates.length === 0) {
     return (
@@ -230,8 +263,8 @@ export function GroupSelector({
         Gruppe auswählen
       </Label>
 
-      {/* Level mismatch warning */}
-      {levelMismatch && participants.length > 1 && (
+      {/* Training level mismatch warning */}
+      {trainingMismatch && participants.length > 1 && (
         <Alert className="bg-amber-50 border-amber-200 py-2">
           <AlertTriangle className="h-4 w-4 text-amber-600" />
           <AlertDescription className="text-xs text-amber-700">
@@ -258,8 +291,7 @@ export function GroupSelector({
               const spotsNeeded = Math.max(participants.length, 1);
               const spotsAvailable = course.max_participants - course.currentCount;
               const isFull = spotsAvailable < spotsNeeded;
-              const courseSkill = mapLevelToCourseSkill(course.skill_level_id);
-              const isRecommended = recommendedSkill && courseSkill === recommendedSkill;
+              const isRecommended = recommendedCourseId === course.id;
 
               return (
                 <SelectItem
@@ -326,7 +358,9 @@ export function GroupSelector({
           <div className="flex items-center gap-2">
             <Calendar className="h-3 w-3" />
             <span>
-              {selectedCourse.discipline === "ski" ? "Ski" : "Snowboard"}
+              {selectedCourse.discipline === "ski" ? "Ski" : 
+               selectedCourse.discipline === "snowboard" ? "Snowboard" : 
+               "Ski & Snowboard"}
             </span>
           </div>
           {selectedCourse.meeting_point && (

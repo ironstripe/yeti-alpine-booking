@@ -1,9 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { startOfWeek, endOfWeek, eachDayOfInterval, format, getDay, addDays } from 'date-fns';
+import { startOfWeek, endOfWeek, format } from 'date-fns';
 import type { 
-  GroupCourse, 
   GroupCourseSchedule, 
   GroupCourseInstance, 
   GroupCourseWithSchedules,
@@ -22,8 +21,9 @@ export function useGroupCourses(options?: { activeOnly?: boolean }) {
         .select(`
           *,
           product:product_id(id, name, price, type),
-          linked_skill_level:skill_level_id(id, name, color, description)
+          next_training:next_training_id(id, name)
         `)
+        .order('sort_order', { ascending: true })
         .order('name');
 
       if (options?.activeOnly) {
@@ -93,6 +93,7 @@ export function useGroupCourses(options?: { activeOnly?: boolean }) {
           ...course,
           course_type: course.course_type || 'weekly',
           product: course.product as any,
+          next_training: course.next_training as any,
           schedules: courseSchedules,
           course_dates: courseCourseDates,
           this_week_participants: thisWeekParticipants,
@@ -113,7 +114,10 @@ export function useGroupCourse(courseId: string | undefined) {
 
       const { data: course, error } = await supabase
         .from('group_courses')
-        .select('*')
+        .select(`
+          *,
+          next_training:next_training_id(id, name)
+        `)
         .eq('id', courseId)
         .single();
 
@@ -146,6 +150,7 @@ export function useGroupCourse(courseId: string | undefined) {
       return {
         ...course,
         course_type: course.course_type || 'weekly',
+        next_training: course.next_training as any,
         schedules: schedules as GroupCourseSchedule[],
         course_dates: courseDates,
       } as GroupCourseWithSchedules;
@@ -189,11 +194,10 @@ export function useCreateGroupCourse() {
 
   return useMutation({
     mutationFn: async (formData: GroupCourseFormData) => {
-      // Create course with product_id instead of prices
+      // Create course - no longer includes skill_level_id
       const insertData: Record<string, unknown> = {
         name: formData.name,
         description: formData.description || null,
-        skill_level_id: formData.skill_level_id,
         discipline: formData.discipline,
         min_age: formData.min_age,
         max_age: formData.max_age,
@@ -206,6 +210,7 @@ export function useCreateGroupCourse() {
         course_type: formData.course_type,
         period_start_date: formData.period_start_date,
         period_end_date: formData.period_end_date,
+        next_training_id: formData.next_training_id,
       };
 
       const { data: course, error: courseError } = await supabase
@@ -293,7 +298,7 @@ export function useUpdateGroupCourse() {
     mutationFn: async ({ id, data }: { id: string; data: Partial<GroupCourseFormData> }) => {
       const { schedules, ...courseData } = data;
 
-      // Build update data
+      // Build update data - no longer includes skill_level_id
       const updateData: Record<string, unknown> = {
         ...courseData,
         updated_at: new Date().toISOString(),
@@ -509,9 +514,10 @@ export function useBulkAssignInstructor() {
       if (result?.status === 'error') throw new Error(result.message);
       return result;
     },
-    onSuccess: (data) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['group-course-instances'] });
-      toast.success(`${data.instances_updated || 0} Instanzen aktualisiert`);
+      queryClient.invalidateQueries({ queryKey: ['group-courses'] });
+      toast.success('Lehrer für alle Instanzen zugewiesen');
     },
     onError: (error) => {
       console.error('Error bulk assigning instructor:', error);
@@ -520,12 +526,18 @@ export function useBulkAssignInstructor() {
   });
 }
 
-// Copy instructor assignments from previous week using RPC
-export function useCopyPreviousWeekAssignments() {
+// Copy week assignments
+export function useCopyWeekAssignments() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ targetWeekStart }: { targetWeekStart: Date }) => {
+    mutationFn: async ({ 
+      sourceWeekStart, 
+      targetWeekStart 
+    }: { 
+      sourceWeekStart: Date; 
+      targetWeekStart: Date;
+    }) => {
       const { data, error } = await supabase
         .rpc('copy_instructor_assignments_from_previous_week', {
           p_target_week_start_date: format(targetWeekStart, 'yyyy-MM-dd')
@@ -538,65 +550,11 @@ export function useCopyPreviousWeekAssignments() {
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['group-course-instances'] });
-      toast.success(`Zuweisungen von ${data.courses_copied || 0} Kursen kopiert`);
+      toast.success(`${data.courses_copied || 0} Kurszuweisungen kopiert`);
     },
     onError: (error) => {
-      console.error('Error copying assignments:', error);
-      toast.error('Fehler beim Kopieren der Zuweisungen');
-    },
-  });
-}
-
-// Fetch training course dates for a Saturday course
-export function useTrainingCourseDates(trainingId: string | undefined) {
-  return useQuery({
-    queryKey: ['training-course-dates', trainingId],
-    queryFn: async (): Promise<TrainingCourseDate[]> => {
-      if (!trainingId) return [];
-
-      const { data, error } = await supabase
-        .from('training_course_dates')
-        .select(`
-          *,
-          instructor:instructor_id(id, first_name, last_name)
-        `)
-        .eq('training_id', trainingId)
-        .order('date');
-
-      if (error) throw error;
-      return data as unknown as TrainingCourseDate[];
-    },
-    enabled: !!trainingId,
-  });
-}
-
-// Assign instructor to a Saturday course date
-export function useAssignCourseDateInstructor() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async ({ 
-      courseDateId, 
-      instructorId 
-    }: { 
-      courseDateId: string; 
-      instructorId: string | null;
-    }) => {
-      const { error } = await supabase
-        .from('training_course_dates')
-        .update({ instructor_id: instructorId })
-        .eq('id', courseDateId);
-
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['training-course-dates'] });
-      queryClient.invalidateQueries({ queryKey: ['group-courses'] });
-      toast.success('Lehrer zugewiesen');
-    },
-    onError: (error) => {
-      console.error('Error assigning instructor to course date:', error);
-      toast.error('Fehler beim Zuweisen des Lehrers');
+      console.error('Error copying week assignments:', error);
+      toast.error('Fehler beim Kopieren der Wochenzuweisungen');
     },
   });
 }
