@@ -1,71 +1,56 @@
 
 
-# Fix: TrainingInstancesView Crashes Due to Empty Select.Item Value
+# Fix: Database Constraint Error - skill_level_id NOT NULL
 
 ## Problem
 
-The app crashes with the error:
+The error is:
 ```
-Error: A <Select.Item /> must have a value prop that is not an empty string.
-```
-
-This occurs in `TrainingInstancesView.tsx` on **line 230** in the `InstanceCard` component:
-
-```tsx
-<SelectItem value="">Nicht zugewiesen</SelectItem>
+null value in column "skill_level_id" of relation "group_courses" violates not-null constraint
 ```
 
-This is the same issue we just fixed in `TrainingFormModal.tsx`. Radix UI's Select component explicitly prohibits empty string values for items.
+**Root cause**: The database migration only added the new columns (`next_training_id`, `sort_order`) but did NOT alter the `skill_level_id` column to be nullable or drop it. The database still has a NOT NULL constraint on `skill_level_id`, but the frontend code was updated to stop sending this field.
 
 ---
 
 ## Solution
 
-Replace the empty string value with a placeholder string `"none"` and update the `onValueChange` handler to convert `"none"` back to `null`.
+Create a new migration to make the `skill_level_id` column nullable (or drop it entirely). Making it nullable is safer for backwards compatibility.
 
 ---
 
-## File to Modify
+## Database Migration Required
 
-| File | Change |
-|------|--------|
-| `src/components/trainings/TrainingInstancesView.tsx` | Change empty string value to `"none"` and handle conversion |
+```sql
+-- Make skill_level_id nullable since trainings ARE the levels now
+-- and we no longer require this mapping
+ALTER TABLE group_courses 
+  ALTER COLUMN skill_level_id DROP NOT NULL;
+```
+
+**Or** if we want to fully remove it (more aggressive but cleaner):
+
+```sql
+-- Drop the redundant skill_level_id column entirely
+ALTER TABLE group_courses DROP COLUMN IF EXISTS skill_level_id;
+```
 
 ---
 
-## Technical Details
+## Recommended Approach
 
-### Lines 217-248 - InstanceCard instructor Select
+I recommend making the column **nullable** rather than dropping it immediately. This provides:
+1. Backwards compatibility with any existing data
+2. A safer migration path
+3. Ability to clean up the column later after verifying everything works
 
-**Current code (line 217-230):**
-```tsx
-<Select
-  value={instance.instructor_id || ''}
-  onValueChange={(value) => onAssignInstructor(instance.id, value || null)}
->
-  <SelectTrigger className={!hasInstructor ? 'border-destructive' : ''}>
-    <SelectValue placeholder="Lehrer zuweisen">
-      ...
-    </SelectValue>
-  </SelectTrigger>
-  <SelectContent>
-    <SelectItem value="">Nicht zugewiesen</SelectItem>  {/* BROKEN! */}
-```
+---
 
-**Fixed code:**
-```tsx
-<Select
-  value={instance.instructor_id || 'none'}
-  onValueChange={(value) => onAssignInstructor(instance.id, value === 'none' ? null : value)}
->
-  <SelectTrigger className={!hasInstructor ? 'border-destructive' : ''}>
-    <SelectValue placeholder="Lehrer zuweisen">
-      ...
-    </SelectValue>
-  </SelectTrigger>
-  <SelectContent>
-    <SelectItem value="none">Nicht zugewiesen</SelectItem>  {/* FIXED */}
-```
+## Files to Modify
+
+| Change | Description |
+|--------|-------------|
+| New Migration | `ALTER TABLE group_courses ALTER COLUMN skill_level_id DROP NOT NULL` |
 
 ---
 
@@ -73,9 +58,9 @@ Replace the empty string value with a placeholder string `"none"` and update the
 
 After the fix:
 1. Navigate to `/trainings`
-2. Click "Instanzen" on any training card
-3. Verify the instances view loads without errors
-4. Check the instructor dropdown shows "Nicht zugewiesen" as an option
-5. Select "Nicht zugewiesen" and verify it clears the instructor assignment
-6. Assign an instructor and verify it saves correctly
+2. Click "Neues Training" button
+3. Fill in the form and submit
+4. Verify the training is created successfully
+5. Edit an existing training and save
+6. Duplicate a training and save
 
