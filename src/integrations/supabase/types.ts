@@ -1668,6 +1668,38 @@ export type Database = {
           },
         ]
       }
+      instructor_test_tokens: {
+        Row: {
+          created_at: string | null
+          expires_at: string | null
+          id: string
+          instructor_id: string
+          token: string
+        }
+        Insert: {
+          created_at?: string | null
+          expires_at?: string | null
+          id?: string
+          instructor_id: string
+          token: string
+        }
+        Update: {
+          created_at?: string | null
+          expires_at?: string | null
+          id?: string
+          instructor_id?: string
+          token?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "instructor_test_tokens_instructor_id_fkey"
+            columns: ["instructor_id"]
+            isOneToOne: false
+            referencedRelation: "instructors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       instructors: {
         Row: {
           ahv_number: string | null

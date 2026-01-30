@@ -35,3 +35,6 @@ verify_jwt = false
 
 [functions.invite-instructor]
 verify_jwt = false
+
+[functions.test-instructor-login]
+verify_jwt = false
