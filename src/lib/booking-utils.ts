@@ -13,6 +13,21 @@ export function isBookingEditable(date: string | Date): boolean {
 }
 
 /**
+ * Check if a date is valid for new bookings (today or future).
+ * Alias for isBookingEditable but with clearer naming intent for new bookings.
+ */
+export function isDateBookable(date: string | Date): boolean {
+  return isBookingEditable(date);
+}
+
+/**
+ * Filter an array of dates to only include bookable dates (today or future).
+ */
+export function filterBookableDates(dates: string[]): string[] {
+  return dates.filter(isDateBookable);
+}
+
+/**
  * Get the editable status with a reason message.
  */
 export function getEditableStatus(date: string | Date): { 

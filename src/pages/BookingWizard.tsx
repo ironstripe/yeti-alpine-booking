@@ -156,9 +156,28 @@ function BookingWizardContent() {
 
     try {
       const appointments = JSON.parse(decodeURIComponent(schedulerAppointments));
+      
+      // Filter out past dates
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const validAppointments = appointments.filter((appt: any) => {
+        const apptDate = new Date(appt.date);
+        apptDate.setHours(0, 0, 0, 0);
+        return apptDate >= today;
+      });
+      
+      if (validAppointments.length === 0) {
+        toast.error("Alle ausgewählten Termine liegen in der Vergangenheit");
+        return;
+      }
+      
+      if (validAppointments.length < appointments.length) {
+        toast.warning("Vergangene Termine wurden entfernt");
+      }
+      
       didApplySchedulerPrefill.current = true;
-      prefillFromScheduler(schedulerInstructorId, appointments);
-      console.log("Applied scheduler prefill:", { schedulerInstructorId, appointments });
+      prefillFromScheduler(schedulerInstructorId, validAppointments);
+      console.log("Applied scheduler prefill:", { schedulerInstructorId, validAppointments });
     } catch (e) {
       console.error("Failed to parse scheduler appointments:", e);
     }

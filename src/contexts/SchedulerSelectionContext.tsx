@@ -115,6 +115,16 @@ export function SchedulerSelectionProvider({ children }: { children: ReactNode }
       bookings: SchedulerBooking[],
       absences: SchedulerAbsence[]
     ): { valid: boolean; reason?: string } => {
+      // Check if date is in the past
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const slotDate = new Date(date);
+      slotDate.setHours(0, 0, 0, 0);
+      
+      if (slotDate < today) {
+        return { valid: false, reason: "Vergangene Daten können nicht gebucht werden" };
+      }
+
       const startMinutes = timeToMinutes(startTime);
       const endMinutes = timeToMinutes(endTime);
       const duration = endMinutes - startMinutes;
@@ -320,6 +330,16 @@ export function SchedulerSelectionProvider({ children }: { children: ReactNode }
       const { instructorId, date, startTime, currentTime, isBlocked } = prev.drag;
       
       if (isBlocked) {
+        return { ...prev, drag: initialDragState };
+      }
+
+      // Check if date is in the past
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const slotDate = new Date(date);
+      slotDate.setHours(0, 0, 0, 0);
+      
+      if (slotDate < today) {
         return { ...prev, drag: initialDragState };
       }
 
