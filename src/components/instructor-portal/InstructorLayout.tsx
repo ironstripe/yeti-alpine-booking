@@ -2,7 +2,7 @@ import { ReactNode, useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserRole } from "@/hooks/useUserRole";
-import { Home, Calendar, Hand, User, Menu, Bell, LogOut, ClipboardCheck } from "lucide-react";
+import { Home, Calendar, Hand, User, Menu, Bell, LogOut, ClipboardCheck, Loader2 } from "lucide-react";
 import { usePendingBookingsCount } from "@/hooks/usePendingBookingsCount";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -10,6 +10,13 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Sheet, SheetContent, SheetTrigger, SheetClose } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
+import { supabase } from "@/integrations/supabase/client";
+
+// ========== DEV/TEST MODE CONFIGURATION ==========
+// Set to false when going to production
+const DEV_BYPASS_AUTH = true;
+const DEFAULT_TEST_TOKEN = "tester-alpha-2026";
+// =================================================
 
 interface InstructorLayoutProps {
   children: ReactNode;
@@ -30,6 +37,8 @@ export function InstructorLayout({ children }: InstructorLayoutProps) {
   const { isTeacher, isAdminOrOffice, loading: roleLoading, instructorId } = useUserRole();
   const { data: pendingCount } = usePendingBookingsCount();
   const [hasInitialized, setHasInitialized] = useState(false);
+  const [autoLoginAttempted, setAutoLoginAttempted] = useState(false);
+  const [autoLoginInProgress, setAutoLoginInProgress] = useState(false);
 
   // Wait for auth context to stabilize before checking auth
   useEffect(() => {
@@ -39,8 +48,43 @@ export function InstructorLayout({ children }: InstructorLayoutProps) {
     return () => clearTimeout(timeout);
   }, []);
 
-  // Redirect non-teachers to main app (unless admin/office)
+  // DEV MODE: Auto-login when no user
   useEffect(() => {
+    if (!DEV_BYPASS_AUTH) return;
+    if (authLoading) return;
+    if (user) return; // Already logged in
+    if (autoLoginAttempted) return; // Prevent retry loop
+
+    const performAutoLogin = async () => {
+      setAutoLoginAttempted(true);
+      setAutoLoginInProgress(true);
+      try {
+        const { data, error } = await supabase.functions.invoke("test-instructor-login", {
+          body: { token: DEFAULT_TEST_TOKEN }
+        });
+        
+        if (!error && data?.access_token && data?.refresh_token) {
+          await supabase.auth.setSession({
+            access_token: data.access_token,
+            refresh_token: data.refresh_token,
+          });
+          localStorage.setItem("yety_active_role", "teacher");
+        } else {
+          console.error("Auto-login failed:", error || data?.error);
+        }
+      } catch (err) {
+        console.error("Auto-login error:", err);
+      } finally {
+        setAutoLoginInProgress(false);
+      }
+    };
+
+    performAutoLogin();
+  }, [authLoading, user, autoLoginAttempted]);
+
+  // Redirect non-teachers to main app (unless admin/office) - skip in DEV mode
+  useEffect(() => {
+    if (DEV_BYPASS_AUTH) return;
     if (!hasInitialized) return;
     if (!authLoading && !roleLoading && user) {
       if (!isTeacher && !isAdminOrOffice) {
@@ -49,13 +93,26 @@ export function InstructorLayout({ children }: InstructorLayoutProps) {
     }
   }, [hasInitialized, isTeacher, isAdminOrOffice, authLoading, roleLoading, user, navigate]);
 
-  // Redirect to login if not authenticated
+  // Redirect to login if not authenticated - skip in DEV mode
   useEffect(() => {
+    if (DEV_BYPASS_AUTH) return;
     if (!hasInitialized) return;
     if (!authLoading && !user) {
       navigate("/login");
     }
   }, [hasInitialized, authLoading, user, navigate]);
+
+  // Show loading while auto-login is in progress
+  if (DEV_BYPASS_AUTH && (autoLoginInProgress || (!user && !autoLoginAttempted))) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="space-y-4 text-center">
+          <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto" />
+          <p className="text-muted-foreground">Portal wird geladen...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (authLoading || roleLoading) {
     return (
