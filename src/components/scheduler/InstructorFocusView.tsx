@@ -19,6 +19,7 @@ interface InstructorFocusViewProps {
   instructorRefs: React.MutableRefObject<Map<string, HTMLDivElement>>;
   isPlanningMode?: boolean;
   roleFilter?: string | null;
+  instructorColumnWidth: number;
 }
 
 export function InstructorFocusView({
@@ -35,6 +36,7 @@ export function InstructorFocusView({
   instructorRefs,
   isPlanningMode = false,
   roleFilter = null,
+  instructorColumnWidth,
 }: InstructorFocusViewProps) {
   // Filter instructors in compact mode
   const filteredInstructors = useMemo(() => {
@@ -53,7 +55,10 @@ export function InstructorFocusView({
         {Array.from({ length: 8 }).map((_, i) => (
           <div key={i} className="border-b-2 border-slate-300">
             <div className="flex border-b border-slate-300">
-              <div className="w-28 shrink-0 border-r border-slate-300 px-2 py-2">
+              <div 
+                className="shrink-0 border-r border-slate-300 px-2 py-2"
+                style={{ width: `${instructorColumnWidth}px` }}
+              >
                 <Skeleton className="h-4 w-20" />
               </div>
               <div className="w-14 shrink-0 border-r border-slate-300" />
@@ -61,7 +66,10 @@ export function InstructorFocusView({
             </div>
             {Array.from({ length: 3 }).map((_, j) => (
               <div key={j} className="flex border-b border-slate-200 last:border-b-0">
-                <div className="w-28 shrink-0 border-r border-slate-300" />
+                <div 
+                  className="shrink-0 border-r border-slate-300"
+                  style={{ width: `${instructorColumnWidth}px` }}
+                />
                 <div className="w-14 shrink-0 border-r border-slate-200 px-1.5 py-0.5">
                   <Skeleton className="h-3 w-8" />
                 </div>
@@ -124,6 +132,7 @@ export function InstructorFocusView({
           capabilityFilter={capabilityFilter}
           rowIndex={index}
           isPlanningMode={isPlanningMode}
+          instructorColumnWidth={instructorColumnWidth}
         />
       ))}
 
@@ -148,6 +157,7 @@ export function InstructorFocusView({
           capabilityFilter={capabilityFilter}
           rowIndex={index}
           isPlanningMode={isPlanningMode}
+          instructorColumnWidth={instructorColumnWidth}
         />
       ))}
     </div>

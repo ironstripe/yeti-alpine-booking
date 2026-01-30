@@ -85,7 +85,12 @@ export function EmbeddedScheduler({ defaultDays = 2 }: EmbeddedSchedulerProps) {
 
           {/* Scheduler Content */}
           <div className="flex-1 overflow-auto">
-            <StickyTimeHeader slotWidth={SLOT_WIDTH} />
+            <StickyTimeHeader 
+              slotWidth={SLOT_WIDTH} 
+              instructorColumnWidth={112}
+              onColumnResize={() => {}}
+              onResizeEnd={() => {}}
+            />
             
             {visibleDates.map((date, dayIndex) => (
               <DaySection

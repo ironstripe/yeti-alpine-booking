@@ -44,6 +44,7 @@ interface InstructorWeekBlockProps {
   capabilityFilter?: string | null;
   rowIndex?: number;
   isPlanningMode?: boolean;
+  instructorColumnWidth: number;
 }
 
 export const InstructorWeekBlock = forwardRef<HTMLDivElement, InstructorWeekBlockProps>(
@@ -59,6 +60,7 @@ export const InstructorWeekBlock = forwardRef<HTMLDivElement, InstructorWeekBloc
       capabilityFilter = null,
       rowIndex = 0,
       isPlanningMode = false,
+      instructorColumnWidth,
     },
     ref
   ) {
@@ -100,10 +102,13 @@ export const InstructorWeekBlock = forwardRef<HTMLDivElement, InstructorWeekBloc
         {/* CSS Grid layout: instructor column spans all day rows */}
         <div className="flex">
           {/* Instructor Info Column - spans all days */}
-          <div className={cn(
-            "w-28 shrink-0 border-r border-slate-300 sticky left-0 z-20",
-            bgColor
-          )}>
+          <div 
+            className={cn(
+              "shrink-0 border-r border-slate-300 sticky left-0 z-20",
+              bgColor
+            )}
+            style={{ width: `${instructorColumnWidth}px` }}
+          >
             <div className="px-2 py-2 flex items-center gap-1.5 h-full">
               {/* Color Indicator */}
               <div
@@ -204,10 +209,13 @@ export const InstructorWeekBlock = forwardRef<HTMLDivElement, InstructorWeekBloc
                   )}
                 >
                   {/* Day Label */}
-                  <div className={cn(
-                    "w-14 shrink-0 border-r border-slate-200 px-1.5 flex items-center justify-between sticky left-28 z-10 text-[10px]",
-                    isAbsent ? "bg-muted/20" : bgColor
-                  )}>
+                  <div 
+                    className={cn(
+                      "w-14 shrink-0 border-r border-slate-200 px-1.5 flex items-center justify-between sticky z-10 text-[10px]",
+                      isAbsent ? "bg-muted/20" : bgColor
+                    )}
+                    style={{ left: `${instructorColumnWidth}px` }}
+                  >
                     <span className={cn(
                       "font-medium",
                       isAbsent && "text-muted-foreground"

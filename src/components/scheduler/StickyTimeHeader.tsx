@@ -1,21 +1,38 @@
 import { TIME_SLOTS, BOOKABLE_HOURS } from "@/lib/scheduler-utils";
+import { ColumnResizeHandle } from "./ColumnResizeHandle";
 
 interface StickyTimeHeaderProps {
   slotWidth: number;
-  showDayColumn?: boolean; // For instructor-focus view
+  showDayColumn?: boolean;
+  instructorColumnWidth: number;
+  onColumnResize: (deltaX: number) => void;
+  onResizeEnd: () => void;
 }
 
-export function StickyTimeHeader({ slotWidth, showDayColumn = false }: StickyTimeHeaderProps) {
+export function StickyTimeHeader({ 
+  slotWidth, 
+  showDayColumn = false,
+  instructorColumnWidth,
+  onColumnResize,
+  onResizeEnd,
+}: StickyTimeHeaderProps) {
   return (
     <div className="flex border-b border-slate-300 bg-slate-100 sticky top-0 z-30">
-      {/* Instructor column placeholder - compact sticky left */}
-      <div className="w-28 shrink-0 border-r border-slate-300 px-2 py-1.5 font-medium text-xs text-muted-foreground sticky left-0 bg-slate-100 z-40">
+      {/* Instructor column placeholder - compact sticky left with resize handle */}
+      <div 
+        className="shrink-0 border-r border-slate-300 px-2 py-1.5 font-medium text-xs text-muted-foreground sticky left-0 bg-slate-100 z-40 relative"
+        style={{ width: `${instructorColumnWidth}px` }}
+      >
         Lehrer
+        <ColumnResizeHandle onResize={onColumnResize} onResizeEnd={onResizeEnd} />
       </div>
       
       {/* Day column placeholder for instructor-focus view */}
       {showDayColumn && (
-        <div className="w-14 shrink-0 border-r border-slate-300 py-1.5 text-center text-[10px] font-medium text-muted-foreground sticky left-28 bg-slate-100 z-35">
+        <div 
+          className="w-14 shrink-0 border-r border-slate-300 py-1.5 text-center text-[10px] font-medium text-muted-foreground sticky bg-slate-100 z-35"
+          style={{ left: `${instructorColumnWidth}px` }}
+        >
           Tag
         </div>
       )}

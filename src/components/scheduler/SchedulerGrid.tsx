@@ -17,8 +17,15 @@ import { SchedulerSelectionProvider, useSchedulerSelection } from "@/contexts/Sc
 import { useUserRole } from "@/hooks/useUserRole";
 import { hasOverlap, getDaysForViewMode, generateDateRange, isWithinOperationalHours, type SchedulerBooking } from "@/lib/scheduler-utils";
 import { AlertCircle } from "lucide-react";
+import { ColumnResizeHandle } from "./ColumnResizeHandle";
 
 const SLOT_WIDTH = 100; // px per hour
+
+// Instructor column width constants
+const MIN_INSTRUCTOR_COL_WIDTH = 80;
+const MAX_INSTRUCTOR_COL_WIDTH = 200;
+const DEFAULT_INSTRUCTOR_COL_WIDTH = 112; // w-28 = 7rem = 112px
+const STORAGE_KEY = 'scheduler-instructor-col-width';
 
 function SchedulerGridContent() {
   const navigate = useNavigate();
@@ -44,6 +51,25 @@ function SchedulerGridContent() {
   const [roleFilter, setRoleFilter] = useState<string | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isPlanningMode, setIsPlanningMode] = useState(false);
+  
+  // Instructor column width with localStorage persistence
+  const [instructorColumnWidth, setInstructorColumnWidth] = useState(() => {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    return saved ? parseInt(saved, 10) : DEFAULT_INSTRUCTOR_COL_WIDTH;
+  });
+
+  // Resize handlers for instructor column
+  const handleColumnResize = useCallback((deltaX: number) => {
+    setInstructorColumnWidth(prev => 
+      Math.max(MIN_INSTRUCTOR_COL_WIDTH, 
+        Math.min(MAX_INSTRUCTOR_COL_WIDTH, prev + deltaX)
+      )
+    );
+  }, []);
+
+  const handleResizeEnd = useCallback(() => {
+    localStorage.setItem(STORAGE_KEY, instructorColumnWidth.toString());
+  }, [instructorColumnWidth]);
 
   // Calculate visible dates based on view mode
   const visibleDates = useMemo(() => {
@@ -334,6 +360,9 @@ function SchedulerGridContent() {
           <StickyTimeHeader 
             slotWidth={SLOT_WIDTH} 
             showDayColumn={visibleDates.length > 1}
+            instructorColumnWidth={instructorColumnWidth}
+            onColumnResize={handleColumnResize}
+            onResizeEnd={handleResizeEnd}
           />
 
           {/* Instructor Focus View - Each instructor with day sub-rows */}
@@ -351,6 +380,7 @@ function SchedulerGridContent() {
             instructorRefs={instructorRefs}
             isPlanningMode={isPlanningMode}
             roleFilter={roleFilter}
+            instructorColumnWidth={instructorColumnWidth}
           />
         </div>
 
