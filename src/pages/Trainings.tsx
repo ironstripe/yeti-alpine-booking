@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { PageHeader } from '@/components/layout';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Plus } from 'lucide-react';
 import { TrainingCard } from '@/components/trainings/TrainingCard';
 import { TrainingFormModal } from '@/components/trainings/TrainingFormModal';
@@ -24,25 +25,33 @@ const Trainings = () => {
   const [selectedCourse, setSelectedCourse] = useState<GroupCourseWithSchedules | undefined>();
   const [modalMode, setModalMode] = useState<'create' | 'edit' | 'copy'>('create');
 
-  // Filter state - removed skill level filter since training name IS the level
+  // Category toggle: 'courses' for customer trainings, 'internal' for office shifts
+  const [category, setCategory] = useState<'courses' | 'internal'>('courses');
+
+  // Filter state
   const [search, setSearch] = useState('');
   const [disciplineFilter, setDisciplineFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
 
   const hasFilters = search !== '' || disciplineFilter !== 'all' || statusFilter !== 'all';
 
-  // Filter courses
+  // Filter courses by category first, then by other filters
   const filteredCourses = useMemo(() => {
     if (!courses) return [];
 
     return courses.filter(course => {
+      // Category filter - internal vs customer-facing
+      const isInternal = course.is_internal || course.course_type === 'office';
+      if (category === 'internal' && !isInternal) return false;
+      if (category === 'courses' && isInternal) return false;
+
       // Search filter - search by name (which IS the level)
       if (search && !course.name.toLowerCase().includes(search.toLowerCase())) {
         return false;
       }
 
-      // Discipline filter
-      if (disciplineFilter !== 'all' && course.discipline !== disciplineFilter) {
+      // Discipline filter (not relevant for internal trainings)
+      if (category === 'courses' && disciplineFilter !== 'all' && course.discipline !== disciplineFilter) {
         return false;
       }
 
@@ -55,7 +64,7 @@ const Trainings = () => {
 
       return true;
     });
-  }, [courses, search, disciplineFilter, statusFilter]);
+  }, [courses, category, search, disciplineFilter, statusFilter]);
 
   const handleCreateClick = () => {
     setSelectedCourse(undefined);
@@ -111,14 +120,25 @@ const Trainings = () => {
     <>
       <PageHeader
         title="Trainings"
-        description="Verwalte wiederkehrende Gruppenkurse und deren Instanzen. Jedes Training definiert ein Niveau."
+        description={category === 'courses' 
+          ? "Verwalte Gruppenkurse für Kunden. Jedes Training definiert ein Niveau."
+          : "Verwalte interne Schichten und Bürobesetzung."
+        }
         actions={
           <Button size="sm" onClick={handleCreateClick}>
             <Plus className="h-4 w-4 mr-2" />
-            Neues Training
+            {category === 'internal' ? 'Neue Schicht' : 'Neues Training'}
           </Button>
         }
       />
+
+      {/* Category Tabs */}
+      <Tabs value={category} onValueChange={(v) => setCategory(v as 'courses' | 'internal')} className="mb-4">
+        <TabsList>
+          <TabsTrigger value="courses">Kurse</TabsTrigger>
+          <TabsTrigger value="internal">Intern</TabsTrigger>
+        </TabsList>
+      </Tabs>
 
       <TrainingsFilters
         search={search}
@@ -127,6 +147,7 @@ const Trainings = () => {
         onDisciplineFilterChange={setDisciplineFilter}
         statusFilter={statusFilter}
         onStatusFilterChange={setStatusFilter}
+        showDisciplineFilter={category === 'courses'}
       />
 
       {isLoading ? (

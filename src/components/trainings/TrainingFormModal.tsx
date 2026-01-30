@@ -38,7 +38,7 @@ import { Plus, Trash2, Info, Loader2, Calendar as CalendarIcon, ArrowRight } fro
 import { useCreateGroupCourse, useUpdateGroupCourse, useGroupCourses } from '@/hooks/useGroupCourses';
 import { useTrainingProducts } from '@/hooks/useProducts';
 import type { GroupCourseWithSchedules, GroupCourseFormData, CourseType } from '@/types/group-courses';
-import { DISCIPLINES, DAYS_OF_WEEK, COURSE_COLORS, COURSE_TYPES } from '@/types/group-courses';
+import { DISCIPLINES, DAYS_OF_WEEK, COURSE_COLORS, COURSE_TYPES, OFFICE_TIME_PRESETS } from '@/types/group-courses';
 import { generateSaturdays, calculatePeriodEndDate } from '@/lib/dates/saturday-generator';
 import { cn } from '@/lib/utils';
 
@@ -53,7 +53,7 @@ const formSchema = z.object({
   meeting_point: z.string().optional(),
   color: z.string(),
   is_active: z.boolean(),
-  course_type: z.enum(['weekly', 'saturday_course', 'custom']),
+  course_type: z.enum(['weekly', 'saturday_course', 'custom', 'office']),
   period_start_date: z.date().nullable(),
   period_end_date: z.date().nullable(),
   next_training_id: z.string().nullable(),
@@ -81,6 +81,8 @@ export function TrainingFormModal({ open, onOpenChange, course, mode }: Training
   const [timeSlots, setTimeSlots] = useState<{ start_time: string; end_time: string }[]>([
     { start_time: '10:00', end_time: '12:00' },
   ]);
+  // Office time preset selection
+  const [officePreset, setOfficePreset] = useState<string>('morning');
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -106,6 +108,7 @@ export function TrainingFormModal({ open, onOpenChange, course, mode }: Training
   const periodStartDate = form.watch('period_start_date');
   const periodEndDate = form.watch('period_end_date');
   const currentDiscipline = form.watch('discipline');
+  const isOfficeMode = courseType === 'office';
 
   // Generate preview of Saturdays
   const previewSaturdays = useMemo(() => {
@@ -199,26 +202,37 @@ export function TrainingFormModal({ open, onOpenChange, course, mode }: Training
   };
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
+    // For office mode, get time from preset or custom
+    let officeTimes = timeSlots;
+    if (values.course_type === 'office') {
+      const preset = OFFICE_TIME_PRESETS.find(p => p.value === officePreset);
+      if (preset && preset.start && preset.end) {
+        officeTimes = [{ start_time: preset.start, end_time: preset.end }];
+      }
+    }
+
     const formData: GroupCourseFormData = {
       name: values.name,
       description: values.description || '',
       discipline: values.discipline,
-      min_age: values.min_age,
-      max_age: values.max_age,
+      min_age: values.course_type === 'office' ? 18 : values.min_age,
+      max_age: values.course_type === 'office' ? 99 : values.max_age,
       max_participants: values.max_participants,
-      product_id: values.product_id,
+      product_id: values.course_type === 'office' ? null : values.product_id,
       meeting_point: values.meeting_point || '',
-      color: values.color,
+      color: values.course_type === 'office' ? '#6B7280' : values.color,
       is_active: values.is_active,
       course_type: values.course_type,
       period_start_date: values.period_start_date ? format(values.period_start_date, 'yyyy-MM-dd') : null,
       period_end_date: values.period_end_date ? format(values.period_end_date, 'yyyy-MM-dd') : null,
-      next_training_id: values.next_training_id,
+      next_training_id: values.course_type === 'office' ? null : values.next_training_id,
       schedules: {
-        days: values.course_type === 'saturday_course' ? [6] : selectedDays, // Saturday = 6
+        days: values.course_type === 'saturday_course' ? [6] : selectedDays,
         time_slots: values.course_type === 'saturday_course' 
-          ? [{ start_time: '10:00', end_time: '14:00' }] // 4-hour blocks for Saturday courses
-          : timeSlots,
+          ? [{ start_time: '10:00', end_time: '14:00' }]
+          : values.course_type === 'office'
+            ? officeTimes
+            : timeSlots,
       },
     };
 
@@ -245,17 +259,19 @@ export function TrainingFormModal({ open, onOpenChange, course, mode }: Training
         <DialogHeader>
           <DialogTitle>
             {actualMode === 'edit' 
-              ? 'Training bearbeiten' 
+              ? isOfficeMode ? 'Schicht bearbeiten' : 'Training bearbeiten'
               : actualMode === 'copy' 
-                ? 'Training duplizieren' 
-                : 'Neues Training erstellen'}
+                ? isOfficeMode ? 'Schicht duplizieren' : 'Training duplizieren'
+                : isOfficeMode ? 'Neue interne Schicht erstellen' : 'Neues Training erstellen'}
           </DialogTitle>
           <DialogDescription>
-            {actualMode === 'edit' 
-              ? 'Bearbeite die Details dieses Trainings.' 
-              : actualMode === 'copy' 
-                ? 'Erstelle eine Kopie dieses Trainings mit angepassten Details.' 
-                : 'Erstelle ein neues Training für Gruppenkurse. Das Training selbst definiert das Niveau.'}
+            {isOfficeMode
+              ? 'Definiere eine interne Schicht für Büro oder Personalplanung.'
+              : actualMode === 'edit' 
+                ? 'Bearbeite die Details dieses Trainings.' 
+                : actualMode === 'copy' 
+                  ? 'Erstelle eine Kopie dieses Trainings mit angepassten Details.' 
+                  : 'Erstelle ein neues Training für Gruppenkurse. Das Training selbst definiert das Niveau.'}
           </DialogDescription>
         </DialogHeader>
 
@@ -414,9 +430,99 @@ export function TrainingFormModal({ open, onOpenChange, course, mode }: Training
               </div>
             )}
 
+            {/* Office Schedule (only for office type) */}
+            {isOfficeMode && (
+              <div className="p-4 border rounded-lg bg-muted/30 space-y-4">
+                <div className="flex items-center gap-2">
+                  <CalendarIcon className="h-4 w-4" />
+                  <span className="font-medium">Schichtzeiten</span>
+                </div>
+
+                {/* Time preset selection */}
+                <div className="space-y-2">
+                  <FormLabel>Zeitfenster</FormLabel>
+                  <RadioGroup
+                    value={officePreset}
+                    onValueChange={(v) => {
+                      setOfficePreset(v);
+                      const preset = OFFICE_TIME_PRESETS.find(p => p.value === v);
+                      if (preset && preset.start && preset.end) {
+                        setTimeSlots([{ start_time: preset.start, end_time: preset.end }]);
+                      }
+                    }}
+                    className="grid grid-cols-2 gap-2"
+                  >
+                    {OFFICE_TIME_PRESETS.map(preset => (
+                      <div key={preset.value} className="flex items-center space-x-2">
+                        <RadioGroupItem value={preset.value} id={`preset-${preset.value}`} />
+                        <label htmlFor={`preset-${preset.value}`} className="text-sm cursor-pointer">
+                          {preset.label}
+                          {preset.start && preset.end && (
+                            <span className="text-muted-foreground ml-1">
+                              ({preset.start}-{preset.end})
+                            </span>
+                          )}
+                        </label>
+                      </div>
+                    ))}
+                  </RadioGroup>
+                </div>
+
+                {/* Custom time inputs */}
+                {officePreset === 'custom' && (
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="time"
+                      value={timeSlots[0]?.start_time || '09:00'}
+                      onChange={e => setTimeSlots([{ ...timeSlots[0], start_time: e.target.value }])}
+                      className="w-28"
+                    />
+                    <span>-</span>
+                    <Input
+                      type="time"
+                      value={timeSlots[0]?.end_time || '17:00'}
+                      onChange={e => setTimeSlots([{ ...timeSlots[0], end_time: e.target.value }])}
+                      className="w-28"
+                    />
+                  </div>
+                )}
+
+                {/* Days selection for office */}
+                <div className="space-y-2">
+                  <FormLabel>Wochentage</FormLabel>
+                  <div className="flex flex-wrap gap-2">
+                    {DAYS_OF_WEEK.map(day => (
+                      <div key={day.value} className="flex items-center">
+                        <Checkbox
+                          id={`office-day-${day.value}`}
+                          checked={selectedDays.includes(day.value)}
+                          onCheckedChange={() => toggleDay(day.value)}
+                        />
+                        <label 
+                          htmlFor={`office-day-${day.value}`}
+                          className="ml-2 text-sm cursor-pointer"
+                        >
+                          {day.label}
+                        </label>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-2 text-sm text-muted-foreground">
+                  <Info className="h-4 w-4 mt-0.5 shrink-0" />
+                  <span>
+                    Interne Schichten werden im Scheduler angezeigt und können mehreren Mitarbeitern zugewiesen werden.
+                  </span>
+                </div>
+              </div>
+            )}
+
             {/* Basic info */}
             <div className="space-y-4">
-              <h4 className="font-medium text-sm text-muted-foreground">Grundinformationen</h4>
+              <h4 className="font-medium text-sm text-muted-foreground">
+                {isOfficeMode ? 'Schichtdetails' : 'Grundinformationen'}
+              </h4>
               
               <div className="grid grid-cols-2 gap-4">
                 <FormField
@@ -424,13 +530,15 @@ export function TrainingFormModal({ open, onOpenChange, course, mode }: Training
                   name="name"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Name (= Niveau) *</FormLabel>
+                      <FormLabel>{isOfficeMode ? 'Schichtname *' : 'Name (= Niveau) *'}</FormLabel>
                       <FormControl>
-                        <Input placeholder="Blauer Prinz" {...field} />
+                        <Input placeholder={isOfficeMode ? 'Büro Vormittag' : 'Blauer Prinz'} {...field} />
                       </FormControl>
-                      <FormDescription className="text-xs">
-                        Der Name definiert gleichzeitig das Kursniveau
-                      </FormDescription>
+                      {!isOfficeMode && (
+                        <FormDescription className="text-xs">
+                          Der Name definiert gleichzeitig das Kursniveau
+                        </FormDescription>
+                      )}
                       <FormMessage />
                     </FormItem>
                   )}
@@ -539,157 +647,164 @@ export function TrainingFormModal({ open, onOpenChange, course, mode }: Training
                   )}
                 />
 
-                {/* Next Training (Progression) */}
-                <FormField
-                  control={form.control}
-                  name="next_training_id"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="flex items-center gap-1">
-                        <ArrowRight className="h-3 w-3" />
-                        Nächstes Training
-                      </FormLabel>
-                      <Select 
-                        value={field.value || 'none'} 
-                        onValueChange={(v) => field.onChange(v === 'none' ? null : v)}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Kein Folgetraining" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="none">Kein Folgetraining</SelectItem>
-                          {availableNextCourses.map(c => (
-                            <SelectItem key={c.id} value={c.id}>
-                              <div className="flex items-center gap-2">
-                                <div 
-                                  className="w-3 h-3 rounded-full" 
-                                  style={{ backgroundColor: c.color }}
-                                />
-                                {c.name}
-                              </div>
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="min_age"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Mindestalter</FormLabel>
-                      <FormControl>
-                        <Input 
-                          type="number" 
-                          min={0}
-                          placeholder="Optional"
-                          value={field.value ?? ''}
-                          onChange={e => field.onChange(e.target.value ? parseInt(e.target.value) : null)}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="max_age"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Höchstalter</FormLabel>
-                      <FormControl>
-                        <Input 
-                          type="number" 
-                          min={0}
-                          placeholder="Optional"
-                          value={field.value ?? ''}
-                          onChange={e => field.onChange(e.target.value ? parseInt(e.target.value) : null)}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-            </div>
-
-            {/* Product Selection (replaces price fields) */}
-            <div className="space-y-4">
-              <h4 className="font-medium text-sm text-muted-foreground">Verknüpftes Produkt</h4>
-              
-              <div className="p-4 border rounded-lg bg-muted/30">
-                <FormField
-                  control={form.control}
-                  name="product_id"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Produkt für Preisberechnung</FormLabel>
-                      <Select 
-                        value={field.value || ''} 
-                        onValueChange={(v) => field.onChange(v || null)}
-                        disabled={productsLoading}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            {productsLoading ? (
-                              <div className="flex items-center gap-2">
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                                <span>Laden...</span>
-                              </div>
-                            ) : (
-                              <SelectValue placeholder="Produkt auswählen..." />
-                            )}
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {trainingProducts?.map(product => (
-                            <SelectItem key={product.id} value={product.id}>
-                              <div className="flex justify-between items-center w-full gap-4">
-                                <span>{product.name}</span>
-                                <span className="text-muted-foreground">
-                                  CHF {product.price.toFixed(2)}
-                                </span>
-                              </div>
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                
-                {selectedProduct && (
-                  <div className="mt-3 flex items-start gap-2 text-sm text-muted-foreground">
-                    <Info className="h-4 w-4 mt-0.5 shrink-0" />
-                    <span>
-                      Der Preis von <strong>CHF {selectedProduct.price.toFixed(2)}</strong> wird 
-                      automatisch vom Produkt "{selectedProduct.name}" übernommen. 
-                      Preisänderungen können unter Einstellungen → Produkte vorgenommen werden.
-                    </span>
-                  </div>
-                )}
-                
-                {!selectedProduct && !productsLoading && trainingProducts?.length === 0 && (
-                  <div className="mt-3 flex items-start gap-2 text-sm text-amber-600">
-                    <Info className="h-4 w-4 mt-0.5 shrink-0" />
-                    <span>
-                      Keine Produkte für Trainings verfügbar. Bitte erstelle zuerst ein Gruppenkurs-Produkt 
-                      unter Einstellungen → Produkte und aktiviere "Für Trainings verfügbar".
-                    </span>
-                  </div>
+                {/* Next Training (Progression) - hide for office */}
+                {!isOfficeMode && (
+                  <FormField
+                    control={form.control}
+                    name="next_training_id"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="flex items-center gap-1">
+                          <ArrowRight className="h-3 w-3" />
+                          Nächstes Training
+                        </FormLabel>
+                        <Select 
+                          value={field.value || 'none'} 
+                          onValueChange={(v) => field.onChange(v === 'none' ? null : v)}
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Kein Folgetraining" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="none">Kein Folgetraining</SelectItem>
+                            {availableNextCourses.map(c => (
+                              <SelectItem key={c.id} value={c.id}>
+                                <div className="flex items-center gap-2">
+                                  <div 
+                                    className="w-3 h-3 rounded-full" 
+                                    style={{ backgroundColor: c.color }}
+                                  />
+                                  {c.name}
+                                </div>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
                 )}
               </div>
+
+              {/* Age fields - hide for office */}
+              {!isOfficeMode && (
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="min_age"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Mindestalter</FormLabel>
+                        <FormControl>
+                          <Input 
+                            type="number" 
+                            min={0}
+                            placeholder="Optional"
+                            value={field.value ?? ''}
+                            onChange={e => field.onChange(e.target.value ? parseInt(e.target.value) : null)}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="max_age"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Höchstalter</FormLabel>
+                        <FormControl>
+                          <Input 
+                            type="number" 
+                            min={0}
+                            placeholder="Optional"
+                            value={field.value ?? ''}
+                            onChange={e => field.onChange(e.target.value ? parseInt(e.target.value) : null)}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              )}
             </div>
+
+            {/* Product Selection (replaces price fields) - hide for office */}
+            {!isOfficeMode && (
+              <div className="space-y-4">
+                <h4 className="font-medium text-sm text-muted-foreground">Verknüpftes Produkt</h4>
+                
+                <div className="p-4 border rounded-lg bg-muted/30">
+                  <FormField
+                    control={form.control}
+                    name="product_id"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Produkt für Preisberechnung</FormLabel>
+                        <Select 
+                          value={field.value || ''} 
+                          onValueChange={(v) => field.onChange(v || null)}
+                          disabled={productsLoading}
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              {productsLoading ? (
+                                <div className="flex items-center gap-2">
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                  <span>Laden...</span>
+                                </div>
+                              ) : (
+                                <SelectValue placeholder="Produkt auswählen..." />
+                              )}
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {trainingProducts?.map(product => (
+                              <SelectItem key={product.id} value={product.id}>
+                                <div className="flex justify-between items-center w-full gap-4">
+                                  <span>{product.name}</span>
+                                  <span className="text-muted-foreground">
+                                    CHF {product.price.toFixed(2)}
+                                  </span>
+                                </div>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  
+                  {selectedProduct && (
+                    <div className="mt-3 flex items-start gap-2 text-sm text-muted-foreground">
+                      <Info className="h-4 w-4 mt-0.5 shrink-0" />
+                      <span>
+                        Der Preis von <strong>CHF {selectedProduct.price.toFixed(2)}</strong> wird 
+                        automatisch vom Produkt "{selectedProduct.name}" übernommen. 
+                        Preisänderungen können unter Einstellungen → Produkte vorgenommen werden.
+                      </span>
+                    </div>
+                  )}
+                  
+                  {!selectedProduct && !productsLoading && trainingProducts?.length === 0 && (
+                    <div className="mt-3 flex items-start gap-2 text-sm text-amber-600">
+                      <Info className="h-4 w-4 mt-0.5 shrink-0" />
+                      <span>
+                        Keine Produkte für Trainings verfügbar. Bitte erstelle zuerst ein Gruppenkurs-Produkt 
+                        unter Einstellungen → Produkte und aktiviere "Für Trainings verfügbar".
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* Meeting point */}
             <FormField

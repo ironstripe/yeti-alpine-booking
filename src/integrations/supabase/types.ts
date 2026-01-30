@@ -1270,6 +1270,7 @@ export type Database = {
           discipline: string
           id: string
           is_active: boolean | null
+          is_internal: boolean | null
           max_age: number
           max_participants: number
           meeting_point: string | null
@@ -1293,6 +1294,7 @@ export type Database = {
           discipline?: string
           id?: string
           is_active?: boolean | null
+          is_internal?: boolean | null
           max_age: number
           max_participants?: number
           meeting_point?: string | null
@@ -1316,6 +1318,7 @@ export type Database = {
           discipline?: string
           id?: string
           is_active?: boolean | null
+          is_internal?: boolean | null
           max_age?: number
           max_participants?: number
           meeting_point?: string | null
@@ -1992,6 +1995,42 @@ export type Database = {
           user_id?: string | null
         }
         Relationships: []
+      }
+      office_shift_assignments: {
+        Row: {
+          created_at: string | null
+          id: string
+          instance_id: string
+          instructor_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          instance_id: string
+          instructor_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          instance_id?: string
+          instructor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "office_shift_assignments_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "group_course_instances"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "office_shift_assignments_instructor_id_fkey"
+            columns: ["instructor_id"]
+            isOneToOne: false
+            referencedRelation: "instructors"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       participant_level_history: {
         Row: {

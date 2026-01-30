@@ -16,6 +16,7 @@ interface TrainingsFiltersProps {
   onDisciplineFilterChange: (value: string) => void;
   statusFilter: string;
   onStatusFilterChange: (value: string) => void;
+  showDisciplineFilter?: boolean;
 }
 
 export function TrainingsFilters({
@@ -25,6 +26,7 @@ export function TrainingsFilters({
   onDisciplineFilterChange,
   statusFilter,
   onStatusFilterChange,
+  showDisciplineFilter = true,
 }: TrainingsFiltersProps) {
   return (
     <div className="flex flex-col sm:flex-row gap-3 mb-6">
@@ -39,20 +41,22 @@ export function TrainingsFilters({
         />
       </div>
 
-      {/* Discipline filter */}
-      <Select value={disciplineFilter} onValueChange={onDisciplineFilterChange}>
-        <SelectTrigger className="w-40">
-          <SelectValue placeholder="Disziplin" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">Alle Disziplinen</SelectItem>
-          {DISCIPLINES.map(disc => (
-            <SelectItem key={disc.value} value={disc.value}>
-              {disc.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      {/* Discipline filter - only show for courses */}
+      {showDisciplineFilter && (
+        <Select value={disciplineFilter} onValueChange={onDisciplineFilterChange}>
+          <SelectTrigger className="w-40">
+            <SelectValue placeholder="Disziplin" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Alle Disziplinen</SelectItem>
+            {DISCIPLINES.map(disc => (
+              <SelectItem key={disc.value} value={disc.value}>
+                {disc.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
 
       {/* Status filter */}
       <Select value={statusFilter} onValueChange={onStatusFilterChange}>

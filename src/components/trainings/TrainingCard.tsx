@@ -30,6 +30,7 @@ export function TrainingCard({ course, onEdit, onCopy, onViewInstances, onDelete
   const disciplineLabel = DISCIPLINES.find(d => d.value === course.discipline)?.label || course.discipline;
 
   const isSaturdayCourse = course.course_type === 'saturday_course';
+  const isOfficeCourse = course.course_type === 'office' || course.is_internal;
 
   // Get unique days from schedules (for weekly courses)
   const scheduleDays = [...new Set(course.schedules.map(s => s.day_of_week))].sort();
@@ -38,8 +39,8 @@ export function TrainingCard({ course, onEdit, onCopy, onViewInstances, onDelete
   // Get unique time slots
   const timeSlots = [...new Set(course.schedules.map(s => `${s.start_time.slice(0, 5)}-${s.end_time.slice(0, 5)}`))];
 
-  // Age range text - ALWAYS display age range (required field)
-  const ageRangeLabel = `${course.min_age}-${course.max_age} J.`;
+  // Age range text - ALWAYS display age range (required field) - not for office
+  const ageRangeLabel = !isOfficeCourse ? `${course.min_age}-${course.max_age} J.` : null;
 
   // Participation percentage
   const participationPercent = course.this_week_max_spots 
@@ -65,10 +66,17 @@ export function TrainingCard({ course, onEdit, onCopy, onViewInstances, onDelete
       <CardHeader className="pb-2">
         <div className="flex items-start justify-between gap-2">
           <div className="flex items-center gap-2">
-            <Snowflake className="h-5 w-5 text-muted-foreground" />
+            {isOfficeCourse ? (
+              <span className="text-lg">🏢</span>
+            ) : (
+              <Snowflake className="h-5 w-5 text-muted-foreground" />
+            )}
             <h3 className="font-semibold text-lg">{course.name}</h3>
           </div>
           <div className="flex gap-1.5">
+            {isOfficeCourse && (
+              <Badge variant="secondary">Intern</Badge>
+            )}
             {isSaturdayCourse && (
               <Badge variant="secondary">Samstagskurs</Badge>
             )}
@@ -78,8 +86,12 @@ export function TrainingCard({ course, onEdit, onCopy, onViewInstances, onDelete
           </div>
         </div>
         <div className="flex flex-wrap gap-1.5 mt-1">
-          <Badge variant="outline">{disciplineLabel}</Badge>
-          <Badge variant="outline" className="bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">{ageRangeLabel}</Badge>
+          {!isOfficeCourse && (
+            <Badge variant="outline">{disciplineLabel}</Badge>
+          )}
+          {ageRangeLabel && (
+            <Badge variant="outline" className="bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">{ageRangeLabel}</Badge>
+          )}
           {course.next_training && (
             <Badge variant="outline" className="flex items-center gap-1">
               <ArrowRight className="h-3 w-3" />
@@ -90,8 +102,21 @@ export function TrainingCard({ course, onEdit, onCopy, onViewInstances, onDelete
       </CardHeader>
 
       <CardContent className="space-y-3">
-        {/* Schedule info - different for Saturday courses */}
-        {isSaturdayCourse ? (
+        {/* Schedule info - different for different course types */}
+        {isOfficeCourse ? (
+          <div className="space-y-1.5 text-sm">
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <Calendar className="h-4 w-4" />
+              <span>{dayLabels.join(', ') || 'Kein Zeitplan'}</span>
+            </div>
+            {timeSlots.map((slot, idx) => (
+              <div key={idx} className="flex items-center gap-2 text-muted-foreground ml-6">
+                <Clock className="h-4 w-4" />
+                <span>{slot}</span>
+              </div>
+            ))}
+          </div>
+        ) : isSaturdayCourse ? (
           <div className="space-y-1.5 text-sm">
             <div className="flex items-center gap-2 text-muted-foreground">
               <Calendar className="h-4 w-4" />
@@ -128,36 +153,38 @@ export function TrainingCard({ course, onEdit, onCopy, onViewInstances, onDelete
         {/* Capacity */}
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <Users className="h-4 w-4" />
-          <span>Max. {course.max_participants} Teilnehmer</span>
+          <span>Max. {course.max_participants} {isOfficeCourse ? 'Mitarbeiter' : 'Teilnehmer'}</span>
         </div>
 
-        {/* Meeting point */}
-        {course.meeting_point && (
+        {/* Meeting point - not for office */}
+        {!isOfficeCourse && course.meeting_point && (
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <MapPin className="h-4 w-4" />
             <span className="truncate">{course.meeting_point}</span>
           </div>
         )}
 
-        {/* Price - from linked product or legacy */}
-        <div className="text-sm">
-          <span className="font-medium">
-            CHF {displayPrice.toFixed(0)}{isSaturdayCourse ? '/Samstag' : '/Tag'}
-          </span>
-          {hasLinkedProduct ? (
-            <span className="text-muted-foreground font-normal ml-1">
-              via {course.product!.name}
+        {/* Price - from linked product or legacy - not for office */}
+        {!isOfficeCourse && (
+          <div className="text-sm">
+            <span className="font-medium">
+              CHF {displayPrice.toFixed(0)}{isSaturdayCourse ? '/Samstag' : '/Tag'}
             </span>
-          ) : (
-            <span className="text-amber-600 font-normal ml-1 flex items-center gap-1 inline-flex">
-              <AlertTriangle className="h-3 w-3" />
-              Kein Produkt verknüpft
-            </span>
-          )}
-        </div>
+            {hasLinkedProduct ? (
+              <span className="text-muted-foreground font-normal ml-1">
+                via {course.product!.name}
+              </span>
+            ) : (
+              <span className="text-amber-600 font-normal ml-1 flex items-center gap-1 inline-flex">
+                <AlertTriangle className="h-3 w-3" />
+                Kein Produkt verknüpft
+              </span>
+            )}
+          </div>
+        )}
 
-        {/* This week stats (only for weekly courses) */}
-        {!isSaturdayCourse && (
+        {/* This week stats (only for weekly courses, not office) */}
+        {!isSaturdayCourse && !isOfficeCourse && (
           <div className="pt-2 border-t">
             <p className="text-sm text-muted-foreground mb-1">Diese Woche:</p>
             {course.assigned_instructor && (
@@ -205,7 +232,7 @@ export function TrainingCard({ course, onEdit, onCopy, onViewInstances, onDelete
             onClick={() => onViewInstances(course)}
           >
             <List className="h-4 w-4 mr-1" />
-            {isSaturdayCourse ? 'Termine' : 'Instanzen'}
+            {isOfficeCourse ? 'Besetzung' : isSaturdayCourse ? 'Termine' : 'Instanzen'}
           </Button>
           <Button 
             variant="outline" 
