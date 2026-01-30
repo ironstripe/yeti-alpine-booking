@@ -1,57 +1,78 @@
 
-# Fix: Align Sidebar Badge with Inbox Stats
+# Fix: Make AI Test Panel Button Always Visible
 
 ## Summary
 
-The sidebar badge shows ALL conversations (19), while the inbox stats only count "unread" and "read" statuses. This creates a confusing mismatch where the badge suggests 19 new items but the stats show only 15 actionable conversations.
+The "Extraktion starten" button exists but is hidden below the visible area when the custom text tab is active. The textarea's min-height pushes the button outside the dialog's visible bounds.
 
 ---
 
-## Current State
+## Root Cause
 
-| Source | What it shows | Current value |
-|--------|--------------|---------------|
-| Sidebar badge | ALL conversations | 19 |
-| "Neue Anfragen" | status=unread + inbound | 0 |
-| "In Bearb." | status=read + inbound | 15 |
-| **Hidden** | status=spam | 3 |
-| **Hidden** | status=converted | 1 |
+| Element | Issue |
+|---------|-------|
+| Dialog | Has `max-h-[90vh]` and `overflow-hidden` |
+| Input section | No scroll capability (`flex flex-col gap-4`) |
+| Textarea | Has `min-h-[200px]` which takes significant space |
+| Button | Positioned after Tabs, gets pushed below visible area |
 
 ---
 
 ## Solution
 
-Change the sidebar badge to show **unread** conversation count instead of total count. This aligns with standard inbox behavior where the badge indicates items needing attention.
+Restructure the input section to keep the button always visible at the bottom, with a scrollable content area above it.
 
-### Why "unread" count?
-- Standard inbox behavior (Gmail, Outlook all show unread count)
-- Badge should indicate "items needing attention"
-- Matches user expectation when seeing a notification badge
+### Layout Change
+
+```text
+Before:                          After:
++------------------+             +------------------+
+| Tabs Header      |             | Tabs Header      |
++------------------+             +------------------+
+| Tab Content      |             | Tab Content      |
+| (grows freely)   |             | (scrollable)     |
++------------------+             +------------------+
+| Button           |  <- hidden  | Button           |  <- always visible
++------------------+             +------------------+
+```
 
 ---
 
 ## Changes
 
-### File: `src/components/layout/AppSidebar.tsx`
+### File: `src/components/inbox/AITestPanel.tsx`
 
-Update `getBadgeCount` function to return `unread` count instead of `all`:
+1. **Wrap Tabs content in ScrollArea** - Make the tab content scrollable
+2. **Keep button outside scroll area** - Fixed at bottom of input section
+3. **Add proper height constraints** - Ensure content area scrolls
 
 ```typescript
-// OLD: Shows all conversations (misleading)
-const getBadgeCount = (url: string): number | null => {
-  if (url === "/inbox") {
-    return conversationCounts?.all || null;
-  }
-  return null;
-};
+{/* Input Section */}
+<div className="flex flex-col gap-4 min-h-0">
+  <Tabs value={tab} onValueChange={...} className="flex-1 flex flex-col min-h-0">
+    <TabsList className="grid w-full grid-cols-2 shrink-0">
+      ...
+    </TabsList>
 
-// NEW: Shows unread count (standard inbox behavior)
-const getBadgeCount = (url: string): number | null => {
-  if (url === "/inbox") {
-    return conversationCounts?.unread || null;
-  }
-  return null;
-};
+    <ScrollArea className="flex-1 mt-3">
+      <TabsContent value="samples" className="space-y-3 mt-0">
+        ...
+      </TabsContent>
+
+      <TabsContent value="custom" className="space-y-3 mt-0">
+        ...
+      </TabsContent>
+    </ScrollArea>
+  </Tabs>
+
+  {/* Button always visible at bottom */}
+  <div className="flex gap-2 shrink-0">
+    <Button onClick={handleRunTest} ...>
+      Extraktion starten
+    </Button>
+    ...
+  </div>
+</div>
 ```
 
 ---
@@ -60,9 +81,9 @@ const getBadgeCount = (url: string): number | null => {
 
 | Before | After |
 |--------|-------|
-| Sidebar shows 19 | Sidebar shows 0 (unread count) |
-| Mismatch with inbox stats | Badge matches "Neue Anfragen" stat |
-| Badge always visible | Badge only shows when new messages arrive |
+| Button hidden when typing custom text | Button always visible at bottom |
+| No way to trigger extraction | Clear "Extraktion starten" button visible |
+| Must scroll (but can't) to find button | Fixed layout with scrollable content above |
 
 ---
 
@@ -70,4 +91,4 @@ const getBadgeCount = (url: string): number | null => {
 
 | Action | File |
 |--------|------|
-| **MODIFY** | `src/components/layout/AppSidebar.tsx` |
+| **MODIFY** | `src/components/inbox/AITestPanel.tsx` |
