@@ -1,173 +1,416 @@
 
-# Plan: Prevent Booking Creation for Past Dates
+# Plan: YETI Scheduler - Office Staff Planning, Fullscreen & Planning Mode
 
-## Problem Summary
-
-While the calendar UI in Step 2 disables past dates, bookings can still be created for past dates through these pathways:
-1. Selecting slots on past dates in the Scheduler and clicking "Ausgewählte buchen"
-2. Receiving scheduler prefill with past dates via URL parameters
-3. AI extraction prefilling past dates from conversations
-
-## Solution: Multi-Layer Validation
-
-Implement validation at three levels to ensure comprehensive protection.
+## Executive Summary
+This plan extends the scheduler with three new features:
+1. **Office Staff Planning** - Filter and display office staff with purple shift blocks
+2. **Fullscreen Mode** - Maximize scheduler view hiding sidebar
+3. **Planning Mode** - Highlight available slots, dim existing bookings
 
 ---
 
-## Technical Implementation
+## Phase 1: Database Changes
 
-### Layer 1: Scheduler Selection Validation
+### 1.1 Update `role` Column Values
+The `instructors` table already has a `role` column (TEXT, default 'rolle_1'). We'll update it to use meaningful values:
 
-**File: `src/contexts/SchedulerSelectionContext.tsx`**
+```sql
+-- Update default and add check constraint
+ALTER TABLE instructors 
+  ALTER COLUMN role SET DEFAULT 'instructor';
 
-Add past date check in `canSelectSlot` function (around line 109):
+-- Update existing 'rolle_1' values to 'instructor'
+UPDATE instructors SET role = 'instructor' WHERE role = 'rolle_1';
 
-```typescript
-const canSelectSlot = useCallback(
-  (instructorId, date, startTime, endTime, bookings, absences) => {
-    // NEW: Check if date is in the past
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const slotDate = new Date(date);
-    slotDate.setHours(0, 0, 0, 0);
-    
-    if (slotDate < today) {
-      return { valid: false, reason: "Vergangene Daten können nicht gebucht werden" };
-    }
-    
-    // ... existing validation logic
-  }
-);
+-- Add constraint for valid roles
+ALTER TABLE instructors 
+  ADD CONSTRAINT check_staff_role 
+  CHECK (role IN ('instructor', 'office_staff', 'management'));
+
+-- Add index for filtering
+CREATE INDEX IF NOT EXISTS idx_instructors_role ON instructors(role);
 ```
 
-Also update `endDrag` function to reject past dates when completing a drag selection.
+### 1.2 Add Office Shift Products
+```sql
+INSERT INTO products (name, type, duration_minutes, price, is_active)
+VALUES 
+  ('Büro-Schicht Vormittag', 'office_shift', 240, 0, true),
+  ('Büro-Schicht Nachmittag', 'office_shift', 240, 0, true);
+```
 
 ---
 
-### Layer 2: Scheduler Prefill Validation
+## Phase 2: Role Filter in SchedulerHeader
 
-**File: `src/pages/BookingWizard.tsx`**
+### Files to Modify
+| File | Changes |
+|------|---------|
+| `src/components/scheduler/SchedulerHeader.tsx` | Add role filter dropdown |
+| `src/components/scheduler/SchedulerGrid.tsx` | Add role filter state & filtering logic |
 
-Filter out past dates when applying scheduler prefill (around line 152-165):
+### SchedulerHeader Changes
+Add new props and role filter UI next to capability filter:
 
 ```typescript
+interface SchedulerHeaderProps {
+  // ... existing props
+  roleFilter: string | null;
+  onRoleFilterChange: (filter: string | null) => void;
+}
+```
+
+Add UI element:
+```tsx
+{/* Role Filter - NEW */}
+<Select 
+  value={roleFilter || "all"} 
+  onValueChange={(v) => onRoleFilterChange(v === "all" ? null : v)}
+>
+  <SelectTrigger className="w-8 h-8 p-0 md:w-[130px] md:px-2 [&>span]:hidden md:[&>span]:inline">
+    <Users className="h-3.5 w-3.5 md:mr-1" />
+    <SelectValue placeholder="Rolle" />
+  </SelectTrigger>
+  <SelectContent>
+    <SelectItem value="all">Alle</SelectItem>
+    <SelectItem value="instructor">Skilehrer</SelectItem>
+    <SelectItem value="office_staff">Büropersonal</SelectItem>
+  </SelectContent>
+</Select>
+```
+
+### SchedulerGrid Changes
+Add filtering logic:
+```typescript
+const [roleFilter, setRoleFilter] = useState<string | null>(null);
+
+const filteredInstructors = useMemo(() => {
+  let filtered = instructors;
+  
+  // Filter by role
+  if (roleFilter) {
+    filtered = filtered.filter(i => i.role === roleFilter);
+  }
+  
+  // Filter by capability (existing)
+  // Filter by compact mode (existing)
+  
+  return filtered;
+}, [instructors, roleFilter, capabilityFilter, compactMode, bookings, absences]);
+```
+
+---
+
+## Phase 3: Visual Differentiation for Office Staff
+
+### Files to Modify
+| File | Changes |
+|------|---------|
+| `src/components/scheduler/SingleDayInstructorRow.tsx` | Show building icon for office staff |
+| `src/components/scheduler/InstructorWeekBlock.tsx` | Show building icon for office staff |
+
+### Icon Display Logic
+```tsx
+// Replace ski/snowboard emoji with building icon for office staff
+{instructor.role === 'office_staff' ? (
+  <Building className="h-3 w-3 text-purple-600" />
+) : (
+  badges.map((badge) => (
+    <span>{badge.label === "K" ? "⛷️" : "🏂"}</span>
+  ))
+)}
+```
+
+---
+
+## Phase 4: Office Shift Booking Bar Colors
+
+### Files to Modify
+| File | Changes |
+|------|---------|
+| `src/lib/scheduler-utils.ts` | Extend `getBookingBarClasses` for office_shift type |
+| `src/components/scheduler/BookingBar.tsx` | Handle office_shift type |
+
+### Color Logic Extension
+```typescript
+export function getBookingBarClasses(
+  type: "private" | "group" | "office_shift", 
+  isPaid: boolean
+): string {
+  if (type === "office_shift") {
+    return "bg-purple-600 text-white border-purple-700";
+  }
+  if (type === "group") {
+    return "bg-blue-600 text-white border-blue-700";
+  }
+  return isPaid 
+    ? "bg-emerald-500 text-white border-emerald-600" 
+    : "bg-orange-500 text-white border-orange-600";
+}
+```
+
+### Update Legend
+Add purple legend item in `SchedulerGrid.tsx`:
+```tsx
+<div className="flex items-center gap-1">
+  <div className="w-2 h-2 rounded-sm bg-purple-600" />
+  <span>Büro</span>
+</div>
+```
+
+---
+
+## Phase 5: Fullscreen Mode
+
+### Files to Modify
+| File | Changes |
+|------|---------|
+| `src/components/scheduler/SchedulerHeader.tsx` | Add fullscreen toggle button |
+| `src/components/scheduler/SchedulerGrid.tsx` | Add fullscreen state & container styling |
+
+### New Props for SchedulerHeader
+```typescript
+interface SchedulerHeaderProps {
+  // ... existing props
+  isFullscreen: boolean;
+  onFullscreenToggle: (fullscreen: boolean) => void;
+}
+```
+
+### Fullscreen Button UI
+```tsx
+{/* Fullscreen Toggle */}
+<Button
+  variant={isFullscreen ? "secondary" : "ghost"}
+  size="icon"
+  className="h-8 w-8"
+  onClick={() => onFullscreenToggle(!isFullscreen)}
+  title={isFullscreen ? "Vollbild beenden (Esc)" : "Vollbild"}
+>
+  {isFullscreen ? (
+    <Minimize className="h-3.5 w-3.5" />
+  ) : (
+    <Maximize className="h-3.5 w-3.5" />
+  )}
+</Button>
+```
+
+### SchedulerGrid Container Styling
+```typescript
+const [isFullscreen, setIsFullscreen] = useState(false);
+
+// ESC key handler
 useEffect(() => {
-  if (!schedulerInstructorId || !schedulerAppointments) return;
-  if (didApplySchedulerPrefill.current) return;
-  if (state.appointments) return;
+  const handleEscape = (e: KeyboardEvent) => {
+    if (e.key === 'Escape' && isFullscreen) {
+      setIsFullscreen(false);
+    }
+  };
+  window.addEventListener('keydown', handleEscape);
+  return () => window.removeEventListener('keydown', handleEscape);
+}, [isFullscreen]);
 
-  try {
-    const appointments = JSON.parse(decodeURIComponent(schedulerAppointments));
-    
-    // NEW: Filter out past dates
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const validAppointments = appointments.filter((appt: any) => {
-      const apptDate = new Date(appt.date);
-      apptDate.setHours(0, 0, 0, 0);
-      return apptDate >= today;
-    });
-    
-    if (validAppointments.length === 0) {
-      toast.error("Alle ausgewählten Termine liegen in der Vergangenheit");
-      return;
-    }
-    
-    if (validAppointments.length < appointments.length) {
-      toast.warning("Vergangene Termine wurden entfernt");
-    }
-    
-    didApplySchedulerPrefill.current = true;
-    prefillFromScheduler(schedulerInstructorId, validAppointments);
-  } catch (e) {
-    console.error("Failed to parse scheduler appointments:", e);
-  }
-}, [...]);
+// Container classes
+<div className={cn(
+  "flex flex-col h-full bg-background",
+  isFullscreen && "fixed inset-0 z-50 overflow-auto"
+)}>
 ```
 
 ---
 
-### Layer 3: Booking Creation Validation (Final Safeguard)
+## Phase 6: Planning Mode
 
-**File: `src/hooks/useCreateBooking.ts`**
+### Files to Modify
+| File | Changes |
+|------|---------|
+| `src/components/scheduler/SchedulerHeader.tsx` | Add planning mode toggle |
+| `src/components/scheduler/SchedulerGrid.tsx` | Add planning mode state & context |
+| `src/components/scheduler/BookingBar.tsx` | Dim when planning mode active |
+| `src/components/scheduler/EmptySlot.tsx` | Enhanced hover styling in planning mode |
+| `src/contexts/SchedulerSelectionContext.tsx` | Add planning mode to context |
 
-Add validation before database insert (around line 47):
-
+### New Props for SchedulerHeader
 ```typescript
-mutationFn: async (state: BookingWizardState): Promise<CreateBookingResult> => {
-  // NEW: Validate no past dates
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+interface SchedulerHeaderProps {
+  // ... existing props
+  isPlanningMode: boolean;
+  onPlanningModeToggle: (planning: boolean) => void;
+}
+```
+
+### Planning Mode Button UI
+```tsx
+{/* Planning Mode Toggle */}
+<Button
+  variant={isPlanningMode ? "secondary" : "ghost"}
+  size="icon"
+  className="h-8 w-8"
+  onClick={() => onPlanningModeToggle(!isPlanningMode)}
+  title={isPlanningMode ? "Planungsmodus beenden" : "Planungsmodus"}
+>
+  <Target className="h-3.5 w-3.5" />
+</Button>
+```
+
+### BookingBar Visual Changes
+```tsx
+// In BookingBar.tsx
+<div className={cn(
+  barClasses,
+  isPlanningMode && "opacity-50"
+)}>
+```
+
+### EmptySlot Enhanced Hover
+```tsx
+// In EmptySlot.tsx
+<div className={cn(
+  baseClasses,
+  isPlanningMode && !isInvalidDropZone && "hover:bg-green-50 hover:border-2 hover:border-green-400"
+)}>
+```
+
+### Instructor Sorting in Planning Mode
+```typescript
+// In SchedulerGrid.tsx or InstructorFocusView.tsx
+const sortedInstructors = useMemo(() => {
+  if (!isPlanningMode) return filteredInstructors;
   
-  const pastDates = state.selectedDates.filter(dateStr => {
-    const date = new Date(dateStr);
-    date.setHours(0, 0, 0, 0);
-    return date < today;
+  return [...filteredInstructors].sort((a, b) => {
+    // Available first, then by booking count (ascending)
+    const aBookings = bookings.filter(b => b.instructorId === a.id).length;
+    const bBookings = bookings.filter(b => b.instructorId === b.id).length;
+    const aAbsent = absences.some(ab => ab.instructorId === a.id);
+    const bAbsent = absences.some(ab => ab.instructorId === b.id);
+    
+    if (aAbsent && !bAbsent) return 1;
+    if (!aAbsent && bAbsent) return -1;
+    return aBookings - bBookings;
   });
-  
-  if (pastDates.length > 0) {
-    throw new Error("Buchungen können nicht für vergangene Daten erstellt werden.");
-  }
-  
-  // ... rest of existing logic
-}
+}, [filteredInstructors, bookings, absences, isPlanningMode]);
 ```
 
 ---
 
-### Layer 4: Utility Function for Reuse
+## Phase 7: Planning Mode Click Behavior
 
-**File: `src/lib/booking-utils.ts`**
-
-Add a utility function to check if a date is bookable:
-
-```typescript
-/**
- * Check if a date is valid for new bookings (today or future)
- */
-export function isDateBookable(date: string | Date): boolean {
-  const bookingDate = typeof date === "string" ? parseISO(date) : date;
-  const today = startOfDay(new Date());
-  const bookingDay = startOfDay(bookingDate);
+### EmptySlot Quick-Create Navigation
+```tsx
+// In EmptySlot.tsx handleMouseDown
+if (isPlanningMode && !isBlocked) {
+  // In planning mode, single click navigates to booking wizard
+  const endMinutes = timeToMinutes(timeSlot) + 60;
+  const endTime = `${Math.floor(endMinutes / 60).toString().padStart(2, "0")}:00`;
   
-  return isEqual(bookingDay, today) || isAfter(bookingDay, today);
-}
-
-/**
- * Filter an array of dates to only include bookable dates
- */
-export function filterBookableDates(dates: string[]): string[] {
-  return dates.filter(isDateBookable);
+  navigate(`/bookings/new?instructor=${instructorId}&appointments=${encodeURIComponent(
+    JSON.stringify([{
+      date,
+      startTime: timeSlot,
+      durationMinutes: 60
+    }])
+  )}`);
+  return;
 }
 ```
-
----
-
-## Files to Modify
-
-| File | Change |
-|------|--------|
-| `src/lib/booking-utils.ts` | Add `isDateBookable` and `filterBookableDates` utilities |
-| `src/contexts/SchedulerSelectionContext.tsx` | Add past date validation in `canSelectSlot` and `endDrag` |
-| `src/pages/BookingWizard.tsx` | Filter past dates from scheduler prefill |
-| `src/hooks/useCreateBooking.ts` | Add final validation before insert |
-
----
-
-## User Experience
-
-| Scenario | Behavior |
-|----------|----------|
-| User selects past date slot in Scheduler | Toast: "Vergangene Daten können nicht gebucht werden" |
-| Scheduler prefill contains only past dates | Toast: "Alle ausgewählten Termine liegen in der Vergangenheit" |
-| Scheduler prefill contains mixed dates | Toast: "Vergangene Termine wurden entfernt" + valid dates applied |
-| Attempt to create booking with past dates | Error thrown, booking blocked |
 
 ---
 
 ## Implementation Order
 
-1. Add utility functions to `booking-utils.ts`
-2. Update `SchedulerSelectionContext.tsx` to prevent selection
-3. Update `BookingWizard.tsx` to filter prefill data
-4. Update `useCreateBooking.ts` as final safeguard
+| Phase | Description | Complexity |
+|-------|-------------|------------|
+| 1 | Database changes (role column, office_shift products) | Low |
+| 2 | Role filter dropdown in header + filtering logic | Medium |
+| 3 | Visual differentiation (building icon for office staff) | Low |
+| 4 | Office shift booking bar colors (purple) | Low |
+| 5 | Fullscreen mode toggle + ESC handler | Medium |
+| 6 | Planning mode toggle + visual changes | Medium |
+| 7 | Planning mode click behavior | Low |
+
+---
+
+## Updated SchedulerHeader Props Summary
+
+```typescript
+interface SchedulerHeaderProps {
+  // Existing
+  date: Date;
+  onDateChange: (date: Date) => void;
+  viewMode: ViewMode;
+  onViewModeChange: (mode: ViewMode) => void;
+  selectedInstructorId: string | null;
+  onInstructorFilterChange: (id: string | null) => void;
+  instructorOptions: { id: string; name: string }[];
+  onInstructorSelect?: (id: string) => void;
+  capabilityFilter: string | null;
+  onCapabilityFilterChange: (filter: string | null) => void;
+  compactMode?: boolean;
+  onCompactModeChange?: (compact: boolean) => void;
+  compactStats?: { visible: number; total: number };
+  
+  // NEW
+  roleFilter: string | null;
+  onRoleFilterChange: (filter: string | null) => void;
+  isFullscreen: boolean;
+  onFullscreenToggle: (fullscreen: boolean) => void;
+  isPlanningMode: boolean;
+  onPlanningModeToggle: (planning: boolean) => void;
+}
+```
+
+---
+
+## Visual Layout Reference
+
+```text
+Updated SchedulerHeader:
+┌────────────────────────────────────────────────────────────────────────────┐
+│ [<] [Datum] [>] [●] │ [Tag][3T][Woche] │ [🔍 Lehrer][👤 Kunde]           │
+│                     │                   │                                  │
+│     Date Nav        │    View Mode      │   Search Fields                  │
+├────────────────────────────────────────────────────────────────────────────┤
+│                                         │ [Alle▼] [Ski▼] [🎯] [⛶] [⊞]   │
+│        Spacer                           │  Role  Capab. Plan Full Compact │
+└────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Color Scheme Summary
+
+| Color | Meaning | Use Case |
+|-------|---------|----------|
+| Blue | Group Course | Ski instructors |
+| Green | Paid Private | Ski instructors |
+| Orange | Unpaid Private | Ski instructors |
+| **Purple** | Office Shift | Office staff |
+| Light Gray | Absence/Not Available | All |
+| White/Empty | Available Slot | All |
+| Green Border (hover) | Available (Planning Mode) | All |
+
+---
+
+## Testing Scenarios
+
+### Role Filter
+- [ ] "Alle" shows all instructors
+- [ ] "Skilehrer" shows only instructors with role='instructor'
+- [ ] "Büropersonal" shows only staff with role='office_staff'
+- [ ] Office staff rows display building icon instead of ski/snowboard emoji
+
+### Fullscreen Mode
+- [ ] Clicking fullscreen hides sidebar, maximizes scheduler
+- [ ] ESC key exits fullscreen
+- [ ] Works in all view modes (daily, 3 days, weekly)
+
+### Planning Mode
+- [ ] Existing bookings are dimmed (opacity-50)
+- [ ] Empty slots show green hover effect
+- [ ] Available instructors sorted to top
+- [ ] Clicking empty slot navigates to booking wizard with prefilled data
+
+### Office Shifts
+- [ ] Office shifts display in purple
+- [ ] Can create morning/afternoon office shifts
+- [ ] Office staff can have absences like instructors
