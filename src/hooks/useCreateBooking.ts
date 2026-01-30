@@ -45,6 +45,20 @@ export function useCreateBooking() {
 
   return useMutation({
     mutationFn: async (state: BookingWizardState): Promise<CreateBookingResult> => {
+      // Validate no past dates
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      const pastDates = state.selectedDates.filter(dateStr => {
+        const date = new Date(dateStr);
+        date.setHours(0, 0, 0, 0);
+        return date < today;
+      });
+      
+      if (pastDates.length > 0) {
+        throw new Error("Buchungen können nicht für vergangene Daten erstellt werden.");
+      }
+
       // Get current user for comment attribution
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
