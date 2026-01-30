@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useSchedulerData } from "@/hooks/useSchedulerData";
 import { useUpdateTicketItem } from "@/hooks/useUpdateTicketItem";
+import { useSendBookingChangeNotification } from "@/hooks/useBookingChangeNotification";
 import { DndKitProvider } from "./DndKitProvider";
 import { SchedulerHeader, type ViewMode } from "./SchedulerHeader";
 import { StickyTimeHeader } from "./StickyTimeHeader";
@@ -18,6 +19,11 @@ import { useUserRole } from "@/hooks/useUserRole";
 import { hasOverlap, getDaysForViewMode, generateDateRange, isWithinOperationalHours, type SchedulerBooking } from "@/lib/scheduler-utils";
 import { AlertCircle } from "lucide-react";
 import { ColumnResizeHandle } from "./ColumnResizeHandle";
+import { 
+  BookingChangeConfirmDialog, 
+  detectChangeType,
+  type ChangeType 
+} from "@/components/bookings/BookingChangeConfirmDialog";
 
 const SLOT_WIDTH = 100; // px per hour
 
@@ -92,8 +98,22 @@ function SchedulerGridContent() {
   });
 
   const updateTicketItem = useUpdateTicketItem();
+  const sendChangeNotification = useSendBookingChangeNotification();
   const { clearSelection, state, endDrag, cancelDrag, updateDrag } = useSchedulerSelection();
   const { isAdminOrOffice } = useUserRole();
+
+  // State for drag & drop confirmation dialog
+  const [showDropConfirmDialog, setShowDropConfirmDialog] = useState(false);
+  const [pendingDropData, setPendingDropData] = useState<{
+    booking: SchedulerBooking;
+    newInstructorId: string;
+    newDate: string;
+    newTimeSlot: string;
+    newTimeEnd: string;
+    changeType: ChangeType;
+    oldValues: { date?: string; time?: string; instructor?: string };
+    newValues: { date?: string; time?: string; instructor?: string };
+  } | null>(null);
 
   // Helper to check conflicts at a slot position
   const checkSlotConflict = useCallback((instructorId: string, date: string, slotTime: string): boolean => {
@@ -293,14 +313,102 @@ function SchedulerGridContent() {
       return;
     }
 
-    // Update the booking with new date
-    updateTicketItem.mutate({
-      ticketItemId: booking.id,
-      instructorId: newInstructorId,
-      date: newDate,
-      timeStart: newTimeSlot,
-      timeEnd: newEndTime,
+    // Detect what changed
+    const originalTime = `${booking.timeStart} - ${booking.timeEnd}`;
+    const newTime = `${newTimeSlot} - ${newEndTime}`;
+    const changeType = detectChangeType(
+      booking.date,
+      originalTime,
+      booking.instructorId,
+      newDate,
+      newTime,
+      newInstructorId
+    );
+
+    // If no significant changes, just update without confirmation
+    if (changeType === 'none') {
+      updateTicketItem.mutate({
+        ticketItemId: booking.id,
+        instructorId: newInstructorId,
+        date: newDate,
+        timeStart: newTimeSlot,
+        timeEnd: newEndTime,
+      });
+      return;
+    }
+
+    // Get instructor names
+    const oldInstructor = instructors.find(i => i.id === booking.instructorId);
+    const newInstructor = instructors.find(i => i.id === newInstructorId);
+
+    // Store pending data and show confirmation dialog
+    setPendingDropData({
+      booking,
+      newInstructorId,
+      newDate,
+      newTimeSlot,
+      newTimeEnd: newEndTime,
+      changeType,
+      oldValues: {
+        date: format(new Date(booking.date), "d. MMMM yyyy", { locale: de }),
+        time: `${booking.timeStart.slice(0, 5)} - ${booking.timeEnd.slice(0, 5)} Uhr`,
+        instructor: oldInstructor ? `${oldInstructor.first_name} ${oldInstructor.last_name}` : undefined,
+      },
+      newValues: {
+        date: format(new Date(newDate), "d. MMMM yyyy", { locale: de }),
+        time: `${newTimeSlot} - ${newEndTime} Uhr`,
+        instructor: newInstructor ? `${newInstructor.first_name} ${newInstructor.last_name}` : undefined,
+      },
     });
+    setShowDropConfirmDialog(true);
+  };
+
+  // Handle confirmation of drag & drop change
+  const handleDropConfirm = (notifyCustomer: boolean) => {
+    if (!pendingDropData) return;
+
+    const { booking, newInstructorId, newDate, newTimeSlot, newTimeEnd, changeType, oldValues, newValues } = pendingDropData;
+
+    updateTicketItem.mutate(
+      {
+        ticketItemId: booking.id,
+        instructorId: newInstructorId,
+        date: newDate,
+        timeStart: newTimeSlot,
+        timeEnd: newTimeEnd,
+      },
+      {
+        onSuccess: () => {
+          toast.success("Buchung verschoben");
+          
+          // Send notification if requested
+          if (notifyCustomer && changeType !== 'none') {
+            const oldInstructor = instructors.find(i => i.id === booking.instructorId);
+            const newInstructor = instructors.find(i => i.id === newInstructorId);
+
+            sendChangeNotification.mutate({
+              ticketItemId: booking.id,
+              changeType,
+              oldValues: {
+                date: oldValues.date,
+                time: oldValues.time,
+                instructorId: booking.instructorId,
+                instructorName: oldInstructor ? `${oldInstructor.first_name} ${oldInstructor.last_name}` : undefined,
+              },
+              newValues: {
+                date: newValues.date,
+                time: newValues.time,
+                instructorId: newInstructorId,
+                instructorName: newInstructor ? `${newInstructor.first_name} ${newInstructor.last_name}` : undefined,
+              },
+            });
+          }
+        },
+      }
+    );
+
+    setShowDropConfirmDialog(false);
+    setPendingDropData(null);
   };
 
   const instructorOptions = instructors.map((i) => ({
@@ -417,6 +525,20 @@ function SchedulerGridContent() {
 
         {/* Selection Toolbar */}
         <SelectionToolbar bookings={bookings} />
+
+        {/* Booking Change Confirmation Dialog for Drag & Drop */}
+        <BookingChangeConfirmDialog
+          open={showDropConfirmDialog}
+          onOpenChange={(open) => {
+            setShowDropConfirmDialog(open);
+            if (!open) setPendingDropData(null);
+          }}
+          onConfirm={handleDropConfirm}
+          changeType={pendingDropData?.changeType || 'none'}
+          oldValues={pendingDropData?.oldValues || {}}
+          newValues={pendingDropData?.newValues || {}}
+          isLoading={updateTicketItem.isPending || sendChangeNotification.isPending}
+        />
       </div>
     </DndKitProvider>
   );
