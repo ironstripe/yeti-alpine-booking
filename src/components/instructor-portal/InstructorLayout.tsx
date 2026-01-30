@@ -1,4 +1,4 @@
-import { ReactNode, useEffect } from "react";
+import { ReactNode, useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserRole } from "@/hooks/useUserRole";
@@ -29,22 +29,33 @@ export function InstructorLayout({ children }: InstructorLayoutProps) {
   const { user, signOut, loading: authLoading } = useAuth();
   const { isTeacher, isAdminOrOffice, loading: roleLoading, instructorId } = useUserRole();
   const { data: pendingCount } = usePendingBookingsCount();
+  const [hasInitialized, setHasInitialized] = useState(false);
+
+  // Wait for auth context to stabilize before checking auth
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setHasInitialized(true);
+    }, 100);
+    return () => clearTimeout(timeout);
+  }, []);
 
   // Redirect non-teachers to main app (unless admin/office)
   useEffect(() => {
+    if (!hasInitialized) return;
     if (!authLoading && !roleLoading && user) {
       if (!isTeacher && !isAdminOrOffice) {
         navigate("/login");
       }
     }
-  }, [isTeacher, isAdminOrOffice, authLoading, roleLoading, user, navigate]);
+  }, [hasInitialized, isTeacher, isAdminOrOffice, authLoading, roleLoading, user, navigate]);
 
   // Redirect to login if not authenticated
   useEffect(() => {
+    if (!hasInitialized) return;
     if (!authLoading && !user) {
       navigate("/login");
     }
-  }, [authLoading, user, navigate]);
+  }, [hasInitialized, authLoading, user, navigate]);
 
   if (authLoading || roleLoading) {
     return (
