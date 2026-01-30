@@ -13,6 +13,7 @@
  * - Trainings page: "Neues Training" button (different action)
  */
 import { useState, useMemo } from "react";
+import { useSearchParams } from "react-router-dom";
 import { PageHeader } from "@/components/layout";
 import { useDebounce } from "@/hooks/useDebounce";
 import { useTickets, defaultFilters, TicketFilters, TicketWithDetails } from "@/hooks/useTickets";
@@ -26,9 +27,23 @@ import { PaymentModal } from "@/components/bookings/PaymentModal";
 const DEFAULT_COLUMNS = ["ticket", "customer", "course", "dateTime", "instructor", "total", "status"];
 
 const Bookings = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // Initialize filters from URL params
+  const initialFilters = useMemo(() => {
+    const statusParam = searchParams.get("status");
+    if (statusParam === "open") {
+      return { ...defaultFilters, paymentStatus: ["open", "partial"] };
+    }
+    if (statusParam === "paid") {
+      return { ...defaultFilters, paymentStatus: ["paid"] };
+    }
+    return defaultFilters;
+  }, []);
+
   // Filter state
   const [searchInput, setSearchInput] = useState("");
-  const [filters, setFilters] = useState<TicketFilters>(defaultFilters);
+  const [filters, setFilters] = useState<TicketFilters>(initialFilters);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [visibleColumns, setVisibleColumns] = useState<string[]>(DEFAULT_COLUMNS);
   const [paymentModalTicket, setPaymentModalTicket] = useState<TicketWithDetails | null>(null);
@@ -57,6 +72,10 @@ const Bookings = () => {
   const clearFilters = () => {
     setSearchInput("");
     setFilters(defaultFilters);
+    // Clear URL params when filters are reset
+    if (searchParams.has("status")) {
+      setSearchParams({});
+    }
   };
 
   return (
