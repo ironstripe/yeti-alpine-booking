@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 import { useDroppable } from "@dnd-kit/core";
 import { cn } from "@/lib/utils";
 import { Plus, Ban } from "lucide-react";
@@ -42,6 +42,22 @@ export function EmptySlot({
     shiftClickSelect,
   } = useSchedulerSelection();
 
+  // Check if slot is occupied by an existing booking (for drop zone validation)
+  const isOccupied = useMemo(() => {
+    const slotMin = timeToMinutes(timeSlot);
+    const slotEnd = slotMin + 60; // 1-hour slot
+    
+    return bookings.some((b) => {
+      if (b.instructorId !== instructorId || b.date !== date) return false;
+      const bookingStart = timeToMinutes(b.timeStart);
+      const bookingEnd = timeToMinutes(b.timeEnd);
+      return slotMin < bookingEnd && slotEnd > bookingStart;
+    });
+  }, [bookings, instructorId, date, timeSlot]);
+
+  // Slot is invalid for drop if blocked (absence) OR occupied (booking)
+  const isInvalidDropZone = isBlocked || isOccupied;
+
   const { setNodeRef, isOver } = useDroppable({
     id: `slot-${instructorId}-${date}-${timeSlot}`,
     data: {
@@ -49,9 +65,9 @@ export function EmptySlot({
       instructorId,
       date,
       timeSlot,
-      isBlocked,
+      isBlocked: isInvalidDropZone, // Pass combined blocked state
     },
-    disabled: isBlocked,
+    disabled: isInvalidDropZone, // Disable drop on occupied slots
   });
 
   const isSelected = isSlotSelected(instructorId, date, timeSlot);
@@ -158,12 +174,13 @@ export function EmptySlot({
       className={cn(
         "absolute top-0 bottom-0 border-r border-slate-300",
         "transition-colors duration-100 select-none touch-none",
-        !isBlocked && !state.drag.isDragging && "cursor-pointer hover:bg-slate-100 hover:border-slate-400 group",
+        !isInvalidDropZone && !state.drag.isDragging && "cursor-pointer hover:bg-slate-100 hover:border-slate-400 group",
         state.drag.isDragging && "cursor-crosshair",
-        isBlocked && "cursor-not-allowed bg-muted/30",
-        // DnD drop zone feedback - green for valid, red for invalid
-        isOver && !isBlocked && "border-2 border-green-500 bg-green-50",
-        isOver && isBlocked && "border-2 border-red-500 bg-red-50 cursor-not-allowed",
+        isInvalidDropZone && "cursor-not-allowed",
+        isBlocked && "bg-muted/30", // Only show muted background for absences
+        // DnD drop zone feedback - green for valid, red for invalid (including occupied slots)
+        isOver && !isInvalidDropZone && "border-2 border-green-500 bg-green-50",
+        isOver && isInvalidDropZone && "border-2 border-red-500 bg-red-50 cursor-not-allowed",
         // Drag selection preview styling
         isDragPreview && !isDragBlocked && "bg-[rgba(59,130,246,0.15)] border-l-2 border-l-blue-500",
         isDragPreview && isDragBlocked && "bg-destructive/15"
@@ -174,7 +191,7 @@ export function EmptySlot({
       }}
     >
       {/* Hover indicator for empty non-dragging slots */}
-      {!isBlocked && !isSelected && !isDragPreview && !state.drag.isDragging && (
+      {!isInvalidDropZone && !isSelected && !isDragPreview && !state.drag.isDragging && (
         <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
           <div className="w-5 h-5 rounded-full bg-blue-500/20 flex items-center justify-center">
             <Plus className="h-3 w-3 text-blue-600" />

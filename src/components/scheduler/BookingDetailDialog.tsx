@@ -1,6 +1,6 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { format, startOfDay } from "date-fns";
+import { format, startOfDay, parseISO } from "date-fns";
 import { de } from "date-fns/locale";
 import {
   Dialog,
@@ -8,6 +8,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -27,6 +37,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { toast } from "sonner";
 import { 
   Calendar, 
   Clock, 
@@ -59,6 +70,8 @@ import {
   calculateDuration
 } from "@/lib/booking-utils";
 import { MEETING_POINTS, getMeetingPointById } from "@/lib/meeting-point-utils";
+import { hasOverlap, type SchedulerBooking } from "@/lib/scheduler-utils";
+import { supabase } from "@/integrations/supabase/client";
 
 interface BookingDetailDialogProps {
   open: boolean;
@@ -77,6 +90,9 @@ export function BookingDetailDialog({
   const updateTicketItem = useUpdateTicketItem();
   
   const [isEditing, setIsEditing] = useState(false);
+  const [showConflictDialog, setShowConflictDialog] = useState(false);
+  const [pendingInstructorId, setPendingInstructorId] = useState<string | null>(null);
+  const [instructorConflicts, setInstructorConflicts] = useState<Record<string, boolean>>({});
   
   // Form state
   const [date, setDate] = useState<Date | undefined>(undefined);
@@ -109,6 +125,95 @@ export function BookingDetailDialog({
     // Could filter by specialization based on product.type if needed
     return activeInstructors;
   }, [instructors]);
+
+  // Fetch instructor conflicts when editing and date/time changes
+  useEffect(() => {
+    const checkConflicts = async () => {
+      if (!isEditing || !date || !timeStart || !timeEnd) {
+        setInstructorConflicts({});
+        return;
+      }
+
+      const dateStr = format(date, "yyyy-MM-dd");
+      
+      // Fetch all bookings for this date
+      const { data: bookingsData } = await supabase
+        .from("ticket_items")
+        .select("id, instructor_id, time_start, time_end")
+        .eq("date", dateStr)
+        .not("status", "eq", "cancelled")
+        .not("instructor_id", "is", null);
+
+      if (!bookingsData) {
+        setInstructorConflicts({});
+        return;
+      }
+
+      // Check conflicts for each instructor
+      const conflicts: Record<string, boolean> = {};
+      
+      filteredInstructors.forEach((instructor) => {
+        // Get bookings for this instructor (excluding current booking)
+        const instructorBookings = bookingsData
+          .filter(b => b.instructor_id === instructor.id && b.id !== ticketItemId)
+          .map(b => ({
+            id: b.id,
+            instructorId: b.instructor_id,
+            date: dateStr,
+            timeStart: b.time_start || "",
+            timeEnd: b.time_end || "",
+            type: "private" as const,
+            isPaid: false,
+            ticketId: "",
+            status: "confirmed",
+          }));
+
+        // Check if there's overlap
+        conflicts[instructor.id] = hasOverlap(
+          instructor.id,
+          dateStr,
+          timeStart,
+          timeEnd,
+          instructorBookings
+        );
+      });
+
+      setInstructorConflicts(conflicts);
+    };
+
+    checkConflicts();
+  }, [isEditing, date, timeStart, timeEnd, filteredInstructors, ticketItemId]);
+
+  // Get pending instructor details for conflict dialog
+  const pendingInstructor = useMemo(() => {
+    if (!pendingInstructorId) return null;
+    return filteredInstructors.find(i => i.id === pendingInstructorId);
+  }, [pendingInstructorId, filteredInstructors]);
+
+  // Handle instructor selection with conflict check
+  const handleInstructorChange = useCallback((newInstructorId: string | null) => {
+    if (!newInstructorId || newInstructorId === "none") {
+      setInstructorId(null);
+      return;
+    }
+
+    // Check if instructor has conflict
+    if (instructorConflicts[newInstructorId]) {
+      setPendingInstructorId(newInstructorId);
+      setShowConflictDialog(true);
+    } else {
+      setInstructorId(newInstructorId);
+    }
+  }, [instructorConflicts]);
+
+  // Confirm instructor despite conflict
+  const handleConfirmConflict = () => {
+    if (pendingInstructorId) {
+      setInstructorId(pendingInstructorId);
+    }
+    setShowConflictDialog(false);
+    setPendingInstructorId(null);
+  };
 
   // Sync form state when booking loads
   useEffect(() => {
@@ -151,6 +256,7 @@ export function BookingDetailDialog({
       {
         onSuccess: () => {
           setIsEditing(false);
+          toast.success("Buchung erfolgreich aktualisiert");
         },
       }
     );
@@ -348,7 +454,7 @@ export function BookingDetailDialog({
                     </Label>
                     <Select 
                       value={instructorId || "none"} 
-                      onValueChange={(val) => setInstructorId(val === "none" ? null : val)}
+                      onValueChange={(val) => handleInstructorChange(val === "none" ? null : val)}
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="Lehrer auswählen" />
@@ -357,17 +463,29 @@ export function BookingDetailDialog({
                         <SelectItem value="none">
                           <span className="text-muted-foreground">Später zuweisen</span>
                         </SelectItem>
-                        {filteredInstructors.map((instructor) => (
-                          <SelectItem key={instructor.id} value={instructor.id}>
-                            {instructor.first_name} {instructor.last_name}
-                            {instructor.specialization && (
-                              <span className="text-muted-foreground ml-1">
-                                ({instructor.specialization === 'ski' ? '⛷️' : 
-                                  instructor.specialization === 'snowboard' ? '🏂' : '⛷️🏂'})
+                        {filteredInstructors.map((instructor) => {
+                          const hasConflict = instructorConflicts[instructor.id];
+                          return (
+                            <SelectItem 
+                              key={instructor.id} 
+                              value={instructor.id}
+                              className={cn(hasConflict && "text-amber-600")}
+                            >
+                              <span className="flex items-center gap-1.5">
+                                {hasConflict && (
+                                  <AlertTriangle className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+                                )}
+                                {instructor.first_name} {instructor.last_name}
+                                {instructor.specialization && (
+                                  <span className="text-muted-foreground ml-1">
+                                    ({instructor.specialization === 'ski' ? '⛷️' : 
+                                      instructor.specialization === 'snowboard' ? '🏂' : '⛷️🏂'})
+                                  </span>
+                                )}
                               </span>
-                            )}
-                          </SelectItem>
-                        ))}
+                            </SelectItem>
+                          );
+                        })}
                       </SelectContent>
                     </Select>
                   </div>
@@ -569,6 +687,31 @@ export function BookingDetailDialog({
           </div>
         )}
       </DialogContent>
+
+      {/* Instructor Conflict Confirmation Dialog */}
+      <AlertDialog open={showConflictDialog} onOpenChange={setShowConflictDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-amber-500" />
+              Zeitkonflikt erkannt
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Der Lehrer <strong>{pendingInstructor?.first_name} {pendingInstructor?.last_name}</strong> hat 
+              bereits eine Buchung um <strong>{timeStart} - {timeEnd}</strong> Uhr. 
+              Möchtest du trotzdem fortfahren?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setPendingInstructorId(null)}>
+              Abbrechen
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmConflict}>
+              Trotzdem zuweisen
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   );
 }
