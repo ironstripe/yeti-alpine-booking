@@ -71,6 +71,8 @@ import SettingsAI from "./pages/SettingsAI";
 import SettingsDataImport from "./pages/SettingsDataImport";
 import SettingsSystem from "./pages/SettingsSystem";
 import SetPassword from "./pages/SetPassword";
+import TestInstructorLogin from "./pages/TestInstructorLogin";
+
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -134,6 +136,10 @@ const AppRoutes = () => (
     
     {/* Password setup for invited instructors */}
     <Route path="/set-password" element={<SetPassword />} />
+    
+    {/* Test login for instructor portal (magic links) */}
+    <Route path="/test-instructor/:token" element={<TestInstructorLogin />} />
+    
     <Route path="/book/private" element={<PrivateBookingForm />} />
     <Route path="/book/group" element={<GroupBookingForm />} />
     <Route path="/book/request/:token" element={<RequestConfirmation />} />
