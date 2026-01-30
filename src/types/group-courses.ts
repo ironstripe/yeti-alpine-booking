@@ -1,7 +1,7 @@
 // Types for Group Courses (Trainings) module
 // NOTE: Trainings ARE skill levels for children - no separate skill_level_id needed
 
-export type CourseType = 'weekly' | 'saturday_course' | 'custom';
+export type CourseType = 'weekly' | 'saturday_course' | 'custom' | 'office';
 
 export interface GroupCourse {
   id: string;
@@ -24,6 +24,7 @@ export interface GroupCourse {
   // NEW: Progression tracking - which training comes next
   next_training_id: string | null;
   sort_order: number;
+  is_internal: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -182,4 +183,26 @@ export const COURSE_TYPES = [
   { value: 'weekly', label: 'Wöchentlich (Mo-Fr)' },
   { value: 'saturday_course', label: 'Samstagskurs' },
   { value: 'custom', label: 'Benutzerdefiniert' },
+  { value: 'office', label: 'Büro/Intern' },
 ] as const;
+
+// Office time presets for shift planning
+export const OFFICE_TIME_PRESETS = [
+  { value: 'morning', label: 'Vormittag', start: '09:00', end: '12:00' },
+  { value: 'afternoon', label: 'Nachmittag', start: '13:00', end: '17:00' },
+  { value: 'fullday', label: 'Ganztag', start: '09:00', end: '17:00' },
+  { value: 'custom', label: 'Benutzerdefiniert', start: null, end: null },
+] as const;
+
+// Office shift assignment type
+export interface OfficeShiftAssignment {
+  id: string;
+  instance_id: string;
+  instructor_id: string;
+  created_at: string;
+  instructor?: {
+    id: string;
+    first_name: string;
+    last_name: string;
+  };
+}

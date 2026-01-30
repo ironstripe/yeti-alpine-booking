@@ -195,22 +195,24 @@ export function useCreateGroupCourse() {
   return useMutation({
     mutationFn: async (formData: GroupCourseFormData) => {
       // Create course - no longer includes skill_level_id
+      const isOffice = formData.course_type === 'office';
       const insertData: Record<string, unknown> = {
         name: formData.name,
         description: formData.description || null,
         discipline: formData.discipline,
-        min_age: formData.min_age,
-        max_age: formData.max_age,
+        min_age: isOffice ? 18 : formData.min_age,
+        max_age: isOffice ? 99 : formData.max_age,
         max_participants: formData.max_participants,
-        product_id: formData.product_id,
+        product_id: isOffice ? null : formData.product_id,
         meeting_point: formData.meeting_point || null,
-        color: formData.color,
+        color: isOffice ? '#6B7280' : formData.color,
         is_active: formData.is_active,
+        is_internal: isOffice,
         price_per_day: 0, // Legacy field, price now comes from product
         course_type: formData.course_type,
         period_start_date: formData.period_start_date,
         period_end_date: formData.period_end_date,
-        next_training_id: formData.next_training_id,
+        next_training_id: isOffice ? null : formData.next_training_id,
       };
 
       const { data: course, error: courseError } = await supabase
