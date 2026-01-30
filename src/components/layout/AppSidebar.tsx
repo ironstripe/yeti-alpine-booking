@@ -54,10 +54,10 @@ export function AppSidebar() {
   const { user, signOut } = useAuth();
   const { data: conversationCounts } = useConversationCounts();
 
-  // Get dynamic badge count for nav items
+  // Get dynamic badge count for nav items (unread count for standard inbox behavior)
   const getBadgeCount = (url: string): number | null => {
     if (url === "/inbox") {
-      return conversationCounts?.all || null;
+      return conversationCounts?.unread || null;
     }
     return null;
   };
