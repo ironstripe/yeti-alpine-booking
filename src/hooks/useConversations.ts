@@ -122,10 +122,25 @@ export function useConversationCounts() {
     queryKey: ["conversation-counts"],
     queryFn: async () => {
       const [allResult, unreadResult, whatsappResult, emailResult] = await Promise.all([
-        supabase.from("conversations").select("id", { count: "exact", head: true }),
-        supabase.from("conversations").select("id", { count: "exact", head: true }).eq("status", "unread"),
-        supabase.from("conversations").select("id", { count: "exact", head: true }).eq("channel", "whatsapp"),
-        supabase.from("conversations").select("id", { count: "exact", head: true }).eq("channel", "email"),
+        // All inbound conversations
+        supabase.from("conversations")
+          .select("id", { count: "exact", head: true })
+          .eq("direction", "inbound"),
+        // Unread inbound conversations (matches useInboxStats)
+        supabase.from("conversations")
+          .select("id", { count: "exact", head: true })
+          .eq("status", "unread")
+          .eq("direction", "inbound"),
+        // WhatsApp inbound
+        supabase.from("conversations")
+          .select("id", { count: "exact", head: true })
+          .eq("channel", "whatsapp")
+          .eq("direction", "inbound"),
+        // Email inbound
+        supabase.from("conversations")
+          .select("id", { count: "exact", head: true })
+          .eq("channel", "email")
+          .eq("direction", "inbound"),
       ]);
 
       return {
@@ -135,6 +150,8 @@ export function useConversationCounts() {
         email: emailResult.count || 0,
       };
     },
+    refetchInterval: 60000,
+    refetchOnWindowFocus: true,
   });
 }
 
