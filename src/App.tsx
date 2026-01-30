@@ -73,7 +73,6 @@ import SettingsSystem from "./pages/SettingsSystem";
 import SetPassword from "./pages/SetPassword";
 import TestInstructorLogin from "./pages/TestInstructorLogin";
 
-
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
