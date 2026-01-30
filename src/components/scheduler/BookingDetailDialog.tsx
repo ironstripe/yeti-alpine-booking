@@ -59,6 +59,7 @@ import {
 import { useBookingDetail } from "@/hooks/useBookingDetail";
 import { useUpdateTicketItem } from "@/hooks/useUpdateTicketItem";
 import { useInstructors } from "@/hooks/useInstructors";
+import { useSendBookingChangeNotification } from "@/hooks/useBookingChangeNotification";
 import { EnhancedDatePicker } from "@/components/ui/enhanced-date-picker";
 import { cn } from "@/lib/utils";
 import { 
@@ -72,6 +73,11 @@ import {
 import { MEETING_POINTS, getMeetingPointById } from "@/lib/meeting-point-utils";
 import { hasOverlap, type SchedulerBooking } from "@/lib/scheduler-utils";
 import { supabase } from "@/integrations/supabase/client";
+import { 
+  BookingChangeConfirmDialog, 
+  detectChangeType, 
+  type ChangeType 
+} from "@/components/bookings/BookingChangeConfirmDialog";
 
 interface BookingDetailDialogProps {
   open: boolean;
@@ -91,8 +97,12 @@ export function BookingDetailDialog({
   
   const [isEditing, setIsEditing] = useState(false);
   const [showConflictDialog, setShowConflictDialog] = useState(false);
+  const [showChangeConfirmDialog, setShowChangeConfirmDialog] = useState(false);
   const [pendingInstructorId, setPendingInstructorId] = useState<string | null>(null);
   const [instructorConflicts, setInstructorConflicts] = useState<Record<string, boolean>>({});
+  
+  // Notification hook
+  const sendChangeNotification = useSendBookingChangeNotification();
   
   // Form state
   const [date, setDate] = useState<Date | undefined>(undefined);
@@ -235,17 +245,73 @@ export function BookingDetailDialog({
     }
   }, [open]);
 
-  const handleSave = () => {
-    if (!ticketItemId || !date) return;
+  // Compute change type for confirmation dialog
+  const currentChangeType = useMemo(() => {
+    if (!booking || !date) return 'none' as ChangeType;
+    const originalDate = booking.date;
+    const originalTime = `${booking.timeStart?.slice(0, 5) || ""} - ${booking.timeEnd?.slice(0, 5) || ""}`;
+    const newDateStr = format(date, "yyyy-MM-dd");
+    const newTime = `${timeStart} - ${timeEnd}`;
+    
+    return detectChangeType(
+      originalDate,
+      originalTime,
+      booking.instructorId,
+      newDateStr,
+      newTime,
+      instructorId
+    );
+  }, [booking, date, timeStart, timeEnd, instructorId]);
 
-    if (!timeRangeValid) {
-      return;
+  // Get old and new values for confirmation dialog
+  const changeDialogValues = useMemo(() => {
+    if (!booking || !date) return { oldValues: {}, newValues: {} };
+    
+    const originalInstructor = instructors.find(i => i.id === booking.instructorId);
+    const newInstructor = instructors.find(i => i.id === instructorId);
+    
+    return {
+      oldValues: {
+        date: booking.date ? format(new Date(booking.date), "d. MMMM yyyy", { locale: de }) : "",
+        time: `${booking.timeStart?.slice(0, 5) || ""} - ${booking.timeEnd?.slice(0, 5) || ""} Uhr`,
+        instructor: originalInstructor 
+          ? `${originalInstructor.first_name} ${originalInstructor.last_name}` 
+          : undefined,
+      },
+      newValues: {
+        date: format(date, "d. MMMM yyyy", { locale: de }),
+        time: `${timeStart} - ${timeEnd} Uhr`,
+        instructor: newInstructor 
+          ? `${newInstructor.first_name} ${newInstructor.last_name}` 
+          : undefined,
+      },
+    };
+  }, [booking, date, timeStart, timeEnd, instructorId, instructors]);
+
+  const handleSaveClick = () => {
+    if (!ticketItemId || !date) return;
+    if (!timeRangeValid) return;
+
+    // Check if there are significant changes that need confirmation
+    if (currentChangeType !== 'none') {
+      setShowChangeConfirmDialog(true);
+    } else {
+      // No significant changes, save directly
+      performSave(false);
     }
+  };
+
+  const performSave = (notifyCustomer: boolean) => {
+    if (!ticketItemId || !date || !booking) return;
+
+    const newDateStr = format(date, "yyyy-MM-dd");
+    const originalInstructor = instructors.find(i => i.id === booking.instructorId);
+    const newInstructor = instructors.find(i => i.id === instructorId);
 
     updateTicketItem.mutate(
       {
         ticketItemId,
-        date: format(date, "yyyy-MM-dd"),
+        date: newDateStr,
         timeStart: timeStart || undefined,
         timeEnd: timeEnd || undefined,
         instructorId: instructorId,
@@ -257,9 +323,40 @@ export function BookingDetailDialog({
         onSuccess: () => {
           setIsEditing(false);
           toast.success("Buchung erfolgreich aktualisiert");
+
+          // Send notification if requested
+          if (notifyCustomer && currentChangeType !== 'none') {
+            sendChangeNotification.mutate({
+              ticketItemId,
+              changeType: currentChangeType,
+              oldValues: {
+                date: booking.date ? format(new Date(booking.date), "d. MMMM yyyy", { locale: de }) : "",
+                time: `${booking.timeStart?.slice(0, 5) || ""} - ${booking.timeEnd?.slice(0, 5) || ""} Uhr`,
+                instructorId: booking.instructorId,
+                instructorName: originalInstructor 
+                  ? `${originalInstructor.first_name} ${originalInstructor.last_name}` 
+                  : undefined,
+              },
+              newValues: {
+                date: format(date, "d. MMMM yyyy", { locale: de }),
+                time: `${timeStart} - ${timeEnd} Uhr`,
+                instructorId: instructorId,
+                instructorName: newInstructor 
+                  ? `${newInstructor.first_name} ${newInstructor.last_name}` 
+                  : undefined,
+              },
+              productName: booking.product?.name,
+              meetingPoint: meetingPoint || booking.meetingPoint,
+            });
+          }
         },
       }
     );
+  };
+
+  const handleConfirmChangeDialog = (notifyCustomer: boolean) => {
+    setShowChangeConfirmDialog(false);
+    performSave(notifyCustomer);
   };
 
   const handleCancel = () => {
@@ -657,7 +754,7 @@ export function BookingDetailDialog({
                   </Button>
                   <Button
                     size="sm"
-                    onClick={handleSave}
+                    onClick={handleSaveClick}
                     disabled={updateTicketItem.isPending || !timeRangeValid}
                   >
                     <Save className="h-4 w-4 mr-1" />
@@ -712,6 +809,21 @@ export function BookingDetailDialog({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Booking Change Confirmation Dialog */}
+      <BookingChangeConfirmDialog
+        open={showChangeConfirmDialog}
+        onOpenChange={setShowChangeConfirmDialog}
+        onConfirm={handleConfirmChangeDialog}
+        changeType={currentChangeType}
+        customerName={booking?.customer 
+          ? `${booking.customer.firstName} ${booking.customer.lastName}` 
+          : undefined}
+        customerEmail={booking?.customer?.email}
+        oldValues={changeDialogValues.oldValues}
+        newValues={changeDialogValues.newValues}
+        isLoading={updateTicketItem.isPending || sendChangeNotification.isPending}
+      />
     </Dialog>
   );
 }
