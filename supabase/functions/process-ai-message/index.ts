@@ -51,6 +51,17 @@ Zeiten für Gruppenkurse:
    - Bei Privatstunden: Uhrzeiten wie "09:00-12:00" oder "Vormittag" extrahieren
    - **BEACHTE:** Verschiedene Teilnehmer können unterschiedliche Tage haben!
 
+**DATUM UND WOCHENTAG EXTRAKTION (WICHTIG!):**
+   - Wenn der Kunde einen Wochentag MIT einem Datum nennt, extrahiere BEIDES!
+   - Das Feld "mentioned_weekday" speichert den vom Kunden genannten Wochentag
+   - Beispiele:
+     * "am Montag, 17. Januar" → date: "2026-01-17", mentioned_weekday: "Montag"
+     * "Samstag, den 18.01.2026" → date: "2026-01-18", mentioned_weekday: "Samstag"
+     * "am 17.01." (ohne Wochentag) → date: "2026-01-17", mentioned_weekday: null
+     * "nächsten Freitag" → date: [berechne nächsten Freitag], mentioned_weekday: "Freitag"
+   - WICHTIG: Extrahiere den genannten Wochentag IMMER, auch wenn er nicht zum Datum passt!
+     Die Validierung erfolgt in einem separaten Schritt.
+
 4. **Kurstyp:**
    - "Privatunterricht", "Privatstunde", "nur für uns" = private
    - "Gruppenkurs", "Skikurs", "Kinderskikurs" = group
@@ -222,6 +233,10 @@ const extractionTools = [
                         type: "object",
                         properties: {
                           date: { type: "string", description: "Datum im Format YYYY-MM-DD" },
+                          mentioned_weekday: { 
+                            type: "string", 
+                            description: "Der vom Kunden genannte Wochentag (z.B. 'Montag', 'Mo', 'Samstag'), null wenn kein Wochentag genannt wurde" 
+                          },
                           start_time: { type: "string", description: "Startzeit im Format HH:MM" },
                           end_time: { type: "string", description: "Endzeit im Format HH:MM" },
                         },
@@ -249,6 +264,10 @@ const extractionTools = [
                   type: "object",
                   properties: {
                     date: { type: "string", description: "Datum im Format YYYY-MM-DD" },
+                    mentioned_weekday: { 
+                      type: "string", 
+                      description: "Der vom Kunden genannte Wochentag (z.B. 'Montag', 'Mo'), null wenn nicht genannt" 
+                    },
                     start_time: { type: "string", description: "Startzeit im Format HH:MM" },
                     end_time: { type: "string", description: "Endzeit im Format HH:MM" },
                     time_preference: {
@@ -565,6 +584,21 @@ function validateAndCleanExtraction(
   // Generate or enhance booking_summary for participant-specific bookings
   data.booking_summary = generateBookingSummary(data);
 
+  // Validate date/weekday matches and add conflicts to booking_summary
+  const dateConflicts = validateAllDates(data);
+  if (dateConflicts.length > 0) {
+    const summary = (data.booking_summary as Record<string, unknown>) || {};
+    summary.date_conflicts = dateConflicts;
+    summary.has_date_conflicts = true;
+    
+    const warnings = (summary.warnings as string[]) || [];
+    warnings.push(
+      `Datum/Wochentag-Konflikt: ${dateConflicts.length} Datum(e) stimmen nicht mit dem genannten Wochentag überein`
+    );
+    summary.warnings = warnings;
+    data.booking_summary = summary;
+  }
+
   // Ensure backwards compatibility: populate global booking object from participant bookings
   ensureBackwardsCompatibility(data);
 
@@ -575,10 +609,19 @@ function validateAndCleanExtraction(
   data.ai_original_confidence = data.confidence;
   data.confidence = completenessResult.score;
   data.data_completeness = completenessResult.score;
-  data.booking_ready = completenessResult.bookingReady;
+  
+  // Date conflicts prevent booking from being ready
+  const bookingSummary = data.booking_summary as Record<string, unknown> | undefined;
+  const hasDateConflicts = bookingSummary?.has_date_conflicts === true;
+  data.booking_ready = hasDateConflicts ? false : completenessResult.bookingReady;
   
   // Use the calculated missing fields (more accurate than AI-reported)
-  data.missing_information = completenessResult.missingRequired;
+  // Add date conflict warning to missing fields if conflicts exist
+  const missingFields = [...completenessResult.missingRequired];
+  if (hasDateConflicts && !missingFields.includes("date_weekday_conflict")) {
+    missingFields.push("date_weekday_conflict");
+  }
+  data.missing_information = missingFields;
 
   return data;
 }
@@ -673,6 +716,160 @@ function generateBookingSummary(data: Record<string, unknown>): Record<string, u
     date_range: dateRange,
     warnings: warnings.length > 0 ? warnings : (existingSummary.warnings || [])
   };
+}
+
+// Date/Weekday Validation Types
+interface DateValidationResult {
+  date: string;
+  mentioned_weekday: string | null;
+  actual_weekday: string;
+  is_valid: boolean;
+  conflict_type: "none" | "weekday_mismatch";
+  suggestion: string | null;
+  participant_name?: string;
+}
+
+// German weekday names for validation
+const WEEKDAYS = ["Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"];
+const WEEKDAYS_SHORT = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"];
+
+// Format date in German format
+function formatDateGerman(dateStr: string): string {
+  const date = new Date(dateStr);
+  const weekday = WEEKDAYS[date.getDay()];
+  const day = date.getDate().toString().padStart(2, "0");
+  const month = (date.getMonth() + 1).toString().padStart(2, "0");
+  const year = date.getFullYear();
+  return `${weekday}, ${day}.${month}.${year}`;
+}
+
+// Validate a single date against its mentioned weekday
+function validateDateWeekday(
+  dateStr: string,
+  mentionedWeekday: string | null
+): DateValidationResult {
+  const date = new Date(dateStr);
+  const actualWeekday = WEEKDAYS[date.getDay()];
+  const actualWeekdayShort = WEEKDAYS_SHORT[date.getDay()];
+
+  // No weekday mentioned = no conflict possible
+  if (!mentionedWeekday) {
+    return {
+      date: dateStr,
+      mentioned_weekday: null,
+      actual_weekday: actualWeekday,
+      is_valid: true,
+      conflict_type: "none",
+      suggestion: null,
+    };
+  }
+
+  // Normalize mentioned weekday for comparison
+  const normalizedMentioned = mentionedWeekday.toLowerCase().trim();
+  const normalizedActual = actualWeekday.toLowerCase();
+  const normalizedActualShort = actualWeekdayShort.toLowerCase();
+
+  // Check for match (including partial matches like "Mo" for "Montag")
+  const isMatch =
+    normalizedActual === normalizedMentioned ||
+    normalizedActualShort === normalizedMentioned ||
+    normalizedActual.startsWith(normalizedMentioned.slice(0, 2)) ||
+    normalizedMentioned.startsWith(normalizedActualShort);
+
+  if (isMatch) {
+    return {
+      date: dateStr,
+      mentioned_weekday: mentionedWeekday,
+      actual_weekday: actualWeekday,
+      is_valid: true,
+      conflict_type: "none",
+      suggestion: null,
+    };
+  }
+
+  // Conflict detected - find next occurrence of mentioned weekday
+  const mentionedDayIndex = WEEKDAYS.findIndex((w) =>
+    w.toLowerCase().startsWith(normalizedMentioned.slice(0, 2))
+  );
+
+  let nextOccurrence: string | null = null;
+  if (mentionedDayIndex !== -1) {
+    const tempDate = new Date(dateStr);
+    const daysUntilNext = (mentionedDayIndex - tempDate.getDay() + 7) % 7 || 7;
+    tempDate.setDate(tempDate.getDate() + daysUntilNext);
+    nextOccurrence = tempDate.toISOString().split("T")[0];
+  }
+
+  return {
+    date: dateStr,
+    mentioned_weekday: mentionedWeekday,
+    actual_weekday: actualWeekday,
+    is_valid: false,
+    conflict_type: "weekday_mismatch",
+    suggestion: nextOccurrence
+      ? `Der ${mentionedWeekday} wäre der ${formatDateGerman(nextOccurrence)}`
+      : null,
+  };
+}
+
+// Validate all dates in extracted data
+function validateAllDates(data: Record<string, unknown>): DateValidationResult[] {
+  const dateConflicts: DateValidationResult[] = [];
+  const participants = (data.participants as Array<Record<string, unknown>>) || [];
+  const globalBooking = (data.booking as Record<string, unknown>) || {};
+
+  // Check participant-level dates
+  for (const participant of participants) {
+    const pBooking = (participant.booking as Record<string, unknown>) || {};
+    const dates = (pBooking.dates as Array<Record<string, unknown>>) || [];
+    const participantName = (participant.name as string) || (participant.first_name as string);
+
+    for (const dateInfo of dates) {
+      const dateStr = dateInfo.date as string;
+      const mentionedWeekday = dateInfo.mentioned_weekday as string | null;
+
+      if (dateStr) {
+        const validation = validateDateWeekday(dateStr, mentionedWeekday);
+
+        // Add actual weekday to date info for display
+        dateInfo.actual_weekday = validation.actual_weekday;
+        dateInfo.is_valid = validation.is_valid;
+
+        if (!validation.is_valid) {
+          dateConflicts.push({
+            ...validation,
+            participant_name: participantName,
+          });
+        }
+      }
+    }
+  }
+
+  // Check global booking dates
+  const globalDates = (globalBooking.dates as Array<Record<string, unknown>>) || [];
+  for (const dateInfo of globalDates) {
+    const dateStr = dateInfo.date as string;
+    const mentionedWeekday = dateInfo.mentioned_weekday as string | null;
+
+    if (dateStr) {
+      const validation = validateDateWeekday(dateStr, mentionedWeekday);
+
+      dateInfo.actual_weekday = validation.actual_weekday;
+      dateInfo.is_valid = validation.is_valid;
+
+      if (!validation.is_valid) {
+        // Avoid duplicates if already added from participant
+        const isDuplicate = dateConflicts.some(
+          (c) => c.date === validation.date && c.mentioned_weekday === validation.mentioned_weekday
+        );
+        if (!isDuplicate) {
+          dateConflicts.push(validation);
+        }
+      }
+    }
+  }
+
+  return dateConflicts;
 }
 
 // Ensure backwards compatibility by populating global booking from participant bookings
