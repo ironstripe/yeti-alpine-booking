@@ -22,6 +22,7 @@ interface DaySectionProps {
   capabilityFilter?: string | null;
   instructorRefs?: React.MutableRefObject<Map<string, HTMLDivElement>>;
   collapseEmpty?: boolean;
+  instructorColumnWidth?: number;
 }
 
 export const DaySection = forwardRef<HTMLDivElement, DaySectionProps>(
@@ -38,6 +39,7 @@ export const DaySection = forwardRef<HTMLDivElement, DaySectionProps>(
       capabilityFilter = null,
       instructorRefs,
       collapseEmpty = false,
+      instructorColumnWidth = 112,
     },
     ref
   ) {
@@ -131,6 +133,7 @@ export const DaySection = forwardRef<HTMLDivElement, DaySectionProps>(
               isHighlighted={highlightedInstructorId === instructor.id}
               capabilityFilter={capabilityFilter}
               rowIndex={index}
+              instructorColumnWidth={instructorColumnWidth}
             />
           );
         })}

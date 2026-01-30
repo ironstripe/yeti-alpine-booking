@@ -43,6 +43,7 @@ interface SingleDayInstructorRowProps {
   capabilityFilter?: string | null;
   rowIndex?: number;
   isPlanningMode?: boolean;
+  instructorColumnWidth: number;
 }
 
 export const SingleDayInstructorRow = forwardRef<HTMLDivElement, SingleDayInstructorRowProps>(
@@ -58,6 +59,7 @@ export const SingleDayInstructorRow = forwardRef<HTMLDivElement, SingleDayInstru
       capabilityFilter = null,
       rowIndex = 0,
       isPlanningMode = false,
+      instructorColumnWidth,
     },
     ref
   ) {
@@ -103,10 +105,13 @@ export const SingleDayInstructorRow = forwardRef<HTMLDivElement, SingleDayInstru
         )}
       >
         {/* Instructor Info Column - Compact Sticky */}
-        <div className={cn(
-          "w-28 shrink-0 border-r border-slate-300 px-2 py-1 flex items-center gap-1.5 sticky left-0 z-10 shadow-[1px_0_2px_rgba(0,0,0,0.03)]",
-          isEvenRow && !isFullDayAbsent && !isHighlighted ? "bg-slate-50" : "bg-background"
-        )}>
+        <div 
+          className={cn(
+            "shrink-0 border-r border-slate-300 px-2 py-1 flex items-center gap-1.5 sticky left-0 z-10 shadow-[1px_0_2px_rgba(0,0,0,0.03)]",
+            isEvenRow && !isFullDayAbsent && !isHighlighted ? "bg-slate-50" : "bg-background"
+          )}
+          style={{ width: `${instructorColumnWidth}px` }}
+        >
           {/* Color Indicator */}
           <div
             className={cn(
