@@ -1,416 +1,229 @@
 
-# Plan: YETI Scheduler - Office Staff Planning, Fullscreen & Planning Mode
+# Plan: Make First Column of Scheduler Dynamically Resizable
 
-## Executive Summary
-This plan extends the scheduler with three new features:
-1. **Office Staff Planning** - Filter and display office staff with purple shift blocks
-2. **Fullscreen Mode** - Maximize scheduler view hiding sidebar
-3. **Planning Mode** - Highlight available slots, dim existing bookings
+## Overview
 
----
+The scheduler's instructor column (currently fixed at `w-28` = 112px) will be made resizable by dragging its right edge. This requires:
+1. Managing column width state in SchedulerGrid
+2. Passing width to all child components
+3. Adding a drag handle between the instructor column and the time grid
+4. Persisting width preference in localStorage
 
-## Phase 1: Database Changes
+## Technical Approach
 
-### 1.1 Update `role` Column Values
-The `instructors` table already has a `role` column (TEXT, default 'rolle_1'). We'll update it to use meaningful values:
-
-```sql
--- Update default and add check constraint
-ALTER TABLE instructors 
-  ALTER COLUMN role SET DEFAULT 'instructor';
-
--- Update existing 'rolle_1' values to 'instructor'
-UPDATE instructors SET role = 'instructor' WHERE role = 'rolle_1';
-
--- Add constraint for valid roles
-ALTER TABLE instructors 
-  ADD CONSTRAINT check_staff_role 
-  CHECK (role IN ('instructor', 'office_staff', 'management'));
-
--- Add index for filtering
-CREATE INDEX IF NOT EXISTS idx_instructors_role ON instructors(role);
-```
-
-### 1.2 Add Office Shift Products
-```sql
-INSERT INTO products (name, type, duration_minutes, price, is_active)
-VALUES 
-  ('Büro-Schicht Vormittag', 'office_shift', 240, 0, true),
-  ('Büro-Schicht Nachmittag', 'office_shift', 240, 0, true);
-```
+Since the scheduler uses a custom table-like layout (not `react-resizable-panels`), we'll implement a custom resize handle that tracks mouse drag to adjust width.
 
 ---
 
-## Phase 2: Role Filter in SchedulerHeader
+## Files to Modify
 
-### Files to Modify
 | File | Changes |
 |------|---------|
-| `src/components/scheduler/SchedulerHeader.tsx` | Add role filter dropdown |
-| `src/components/scheduler/SchedulerGrid.tsx` | Add role filter state & filtering logic |
+| `src/components/scheduler/SchedulerGrid.tsx` | Add `instructorColumnWidth` state + persistence |
+| `src/components/scheduler/StickyTimeHeader.tsx` | Accept `instructorColumnWidth` prop, replace fixed `w-28` |
+| `src/components/scheduler/SingleDayInstructorRow.tsx` | Accept `instructorColumnWidth` prop, replace fixed `w-28` |
+| `src/components/scheduler/InstructorWeekBlock.tsx` | Accept `instructorColumnWidth` prop, replace fixed `w-28` |
+| `src/components/scheduler/InstructorFocusView.tsx` | Pass through `instructorColumnWidth`, update skeleton |
+| `src/components/scheduler/ColumnResizeHandle.tsx` | **NEW** - Custom resize handle component |
 
-### SchedulerHeader Changes
-Add new props and role filter UI next to capability filter:
+---
+
+## Implementation Details
+
+### 1. New Component: ColumnResizeHandle
+
+Create a draggable resize handle that sits on the right edge of the instructor column:
 
 ```typescript
-interface SchedulerHeaderProps {
-  // ... existing props
-  roleFilter: string | null;
-  onRoleFilterChange: (filter: string | null) => void;
+// src/components/scheduler/ColumnResizeHandle.tsx
+interface ColumnResizeHandleProps {
+  onResize: (deltaX: number) => void;
+  onResizeEnd: () => void;
+}
+
+export function ColumnResizeHandle({ onResize, onResizeEnd }: ColumnResizeHandleProps) {
+  // Track mouse drag
+  // Show visual indicator (thin line with grip icon on hover)
+  // Call onResize with delta during drag
+  // Call onResizeEnd when mouse up
 }
 ```
 
-Add UI element:
-```tsx
-{/* Role Filter - NEW */}
-<Select 
-  value={roleFilter || "all"} 
-  onValueChange={(v) => onRoleFilterChange(v === "all" ? null : v)}
->
-  <SelectTrigger className="w-8 h-8 p-0 md:w-[130px] md:px-2 [&>span]:hidden md:[&>span]:inline">
-    <Users className="h-3.5 w-3.5 md:mr-1" />
-    <SelectValue placeholder="Rolle" />
-  </SelectTrigger>
-  <SelectContent>
-    <SelectItem value="all">Alle</SelectItem>
-    <SelectItem value="instructor">Skilehrer</SelectItem>
-    <SelectItem value="office_staff">Büropersonal</SelectItem>
-  </SelectContent>
-</Select>
-```
+**Visual Design:**
+- Default: 2px transparent border that shows slate-300 on hover
+- Dragging: Blue highlight line
+- Cursor: `col-resize`
+- Optional grip icon appears on hover
 
-### SchedulerGrid Changes
-Add filtering logic:
+### 2. State Management in SchedulerGrid
+
+Add state and localStorage persistence:
+
 ```typescript
-const [roleFilter, setRoleFilter] = useState<string | null>(null);
+// Constants
+const MIN_INSTRUCTOR_COL_WIDTH = 80;  // Minimum readable width
+const MAX_INSTRUCTOR_COL_WIDTH = 200; // Maximum to prevent overflow
+const DEFAULT_INSTRUCTOR_COL_WIDTH = 112; // Current w-28 = 7rem = 112px
+const STORAGE_KEY = 'scheduler-instructor-col-width';
 
-const filteredInstructors = useMemo(() => {
-  let filtered = instructors;
-  
-  // Filter by role
-  if (roleFilter) {
-    filtered = filtered.filter(i => i.role === roleFilter);
-  }
-  
-  // Filter by capability (existing)
-  // Filter by compact mode (existing)
-  
-  return filtered;
-}, [instructors, roleFilter, capabilityFilter, compactMode, bookings, absences]);
+// State with persistence
+const [instructorColumnWidth, setInstructorColumnWidth] = useState(() => {
+  const saved = localStorage.getItem(STORAGE_KEY);
+  return saved ? parseInt(saved, 10) : DEFAULT_INSTRUCTOR_COL_WIDTH;
+});
+
+// Resize handler with bounds clamping
+const handleColumnResize = useCallback((deltaX: number) => {
+  setInstructorColumnWidth(prev => 
+    Math.max(MIN_INSTRUCTOR_COL_WIDTH, 
+      Math.min(MAX_INSTRUCTOR_COL_WIDTH, prev + deltaX)
+    )
+  );
+}, []);
+
+// Persist on resize end
+const handleResizeEnd = useCallback(() => {
+  localStorage.setItem(STORAGE_KEY, instructorColumnWidth.toString());
+}, [instructorColumnWidth]);
 ```
 
----
+### 3. Update StickyTimeHeader
 
-## Phase 3: Visual Differentiation for Office Staff
+Replace fixed width with dynamic:
 
-### Files to Modify
-| File | Changes |
-|------|---------|
-| `src/components/scheduler/SingleDayInstructorRow.tsx` | Show building icon for office staff |
-| `src/components/scheduler/InstructorWeekBlock.tsx` | Show building icon for office staff |
+```typescript
+interface StickyTimeHeaderProps {
+  slotWidth: number;
+  showDayColumn?: boolean;
+  instructorColumnWidth: number; // NEW
+}
 
-### Icon Display Logic
-```tsx
-// Replace ski/snowboard emoji with building icon for office staff
-{instructor.role === 'office_staff' ? (
-  <Building className="h-3 w-3 text-purple-600" />
-) : (
-  badges.map((badge) => (
-    <span>{badge.label === "K" ? "⛷️" : "🏂"}</span>
-  ))
+// Replace w-28 with inline style
+<div 
+  className="shrink-0 border-r border-slate-300 px-2 py-1.5 ..."
+  style={{ width: `${instructorColumnWidth}px` }}
+>
+  Lehrer
+</div>
+
+// Update sticky left position for day column
+{showDayColumn && (
+  <div 
+    className="w-14 shrink-0 ..."
+    style={{ left: `${instructorColumnWidth}px` }}
+  >
+    Tag
+  </div>
 )}
 ```
 
----
+### 4. Update SingleDayInstructorRow
 
-## Phase 4: Office Shift Booking Bar Colors
-
-### Files to Modify
-| File | Changes |
-|------|---------|
-| `src/lib/scheduler-utils.ts` | Extend `getBookingBarClasses` for office_shift type |
-| `src/components/scheduler/BookingBar.tsx` | Handle office_shift type |
-
-### Color Logic Extension
 ```typescript
-export function getBookingBarClasses(
-  type: "private" | "group" | "office_shift", 
-  isPaid: boolean
-): string {
-  if (type === "office_shift") {
-    return "bg-purple-600 text-white border-purple-700";
-  }
-  if (type === "group") {
-    return "bg-blue-600 text-white border-blue-700";
-  }
-  return isPaid 
-    ? "bg-emerald-500 text-white border-emerald-600" 
-    : "bg-orange-500 text-white border-orange-600";
+interface SingleDayInstructorRowProps {
+  // ... existing
+  instructorColumnWidth: number; // NEW
 }
-```
 
-### Update Legend
-Add purple legend item in `SchedulerGrid.tsx`:
-```tsx
-<div className="flex items-center gap-1">
-  <div className="w-2 h-2 rounded-sm bg-purple-600" />
-  <span>Büro</span>
-</div>
-```
-
----
-
-## Phase 5: Fullscreen Mode
-
-### Files to Modify
-| File | Changes |
-|------|---------|
-| `src/components/scheduler/SchedulerHeader.tsx` | Add fullscreen toggle button |
-| `src/components/scheduler/SchedulerGrid.tsx` | Add fullscreen state & container styling |
-
-### New Props for SchedulerHeader
-```typescript
-interface SchedulerHeaderProps {
-  // ... existing props
-  isFullscreen: boolean;
-  onFullscreenToggle: (fullscreen: boolean) => void;
-}
-```
-
-### Fullscreen Button UI
-```tsx
-{/* Fullscreen Toggle */}
-<Button
-  variant={isFullscreen ? "secondary" : "ghost"}
-  size="icon"
-  className="h-8 w-8"
-  onClick={() => onFullscreenToggle(!isFullscreen)}
-  title={isFullscreen ? "Vollbild beenden (Esc)" : "Vollbild"}
+// Replace w-28 with dynamic width
+<div 
+  className="shrink-0 border-r border-slate-300 px-2 py-1 flex ..."
+  style={{ width: `${instructorColumnWidth}px` }}
 >
-  {isFullscreen ? (
-    <Minimize className="h-3.5 w-3.5" />
-  ) : (
-    <Maximize className="h-3.5 w-3.5" />
-  )}
-</Button>
 ```
 
-### SchedulerGrid Container Styling
+### 5. Update InstructorWeekBlock
+
+More complex because day column has `sticky left-28`:
+
 ```typescript
-const [isFullscreen, setIsFullscreen] = useState(false);
-
-// ESC key handler
-useEffect(() => {
-  const handleEscape = (e: KeyboardEvent) => {
-    if (e.key === 'Escape' && isFullscreen) {
-      setIsFullscreen(false);
-    }
-  };
-  window.addEventListener('keydown', handleEscape);
-  return () => window.removeEventListener('keydown', handleEscape);
-}, [isFullscreen]);
-
-// Container classes
-<div className={cn(
-  "flex flex-col h-full bg-background",
-  isFullscreen && "fixed inset-0 z-50 overflow-auto"
-)}>
-```
-
----
-
-## Phase 6: Planning Mode
-
-### Files to Modify
-| File | Changes |
-|------|---------|
-| `src/components/scheduler/SchedulerHeader.tsx` | Add planning mode toggle |
-| `src/components/scheduler/SchedulerGrid.tsx` | Add planning mode state & context |
-| `src/components/scheduler/BookingBar.tsx` | Dim when planning mode active |
-| `src/components/scheduler/EmptySlot.tsx` | Enhanced hover styling in planning mode |
-| `src/contexts/SchedulerSelectionContext.tsx` | Add planning mode to context |
-
-### New Props for SchedulerHeader
-```typescript
-interface SchedulerHeaderProps {
-  // ... existing props
-  isPlanningMode: boolean;
-  onPlanningModeToggle: (planning: boolean) => void;
+interface InstructorWeekBlockProps {
+  // ... existing
+  instructorColumnWidth: number; // NEW
 }
-```
 
-### Planning Mode Button UI
-```tsx
-{/* Planning Mode Toggle */}
-<Button
-  variant={isPlanningMode ? "secondary" : "ghost"}
-  size="icon"
-  className="h-8 w-8"
-  onClick={() => onPlanningModeToggle(!isPlanningMode)}
-  title={isPlanningMode ? "Planungsmodus beenden" : "Planungsmodus"}
+// Instructor column
+<div 
+  className="shrink-0 border-r border-slate-300 sticky left-0 z-20"
+  style={{ width: `${instructorColumnWidth}px` }}
 >
-  <Target className="h-3.5 w-3.5" />
-</Button>
+
+// Day column sticky position
+<div 
+  className="w-14 shrink-0 border-r ... sticky z-10"
+  style={{ left: `${instructorColumnWidth}px` }}
+>
 ```
 
-### BookingBar Visual Changes
-```tsx
-// In BookingBar.tsx
-<div className={cn(
-  barClasses,
-  isPlanningMode && "opacity-50"
-)}>
-```
+### 6. Update InstructorFocusView
 
-### EmptySlot Enhanced Hover
-```tsx
-// In EmptySlot.tsx
-<div className={cn(
-  baseClasses,
-  isPlanningMode && !isInvalidDropZone && "hover:bg-green-50 hover:border-2 hover:border-green-400"
-)}>
-```
+Pass through the width and update skeleton placeholders:
 
-### Instructor Sorting in Planning Mode
 ```typescript
-// In SchedulerGrid.tsx or InstructorFocusView.tsx
-const sortedInstructors = useMemo(() => {
-  if (!isPlanningMode) return filteredInstructors;
-  
-  return [...filteredInstructors].sort((a, b) => {
-    // Available first, then by booking count (ascending)
-    const aBookings = bookings.filter(b => b.instructorId === a.id).length;
-    const bBookings = bookings.filter(b => b.instructorId === b.id).length;
-    const aAbsent = absences.some(ab => ab.instructorId === a.id);
-    const bAbsent = absences.some(ab => ab.instructorId === b.id);
-    
-    if (aAbsent && !bAbsent) return 1;
-    if (!aAbsent && bAbsent) return -1;
-    return aBookings - bBookings;
-  });
-}, [filteredInstructors, bookings, absences, isPlanningMode]);
+interface InstructorFocusViewProps {
+  // ... existing
+  instructorColumnWidth: number; // NEW
+}
+
+// Pass to child components
+<SingleDayInstructorRow
+  instructorColumnWidth={instructorColumnWidth}
+  // ...
+/>
+
+<InstructorWeekBlock
+  instructorColumnWidth={instructorColumnWidth}
+  // ...
+/>
+
+// Update skeleton widths
+<div 
+  className="shrink-0 border-r border-slate-300 px-2 py-2"
+  style={{ width: `${instructorColumnWidth}px` }}
+>
 ```
 
 ---
 
-## Phase 7: Planning Mode Click Behavior
+## Visual Behavior
 
-### EmptySlot Quick-Create Navigation
-```tsx
-// In EmptySlot.tsx handleMouseDown
-if (isPlanningMode && !isBlocked) {
-  // In planning mode, single click navigates to booking wizard
-  const endMinutes = timeToMinutes(timeSlot) + 60;
-  const endTime = `${Math.floor(endMinutes / 60).toString().padStart(2, "0")}:00`;
-  
-  navigate(`/bookings/new?instructor=${instructorId}&appointments=${encodeURIComponent(
-    JSON.stringify([{
-      date,
-      startTime: timeSlot,
-      durationMinutes: 60
-    }])
-  )}`);
-  return;
-}
+```text
+Before resize:
+┌──────────────┬────────────────────────────────────┐
+│ Lehrer       │ 09:00 │ 10:00 │ 11:00 │ ...       │
+├──────────────┼────────────────────────────────────┤
+│ Max M. ⛷️   ║ [Booking blocks...]                │
+│ Anna S. 🏂  ║                                    │
+└──────────────┴────────────────────────────────────┘
+              ↑
+         Resize handle (hover to show, drag to resize)
+
+After dragging wider:
+┌────────────────────┬──────────────────────────────┐
+│ Lehrer             │ 09:00 │ 10:00 │ 11:00 │ ... │
+├────────────────────┼──────────────────────────────┤
+│ Max Mueller ⛷️    ║ [Booking blocks...]          │
+│ Anna Schmidt 🏂   ║                              │
+└────────────────────┴──────────────────────────────┘
 ```
 
 ---
 
 ## Implementation Order
 
-| Phase | Description | Complexity |
-|-------|-------------|------------|
-| 1 | Database changes (role column, office_shift products) | Low |
-| 2 | Role filter dropdown in header + filtering logic | Medium |
-| 3 | Visual differentiation (building icon for office staff) | Low |
-| 4 | Office shift booking bar colors (purple) | Low |
-| 5 | Fullscreen mode toggle + ESC handler | Medium |
-| 6 | Planning mode toggle + visual changes | Medium |
-| 7 | Planning mode click behavior | Low |
+1. Create `ColumnResizeHandle.tsx` component
+2. Add state + handlers to `SchedulerGrid.tsx`
+3. Update `StickyTimeHeader.tsx` to accept dynamic width
+4. Update `SingleDayInstructorRow.tsx` to accept dynamic width
+5. Update `InstructorWeekBlock.tsx` to accept dynamic width + adjust day column sticky position
+6. Update `InstructorFocusView.tsx` to pass through width + update skeletons
 
 ---
 
-## Updated SchedulerHeader Props Summary
+## Technical Notes
 
-```typescript
-interface SchedulerHeaderProps {
-  // Existing
-  date: Date;
-  onDateChange: (date: Date) => void;
-  viewMode: ViewMode;
-  onViewModeChange: (mode: ViewMode) => void;
-  selectedInstructorId: string | null;
-  onInstructorFilterChange: (id: string | null) => void;
-  instructorOptions: { id: string; name: string }[];
-  onInstructorSelect?: (id: string) => void;
-  capabilityFilter: string | null;
-  onCapabilityFilterChange: (filter: string | null) => void;
-  compactMode?: boolean;
-  onCompactModeChange?: (compact: boolean) => void;
-  compactStats?: { visible: number; total: number };
-  
-  // NEW
-  roleFilter: string | null;
-  onRoleFilterChange: (filter: string | null) => void;
-  isFullscreen: boolean;
-  onFullscreenToggle: (fullscreen: boolean) => void;
-  isPlanningMode: boolean;
-  onPlanningModeToggle: (planning: boolean) => void;
-}
-```
-
----
-
-## Visual Layout Reference
-
-```text
-Updated SchedulerHeader:
-┌────────────────────────────────────────────────────────────────────────────┐
-│ [<] [Datum] [>] [●] │ [Tag][3T][Woche] │ [🔍 Lehrer][👤 Kunde]           │
-│                     │                   │                                  │
-│     Date Nav        │    View Mode      │   Search Fields                  │
-├────────────────────────────────────────────────────────────────────────────┤
-│                                         │ [Alle▼] [Ski▼] [🎯] [⛶] [⊞]   │
-│        Spacer                           │  Role  Capab. Plan Full Compact │
-└────────────────────────────────────────────────────────────────────────────┘
-```
-
----
-
-## Color Scheme Summary
-
-| Color | Meaning | Use Case |
-|-------|---------|----------|
-| Blue | Group Course | Ski instructors |
-| Green | Paid Private | Ski instructors |
-| Orange | Unpaid Private | Ski instructors |
-| **Purple** | Office Shift | Office staff |
-| Light Gray | Absence/Not Available | All |
-| White/Empty | Available Slot | All |
-| Green Border (hover) | Available (Planning Mode) | All |
-
----
-
-## Testing Scenarios
-
-### Role Filter
-- [ ] "Alle" shows all instructors
-- [ ] "Skilehrer" shows only instructors with role='instructor'
-- [ ] "Büropersonal" shows only staff with role='office_staff'
-- [ ] Office staff rows display building icon instead of ski/snowboard emoji
-
-### Fullscreen Mode
-- [ ] Clicking fullscreen hides sidebar, maximizes scheduler
-- [ ] ESC key exits fullscreen
-- [ ] Works in all view modes (daily, 3 days, weekly)
-
-### Planning Mode
-- [ ] Existing bookings are dimmed (opacity-50)
-- [ ] Empty slots show green hover effect
-- [ ] Available instructors sorted to top
-- [ ] Clicking empty slot navigates to booking wizard with prefilled data
-
-### Office Shifts
-- [ ] Office shifts display in purple
-- [ ] Can create morning/afternoon office shifts
-- [ ] Office staff can have absences like instructors
+- **Bounds**: Width clamped between 80px and 200px
+- **Persistence**: Saved to localStorage as `scheduler-instructor-col-width`
+- **Performance**: Resize uses inline styles for smooth animation
+- **Accessibility**: Handle is keyboard focusable with arrow key support (optional enhancement)
+- **Mobile**: Resize handle hidden on touch devices (column uses default width)
