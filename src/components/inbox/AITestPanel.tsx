@@ -97,15 +97,15 @@ export function AITestPanel({ open, onOpenChange }: AITestPanelProps) {
 
         <div className="flex-1 overflow-hidden grid grid-cols-1 lg:grid-cols-2 gap-4">
           {/* Input Section */}
-          <div className="flex flex-col gap-4 min-h-0">
-            <Tabs value={tab} onValueChange={(v) => setTab(v as "samples" | "custom")} className="flex-1 flex flex-col min-h-0">
-              <TabsList className="grid w-full grid-cols-2 shrink-0">
+          <div className="flex flex-col gap-4">
+            <Tabs value={tab} onValueChange={(v) => setTab(v as "samples" | "custom")}>
+              <TabsList className="grid w-full grid-cols-2">
                 <TabsTrigger value="samples">Beispiele</TabsTrigger>
                 <TabsTrigger value="custom">Eigener Text</TabsTrigger>
               </TabsList>
 
-              <TabsContent value="samples" className="flex-1 mt-3 data-[state=inactive]:hidden">
-                <ScrollArea className="h-full">
+              <TabsContent value="samples" className="mt-3">
+                <ScrollArea className="h-[300px]">
                   <div className="space-y-3 pr-4">
                     {(Object.keys(SAMPLE_MESSAGES) as SampleKey[]).map((key) => (
                       <Card
@@ -136,35 +136,33 @@ export function AITestPanel({ open, onOpenChange }: AITestPanelProps) {
                 </ScrollArea>
               </TabsContent>
 
-              <TabsContent value="custom" className="flex-1 mt-3 data-[state=inactive]:hidden">
-                <ScrollArea className="h-full">
-                  <div className="space-y-3 pr-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="subject">Betreff (optional)</Label>
-                      <Input
-                        id="subject"
-                        value={customSubject}
-                        onChange={(e) => setCustomSubject(e.target.value)}
-                        placeholder="z.B. Anfrage Skikurs"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="content">Nachrichteninhalt</Label>
-                      <Textarea
-                        id="content"
-                        value={customContent}
-                        onChange={(e) => setCustomContent(e.target.value)}
-                        placeholder="Fügen Sie hier den Text einer E-Mail oder WhatsApp-Nachricht ein..."
-                        className="min-h-[200px]"
-                      />
-                    </div>
+              <TabsContent value="custom" className="mt-3">
+                <div className="space-y-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="subject">Betreff (optional)</Label>
+                    <Input
+                      id="subject"
+                      value={customSubject}
+                      onChange={(e) => setCustomSubject(e.target.value)}
+                      placeholder="z.B. Anfrage Skikurs"
+                    />
                   </div>
-                </ScrollArea>
+                  <div className="space-y-2">
+                    <Label htmlFor="content">Nachrichteninhalt</Label>
+                    <Textarea
+                      id="content"
+                      value={customContent}
+                      onChange={(e) => setCustomContent(e.target.value)}
+                      placeholder="Fügen Sie hier den Text einer E-Mail oder WhatsApp-Nachricht ein..."
+                      className="min-h-[200px]"
+                    />
+                  </div>
+                </div>
               </TabsContent>
             </Tabs>
 
             {/* Button always visible at bottom */}
-            <div className="flex gap-2 shrink-0">
+            <div className="flex gap-2">
               <Button
                 onClick={handleRunTest}
                 disabled={isLoading || (tab === "custom" && !customContent.trim())}
