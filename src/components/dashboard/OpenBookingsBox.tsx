@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { DashboardTaskCard } from "./DashboardTaskCard";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface OpenBooking {
   id: string;
@@ -95,40 +96,42 @@ export function OpenBookingsBox() {
       isEmpty={count === 0}
       emptyMessage="Keine offenen Buchungen"
     >
-      <div className="space-y-2">
-        {openBookings?.slice(0, 3).map((booking) => (
-          <div
-            key={booking.id}
-            className="flex items-start justify-between gap-2 p-2 rounded-md bg-muted/30 cursor-pointer hover:bg-muted/50 transition-colors"
-            onClick={() => navigate(`/bookings/${booking.id}`)}
-          >
-            <div className="min-w-0">
-              <p className="text-sm font-medium truncate">
-                {booking.ticket_number}{" "}
-                <span className="text-muted-foreground font-normal">
-                  ({booking.customer_name})
-                </span>
-              </p>
-              <p className="text-xs text-muted-foreground">{booking.issue}</p>
+      <ScrollArea className="h-[200px]">
+        <div className="space-y-2 pr-2">
+          {openBookings?.map((booking) => (
+            <div
+              key={booking.id}
+              className="flex items-start justify-between gap-2 p-2 rounded-md bg-muted/30 cursor-pointer hover:bg-muted/50 transition-colors"
+              onClick={() => navigate(`/bookings/${booking.id}`)}
+            >
+              <div className="min-w-0">
+                <p className="text-sm font-medium truncate">
+                  {booking.ticket_number}{" "}
+                  <span className="text-muted-foreground font-normal">
+                    ({booking.customer_name})
+                  </span>
+                </p>
+                <p className="text-xs text-muted-foreground">{booking.issue}</p>
+              </div>
+              <Button variant="ghost" size="sm" className="h-7 text-xs shrink-0">
+                Bearbeiten →
+              </Button>
             </div>
-            <Button variant="ghost" size="sm" className="h-7 text-xs shrink-0">
-              Bearbeiten →
-            </Button>
-          </div>
-        ))}
+          ))}
+        </div>
+      </ScrollArea>
 
-        {count > 3 && (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="w-full h-7 text-xs"
-            onClick={() => navigate("/bookings?status=open")}
-          >
-            Alle {count} anzeigen
-            <ChevronRight className="h-3 w-3 ml-1" />
-          </Button>
-        )}
-      </div>
+      {count > 0 && (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="w-full h-7 text-xs mt-2"
+          onClick={() => navigate("/bookings?status=open")}
+        >
+          Alle in Buchungsliste anzeigen
+          <ChevronRight className="h-3 w-3 ml-1" />
+        </Button>
+      )}
     </DashboardTaskCard>
   );
 }
