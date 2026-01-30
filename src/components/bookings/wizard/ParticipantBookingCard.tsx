@@ -22,7 +22,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Calendar as CalendarComponent } from "@/components/ui/calendar";
+import { RangeDatePicker } from "@/components/ui/range-date-picker";
 import {
   Select,
   SelectContent,
@@ -548,15 +548,14 @@ export function ParticipantBookingCard({
                 <Calendar className="h-3 w-3" />
                 Kurstage
               </Label>
-              <CalendarComponent
-                mode="multiple"
+              <RangeDatePicker
                 selected={booking.dates.map((d) => parseISO(d))}
                 onSelect={handleDateSelect}
                 month={selectedMonth}
                 onMonthChange={setSelectedMonth}
-                locale={de}
-                className="rounded-md border pointer-events-auto"
-                disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
+                minDate={new Date()}
+                showQuickActions={true}
+                className="rounded-md border"
               />
               {booking.dates.length > 0 && (
                 <div className="flex flex-wrap gap-1 mt-1">
