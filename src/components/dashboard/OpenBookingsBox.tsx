@@ -74,6 +74,9 @@ export function OpenBookingsBox() {
         };
       });
     },
+    staleTime: 30000,
+    refetchInterval: 60000,
+    refetchOnWindowFocus: true,
   });
 
   if (isLoading) {
