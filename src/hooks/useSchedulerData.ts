@@ -62,7 +62,7 @@ export function useSchedulerData({ startDate, endDate, instructorId }: UseSchedu
     queryKey: ["scheduler-groups", startDateStr, endDateStr],
   });
 
-  // Fetch instructors
+  // Fetch instructors (filter out office staff)
   const instructorsQuery = useQuery({
     queryKey: ["scheduler-instructors"],
     queryFn: async () => {
@@ -70,6 +70,7 @@ export function useSchedulerData({ startDate, endDate, instructorId }: UseSchedu
         .from("instructors")
         .select("*")
         .eq("status", "active")
+        .not("role", "eq", "office")
         .order("last_name", { ascending: true });
 
       if (error) throw error;
@@ -113,19 +114,22 @@ export function useSchedulerData({ startDate, endDate, instructorId }: UseSchedu
     },
   });
 
-  // Fetch groups (group courses) for the date range
+  // Fetch groups (group courses) for the date range with participant counts
   const groupsQuery = useQuery({
     queryKey: ["scheduler-groups", startDateStr, endDateStr],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("groups")
-        .select("*")
+        .select(`
+          *,
+          ticket_items!ticket_items_group_id_fkey(id, status)
+        `)
         .lte("start_date", endDateStr)
         .gte("end_date", startDateStr)
         .not("instructor_id", "is", null);
 
       if (error) throw error;
-      return data as Tables<"groups">[];
+      return data;
     },
   });
 
@@ -198,6 +202,12 @@ export function useSchedulerData({ startDate, endDate, instructorId }: UseSchedu
       let current = new Date(Math.max(new Date(g.start_date).getTime(), startDate.getTime()));
       const groupEnd = new Date(Math.min(new Date(g.end_date).getTime(), endDate.getTime()));
       
+      // Calculate current participant count from ticket_items
+      const ticketItems = (g as any).ticket_items || [];
+      const currentParticipants = ticketItems.filter(
+        (ti: { status: string }) => ti.status !== 'cancelled'
+      ).length;
+      
       while (current <= groupEnd) {
         const currentDateStr = format(current, "yyyy-MM-dd");
         
@@ -213,6 +223,9 @@ export function useSchedulerData({ startDate, endDate, instructorId }: UseSchedu
             ticketId: g.id,
             participantName: g.name,
             status: g.status || "active",
+            currentParticipants,
+            maxParticipants: g.max_participants || undefined,
+            meetingPoint: g.meeting_point || undefined,
           });
         }
 
@@ -228,6 +241,9 @@ export function useSchedulerData({ startDate, endDate, instructorId }: UseSchedu
             ticketId: g.id,
             participantName: g.name,
             status: g.status || "active",
+            currentParticipants,
+            maxParticipants: g.max_participants || undefined,
+            meetingPoint: g.meeting_point || undefined,
           });
         }
         

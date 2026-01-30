@@ -108,8 +108,12 @@ export function DndKitProvider({ children, onBookingDrop }: DndKitProviderProps)
           <div
             className={cn(
               "rounded-md border px-2 py-1 text-xs font-medium shadow-lg",
-              "bg-green-500 text-white border-green-600",
-              activeBooking.type === "private" && !activeBooking.isPaid && "bg-red-500 border-red-600",
+              // Show green when over valid slot, gray otherwise
+              overSlot && !overSlot.isBlocked 
+                ? "bg-green-500 text-white border-green-600" 
+                : overSlot?.isBlocked 
+                  ? "bg-red-500 text-white border-red-600"
+                  : "bg-gray-400 text-white border-gray-500",
               "cursor-grabbing opacity-90"
             )}
             style={{ minWidth: 80 }}

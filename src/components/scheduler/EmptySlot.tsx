@@ -161,9 +161,10 @@ export function EmptySlot({
         !isBlocked && !state.drag.isDragging && "cursor-pointer hover:bg-slate-100 hover:border-slate-400 group",
         state.drag.isDragging && "cursor-crosshair",
         isBlocked && "cursor-not-allowed bg-muted/30",
-        isOver && !isBlocked && "bg-blue-100 ring-2 ring-blue-500 ring-inset",
-        isOver && isBlocked && "bg-destructive/10",
-        // Drag preview styling - strong blue
+        // DnD drop zone feedback - green for valid, red for invalid
+        isOver && !isBlocked && "border-2 border-green-500 bg-green-50",
+        isOver && isBlocked && "border-2 border-red-500 bg-red-50 cursor-not-allowed",
+        // Drag selection preview styling
         isDragPreview && !isDragBlocked && "bg-[rgba(59,130,246,0.15)] border-l-2 border-l-blue-500",
         isDragPreview && isDragBlocked && "bg-destructive/15"
       )}

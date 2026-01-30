@@ -19,6 +19,10 @@ export interface SchedulerBooking {
   participantName?: string;
   status: string;
   participantSport?: string | null;
+  // Group course capacity fields
+  currentParticipants?: number;
+  maxParticipants?: number;
+  meetingPoint?: string;
 }
 
 export interface SchedulerAbsence {
@@ -108,7 +112,7 @@ export function getBookingBarClasses(type: "private" | "group", isPaid: boolean)
   }
   return isPaid 
     ? "bg-emerald-500 text-white border-emerald-600" 
-    : "bg-rose-500 text-white border-rose-600";
+    : "bg-orange-500 text-white border-orange-600";
 }
 
 /**
