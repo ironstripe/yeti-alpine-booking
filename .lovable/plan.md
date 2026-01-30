@@ -1,61 +1,108 @@
 
-# Fix: Bypass Login Redirect for Test Links
 
-## Root Cause Analysis
-The `InstructorLayout` immediately redirects to `/login` when it detects no user, but the auth state from `setSession()` hasn't fully propagated through React's state updates yet. Even though we wait for `onAuthStateChange`, the navigation to `/instructor` and the mount of `InstructorLayout` can happen before the component tree re-renders with the new user state.
+# Dev/Test Mode: Auto-Login to Instructor Portal
 
-## Solution: Add Initial Mount Delay
+## Summary
+Remove all login requirements for `/instructor/*` routes during the testing period. When anyone opens the instructor portal, they will automatically be logged in as a default test instructor without seeing any login screen.
 
-Modify `InstructorLayout` to wait for at least one render cycle before checking auth, giving the auth context time to fully update. This is a common pattern for protecting routes that might be accessed via programmatic session injection.
+## How It Works
+
+1. **Detect Test Mode**: A simple flag (`DEV_BYPASS_AUTH = true`) in the code
+2. **Auto-Create Session**: When `InstructorLayout` mounts and there's no user, it automatically calls the `test-instructor-login` edge function with a default token
+3. **No Flickering**: Show a loading spinner while auto-login happens, then render the portal
+4. **Uses Existing Token**: Leverages `tester-alpha-2026` (Leila Azaroual) as the default test instructor
 
 ## Technical Changes
 
-### File: `src/components/instructor-portal/InstructorLayout.tsx`
+### 1. `src/components/instructor-portal/InstructorLayout.tsx`
 
-Add a brief mount delay before the "redirect to login" logic fires:
+Add auto-login logic at the top of the component:
 
 ```typescript
-// Add new state
-const [hasInitialized, setHasInitialized] = useState(false);
+const DEV_BYPASS_AUTH = true; // Set to false when going to production
+const DEFAULT_TEST_TOKEN = "tester-alpha-2026";
 
-// Add initialization effect
-useEffect(() => {
-  // Wait for auth context to stabilize before checking auth
-  const timeout = setTimeout(() => {
-    setHasInitialized(true);
-  }, 100);
-  return () => clearTimeout(timeout);
-}, []);
+export function InstructorLayout({ children }: InstructorLayoutProps) {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { user, signOut, loading: authLoading } = useAuth();
+  const { isTeacher, isAdminOrOffice, loading: roleLoading, instructorId } = useUserRole();
+  const { data: pendingCount } = usePendingBookingsCount();
+  const [autoLoginAttempted, setAutoLoginAttempted] = useState(false);
 
-// Modify the redirect effect to wait for initialization
-useEffect(() => {
-  if (!hasInitialized) return; // Don't redirect until we've had time to initialize
-  if (!authLoading && !user) {
-    navigate("/login");
+  // DEV MODE: Auto-login when no user
+  useEffect(() => {
+    if (!DEV_BYPASS_AUTH) return;
+    if (authLoading) return;
+    if (user) return; // Already logged in
+    if (autoLoginAttempted) return; // Prevent retry loop
+
+    const performAutoLogin = async () => {
+      setAutoLoginAttempted(true);
+      try {
+        const { data, error } = await supabase.functions.invoke("test-instructor-login", {
+          body: { token: DEFAULT_TEST_TOKEN }
+        });
+        
+        if (!error && data?.access_token && data?.refresh_token) {
+          await supabase.auth.setSession({
+            access_token: data.access_token,
+            refresh_token: data.refresh_token,
+          });
+          localStorage.setItem("yety_active_role", "teacher");
+        }
+      } catch (err) {
+        console.error("Auto-login failed:", err);
+      }
+    };
+
+    performAutoLogin();
+  }, [authLoading, user, autoLoginAttempted]);
+
+  // Remove redirect-to-login logic when DEV_BYPASS_AUTH is true
+  useEffect(() => {
+    if (DEV_BYPASS_AUTH) return; // Skip login redirect in dev mode
+    // ... existing redirect logic only runs when DEV_BYPASS_AUTH = false
+  }, [...]);
+
+  // Show loading while auto-login is in progress
+  if (DEV_BYPASS_AUTH && !user && !autoLoginAttempted) {
+    return <LoadingSpinner message="Portal wird geladen..." />;
   }
-}, [hasInitialized, authLoading, user, navigate]);
+  if (authLoading || roleLoading) {
+    return <LoadingSpinner />;
+  }
+
+  // ... rest of the component
+}
 ```
 
-## Why This Works
-1. When TestInstructorLogin calls `setSession()` and navigates to `/instructor`
-2. InstructorLayout mounts but waits 100ms before checking auth
-3. During this 100ms, AuthContext receives the `onAuthStateChange` event and updates `user`
-4. When InstructorLayout checks auth, user is already populated
-5. No redirect to login
+### 2. Remove `/test-instructor/:token` Route Dependency
 
-## Alternative Approaches Considered
+The magic link route (`TestInstructorLogin.tsx`) will still work, but it's no longer required. Opening `/instructor` directly will auto-login.
 
-1. **Pass tokens via URL/state**: Complex and less secure
-2. **Session storage flag**: Hacky and could create security issues
-3. **Modify AuthContext**: Would affect all routes, higher risk
+## Test Instructors Available
 
-The mount delay approach is the safest and most targeted fix.
+| Token | Instructor | Email |
+|-------|------------|-------|
+| `tester-alpha-2026` | Leila Azaroual | leilaazaroual@bluewin.ch |
+| `tester-beta-2026` | Max Bender | maxbender365@gmail.com |
+| `tester-gamma-2026` | Christoph Buhler | christoph@powersurf.li |
+
+The default is **Leila Azaroual**. To switch, change `DEFAULT_TEST_TOKEN` or use the magic link.
+
+## Going to Production
+
+When ready for production, simply set:
+```typescript
+const DEV_BYPASS_AUTH = false;
+```
+
+This will:
+- Re-enable the login screen requirement
+- Disable auto-login behavior
+- Keep magic test links working for QA/testing
 
 ## Files to Modify
 - `src/components/instructor-portal/InstructorLayout.tsx`
 
-## Testing
-After the fix, these links should work directly:
-- `https://yeti-alpine-booking.lovable.app/test-instructor/tester-alpha-2026`
-- `https://yeti-alpine-booking.lovable.app/test-instructor/tester-beta-2026`
-- `https://yeti-alpine-booking.lovable.app/test-instructor/tester-gamma-2026`
