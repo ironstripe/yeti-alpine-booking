@@ -61,17 +61,34 @@ export default function TestInstructorLogin() {
           return;
         }
 
-        // Success!
+        // Wait for auth state to fully propagate before navigating
+        await new Promise<void>((resolve) => {
+          const { data: { subscription } } = supabase.auth.onAuthStateChange(
+            (event, session) => {
+              if (session) {
+                subscription.unsubscribe();
+                resolve();
+              }
+            }
+          );
+          // Fallback timeout in case event doesn't fire
+          setTimeout(() => {
+            subscription.unsubscribe();
+            resolve();
+          }, 2000);
+        });
+
+        // Store role AFTER session is confirmed
+        localStorage.setItem("yety_active_role", "teacher");
+
+        // Now safe to show success and navigate
         setInstructorName(data.instructor?.name || "Instruktor");
         setStatus("success");
 
-        // Store the active role for the instructor portal
-        localStorage.setItem("yety_active_role", "teacher");
-
-        // Brief delay to show success, then redirect
+        // Brief delay to show success message, then redirect
         setTimeout(() => {
           navigate("/instructor", { replace: true });
-        }, 1500);
+        }, 1000);
 
       } catch (err) {
         console.error("Login error:", err);
