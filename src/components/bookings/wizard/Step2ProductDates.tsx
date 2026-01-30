@@ -10,7 +10,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { Calendar } from "@/components/ui/calendar";
+import { RangeDatePicker } from "@/components/ui/range-date-picker";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -669,16 +669,14 @@ export function Step2ProductDates() {
           </Label>
 
           <Card>
-            <CardContent className="p-0">
-              <Calendar
-                mode="multiple"
+            <CardContent className="p-4">
+              <RangeDatePicker
                 selected={state.selectedDates.map((d) => parseISO(d))}
                 onSelect={handleDateSelect}
                 month={selectedMonth}
                 onMonthChange={setSelectedMonth}
-                locale={de}
-                className="rounded-md pointer-events-auto"
-                disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
+                minDate={new Date()}
+                showQuickActions={true}
               />
             </CardContent>
           </Card>
