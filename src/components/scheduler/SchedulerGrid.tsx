@@ -34,7 +34,7 @@ function SchedulerGridContent() {
   }, []);
 
   const [selectedDate, setSelectedDate] = useState(initialDate);
-  const [viewMode, setViewMode] = useState<ViewMode>("weekly"); // Default to weekly for instructor focus
+  const [viewMode, setViewMode] = useState<ViewMode>("daily"); // Default to daily view
   const [selectedInstructorId, setSelectedInstructorId] = useState<string | null>(null);
   const [highlightedInstructorId, setHighlightedInstructorId] = useState<string | null>(null);
   const [capabilityFilter, setCapabilityFilter] = useState<string | null>(null);
@@ -315,7 +315,7 @@ function SchedulerGridContent() {
             <span>Bezahlt</span>
           </div>
           <div className="flex items-center gap-1">
-            <div className="w-2 h-2 rounded-sm bg-rose-500" />
+            <div className="w-2 h-2 rounded-sm bg-orange-500" />
             <span>Offen</span>
           </div>
           <div className="flex items-center gap-1">
@@ -323,7 +323,7 @@ function SchedulerGridContent() {
             <span>Gruppe</span>
           </div>
           <div className="flex items-center gap-1">
-            <div className="w-2 h-2 rounded-sm bg-gray-700" />
+            <div className="w-2 h-2 rounded-sm bg-gray-300" />
             <span>Abwesend</span>
           </div>
           <div className="flex items-center gap-1">

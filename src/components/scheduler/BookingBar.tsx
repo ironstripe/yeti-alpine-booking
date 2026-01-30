@@ -98,6 +98,16 @@ export function BookingBar({ booking, slotWidth, instructorSpecialization }: Boo
             <p className="text-sm text-muted-foreground">
               {booking.timeStart} - {booking.timeEnd}
             </p>
+            {booking.type === "group" && (
+              <p className="text-sm text-muted-foreground">
+                Kapazität: ({booking.currentParticipants ?? 0}/{booking.maxParticipants ?? "?"})
+              </p>
+            )}
+            {booking.meetingPoint && (
+              <p className="text-sm text-muted-foreground">
+                Treffpunkt: {booking.meetingPoint}
+              </p>
+            )}
             {booking.type === "private" && (
               <p className="text-sm">
                 Status: {booking.isPaid ? "Bezahlt ✓" : "Offen"}

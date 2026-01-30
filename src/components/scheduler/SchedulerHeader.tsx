@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { format, addDays, subDays } from "date-fns";
 import { de } from "date-fns/locale";
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Search, User, Filter, LayoutGrid, Target } from "lucide-react";
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, CalendarDays, CalendarRange, Search, User, Filter, LayoutGrid, Target } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import {
@@ -152,26 +152,29 @@ export function SchedulerHeader({
         <Button 
           variant={viewMode === "daily" ? "secondary" : "ghost"}
           size="sm" 
-          className="px-2 h-6 text-[11px]"
+          className="px-3 h-7 text-xs"
           onClick={() => onViewModeChange("daily")}
         >
-          1T
+          <CalendarIcon className="h-3.5 w-3.5 mr-1.5" />
+          Tag
         </Button>
         <Button 
           variant={viewMode === "3days" ? "secondary" : "ghost"}
           size="sm" 
-          className="px-2 h-6 text-[11px]"
+          className="px-3 h-7 text-xs"
           onClick={() => onViewModeChange("3days")}
         >
-          3T
+          <CalendarRange className="h-3.5 w-3.5 mr-1.5" />
+          3 Tage
         </Button>
         <Button 
           variant={viewMode === "weekly" ? "secondary" : "ghost"}
           size="sm" 
-          className="px-2 h-6 text-[11px]"
+          className="px-3 h-7 text-xs"
           onClick={() => onViewModeChange("weekly")}
         >
-          7T
+          <CalendarDays className="h-3.5 w-3.5 mr-1.5" />
+          Woche
         </Button>
       </div>
 

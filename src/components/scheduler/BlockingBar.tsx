@@ -43,8 +43,8 @@ export function BlockingBar({ absence, slotWidth }: BlockingBarProps) {
             "flex items-center gap-0.5",
             "cursor-not-allowed",
             isPending
-              ? "bg-gray-600 text-gray-300 border-dashed border-amber-500/50"
-              : "bg-gray-700 text-gray-200 border-gray-600"
+              ? "bg-gray-200 text-gray-600 border-dashed border-amber-500"
+              : "bg-gray-300 text-gray-700 border-gray-400"
           )}
           style={{
             left: `${left}px`,
