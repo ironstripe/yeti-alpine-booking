@@ -1,93 +1,143 @@
 
-# Plan: Add "Buchung stornieren" Button to Booking Detail Page
+# Plan: Smoother Date Range Selection in Booking Wizard
 
-## Overview
-Wire the existing `CancellationDialog` component to the BookingDetail page sidebar, allowing staff to cancel bookings directly from the detail view.
+## Problem
+Currently, when creating a booking, staff must click on each individual day to select it. For multi-day stays (e.g., a 5-day ski course), this is tedious and slow.
 
-## Changes Required
+## Solution
+Implement a **hybrid date selection mode** that allows:
+1. **Click-drag range selection** - Hold mouse and drag across a date range to select all days in between
+2. **Start/End date selection** - Click start date, then click end date to fill the range
+3. **Individual toggle** - Still allow clicking single days to toggle them on/off
 
-### File: `src/pages/BookingDetail.tsx`
+## User Experience
 
-**1. Add Import**
-```tsx
-import { CancellationDialog } from "@/components/bookings/CancellationDialog";
-import { XCircle } from "lucide-react"; // For the button icon
+### Method 1: Click + Drag (Desktop)
+1. User clicks on start date (e.g., Jan 6)
+2. User holds mouse and drags to end date (Jan 10)
+3. All dates in range are selected (5 days)
+
+### Method 2: Range Mode Toggle
+1. User clicks "Zeitraum wählen" button (new UI element)
+2. User clicks start date - highlighted as range start
+3. User clicks end date - all dates between are auto-selected
+4. Range mode automatically deactivates
+
+### Method 3: Individual Selection (Unchanged)
+- Clicking individual dates still works as before
+- Can deselect specific days from a range (e.g., remove weekend)
+
+## Technical Approach
+
+### New Component: `RangeDatePicker.tsx`
+A specialized calendar wrapper that enhances `react-day-picker` with:
+- Mouse event handling for drag selection (`onMouseDown`, `onMouseMove`, `onMouseUp`)
+- Touch support for mobile (`onTouchStart`, `onTouchMove`, `onTouchEnd`)
+- Visual preview of range being selected (hover highlight)
+- Toggle between "range mode" and "individual mode"
+
+### State Management
+```typescript
+// New local state in date picker
+const [isDragging, setIsDragging] = useState(false);
+const [dragStart, setDragStart] = useState<Date | null>(null);
+const [dragPreview, setDragPreview] = useState<DateRange | null>(null);
+const [isRangeMode, setIsRangeMode] = useState(false);
+const [rangeStart, setRangeStart] = useState<Date | null>(null);
 ```
 
-**2. Add State for Dialog**
-```tsx
-const [showCancellation, setShowCancellation] = useState(false);
+### Key Features
+1. **Visual feedback during drag**: Dates in the dragged range show a preview highlight
+2. **Quick actions**: "Ganze Woche" (whole week), "Werktage" (weekdays only) buttons
+3. **Clear all**: Quick button to reset selection
+4. **Smart toggle**: After range selection, individual days can be toggled off
+
+## Files to Modify
+
+### 1. Create `src/components/ui/range-date-picker.tsx`
+New reusable component with enhanced selection capabilities.
+
+### 2. Update `src/components/bookings/wizard/Step2ProductDates.tsx`
+- Replace `Calendar` with new `RangeDatePicker`
+- Add quick action buttons ("Ganze Woche", "Clear")
+
+### 3. Update `src/components/bookings/wizard/ParticipantBookingCard.tsx`
+- Same calendar replacement for individual booking mode
+
+## UI Mockup
+
+```
+┌─────────────────────────────────────────────────┐
+│ Kurstage wählen                                 │
+│ ┌──────────────────────────────────────────────┐│
+│ │ [Einzeln] [Zeitraum wählen]  [Ganze Woche] ▼ ││
+│ └──────────────────────────────────────────────┘│
+│ ┌──────────────────────────────────────────────┐│
+│ │        ◄  Januar 2026  ►                     ││
+│ │  Mo  Di  Mi  Do  Fr  Sa  So                  ││
+│ │                   1   2   3   4              ││
+│ │ [5] [6] [7] [8] [9]  10  11                  ││
+│ │  12  13  14  15  16  17  18                  ││
+│ └──────────────────────────────────────────────┘│
+│ Ausgewählt: Mo 5. - Fr 9. Jan (5 Tage)  [✕]    │
+└─────────────────────────────────────────────────┘
 ```
 
-**3. Add Button to Sidebar Actions** (after "Erinnerung senden" button, around line 456)
-```tsx
-<Button 
-  variant="outline" 
-  className="w-full justify-start text-destructive hover:text-destructive"
-  onClick={() => setShowCancellation(true)}
->
-  <XCircle className="h-4 w-4 mr-2" />
-  Buchung stornieren
-</Button>
+## Implementation Details
+
+### Drag Selection Logic
+```typescript
+const handleDayMouseDown = (date: Date) => {
+  setIsDragging(true);
+  setDragStart(date);
+  setDragPreview({ from: date, to: date });
+};
+
+const handleDayMouseEnter = (date: Date) => {
+  if (!isDragging || !dragStart) return;
+  const [start, end] = dragStart <= date 
+    ? [dragStart, date] 
+    : [date, dragStart];
+  setDragPreview({ from: start, to: end });
+};
+
+const handleMouseUp = () => {
+  if (isDragging && dragPreview) {
+    // Generate all dates in range
+    const rangeDates = eachDayOfInterval(dragPreview);
+    // Filter out disabled dates (past dates)
+    const validDates = rangeDates.filter(d => d >= today);
+    // Merge with existing selection or replace
+    onSelect(validDates);
+  }
+  setIsDragging(false);
+  setDragStart(null);
+  setDragPreview(null);
+};
 ```
 
-**4. Add CancellationDialog Component** (before closing fragment, around line 588)
-
-Transform ticket data to match the expected interface:
-```tsx
-{ticket && (
-  <CancellationDialog
-    booking={{
-      id: ticket.id,
-      ticket_number: ticket.ticket_number,
-      customer_id: ticket.customer_id,
-      customer_name: `${ticket.customer?.first_name || ''} ${ticket.customer?.last_name || ''}`.trim(),
-      product_name: ticket.items?.[0]?.product?.name || 'Buchung',
-      start_date: ticket.items?.[0]?.date || '',
-      end_date: ticket.items?.[ticket.items.length - 1]?.date || '',
-      start_time: ticket.items?.[0]?.time_start || undefined,
-      total_amount: ticket.total_amount || 0,
-      amount_paid: ticket.paid_amount || 0,
-      booking_days: ticket.items?.map((item: any) => item.date).filter(Boolean) || [],
-    }}
-    open={showCancellation}
-    onOpenChange={setShowCancellation}
-    onSuccess={() => {
-      queryClient.invalidateQueries({ queryKey: ["ticket-detail", id] });
-      toast.success("Buchung erfolgreich storniert");
-    }}
-  />
-)}
+### Quick Actions
+```typescript
+const quickActions = [
+  { label: "Mo-Fr", action: () => selectWeekdays(currentWeek) },
+  { label: "Ganze Woche", action: () => selectFullWeek(currentWeek) },
+  { label: "Leeren", action: () => onSelect([]) },
+];
 ```
 
-**5. Get queryClient** (already imported, just need to use it)
-```tsx
-const queryClient = useQueryClient();
-```
+## Mobile Support
+- Touch events mapped to equivalent mouse events
+- Larger touch targets on mobile
+- Visual drag preview works on touch
 
-## Data Mapping
+## Edge Cases Handled
+- Dragging backwards (end before start)
+- Dragging across month boundaries
+- Attempting to select disabled/past dates
+- Mixed selection (range + individual additions/removals)
 
-| CancellationDialog Field | Source from Ticket |
-|--------------------------|-------------------|
-| `id` | `ticket.id` |
-| `ticket_number` | `ticket.ticket_number` |
-| `customer_id` | `ticket.customer_id` |
-| `customer_name` | Concatenated from `ticket.customer` |
-| `product_name` | First item's product name |
-| `start_date` | First ticket_item date |
-| `end_date` | Last ticket_item date |
-| `start_time` | First ticket_item time_start |
-| `total_amount` | `ticket.total_amount` |
-| `amount_paid` | `ticket.paid_amount` |
-| `booking_days` | All unique dates from ticket_items |
-
-## Result
-- Red-styled "Buchung stornieren" button appears in sidebar
-- Clicking opens CancellationDialog with all booking data pre-filled
-- On successful cancellation, page refreshes with updated status
-
-## Technical Details
-- No new dependencies required
-- Uses existing `useQueryClient` already imported
-- Button styled with `text-destructive` for visual warning
-- Dialog handles all AGB fee calculation, Kulanz documentation, and credit creation
+## Benefits
+- **5x faster** for typical 5-day course selection (1 drag vs 5 clicks)
+- Intuitive gesture familiar from other date pickers
+- Still supports granular control (e.g., exclude specific days)
+- Works on both desktop and mobile
