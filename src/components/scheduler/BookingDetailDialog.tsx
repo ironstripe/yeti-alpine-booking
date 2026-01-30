@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { format, startOfDay } from "date-fns";
 import { de } from "date-fns/locale";
 import {
@@ -41,7 +42,8 @@ import {
   CreditCard,
   Lock,
   AlertTriangle,
-  Users
+  Users,
+  ExternalLink
 } from "lucide-react";
 import { useBookingDetail } from "@/hooks/useBookingDetail";
 import { useUpdateTicketItem } from "@/hooks/useUpdateTicketItem";
@@ -69,6 +71,7 @@ export function BookingDetailDialog({
   onOpenChange,
   ticketItemId,
 }: BookingDetailDialogProps) {
+  const navigate = useNavigate();
   const { data: booking, isLoading } = useBookingDetail(ticketItemId);
   const { data: instructors = [] } = useInstructors();
   const updateTicketItem = useUpdateTicketItem();
@@ -543,6 +546,24 @@ export function BookingDetailDialog({
                     {updateTicketItem.isPending ? "Speichern..." : "Speichern"}
                   </Button>
                 </div>
+              </>
+            )}
+
+            {/* Full Edit Navigation - Always visible when not editing */}
+            {!isEditing && booking.ticketId && (
+              <>
+                <Separator />
+                <Button
+                  variant="default"
+                  className="w-full"
+                  onClick={() => {
+                    onOpenChange(false);
+                    navigate(`/bookings/${booking.ticketId}?from=scheduler&date=${booking.date}`);
+                  }}
+                >
+                  <ExternalLink className="h-4 w-4 mr-2" />
+                  Vollständig bearbeiten
+                </Button>
               </>
             )}
           </div>

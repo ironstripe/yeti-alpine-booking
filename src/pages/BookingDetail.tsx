@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useReactToPrint } from "react-to-print";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
@@ -17,6 +17,7 @@ import {
   Eye,
   Pencil,
   XCircle,
+  Calendar,
 } from "lucide-react";
 import { CancellationDialog } from "@/components/bookings/CancellationDialog";
 import { PageHeader } from "@/components/layout";
@@ -46,7 +47,12 @@ import { formatCurrency } from "@/lib/swiss-qr-utils";
 const BookingDetail = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const invoicePrintRef = useRef<HTMLDivElement>(null);
+  
+  // Check if coming from scheduler
+  const fromScheduler = searchParams.get("from") === "scheduler";
+  const schedulerDate = searchParams.get("date");
   
   const [showInvoicePreview, setShowInvoicePreview] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<string | null>(null);
@@ -233,10 +239,21 @@ const BookingDetail = () => {
         title={`Buchung ${ticket.ticket_number}`}
         description={`${ticket.customer?.first_name || ''} ${ticket.customer?.last_name || ''} · ${ticket.customer?.email || ''}`}
         actions={
-          <Button variant="outline" onClick={() => navigate("/bookings")}>
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Zurück
-          </Button>
+          <div className="flex items-center gap-2">
+            {fromScheduler && (
+              <Button 
+                variant="default"
+                onClick={() => navigate(`/scheduler${schedulerDate ? `?date=${schedulerDate}` : ''}`)}
+              >
+                <Calendar className="h-4 w-4 mr-2" />
+                Zurück zum Scheduler
+              </Button>
+            )}
+            <Button variant="outline" onClick={() => navigate("/bookings")}>
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Zurück
+            </Button>
+          </div>
         }
       />
 
