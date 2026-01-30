@@ -1,99 +1,82 @@
 
 
-# Fix: Scheduler Loading Error
+# Fix: Missing Sidebar on Scheduler Page
 
 ## Root Cause
 
-The recent scheduler redesign added a query to fetch participant counts for group courses using:
-```typescript
-.from("groups")
-.select(`
-  *,
-  ticket_items!ticket_items_group_id_fkey(id, status)  // <-- This FK doesn't exist
-`)
-```
+In `src/App.tsx`, the `/scheduler` route is defined **outside** the `AppLayout` wrapper (line 131) as a "public scheduler route for testing". This causes the page to render without the sidebar navigation.
 
-**The database schema shows:**
-- `ticket_items` table has NO `group_id` column
-- There is no foreign key relationship between `groups` and `ticket_items`
-- The error is: `"Could not find a relationship between 'groups' and 'ticket_items' in the schema cache"`
+```tsx
+// Current (line 131) - OUTSIDE AppLayout
+<Route path="/scheduler" element={<Scheduler />} />
+
+// Protected routes (lines 159-201) - INSIDE AppLayout
+<Route element={<AppLayout />}>
+  <Route index element={<Dashboard />} />
+  {/* ... other routes - but scheduler is missing! */}
+</Route>
+```
 
 ---
 
 ## Solution
 
-Remove the non-existent relationship query from `useSchedulerData.ts`. Since there's no `group_id` in `ticket_items`, participant counts cannot be fetched this way.
+Remove the standalone `/scheduler` route and add it inside the `AppLayout` protected routes block.
 
 ---
 
 ## Implementation
 
-### File: `src/hooks/useSchedulerData.ts`
+### File: `src/App.tsx`
 
-**Change the groups query (lines 121-133) from:**
-```typescript
-const groupsQuery = useQuery({
-  queryKey: ["scheduler-groups", startDateStr, endDateStr],
-  queryFn: async () => {
-    const { data, error } = await supabase
-      .from("groups")
-      .select(`
-        *,
-        ticket_items!ticket_items_group_id_fkey(id, status)
-      `)
-      .lte("start_date", endDateStr)
-      .gte("end_date", startDateStr)
-      .not("instructor_id", "is", null);
-
-    if (error) throw error;
-    return data;
-  },
-});
+**Remove lines 130-131:**
+```tsx
+{/* Public scheduler route for testing */}
+<Route path="/scheduler" element={<Scheduler />} />
 ```
 
-**To:**
-```typescript
-const groupsQuery = useQuery({
-  queryKey: ["scheduler-groups", startDateStr, endDateStr],
-  queryFn: async () => {
-    const { data, error } = await supabase
-      .from("groups")
-      .select("*")
-      .lte("start_date", endDateStr)
-      .gte("end_date", startDateStr)
-      .not("instructor_id", "is", null);
-
-    if (error) throw error;
-    return data;
-  },
-});
-```
-
-**Also update the group booking transformation (lines 206-209) from:**
-```typescript
-// Calculate current participant count from ticket_items
-const ticketItems = (g as any).ticket_items || [];
-const currentParticipants = ticketItems.filter(
-  (ti: { status: string }) => ti.status !== 'cancelled'
-).length;
-```
-
-**To:**
-```typescript
-// Note: Participant counts not available without group_id FK
-// This could be implemented via a separate count query if needed
-const currentParticipants = 0;
+**Add inside the AppLayout block (after line 163):**
+```tsx
+<Route path="scheduler" element={<Scheduler />} />
 ```
 
 ---
 
-## Technical Notes
+## Updated Route Structure
 
-- The capacity display feature (`currentParticipants / maxParticipants`) will show `(0/X)` for now
-- A proper solution would require either:
-  1. Adding a `group_id` column + FK to `ticket_items`, OR
-  2. Using a different relationship (e.g., matching by group name + date range)
-- This fix restores scheduler functionality immediately
+```tsx
+{/* Protected app routes */}
+<Route element={<AppLayout />}>
+  <Route index element={<Dashboard />} />
+  <Route path="inbox" element={<Inbox />} />
+  <Route path="inbox/:id" element={<InboxDetail />} />
+  <Route path="bookings" element={<Bookings />} />
+  <Route path="bookings/:id" element={<BookingDetail />} />
+  <Route path="scheduler" element={<Scheduler />} />  {/* ← Add here */}
+  <Route path="customers" element={<Customers />} />
+  {/* ... rest of routes */}
+</Route>
+```
+
+---
+
+## Additional Fix: Scheduler Page Layout
+
+The `Scheduler.tsx` page uses `h-screen` which may conflict with the `AppLayout` container. We need to adjust it to work within the layout's content area.
+
+### File: `src/pages/Scheduler.tsx`
+
+**Change from:**
+```tsx
+<div className="flex flex-col h-screen bg-background">
+```
+
+**To:**
+```tsx
+<div className="flex flex-col h-[calc(100vh-8rem)] md:h-[calc(100vh-5rem)] bg-background">
+```
+
+This accounts for the header height and ensures proper scrolling within the layout.
 
 ---
 
@@ -101,5 +84,6 @@ const currentParticipants = 0;
 
 | File | Change |
 |------|--------|
-| `src/hooks/useSchedulerData.ts` | Remove broken FK query, update participant count logic |
+| `src/App.tsx` | Move `/scheduler` route inside `AppLayout` |
+| `src/pages/Scheduler.tsx` | Adjust height calculation for layout compatibility |
 
