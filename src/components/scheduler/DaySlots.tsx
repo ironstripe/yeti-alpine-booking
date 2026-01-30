@@ -14,6 +14,7 @@ interface DaySlotsProps {
   absences: SchedulerAbsence[];
   slotWidth: number;
   onSlotClick: (instructorId: string, date: string, timeSlot: string) => void;
+  isPlanningMode?: boolean;
 }
 
 export function DaySlots({
@@ -23,6 +24,7 @@ export function DaySlots({
   absences,
   slotWidth,
   onSlotClick,
+  isPlanningMode = false,
 }: DaySlotsProps) {
   const { state } = useSchedulerSelection();
   
@@ -51,6 +53,7 @@ export function DaySlots({
           bookings={bookings}
           absences={absences}
           onSlotClick={onSlotClick}
+          isPlanningMode={isPlanningMode}
         />
       ))}
 
@@ -66,6 +69,7 @@ export function DaySlots({
           booking={booking}
           slotWidth={slotWidth}
           instructorSpecialization={instructor.specialization}
+          isPlanningMode={isPlanningMode}
         />
       ))}
 

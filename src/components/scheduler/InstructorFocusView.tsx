@@ -17,6 +17,8 @@ interface InstructorFocusViewProps {
   capabilityFilter: string | null;
   compactMode: boolean;
   instructorRefs: React.MutableRefObject<Map<string, HTMLDivElement>>;
+  isPlanningMode?: boolean;
+  roleFilter?: string | null;
 }
 
 export function InstructorFocusView({
@@ -31,6 +33,8 @@ export function InstructorFocusView({
   capabilityFilter,
   compactMode,
   instructorRefs,
+  isPlanningMode = false,
+  roleFilter = null,
 }: InstructorFocusViewProps) {
   // Filter instructors in compact mode
   const filteredInstructors = useMemo(() => {
@@ -119,6 +123,7 @@ export function InstructorFocusView({
           isHighlighted={highlightedInstructorId === instructor.id}
           capabilityFilter={capabilityFilter}
           rowIndex={index}
+          isPlanningMode={isPlanningMode}
         />
       ))}
 
@@ -142,6 +147,7 @@ export function InstructorFocusView({
           isHighlighted={highlightedInstructorId === instructor.id}
           capabilityFilter={capabilityFilter}
           rowIndex={index}
+          isPlanningMode={isPlanningMode}
         />
       ))}
     </div>

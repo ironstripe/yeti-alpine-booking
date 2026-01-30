@@ -23,7 +23,7 @@ import {
   HoverCardContent,
   HoverCardTrigger,
 } from "@/components/ui/hover-card";
-import { Languages, Award, GraduationCap } from "lucide-react";
+import { Languages, Award, GraduationCap, Building } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
@@ -42,6 +42,7 @@ interface SingleDayInstructorRowProps {
   isHighlighted?: boolean;
   capabilityFilter?: string | null;
   rowIndex?: number;
+  isPlanningMode?: boolean;
 }
 
 export const SingleDayInstructorRow = forwardRef<HTMLDivElement, SingleDayInstructorRowProps>(
@@ -56,6 +57,7 @@ export const SingleDayInstructorRow = forwardRef<HTMLDivElement, SingleDayInstru
       isHighlighted = false,
       capabilityFilter = null,
       rowIndex = 0,
+      isPlanningMode = false,
     },
     ref
   ) {
@@ -73,6 +75,9 @@ export const SingleDayInstructorRow = forwardRef<HTMLDivElement, SingleDayInstru
 
     // Get discipline badges
     const badges = getDisciplineBadges(instructor.specialization);
+    
+    // Check if this is office staff
+    const isOfficeStaff = instructor.role === 'office_staff';
 
     const handleNameClick = () => {
       navigate(`/instructors/${instructor.id}`);
@@ -152,23 +157,37 @@ export const SingleDayInstructorRow = forwardRef<HTMLDivElement, SingleDayInstru
             </HoverCardContent>
           </HoverCard>
 
-          {/* Inline: Discipline Badges + Count */}
+          {/* Inline: Discipline Badges or Office Icon + Count */}
           <div className="flex items-center gap-0.5 shrink-0">
-            {badges.map((badge) => (
-              <Tooltip key={badge.label}>
+            {isOfficeStaff ? (
+              <Tooltip>
                 <TooltipTrigger asChild>
-                  <span className={cn(
-                    "text-[10px] leading-none",
+                  <Building className={cn(
+                    "h-3 w-3 text-purple-600",
                     isFullDayAbsent && "opacity-50"
-                  )}>
-                    {badge.label === "K" ? "⛷️" : "🏂"}
-                  </span>
+                  )} />
                 </TooltipTrigger>
                 <TooltipContent side="top">
-                  {badge.title}
+                  Büropersonal
                 </TooltipContent>
               </Tooltip>
-            ))}
+            ) : (
+              badges.map((badge) => (
+                <Tooltip key={badge.label}>
+                  <TooltipTrigger asChild>
+                    <span className={cn(
+                      "text-[10px] leading-none",
+                      isFullDayAbsent && "opacity-50"
+                    )}>
+                      {badge.label === "K" ? "⛷️" : "🏂"}
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent side="top">
+                    {badge.title}
+                  </TooltipContent>
+                </Tooltip>
+              ))
+            )}
             {dayBookingCount > 0 && !isFullDayAbsent && (
               <span className="text-[10px] text-muted-foreground ml-0.5">
                 ({dayBookingCount})
@@ -192,6 +211,7 @@ export const SingleDayInstructorRow = forwardRef<HTMLDivElement, SingleDayInstru
             absences={absences}
             slotWidth={slotWidth}
             onSlotClick={onSlotClick}
+            isPlanningMode={isPlanningMode}
           />
         </div>
       </div>

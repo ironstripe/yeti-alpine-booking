@@ -2,7 +2,22 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { format, addDays, subDays } from "date-fns";
 import { de } from "date-fns/locale";
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, CalendarDays, CalendarRange, Search, User, Filter, LayoutGrid, Target } from "lucide-react";
+import { 
+  ChevronLeft, 
+  ChevronRight, 
+  Calendar as CalendarIcon, 
+  CalendarDays, 
+  CalendarRange, 
+  Search, 
+  User, 
+  Filter, 
+  LayoutGrid, 
+  Target,
+  Users,
+  Maximize,
+  Minimize,
+  Crosshair
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import {
@@ -48,6 +63,15 @@ interface SchedulerHeaderProps {
   compactMode?: boolean;
   onCompactModeChange?: (compact: boolean) => void;
   compactStats?: { visible: number; total: number };
+  // NEW: Role filter
+  roleFilter: string | null;
+  onRoleFilterChange: (filter: string | null) => void;
+  // NEW: Fullscreen mode
+  isFullscreen: boolean;
+  onFullscreenToggle: (fullscreen: boolean) => void;
+  // NEW: Planning mode
+  isPlanningMode: boolean;
+  onPlanningModeToggle: (planning: boolean) => void;
 }
 
 export function SchedulerHeader({
@@ -64,6 +88,12 @@ export function SchedulerHeader({
   compactMode = false,
   onCompactModeChange,
   compactStats,
+  roleFilter,
+  onRoleFilterChange,
+  isFullscreen,
+  onFullscreenToggle,
+  isPlanningMode,
+  onPlanningModeToggle,
 }: SchedulerHeaderProps) {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
@@ -272,6 +302,22 @@ export function SchedulerHeader({
 
       {/* Right-aligned Utilities */}
       <div className="flex items-center gap-1">
+        {/* Role Filter - NEW */}
+        <Select 
+          value={roleFilter || "all"} 
+          onValueChange={(v) => onRoleFilterChange(v === "all" ? null : v)}
+        >
+          <SelectTrigger className="w-8 h-8 p-0 md:w-[120px] md:px-2 [&>span]:hidden md:[&>span]:inline">
+            <Users className="h-3.5 w-3.5 md:mr-1" />
+            <SelectValue placeholder="Rolle" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Alle</SelectItem>
+            <SelectItem value="instructor">Skilehrer</SelectItem>
+            <SelectItem value="office_staff">Büropersonal</SelectItem>
+          </SelectContent>
+        </Select>
+
         {/* Capability Filter */}
         <Select 
           value={capabilityFilter || "all"} 
@@ -287,6 +333,32 @@ export function SchedulerHeader({
             <SelectItem value="snowboard">Board</SelectItem>
           </SelectContent>
         </Select>
+
+        {/* Planning Mode Toggle - NEW */}
+        <Button
+          variant={isPlanningMode ? "secondary" : "ghost"}
+          size="icon"
+          className="h-8 w-8"
+          onClick={() => onPlanningModeToggle(!isPlanningMode)}
+          title={isPlanningMode ? "Planungsmodus beenden" : "Planungsmodus"}
+        >
+          <Crosshair className="h-3.5 w-3.5" />
+        </Button>
+
+        {/* Fullscreen Toggle - NEW */}
+        <Button
+          variant={isFullscreen ? "secondary" : "ghost"}
+          size="icon"
+          className="h-8 w-8"
+          onClick={() => onFullscreenToggle(!isFullscreen)}
+          title={isFullscreen ? "Vollbild beenden (Esc)" : "Vollbild"}
+        >
+          {isFullscreen ? (
+            <Minimize className="h-3.5 w-3.5" />
+          ) : (
+            <Maximize className="h-3.5 w-3.5" />
+          )}
+        </Button>
 
         {/* Compact Mode Toggle */}
         {onCompactModeChange && (
