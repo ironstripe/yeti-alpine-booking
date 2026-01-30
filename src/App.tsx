@@ -8,6 +8,7 @@ import { ActiveRoleProvider } from "@/contexts/ActiveRoleContext";
 import { AppLayout } from "@/components/layout";
 import { InstallBanner } from "@/components/pwa/InstallBanner";
 import { OfflineIndicator } from "@/components/pwa/OfflineIndicator";
+import { PWAUpdatePrompt } from "@/components/pwa/PWAUpdatePrompt";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { OnboardingDialog } from "@/components/onboarding/OnboardingDialog";
 import { SessionTimeoutWarning } from "@/components/auth/SessionTimeoutWarning";
@@ -213,9 +214,10 @@ const App = () => (
         <BrowserRouter>
           <AuthProvider>
             <ActiveRoleProvider>
-              <OfflineIndicator />
-              <AppRoutes />
-              <InstallBanner />
+            <OfflineIndicator />
+            <AppRoutes />
+            <InstallBanner />
+            <PWAUpdatePrompt />
               <AuthenticatedComponents />
             </ActiveRoleProvider>
           </AuthProvider>
