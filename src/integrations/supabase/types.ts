@@ -1723,6 +1723,7 @@ export type Database = {
           phone: string
           real_time_status: string | null
           role: string | null
+          roles: string[] | null
           specialization: string | null
           status: string | null
           street: string | null
@@ -1750,6 +1751,7 @@ export type Database = {
           phone: string
           real_time_status?: string | null
           role?: string | null
+          roles?: string[] | null
           specialization?: string | null
           status?: string | null
           street?: string | null
@@ -1777,6 +1779,7 @@ export type Database = {
           phone?: string
           real_time_status?: string | null
           role?: string | null
+          roles?: string[] | null
           specialization?: string | null
           status?: string | null
           street?: string | null
@@ -3147,6 +3150,7 @@ export type Database = {
           date: string
           description: string | null
           id: string
+          is_internal: boolean | null
           is_mandatory: boolean | null
           lead_instructor_id: string | null
           location: string | null
@@ -3156,12 +3160,14 @@ export type Database = {
           status: string | null
           time_end: string
           time_start: string
+          training_type: string | null
         }
         Insert: {
           created_at?: string
           date: string
           description?: string | null
           id?: string
+          is_internal?: boolean | null
           is_mandatory?: boolean | null
           lead_instructor_id?: string | null
           location?: string | null
@@ -3171,12 +3177,14 @@ export type Database = {
           status?: string | null
           time_end: string
           time_start: string
+          training_type?: string | null
         }
         Update: {
           created_at?: string
           date?: string
           description?: string | null
           id?: string
+          is_internal?: boolean | null
           is_mandatory?: boolean | null
           lead_instructor_id?: string | null
           location?: string | null
@@ -3186,6 +3194,7 @@ export type Database = {
           status?: string | null
           time_end?: string
           time_start?: string
+          training_type?: string | null
         }
         Relationships: [
           {
