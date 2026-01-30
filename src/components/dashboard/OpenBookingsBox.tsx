@@ -1,5 +1,4 @@
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { ChevronRight } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -11,23 +10,20 @@ interface OpenBooking {
   id: string;
   ticket_number: string;
   status: string | null;
+  total_amount: number | null;
+  paid_amount: number | null;
   customer_name: string;
   issue: string;
 }
 
-function getBookingIssue(status: string | null): string {
-  switch (status) {
-    case "draft":
-      return "Entwurf - nicht abgeschlossen";
-    case "incomplete":
-      return "Unvollständig";
-    case "pending_instructor":
-      return "Lehrer fehlt";
-    case "pending_payment":
-      return "Zahlung ausstehend";
-    default:
-      return "Prüfung erforderlich";
+function getBookingIssue(paidAmount: number, totalAmount: number): string {
+  if (paidAmount === 0) {
+    return `Offen: CHF ${totalAmount.toFixed(0)}`;
   }
+  if (paidAmount < totalAmount) {
+    return `Teilbezahlt: CHF ${paidAmount.toFixed(0)} / ${totalAmount.toFixed(0)}`;
+  }
+  return "Prüfung erforderlich";
 }
 
 export function OpenBookingsBox() {
@@ -43,24 +39,39 @@ export function OpenBookingsBox() {
           id,
           ticket_number,
           status,
+          total_amount,
+          paid_amount,
           customers (first_name, last_name)
         `
         )
-        .in("status", ["draft", "incomplete", "pending_instructor", "pending_payment"])
+        .neq("status", "cancelled")
+        .gt("total_amount", 0)
         .order("created_at", { ascending: false })
-        .limit(5);
+        .limit(20);
 
       if (error) throw error;
 
-      return (data || []).map((ticket) => ({
-        id: ticket.id,
-        ticket_number: ticket.ticket_number,
-        status: ticket.status,
-        customer_name: ticket.customers
-          ? `${ticket.customers.first_name || ""} ${ticket.customers.last_name}`.trim()
-          : "Unbekannt",
-        issue: getBookingIssue(ticket.status),
-      }));
+      // Filter client-side for unpaid bookings
+      const unpaidTickets = (data || []).filter(
+        (ticket) => (ticket.paid_amount || 0) < (ticket.total_amount || 0)
+      );
+
+      return unpaidTickets.map((ticket) => {
+        const paidAmount = ticket.paid_amount || 0;
+        const totalAmount = ticket.total_amount || 0;
+        
+        return {
+          id: ticket.id,
+          ticket_number: ticket.ticket_number,
+          status: ticket.status,
+          total_amount: ticket.total_amount,
+          paid_amount: ticket.paid_amount,
+          customer_name: ticket.customers
+            ? `${ticket.customers.first_name || ""} ${ticket.customers.last_name}`.trim()
+            : "Unbekannt",
+          issue: getBookingIssue(paidAmount, totalAmount),
+        };
+      });
     },
   });
 
