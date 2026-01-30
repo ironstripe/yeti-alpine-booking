@@ -20,7 +20,8 @@ import {
   ChevronRight, 
   Users, 
   AlertTriangle,
-  UserPlus
+  UserPlus,
+  Ban
 } from 'lucide-react';
 import { 
   useGroupCourse, 
@@ -30,6 +31,9 @@ import {
   useBulkAssignInstructor
 } from '@/hooks/useGroupCourses';
 import { useInstructors } from '@/hooks/useInstructors';
+import { useUpdateInstanceWithNotification, useCancelInstanceWithNotification } from '@/hooks/useGroupCourseNotifications';
+import { getInstanceEnrollments } from '@/lib/group-course-notifications';
+import { InstanceChangeConfirmDialog } from './InstanceChangeConfirmDialog';
 import type { GroupCourseInstance } from '@/types/group-courses';
 import { DAYS_OF_WEEK } from '@/types/group-courses';
 
@@ -43,6 +47,16 @@ export function TrainingInstancesView({ courseId, onBack }: TrainingInstancesVie
   const weekEnd = endOfWeek(weekStart, { weekStartsOn: 1 });
   const daysInWeek = eachDayOfInterval({ start: weekStart, end: weekEnd });
 
+  // State for confirmation dialog
+  const [pendingChange, setPendingChange] = useState<{
+    instanceId: string;
+    newInstructorId: string | null;
+    oldInstructorName: string | null;
+    newInstructorName: string | null;
+    participantCount: number;
+    instance: GroupCourseInstance;
+  } | null>(null);
+
   const { data: course, isLoading: courseLoading } = useGroupCourse(courseId);
   const { data: instances, isLoading: instancesLoading } = useGroupCourseInstances(courseId, weekStart);
   const { data: instructors } = useInstructors();
@@ -50,6 +64,7 @@ export function TrainingInstancesView({ courseId, onBack }: TrainingInstancesVie
   const generateInstances = useGenerateInstances();
   const assignInstructor = useAssignInstructor();
   const bulkAssignInstructor = useBulkAssignInstructor();
+  const updateWithNotification = useUpdateInstanceWithNotification();
 
   // Generate instances for this week if none exist
   useEffect(() => {
@@ -62,8 +77,38 @@ export function TrainingInstancesView({ courseId, onBack }: TrainingInstancesVie
     setWeekStart(prev => direction === 'prev' ? subWeeks(prev, 1) : addWeeks(prev, 1));
   };
 
-  const handleAssignInstructor = (instanceId: string, instructorId: string | null) => {
-    assignInstructor.mutate({ instanceId, instructorId });
+  const handleAssignInstructor = async (instance: GroupCourseInstance, instructorId: string | null) => {
+    // If instance has participants, show confirmation dialog
+    const enrollmentCount = instance.current_participants || 0;
+    
+    if (enrollmentCount > 0 && instance.instructor_id !== instructorId) {
+      const oldInstructor = instructors?.find(i => i.id === instance.instructor_id);
+      const newInstructor = instructors?.find(i => i.id === instructorId);
+      
+      setPendingChange({
+        instanceId: instance.id,
+        newInstructorId: instructorId,
+        oldInstructorName: oldInstructor ? `${oldInstructor.first_name} ${oldInstructor.last_name}` : null,
+        newInstructorName: newInstructor ? `${newInstructor.first_name} ${newInstructor.last_name}` : null,
+        participantCount: enrollmentCount,
+        instance,
+      });
+    } else {
+      // No participants, just assign directly
+      assignInstructor.mutate({ instanceId: instance.id, instructorId });
+    }
+  };
+
+  const handleConfirmChange = (notifyParticipants: boolean) => {
+    if (!pendingChange) return;
+    
+    updateWithNotification.mutate({
+      instanceId: pendingChange.instanceId,
+      changes: { instructor_id: pendingChange.newInstructorId },
+      notifyParticipants,
+    });
+    
+    setPendingChange(null);
   };
 
   const handleBulkAssign = (instructorId: string) => {
@@ -186,6 +231,26 @@ export function TrainingInstancesView({ courseId, onBack }: TrainingInstancesVie
           })}
         </div>
       )}
+
+      {/* Confirmation Dialog for instructor changes */}
+      <InstanceChangeConfirmDialog
+        open={!!pendingChange}
+        onOpenChange={(open) => {
+          if (!open) setPendingChange(null);
+        }}
+        onConfirm={handleConfirmChange}
+        title="Lehrer ändern"
+        description={`Möchten Sie den Lehrer für diese Instanz ändern?`}
+        participantCount={pendingChange?.participantCount || 0}
+        changes={pendingChange ? [
+          {
+            label: 'Lehrer',
+            oldValue: pendingChange.oldInstructorName || 'Nicht zugewiesen',
+            newValue: pendingChange.newInstructorName || 'Nicht zugewiesen',
+          }
+        ] : undefined}
+        confirmText="Ändern"
+      />
     </>
   );
 }
@@ -194,7 +259,7 @@ interface InstanceCardProps {
   instance: GroupCourseInstance;
   instructors: Array<{ id: string; first_name: string; last_name: string; real_time_status?: string | null }>;
   maxParticipants: number;
-  onAssignInstructor: (instanceId: string, instructorId: string | null) => void;
+  onAssignInstructor: (instance: GroupCourseInstance, instructorId: string | null) => void;
 }
 
 function InstanceCard({ instance, instructors, maxParticipants, onAssignInstructor }: InstanceCardProps) {
@@ -216,7 +281,7 @@ function InstanceCard({ instance, instructors, maxParticipants, onAssignInstruct
         <label className="text-xs text-muted-foreground">Lehrer</label>
         <Select
           value={instance.instructor_id || 'none'}
-          onValueChange={(value) => onAssignInstructor(instance.id, value === 'none' ? null : value)}
+          onValueChange={(value) => onAssignInstructor(instance, value === 'none' ? null : value)}
         >
           <SelectTrigger className={!hasInstructor ? 'border-destructive' : ''}>
             <SelectValue placeholder="Lehrer zuweisen">
