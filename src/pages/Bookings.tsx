@@ -1,8 +1,19 @@
+/**
+ * BUTTON PLACEMENT RULE:
+ * 
+ * The global Command Bar (Cmd+K) contains a persistent "Neue Buchung" button.
+ * Page-level header buttons should ONLY be used for page-specific actions
+ * that are DIFFERENT from "Neue Buchung".
+ * 
+ * Examples:
+ * - Bookings page: NO page button (use global "Neue Buchung")
+ * - Dashboard: NO page button (use global "Neue Buchung")
+ * - Customers page: "Neuer Kunde" button (different action)
+ * - Instructors page: "Neuer Skilehrer" button (different action)
+ * - Trainings page: "Neues Training" button (different action)
+ */
 import { useState, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
 import { PageHeader } from "@/components/layout";
-import { Button } from "@/components/ui/button";
-import { Plus } from "lucide-react";
 import { useDebounce } from "@/hooks/useDebounce";
 import { useTickets, defaultFilters, TicketFilters, TicketWithDetails } from "@/hooks/useTickets";
 import { BookingsFilters } from "@/components/bookings/BookingsFilters";
@@ -15,8 +26,6 @@ import { PaymentModal } from "@/components/bookings/PaymentModal";
 const DEFAULT_COLUMNS = ["ticket", "customer", "course", "dateTime", "instructor", "total", "status"];
 
 const Bookings = () => {
-  const navigate = useNavigate();
-  
   // Filter state
   const [searchInput, setSearchInput] = useState("");
   const [filters, setFilters] = useState<TicketFilters>(defaultFilters);
@@ -55,12 +64,6 @@ const Bookings = () => {
       <PageHeader
         title="Buchungen"
         description="Verwalte alle Buchungen und Tickets"
-        actions={
-          <Button size="sm" onClick={() => navigate("/bookings/new")}>
-            <Plus className="h-4 w-4 mr-2" />
-            Neue Buchung
-          </Button>
-        }
       />
 
       <BookingsFilters

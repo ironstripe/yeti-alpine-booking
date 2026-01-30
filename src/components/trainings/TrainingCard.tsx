@@ -38,10 +38,8 @@ export function TrainingCard({ course, onEdit, onCopy, onViewInstances, onDelete
   // Get unique time slots
   const timeSlots = [...new Set(course.schedules.map(s => `${s.start_time.slice(0, 5)}-${s.end_time.slice(0, 5)}`))];
 
-  // Age range text
-  const ageRange = course.min_age || course.max_age
-    ? `${course.min_age || '0'}-${course.max_age || '∞'} Jahre`
-    : null;
+  // Age range text - ALWAYS display age range (required field)
+  const ageRangeLabel = `${course.min_age}-${course.max_age} J.`;
 
   // Participation percentage
   const participationPercent = course.this_week_max_spots 
@@ -81,7 +79,7 @@ export function TrainingCard({ course, onEdit, onCopy, onViewInstances, onDelete
         </div>
         <div className="flex flex-wrap gap-1.5 mt-1">
           <Badge variant="outline">{disciplineLabel}</Badge>
-          {ageRange && <Badge variant="outline">{ageRange}</Badge>}
+          <Badge variant="outline" className="bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">{ageRangeLabel}</Badge>
           {course.next_training && (
             <Badge variant="outline" className="flex items-center gap-1">
               <ArrowRight className="h-3 w-3" />

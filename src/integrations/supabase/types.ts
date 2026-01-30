@@ -1270,10 +1270,10 @@ export type Database = {
           discipline: string
           id: string
           is_active: boolean | null
-          max_age: number | null
+          max_age: number
           max_participants: number
           meeting_point: string | null
-          min_age: number | null
+          min_age: number
           name: string
           next_training_id: string | null
           period_end_date: string | null
@@ -1293,10 +1293,10 @@ export type Database = {
           discipline?: string
           id?: string
           is_active?: boolean | null
-          max_age?: number | null
+          max_age: number
           max_participants?: number
           meeting_point?: string | null
-          min_age?: number | null
+          min_age: number
           name: string
           next_training_id?: string | null
           period_end_date?: string | null
@@ -1316,10 +1316,10 @@ export type Database = {
           discipline?: string
           id?: string
           is_active?: boolean | null
-          max_age?: number | null
+          max_age?: number
           max_participants?: number
           meeting_point?: string | null
-          min_age?: number | null
+          min_age?: number
           name?: string
           next_training_id?: string | null
           period_end_date?: string | null
