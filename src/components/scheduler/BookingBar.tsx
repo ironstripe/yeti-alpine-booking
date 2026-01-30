@@ -16,11 +16,13 @@ interface BookingBarProps {
   booking: SchedulerBooking;
   slotWidth: number;
   instructorSpecialization?: string | null;
+  isPlanningMode?: boolean;
 }
 
-export function BookingBar({ booking, slotWidth, instructorSpecialization }: BookingBarProps) {
+export function BookingBar({ booking, slotWidth, instructorSpecialization, isPlanningMode = false }: BookingBarProps) {
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const isPrivate = booking.type === "private";
+  const isOfficeShift = booking.type === "office_shift";
   
   // Check for cross-discipline booking
   const hasCrossDiscipline = isPrivate && isCrossDiscipline(
@@ -44,7 +46,7 @@ export function BookingBar({ booking, slotWidth, instructorSpecialization }: Boo
     slotWidth
   );
 
-  const barClasses = getBookingBarClasses(booking.type, booking.isPaid);
+  const barClasses = getBookingBarClasses(booking.type as "private" | "group" | "office_shift", booking.isPaid);
 
   const style = {
     left: `${left}px`,
@@ -75,7 +77,9 @@ export function BookingBar({ booking, slotWidth, instructorSpecialization }: Boo
               barClasses,
               isPrivate && "cursor-grab active:cursor-grabbing",
               isDragging && "opacity-50 z-50 shadow-lg",
-              !isPrivate && "cursor-pointer"
+              !isPrivate && "cursor-pointer",
+              // Planning mode: dim existing bookings
+              isPlanningMode && "opacity-50"
             )}
             style={style}
           >
@@ -90,7 +94,7 @@ export function BookingBar({ booking, slotWidth, instructorSpecialization }: Boo
         <TooltipContent side="top" className="max-w-xs">
           <div className="space-y-1">
             <p className="font-medium">
-              {booking.type === "group" ? "Gruppenkurs" : "Privatstunde"}
+              {booking.type === "group" ? "Gruppenkurs" : booking.type === "office_shift" ? "Büro-Schicht" : "Privatstunde"}
             </p>
             {booking.participantName && (
               <p className="text-sm">{booking.participantName}</p>

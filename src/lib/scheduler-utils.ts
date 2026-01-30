@@ -13,7 +13,7 @@ export interface SchedulerBooking {
   date: string;
   timeStart: string;
   timeEnd: string;
-  type: "private" | "group";
+  type: "private" | "group" | "office_shift";
   isPaid: boolean;
   ticketId: string;
   participantName?: string;
@@ -106,7 +106,10 @@ export function getInstructorColorClasses(color: InstructorColor): {
  * Get CSS classes for booking bar based on type and payment status
  * Uses more saturated colors for better visibility against grid lines
  */
-export function getBookingBarClasses(type: "private" | "group", isPaid: boolean): string {
+export function getBookingBarClasses(type: "private" | "group" | "office_shift", isPaid: boolean): string {
+  if (type === "office_shift") {
+    return "bg-purple-600 text-white border-purple-700";
+  }
   if (type === "group") {
     return "bg-blue-600 text-white border-blue-700";
   }

@@ -4,6 +4,7 @@ import { format, parseISO, isValid } from "date-fns";
 import { de } from "date-fns/locale";
 import { toast } from "sonner";
 
+import { cn } from "@/lib/utils";
 import { useSchedulerData } from "@/hooks/useSchedulerData";
 import { useUpdateTicketItem } from "@/hooks/useUpdateTicketItem";
 import { DndKitProvider } from "./DndKitProvider";
@@ -39,6 +40,10 @@ function SchedulerGridContent() {
   const [highlightedInstructorId, setHighlightedInstructorId] = useState<string | null>(null);
   const [capabilityFilter, setCapabilityFilter] = useState<string | null>(null);
   const [compactMode, setCompactMode] = useState(false);
+  // NEW: Role filter, fullscreen mode, and planning mode
+  const [roleFilter, setRoleFilter] = useState<string | null>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isPlanningMode, setIsPlanningMode] = useState(false);
 
   // Calculate visible dates based on view mode
   const visibleDates = useMemo(() => {
@@ -142,16 +147,42 @@ function SchedulerGridContent() {
     return hours * 60 + (minutes || 0);
   }
 
-  // Filter instructors in compact mode (hide those without bookings or absences)
+  // Filter instructors by role and compact mode
   const filteredInstructors = useMemo(() => {
-    if (!compactMode) return instructors;
+    let filtered = instructors;
     
-    return instructors.filter(instructor => {
-      const hasBookings = bookings.some(b => b.instructorId === instructor.id);
-      const hasAbsences = absences.some(a => a.instructorId === instructor.id);
-      return hasBookings || hasAbsences;
-    });
-  }, [instructors, bookings, absences, compactMode]);
+    // Filter by role
+    if (roleFilter) {
+      filtered = filtered.filter(i => i.role === roleFilter);
+    }
+    
+    // Compact mode: hide those without bookings or absences
+    if (compactMode) {
+      filtered = filtered.filter(instructor => {
+        const hasBookings = bookings.some(b => b.instructorId === instructor.id);
+        const hasAbsences = absences.some(a => a.instructorId === instructor.id);
+        return hasBookings || hasAbsences;
+      });
+    }
+
+    // Planning mode: sort available instructors first
+    if (isPlanningMode) {
+      filtered = [...filtered].sort((a, b) => {
+        const aBookings = bookings.filter(book => book.instructorId === a.id).length;
+        const bBookings = bookings.filter(book => book.instructorId === b.id).length;
+        const aAbsent = absences.some(ab => ab.instructorId === a.id);
+        const bAbsent = absences.some(ab => ab.instructorId === b.id);
+        
+        // Absent instructors go to the bottom
+        if (aAbsent && !bAbsent) return 1;
+        if (!aAbsent && bAbsent) return -1;
+        // Sort by booking count (fewer bookings = more available)
+        return aBookings - bBookings;
+      });
+    }
+    
+    return filtered;
+  }, [instructors, bookings, absences, compactMode, roleFilter, isPlanningMode]);
 
   const compactStats = useMemo(() => ({
     visible: filteredInstructors.length,
@@ -163,18 +194,22 @@ function SchedulerGridContent() {
     clearSelection();
   }, [selectedDate, clearSelection]);
 
-  // Handle keyboard shortcuts
+  // Handle keyboard shortcuts (including ESC for fullscreen)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
-        clearSelection();
-        setHighlightedInstructorId(null);
+        if (isFullscreen) {
+          setIsFullscreen(false);
+        } else {
+          clearSelection();
+          setHighlightedInstructorId(null);
+        }
       }
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [clearSelection]);
+  }, [clearSelection, isFullscreen]);
 
   // Scroll to instructor and highlight
   const scrollToInstructor = useCallback((instructorId: string) => {
@@ -261,7 +296,10 @@ function SchedulerGridContent() {
 
   return (
     <DndKitProvider onBookingDrop={handleBookingDrop}>
-      <div className="flex flex-col h-full bg-background">
+      <div className={cn(
+        "flex flex-col h-full bg-background",
+        isFullscreen && "fixed inset-0 z-50 overflow-auto"
+      )}>
         {/* Header with Date Navigation & Filters */}
         <div className="flex items-center justify-between">
           <SchedulerHeader
@@ -279,6 +317,12 @@ function SchedulerGridContent() {
             compactMode={compactMode}
             onCompactModeChange={setCompactMode}
             compactStats={compactStats}
+            roleFilter={roleFilter}
+            onRoleFilterChange={setRoleFilter}
+            isFullscreen={isFullscreen}
+            onFullscreenToggle={setIsFullscreen}
+            isPlanningMode={isPlanningMode}
+            onPlanningModeToggle={setIsPlanningMode}
           />
           {/* Admin: Show Pending Absences Button */}
           {isAdminOrOffice && <PendingAbsencesList />}
@@ -294,7 +338,7 @@ function SchedulerGridContent() {
 
           {/* Instructor Focus View - Each instructor with day sub-rows */}
           <InstructorFocusView
-            instructors={instructors}
+            instructors={filteredInstructors}
             dates={visibleDates}
             bookings={bookings}
             absences={absences}
@@ -305,6 +349,8 @@ function SchedulerGridContent() {
             capabilityFilter={capabilityFilter}
             compactMode={compactMode}
             instructorRefs={instructorRefs}
+            isPlanningMode={isPlanningMode}
+            roleFilter={roleFilter}
           />
         </div>
 
@@ -321,6 +367,10 @@ function SchedulerGridContent() {
           <div className="flex items-center gap-1">
             <div className="w-2 h-2 rounded-sm bg-blue-600" />
             <span>Gruppe</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="w-2 h-2 rounded-sm bg-purple-600" />
+            <span>Büro</span>
           </div>
           <div className="flex items-center gap-1">
             <div className="w-2 h-2 rounded-sm bg-gray-300" />

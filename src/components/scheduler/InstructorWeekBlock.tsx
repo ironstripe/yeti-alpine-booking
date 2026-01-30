@@ -24,7 +24,7 @@ import {
   HoverCardContent,
   HoverCardTrigger,
 } from "@/components/ui/hover-card";
-import { Languages, Award, GraduationCap } from "lucide-react";
+import { Languages, Award, GraduationCap, Building } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
@@ -43,6 +43,7 @@ interface InstructorWeekBlockProps {
   isHighlighted?: boolean;
   capabilityFilter?: string | null;
   rowIndex?: number;
+  isPlanningMode?: boolean;
 }
 
 export const InstructorWeekBlock = forwardRef<HTMLDivElement, InstructorWeekBlockProps>(
@@ -57,6 +58,7 @@ export const InstructorWeekBlock = forwardRef<HTMLDivElement, InstructorWeekBloc
       isHighlighted = false,
       capabilityFilter = null,
       rowIndex = 0,
+      isPlanningMode = false,
     },
     ref
   ) {
@@ -69,6 +71,9 @@ export const InstructorWeekBlock = forwardRef<HTMLDivElement, InstructorWeekBloc
 
     // Get discipline badges
     const badges = getDisciplineBadges(instructor.specialization);
+    
+    // Check if this is office staff
+    const isOfficeStaff = instructor.role === 'office_staff';
 
     const handleNameClick = () => {
       navigate(`/instructors/${instructor.id}`);
@@ -146,20 +151,31 @@ export const InstructorWeekBlock = forwardRef<HTMLDivElement, InstructorWeekBloc
                 </HoverCardContent>
               </HoverCard>
 
-              {/* Discipline Badges + Total Count */}
+              {/* Discipline Badges or Office Icon + Total Count */}
               <div className="flex items-center gap-0.5 shrink-0">
-                {badges.map((badge) => (
-                  <Tooltip key={badge.label}>
+                {isOfficeStaff ? (
+                  <Tooltip>
                     <TooltipTrigger asChild>
-                      <span className="text-[10px] leading-none">
-                        {badge.label === "K" ? "⛷️" : "🏂"}
-                      </span>
+                      <Building className="h-3 w-3 text-purple-600" />
                     </TooltipTrigger>
                     <TooltipContent side="top">
-                      {badge.title}
+                      Büropersonal
                     </TooltipContent>
                   </Tooltip>
-                ))}
+                ) : (
+                  badges.map((badge) => (
+                    <Tooltip key={badge.label}>
+                      <TooltipTrigger asChild>
+                        <span className="text-[10px] leading-none">
+                          {badge.label === "K" ? "⛷️" : "🏂"}
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent side="top">
+                        {badge.title}
+                      </TooltipContent>
+                    </Tooltip>
+                  ))
+                )}
                 {totalBookings > 0 && (
                   <span className="text-[10px] text-muted-foreground ml-0.5 font-medium">
                     ({totalBookings})
@@ -218,6 +234,7 @@ export const InstructorWeekBlock = forwardRef<HTMLDivElement, InstructorWeekBloc
                       absences={absences}
                       slotWidth={slotWidth}
                       onSlotClick={onSlotClick}
+                      isPlanningMode={isPlanningMode}
                     />
                   </div>
                 </div>

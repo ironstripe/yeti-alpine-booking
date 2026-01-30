@@ -15,6 +15,7 @@ interface EmptySlotProps {
   bookings: SchedulerBooking[];
   absences: SchedulerAbsence[];
   onSlotClick?: (instructorId: string, date: string, timeSlot: string) => void;
+  isPlanningMode?: boolean;
 }
 
 function timeToMinutes(time: string): number {
@@ -31,6 +32,7 @@ export function EmptySlot({
   isBlocked,
   bookings,
   absences,
+  isPlanningMode = false,
 }: EmptySlotProps) {
   const { 
     state, 
@@ -183,7 +185,9 @@ export function EmptySlot({
         isOver && isInvalidDropZone && "border-2 border-red-500 bg-red-50 cursor-not-allowed",
         // Drag selection preview styling
         isDragPreview && !isDragBlocked && "bg-[rgba(59,130,246,0.15)] border-l-2 border-l-blue-500",
-        isDragPreview && isDragBlocked && "bg-destructive/15"
+        isDragPreview && isDragBlocked && "bg-destructive/15",
+        // Planning mode: enhanced hover for available slots
+        isPlanningMode && !isInvalidDropZone && !isDragPreview && "hover:bg-green-50 hover:border-2 hover:border-green-400"
       )}
       style={{
         left: `${slotIndex * slotWidth}px`,
