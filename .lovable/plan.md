@@ -1,75 +1,61 @@
 
-# Fix: Race Condition in Test Login Flow
+# Fix: Bypass Login Redirect for Test Links
 
-## Problem
-When `supabase.auth.setSession()` is called in `TestInstructorLogin`, the navigation to `/instructor` happens before the `AuthContext` receives the `onAuthStateChange` event. This causes `InstructorLayout` to see `user = null` and redirect to `/login`.
+## Root Cause Analysis
+The `InstructorLayout` immediately redirects to `/login` when it detects no user, but the auth state from `setSession()` hasn't fully propagated through React's state updates yet. Even though we wait for `onAuthStateChange`, the navigation to `/instructor` and the mount of `InstructorLayout` can happen before the component tree re-renders with the new user state.
 
-## Solution
-Wait for the auth state to fully propagate before navigating by listening for the `onAuthStateChange` event after calling `setSession()`.
+## Solution: Add Initial Mount Delay
+
+Modify `InstructorLayout` to wait for at least one render cycle before checking auth, giving the auth context time to fully update. This is a common pattern for protecting routes that might be accessed via programmatic session injection.
 
 ## Technical Changes
 
-### File: `src/pages/TestInstructorLogin.tsx`
+### File: `src/components/instructor-portal/InstructorLayout.tsx`
 
-Replace the current navigation logic with a more robust approach:
+Add a brief mount delay before the "redirect to login" logic fires:
 
 ```typescript
-// Current (problematic):
-const { error: sessionError } = await supabase.auth.setSession({...});
-// ... success state ...
-setTimeout(() => {
-  navigate("/instructor", { replace: true });
-}, 1500);
+// Add new state
+const [hasInitialized, setHasInitialized] = useState(false);
 
-// Fixed:
-const { error: sessionError } = await supabase.auth.setSession({
-  access_token: data.access_token,
-  refresh_token: data.refresh_token,
-});
+// Add initialization effect
+useEffect(() => {
+  // Wait for auth context to stabilize before checking auth
+  const timeout = setTimeout(() => {
+    setHasInitialized(true);
+  }, 100);
+  return () => clearTimeout(timeout);
+}, []);
 
-if (sessionError) { /* error handling */ }
-
-// Wait for auth state to fully propagate
-await new Promise<void>((resolve) => {
-  const { data: { subscription } } = supabase.auth.onAuthStateChange(
-    (event, session) => {
-      if (session) {
-        subscription.unsubscribe();
-        resolve();
-      }
-    }
-  );
-  // Fallback timeout in case event doesn't fire
-  setTimeout(() => {
-    subscription.unsubscribe();
-    resolve();
-  }, 2000);
-});
-
-// Store role AFTER session is confirmed
-localStorage.setItem("yety_active_role", "teacher");
-
-// Now safe to navigate
-setInstructorName(data.instructor?.name || "Instruktor");
-setStatus("success");
-
-// Brief delay to show success message, then redirect
-setTimeout(() => {
-  navigate("/instructor", { replace: true });
-}, 1000);
+// Modify the redirect effect to wait for initialization
+useEffect(() => {
+  if (!hasInitialized) return; // Don't redirect until we've had time to initialize
+  if (!authLoading && !user) {
+    navigate("/login");
+  }
+}, [hasInitialized, authLoading, user, navigate]);
 ```
 
-## Key Changes
-1. **Wait for `onAuthStateChange`**: Listen for the auth event that confirms the session is active
-2. **Fallback timeout**: Prevent infinite waiting if something goes wrong
-3. **Role storage timing**: Move `localStorage.setItem` after session confirmation
-4. **Reduced visual delay**: Since we wait for auth, we can show success briefly then navigate
-
 ## Why This Works
-- `setSession()` triggers `onAuthStateChange` internally
-- We wait until that event fires with a valid session
-- Only then do we navigate to `/instructor`
-- `InstructorLayout` will now see the authenticated user
+1. When TestInstructorLogin calls `setSession()` and navigates to `/instructor`
+2. InstructorLayout mounts but waits 100ms before checking auth
+3. During this 100ms, AuthContext receives the `onAuthStateChange` event and updates `user`
+4. When InstructorLayout checks auth, user is already populated
+5. No redirect to login
 
-## Alternative Considered
-Could modify `InstructorLayout` to not redirect during initial mounting, but that's riskier as it could create security holes. The login page fix is cleaner.
+## Alternative Approaches Considered
+
+1. **Pass tokens via URL/state**: Complex and less secure
+2. **Session storage flag**: Hacky and could create security issues
+3. **Modify AuthContext**: Would affect all routes, higher risk
+
+The mount delay approach is the safest and most targeted fix.
+
+## Files to Modify
+- `src/components/instructor-portal/InstructorLayout.tsx`
+
+## Testing
+After the fix, these links should work directly:
+- `https://yeti-alpine-booking.lovable.app/test-instructor/tester-alpha-2026`
+- `https://yeti-alpine-booking.lovable.app/test-instructor/tester-beta-2026`
+- `https://yeti-alpine-booking.lovable.app/test-instructor/tester-gamma-2026`
