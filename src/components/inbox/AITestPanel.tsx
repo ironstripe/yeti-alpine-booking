@@ -104,57 +104,63 @@ export function AITestPanel({ open, onOpenChange }: AITestPanelProps) {
                 <TabsTrigger value="custom">Eigener Text</TabsTrigger>
               </TabsList>
 
-              <ScrollArea className="flex-1 mt-3">
-                <TabsContent value="samples" className="space-y-3 mt-0 pr-4">
-                  {(Object.keys(SAMPLE_MESSAGES) as SampleKey[]).map((key) => (
-                    <Card
-                      key={key}
-                      className={`cursor-pointer transition-all ${
-                        selectedSample === key
-                          ? "ring-2 ring-primary"
-                          : "hover:border-primary/50"
-                      }`}
-                      onClick={() => setSelectedSample(key)}
-                    >
-                      <CardContent className="p-3">
-                        <div className="flex items-center justify-between">
-                          <span className="font-medium text-sm">
-                            {SAMPLE_MESSAGES[key].label}
-                          </span>
-                          {selectedSample === key && (
-                            <CheckCircle className="h-4 w-4 text-primary" />
-                          )}
-                        </div>
-                        <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
-                          {SAMPLE_MESSAGES[key].content.slice(0, 100)}...
-                        </p>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </TabsContent>
+              <TabsContent value="samples" className="flex-1 mt-3 data-[state=inactive]:hidden">
+                <ScrollArea className="h-full">
+                  <div className="space-y-3 pr-4">
+                    {(Object.keys(SAMPLE_MESSAGES) as SampleKey[]).map((key) => (
+                      <Card
+                        key={key}
+                        className={`cursor-pointer transition-all ${
+                          selectedSample === key
+                            ? "ring-2 ring-primary"
+                            : "hover:border-primary/50"
+                        }`}
+                        onClick={() => setSelectedSample(key)}
+                      >
+                        <CardContent className="p-3">
+                          <div className="flex items-center justify-between">
+                            <span className="font-medium text-sm">
+                              {SAMPLE_MESSAGES[key].label}
+                            </span>
+                            {selectedSample === key && (
+                              <CheckCircle className="h-4 w-4 text-primary" />
+                            )}
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                            {SAMPLE_MESSAGES[key].content.slice(0, 100)}...
+                          </p>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                </ScrollArea>
+              </TabsContent>
 
-                <TabsContent value="custom" className="space-y-3 mt-0 pr-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="subject">Betreff (optional)</Label>
-                    <Input
-                      id="subject"
-                      value={customSubject}
-                      onChange={(e) => setCustomSubject(e.target.value)}
-                      placeholder="z.B. Anfrage Skikurs"
-                    />
+              <TabsContent value="custom" className="flex-1 mt-3 data-[state=inactive]:hidden">
+                <ScrollArea className="h-full">
+                  <div className="space-y-3 pr-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="subject">Betreff (optional)</Label>
+                      <Input
+                        id="subject"
+                        value={customSubject}
+                        onChange={(e) => setCustomSubject(e.target.value)}
+                        placeholder="z.B. Anfrage Skikurs"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="content">Nachrichteninhalt</Label>
+                      <Textarea
+                        id="content"
+                        value={customContent}
+                        onChange={(e) => setCustomContent(e.target.value)}
+                        placeholder="Fügen Sie hier den Text einer E-Mail oder WhatsApp-Nachricht ein..."
+                        className="min-h-[200px]"
+                      />
+                    </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="content">Nachrichteninhalt</Label>
-                    <Textarea
-                      id="content"
-                      value={customContent}
-                      onChange={(e) => setCustomContent(e.target.value)}
-                      placeholder="Fügen Sie hier den Text einer E-Mail oder WhatsApp-Nachricht ein..."
-                      className="min-h-[200px]"
-                    />
-                  </div>
-                </TabsContent>
-              </ScrollArea>
+                </ScrollArea>
+              </TabsContent>
             </Tabs>
 
             {/* Button always visible at bottom */}
