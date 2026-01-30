@@ -127,8 +127,6 @@ const AppRoutes = () => (
     {/* Public route */}
     <Route path="/login" element={<LoginRoute />} />
 
-    {/* Public scheduler route for testing */}
-    <Route path="/scheduler" element={<Scheduler />} />
 
     {/* Public Booking Portal Routes */}
     <Route path="/book" element={<BookingLanding />} />
@@ -162,6 +160,7 @@ const AppRoutes = () => (
       <Route path="inbox/:id" element={<InboxDetail />} />
       <Route path="bookings" element={<Bookings />} />
       <Route path="bookings/:id" element={<BookingDetail />} />
+      <Route path="scheduler" element={<Scheduler />} />
       <Route path="customers" element={<Customers />} />
       <Route path="customers/:id" element={<CustomerDetail />} />
       <Route path="instructors" element={<Instructors />} />
