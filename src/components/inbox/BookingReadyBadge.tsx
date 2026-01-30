@@ -26,6 +26,7 @@ const fieldLabels: Record<string, string> = {
   booking_times: "Uhrzeiten",
   lunch_supervision: "Mittagsbetreuung",
   vegetarian_preference: "Vegetarisch",
+  date_weekday_conflict: "Datum/Wochentag-Konflikt muss geklärt werden",
   // Legacy field names
   start_date: "Startdatum",
   contact_info: "Kontaktdaten (E-Mail/Telefon)",
@@ -87,6 +88,11 @@ export function getMissingRequiredFields(data: any): string[] {
   const booking = data.booking || {};
   const participants = data.participants || [];
   const customer = data.customer || {};
+  
+  // Check for date conflicts first
+  if (data.booking_summary?.has_date_conflicts) {
+    missing.push("date_weekday_conflict");
+  }
   
   // Check for start date
   if (!booking.start_date && (!booking.dates || booking.dates.length === 0)) {
@@ -176,6 +182,11 @@ export function calculateDataCompleteness(data: any): number {
 // Check if booking is ready (all required fields present)
 export function isBookingReady(data: any): boolean {
   if (!data) return false;
+  
+  // Date conflicts prevent booking
+  if (data.booking_summary?.has_date_conflicts) {
+    return false;
+  }
   
   const booking = data.booking || {};
   const participants = data.participants || [];

@@ -17,6 +17,7 @@ import {
   MapPin
 } from "lucide-react";
 import { ConfidenceIndicator } from "./ConfidenceIndicator";
+import { DateConflictWarning, type DateConflict } from "./DateConflictWarning";
 import { format, parseISO } from "date-fns";
 import { de } from "date-fns/locale";
 
@@ -35,6 +36,8 @@ interface BookingSummary {
   has_different_products?: boolean;
   date_range?: { start?: string; end?: string };
   warnings?: string[];
+  date_conflicts?: DateConflict[];
+  has_date_conflicts?: boolean;
 }
 
 interface ExtractedData {
@@ -184,6 +187,7 @@ export function ExtractionPanel({ data, onEdit, showHeader = true }: ExtractionP
   const hasDates = data.booking?.dates && data.booking.dates.length > 0;
   const hasParticipantBookings = data.participants?.some(p => p.booking);
   const hasWarnings = data.booking_summary?.warnings && data.booking_summary.warnings.length > 0;
+  const hasDateConflicts = data.booking_summary?.has_date_conflicts && data.booking_summary.date_conflicts;
 
   if (!data.is_booking_request) {
     return (
@@ -253,6 +257,11 @@ export function ExtractionPanel({ data, onEdit, showHeader = true }: ExtractionP
         )}
 
         {hasCustomer && (hasParticipants || hasDates) && <Separator />}
+
+        {/* Date Conflict Warning - show prominently */}
+        {hasDateConflicts && (
+          <DateConflictWarning conflicts={data.booking_summary!.date_conflicts!} />
+        )}
 
         {/* Booking Summary Warnings */}
         {hasWarnings && (
@@ -518,6 +527,11 @@ export function ExtractionPanel({ data, onEdit, showHeader = true }: ExtractionP
         )}
 
         {hasCustomer && (hasParticipants || hasDates) && <Separator />}
+
+        {/* Date Conflict Warning - show prominently */}
+        {hasDateConflicts && (
+          <DateConflictWarning conflicts={data.booking_summary!.date_conflicts!} />
+        )}
 
         {/* Booking Summary Warnings */}
         {hasWarnings && (

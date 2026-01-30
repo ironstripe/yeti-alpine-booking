@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, Loader2 } from "lucide-react";
+import { ArrowRight, Loader2, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import type { BookingPrefillState } from "@/types/booking-prefill";
@@ -40,6 +40,14 @@ interface ExtractedData {
     special_requests?: string;
   };
   matched_customer_id?: string;
+  booking_summary?: {
+    has_date_conflicts?: boolean;
+    date_conflicts?: Array<{
+      date: string;
+      mentioned_weekday: string | null;
+      actual_weekday: string;
+    }>;
+  };
 }
 
 interface ConvertToBookingButtonProps {
@@ -159,18 +167,29 @@ export function ConvertToBookingButton({
     }
   };
 
+  const hasDateConflicts = extractedData?.booking_summary?.has_date_conflicts;
+
   return (
-    <Button 
-      onClick={handleConvert} 
-      disabled={isLoading || !extractedData}
-      className={className}
-    >
-      {isLoading ? (
-        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-      ) : (
-        <ArrowRight className="h-4 w-4 mr-2" />
+    <div className="flex flex-col">
+      <Button 
+        onClick={handleConvert} 
+        disabled={isLoading || !extractedData || hasDateConflicts}
+        className={className}
+      >
+        {isLoading ? (
+          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+        ) : hasDateConflicts ? (
+          <AlertTriangle className="h-4 w-4 mr-2" />
+        ) : (
+          <ArrowRight className="h-4 w-4 mr-2" />
+        )}
+        {hasDateConflicts ? "Datum klären" : "Buchung erstellen"}
+      </Button>
+      {hasDateConflicts && (
+        <p className="text-xs text-amber-600 mt-1">
+          Bitte zuerst den Datum/Wochentag-Konflikt mit dem Kunden klären.
+        </p>
       )}
-      Buchung erstellen
-    </Button>
+    </div>
   );
 }

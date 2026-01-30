@@ -27,6 +27,16 @@ export interface ExtractedParticipant {
   booking?: ParticipantBooking;
 }
 
+export interface DateConflict {
+  date: string;
+  mentioned_weekday: string | null;
+  actual_weekday: string;
+  is_valid: boolean;
+  conflict_type: "none" | "weekday_mismatch";
+  suggestion: string | null;
+  participant_name?: string;
+}
+
 export interface BookingSummary {
   total_participants?: number;
   has_different_levels?: boolean;
@@ -37,6 +47,8 @@ export interface BookingSummary {
     end?: string;
   };
   warnings?: string[];
+  date_conflicts?: DateConflict[];
+  has_date_conflicts?: boolean;
 }
 
 export interface ExtractedData {

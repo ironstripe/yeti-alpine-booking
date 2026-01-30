@@ -38,6 +38,9 @@ interface ExtractedData {
       start_time?: string;
       end_time?: string;
       time_preference?: string;
+      mentioned_weekday?: string;
+      actual_weekday?: string;
+      is_valid?: boolean;
     }>;
     date_description?: string;
     start_date?: string;
@@ -45,6 +48,19 @@ interface ExtractedData {
     lunch_supervision?: boolean;
     vegetarian?: boolean;
     special_requests?: string;
+  };
+  booking_summary?: {
+    has_date_conflicts?: boolean;
+    date_conflicts?: Array<{
+      date: string;
+      mentioned_weekday: string | null;
+      actual_weekday: string;
+      is_valid: boolean;
+      conflict_type: string;
+      suggestion: string | null;
+      participant_name?: string;
+    }>;
+    warnings?: string[];
   };
   notes?: string;
   confidence?: number;
@@ -486,6 +502,7 @@ ${extractedSummary}
 ${customerDataInstruction}
 ${courseTypeInstruction}
 ${questionStrategy}
+${buildDateConflictInstruction(extractedData)}
 
 **STIL-REGELN FÜR DIE ANTWORT:**
 
@@ -589,3 +606,56 @@ function formatExtractedForPrompt(data: ExtractedData): string {
 
   return parts.length > 0 ? `\n**BEREITS EXTRAHIERTE DATEN:**\n${parts.join("\n")}` : "";
 }
+
+// Build instruction for date/weekday conflicts
+function buildDateConflictInstruction(extractedData: ExtractedData): string {
+  if (!extractedData.booking_summary?.has_date_conflicts || !extractedData.booking_summary.date_conflicts) {
+    return "";
+  }
+
+  const conflicts = extractedData.booking_summary.date_conflicts;
+  
+  const conflictDetails = conflicts
+    .map((c) => {
+      const participantInfo = c.participant_name ? ` (${c.participant_name})` : "";
+      return `- Genannt: "${c.mentioned_weekday}, ${c.date}"${participantInfo}
+  Tatsächlicher Wochentag: ${c.actual_weekday}
+  ${c.suggestion || ""}`;
+    })
+    .join("\n");
+
+  return `
+**WICHTIG - DATUM/WOCHENTAG-KONFLIKT ERKANNT:**
+Der Kunde hat einen Wochentag genannt, der nicht zum genannten Datum passt:
+
+${conflictDetails}
+
+Du MUSST in deiner Antwort:
+1. Höflich auf den Konflikt hinweisen
+2. BEIDE Möglichkeiten nennen (das Datum ODER den Wochentag)
+3. Um Klärung bitten
+4. KEINE Buchung bestätigen, bis geklärt
+
+Beispiel-Formulierung:
+"Kurze Rückfrage zu deinem Wunschtermin: Du hast ${conflicts[0]?.mentioned_weekday}, ${formatDateForPrompt(conflicts[0]?.date || "")} geschrieben – 
+der ${formatDateForPrompt(conflicts[0]?.date || "")} ist allerdings ein ${conflicts[0]?.actual_weekday}. Meinst du:
+• ${conflicts[0]?.actual_weekday}, den ${formatDateForPrompt(conflicts[0]?.date || "")}, oder
+• den nächsten ${conflicts[0]?.mentioned_weekday}?
+Danke für die kurze Rückmeldung!"
+`;
+}
+
+// Format date for prompt
+function formatDateForPrompt(dateStr: string): string {
+  if (!dateStr) return "";
+  try {
+    const date = new Date(dateStr);
+    const day = date.getDate().toString().padStart(2, "0");
+    const month = (date.getMonth() + 1).toString().padStart(2, "0");
+    const year = date.getFullYear();
+    return `${day}.${month}.${year}`;
+  } catch {
+    return dateStr;
+  }
+}
+
