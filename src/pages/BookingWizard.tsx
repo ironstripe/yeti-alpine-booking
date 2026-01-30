@@ -42,7 +42,7 @@ function BookingWizardContent() {
   const { 
     state, 
     setCustomer, 
-    setConversationId, 
+    setConversationId,
     setCurrentStep, 
     setSelectedParticipants,
     setProductType,
@@ -55,11 +55,14 @@ function BookingWizardContent() {
     goToNextStep, 
     resetWizard,
     loadTicketForEditing,
+    prefillFromScheduler,
   } = useBookingWizard();
 
   const customerId = searchParams.get("customer");
   const conversationId = searchParams.get("conversation");
   const editTicketId = searchParams.get("edit");
+  const schedulerInstructorId = searchParams.get("instructor");
+  const schedulerAppointments = searchParams.get("appointments");
   
   // Get prefill from navigation state
   const prefill = (location.state as { prefill?: BookingPrefillState })?.prefill;
@@ -143,6 +146,23 @@ function BookingWizardContent() {
       setIsReanalyzing(false);
     }
   };
+
+  // Apply scheduler prefill (instructor + appointments from URL params)
+  const didApplySchedulerPrefill = useRef(false);
+  useEffect(() => {
+    if (!schedulerInstructorId || !schedulerAppointments) return;
+    if (didApplySchedulerPrefill.current) return;
+    if (state.appointments) return; // Already applied
+
+    try {
+      const appointments = JSON.parse(decodeURIComponent(schedulerAppointments));
+      didApplySchedulerPrefill.current = true;
+      prefillFromScheduler(schedulerInstructorId, appointments);
+      console.log("Applied scheduler prefill:", { schedulerInstructorId, appointments });
+    } catch (e) {
+      console.error("Failed to parse scheduler appointments:", e);
+    }
+  }, [schedulerInstructorId, schedulerAppointments, prefillFromScheduler, state.appointments]);
 
   // Load ticket for edit mode
   useEffect(() => {

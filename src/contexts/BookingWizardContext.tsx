@@ -436,14 +436,50 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
     });
   };
 
-  const prefillFromScheduler = (instructorId: string, appointments: AppointmentSlot[]) => {
+  const prefillFromScheduler = async (instructorId: string, appointments: AppointmentSlot[]) => {
     const dates = [...new Set(appointments.map((a) => a.date))];
+    
+    // Fetch full instructor record for Step 3
+    let instructor: Tables<"instructors"> | null = null;
+    try {
+      const { data, error } = await supabase
+        .from("instructors")
+        .select("*")
+        .eq("id", instructorId)
+        .single();
+      
+      if (!error && data) {
+        instructor = data;
+      }
+    } catch (e) {
+      console.error("Failed to fetch instructor for scheduler prefill:", e);
+    }
+    
+    // Derive timeSlot and duration from first appointment
+    let timeSlot: string | null = null;
+    let duration: number | null = null;
+    if (appointments.length > 0) {
+      const firstAppt = appointments[0];
+      const startHour = parseInt(firstAppt.startTime.split(":")[0]);
+      const startMinutes = parseInt(firstAppt.startTime.split(":")[1] || "0");
+      const totalEndMinutes = startHour * 60 + startMinutes + firstAppt.durationMinutes;
+      const endHour = Math.floor(totalEndMinutes / 60);
+      const endMinutes = totalEndMinutes % 60;
+      const endTime = `${endHour.toString().padStart(2, "0")}:${endMinutes.toString().padStart(2, "0")}`;
+      timeSlot = `${firstAppt.startTime} - ${endTime}`;
+      duration = firstAppt.durationMinutes / 60;
+    }
+    
     setState((prev) => ({
       ...prev,
       instructorId,
+      instructor,
       appointments,
       selectedDates: dates,
       productType: "private",
+      timeSlot,
+      duration,
+      assignLater: false, // Instructor is already assigned from scheduler
     }));
   };
 
