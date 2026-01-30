@@ -11,6 +11,7 @@ import {
   DragEndEvent,
   DragOverEvent,
 } from "@dnd-kit/core";
+import { toast } from "sonner";
 import type { SchedulerBooking } from "@/lib/scheduler-utils";
 import { cn } from "@/lib/utils";
 
@@ -34,12 +35,13 @@ interface DropData {
   instructorId: string;
   date: string;
   timeSlot: string;
-  isBlocked: boolean;
+  isBlocked: boolean; // Now includes both absences and occupied slots
 }
 
 export function DndKitProvider({ children, onBookingDrop }: DndKitProviderProps) {
   const [activeBooking, setActiveBooking] = useState<SchedulerBooking | null>(null);
   const [overSlot, setOverSlot] = useState<DropData | null>(null);
+  const [lastInvalidAttempt, setLastInvalidAttempt] = useState<string | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -71,17 +73,20 @@ export function DndKitProvider({ children, onBookingDrop }: DndKitProviderProps)
       const activeData = event.active.data.current as DragData | undefined;
       const overData = event.over?.data.current as DropData | undefined;
 
-      if (
-        activeData?.type === "booking" &&
-        overData?.type === "slot" &&
-        !overData.isBlocked &&
-        onBookingDrop
-      ) {
-        onBookingDrop(activeData.booking, overData.instructorId, overData.date, overData.timeSlot);
+      if (activeData?.type === "booking" && overData?.type === "slot") {
+        if (overData.isBlocked) {
+          // Show toast for invalid drop attempt
+          toast.error("Dieser Zeitslot ist bereits belegt. Bitte wähle einen freien Slot.", {
+            duration: 3000,
+          });
+        } else if (onBookingDrop) {
+          onBookingDrop(activeData.booking, overData.instructorId, overData.date, overData.timeSlot);
+        }
       }
 
       setActiveBooking(null);
       setOverSlot(null);
+      setLastInvalidAttempt(null);
     },
     [onBookingDrop]
   );
@@ -89,6 +94,7 @@ export function DndKitProvider({ children, onBookingDrop }: DndKitProviderProps)
   const handleDragCancel = useCallback(() => {
     setActiveBooking(null);
     setOverSlot(null);
+    setLastInvalidAttempt(null);
   }, []);
 
   return (
