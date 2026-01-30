@@ -205,7 +205,7 @@ export function Step2ProductAllocation() {
     }
   }, [startTime, endTime, calculatedDuration, setTimeSlot, setDuration]);
 
-  // Sync local state from context timeSlot (for prefilled values)
+  // Sync local state from context timeSlot (for prefilled values from AI extraction or scheduler)
   useEffect(() => {
     if (state.timeSlot && !startTime && !endTime) {
       const parts = state.timeSlot.split(" - ");
@@ -216,6 +216,27 @@ export function Step2ProductAllocation() {
       }
     }
   }, [state.timeSlot, startTime, endTime]);
+
+  // Derive time from scheduler appointments if timeSlot not yet set
+  useEffect(() => {
+    if (state.appointments && state.appointments.length > 0 && !state.timeSlot) {
+      const firstAppt = state.appointments[0];
+      const startHour = parseInt(firstAppt.startTime.split(":")[0]);
+      const startMinutes = parseInt(firstAppt.startTime.split(":")[1] || "0");
+      const totalEndMinutes = startHour * 60 + startMinutes + firstAppt.durationMinutes;
+      const endHour = Math.floor(totalEndMinutes / 60);
+      const endMinutes = totalEndMinutes % 60;
+      const derivedEndTime = `${endHour.toString().padStart(2, "0")}:${endMinutes.toString().padStart(2, "0")}`;
+      
+      const timeSlotValue = `${firstAppt.startTime} - ${derivedEndTime}`;
+      setTimeSlot(timeSlotValue);
+      setStartTime(firstAppt.startTime);
+      setEndTime(derivedEndTime);
+      setDuration(firstAppt.durationMinutes / 60);
+      
+      console.log("Step2: Derived time from scheduler appointments:", timeSlotValue);
+    }
+  }, [state.appointments, state.timeSlot, setTimeSlot, setDuration]);
 
   // Filter end times to be after start time
   const availableEndTimes = useMemo(() => {
