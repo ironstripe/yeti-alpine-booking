@@ -19,7 +19,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Check, Loader2 } from "lucide-react";
@@ -33,8 +32,8 @@ import {
   isValidAHVNumber,
   LEVEL_OPTIONS,
   STATUS_OPTIONS,
-  SPECIALIZATION_OPTIONS,
 } from "@/lib/instructor-utils";
+import { RoleSelector, getDisciplineFromRoles, hasTeachingRole } from "./RoleSelector";
 
 const instructorSchema = z.object({
   first_name: z.string().min(1, "Vorname ist erforderlich"),
@@ -42,8 +41,8 @@ const instructorSchema = z.object({
   email: z.string().email("Ungültige E-Mail-Adresse"),
   phone: z.string().min(1, "Telefon ist erforderlich"),
   birth_date: z.string().optional(),
-  level: z.string().min(1, "Ausbildungsstufe ist erforderlich"),
-  specialization: z.string().min(1, "Spezialisierung ist erforderlich"),
+  roles: z.array(z.string()).min(1, "Mindestens eine Rolle erforderlich"),
+  level: z.string().optional(),
   hourly_rate: z
     .number({ invalid_type_error: "Stundenlohn ist erforderlich" })
     .min(20, "Mindestens 20 CHF")
@@ -78,20 +77,23 @@ export function NewInstructorModal({ open, onOpenChange }: NewInstructorModalPro
     resolver: zodResolver(instructorSchema),
     defaultValues: {
       status: "active",
-      specialization: "ski",
+      roles: ["ski"],
       level: "",
       hourly_rate: undefined,
     },
   });
 
-  const specialization = watch("specialization");
+  const roles = watch("roles");
   const level = watch("level");
   const status = watch("status");
+  const isInstructor = hasTeachingRole(roles || []);
 
   const onSubmit = async (data: InstructorFormData) => {
     try {
       // Normalize phone number
       const normalizedPhone = normalizePhoneNumber(data.phone);
+      // Derive discipline from roles for backward compatibility
+      const specialization = getDisciplineFromRoles(data.roles);
 
       await createInstructor.mutateAsync({
         first_name: data.first_name.trim(),
@@ -99,8 +101,9 @@ export function NewInstructorModal({ open, onOpenChange }: NewInstructorModalPro
         email: data.email.trim().toLowerCase(),
         phone: normalizedPhone,
         birth_date: data.birth_date || null,
-        level: data.level,
-        specialization: data.specialization,
+        level: isInstructor ? data.level : null,
+        specialization: specialization,
+        roles: data.roles,
         hourly_rate: data.hourly_rate,
         status: data.status,
         bank_name: data.bank_name?.trim() || null,
@@ -242,53 +245,40 @@ export function NewInstructorModal({ open, onOpenChange }: NewInstructorModalPro
 
             <Separator />
 
-            {/* Section 3: Qualifications */}
+            {/* Section 3: Roles */}
             <div className="space-y-4">
               <h3 className="text-sm font-medium text-muted-foreground">
-                Qualifikationen
+                Rollen & Qualifikationen
               </h3>
-              <div className="space-y-2">
-                <Label>
-                  Ausbildungsstufe <span className="text-destructive">*</span>
-                </Label>
-                <Select value={level} onValueChange={(v) => setValue("level", v)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Stufe wählen..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {LEVEL_OPTIONS.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {errors.level && (
-                  <p className="text-xs text-destructive">{errors.level.message}</p>
-                )}
-              </div>
-              <div className="space-y-2">
-                <Label>
-                  Spezialisierung <span className="text-destructive">*</span>
-                </Label>
-                <RadioGroup
-                  value={specialization}
-                  onValueChange={(v) => setValue("specialization", v)}
-                  className="flex gap-4"
-                >
-                  {SPECIALIZATION_OPTIONS.map((option) => (
-                    <div key={option.value} className="flex items-center space-x-2">
-                      <RadioGroupItem value={option.value} id={`spec-${option.value}`} />
-                      <Label htmlFor={`spec-${option.value}`} className="font-normal cursor-pointer">
-                        {option.label}
-                      </Label>
-                    </div>
-                  ))}
-                </RadioGroup>
-                {errors.specialization && (
-                  <p className="text-xs text-destructive">{errors.specialization.message}</p>
-                )}
-              </div>
+              <RoleSelector
+                value={roles || []}
+                onChange={(newRoles) => setValue("roles", newRoles)}
+                error={errors.roles?.message}
+              />
+              
+              {/* Only show instructor qualifications if has teaching role */}
+              {isInstructor && (
+                <div className="space-y-2">
+                  <Label>
+                    Ausbildungsstufe <span className="text-destructive">*</span>
+                  </Label>
+                  <Select value={level || ""} onValueChange={(v) => setValue("level", v)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Stufe wählen..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {LEVEL_OPTIONS.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {errors.level && (
+                    <p className="text-xs text-destructive">{errors.level.message}</p>
+                  )}
+                </div>
+              )}
             </div>
 
             <Separator />

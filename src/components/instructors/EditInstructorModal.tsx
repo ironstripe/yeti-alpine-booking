@@ -19,7 +19,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Check, Loader2 } from "lucide-react";
@@ -32,8 +31,8 @@ import {
   isValidAHVNumber,
   LEVEL_OPTIONS,
   STATUS_OPTIONS,
-  SPECIALIZATION_OPTIONS,
 } from "@/lib/instructor-utils";
+import { RoleSelector, getDisciplineFromRoles, hasTeachingRole, getRolesFromSpecialization } from "./RoleSelector";
 import type { Tables } from "@/integrations/supabase/types";
 
 const GENDER_OPTIONS = [
@@ -49,12 +48,6 @@ const COUNTRY_OPTIONS = [
   { value: "DE", label: "Deutschland" },
 ];
 
-const ROLE_OPTIONS = [
-  { value: "rolle_1", label: "Rolle 1" },
-  { value: "rolle_2", label: "Rolle 2" },
-  { value: "rolle_3", label: "Rolle 3" },
-];
-
 const instructorSchema = z.object({
   first_name: z.string().min(1, "Vorname ist erforderlich"),
   last_name: z.string().min(1, "Nachname ist erforderlich"),
@@ -62,14 +55,13 @@ const instructorSchema = z.object({
   phone: z.string().min(1, "Telefon ist erforderlich"),
   birth_date: z.string().optional(),
   gender: z.string().optional(),
+  roles: z.array(z.string()).min(1, "Mindestens eine Rolle erforderlich"),
   level: z.string().optional(),
-  specialization: z.string().optional(),
   hourly_rate: z
     .number({ invalid_type_error: "Stundenlohn ist erforderlich" })
     .min(20, "Mindestens 20 CHF")
     .max(100, "Maximal 100 CHF"),
   status: z.string().optional(),
-  role: z.string().optional(),
   entry_date: z.string().optional(),
   street: z.string().optional(),
   zip: z.string().optional(),
@@ -109,16 +101,21 @@ export function EditInstructorModal({
     resolver: zodResolver(instructorSchema),
   });
 
-  const specialization = watch("specialization");
+  const roles = watch("roles");
   const level = watch("level");
   const status = watch("status");
   const gender = watch("gender");
   const country = watch("country");
-  const role = watch("role");
+  const isInstructor = hasTeachingRole(roles || []);
 
   // Reset form when modal opens or instructor changes
   useEffect(() => {
     if (open && instructor) {
+      // Derive roles from existing data or use roles array
+      const instructorRoles = (instructor as any).roles?.length > 0 
+        ? (instructor as any).roles 
+        : getRolesFromSpecialization(instructor.specialization);
+      
       reset({
         first_name: instructor.first_name,
         last_name: instructor.last_name,
@@ -126,11 +123,10 @@ export function EditInstructorModal({
         phone: instructor.phone,
         birth_date: instructor.birth_date || "",
         gender: instructor.gender || "",
+        roles: instructorRoles,
         level: instructor.level || "",
-        specialization: instructor.specialization || "ski",
         hourly_rate: instructor.hourly_rate,
         status: instructor.status || "active",
-        role: instructor.role || "rolle_1",
         entry_date: instructor.entry_date || "",
         street: instructor.street || "",
         zip: instructor.zip || "",
@@ -146,6 +142,7 @@ export function EditInstructorModal({
 
   const onSubmit = async (data: InstructorFormData) => {
     const normalizedPhone = normalizePhoneNumber(data.phone);
+    const specialization = getDisciplineFromRoles(data.roles);
 
     await updateInstructor.mutateAsync({
       first_name: data.first_name.trim(),
@@ -154,11 +151,11 @@ export function EditInstructorModal({
       phone: normalizedPhone,
       birth_date: data.birth_date || null,
       gender: data.gender || null,
-      level: data.level || null,
-      specialization: data.specialization || null,
+      roles: data.roles,
+      level: isInstructor ? data.level : null,
+      specialization: specialization,
       hourly_rate: data.hourly_rate,
       status: data.status || null,
-      role: data.role || null,
       entry_date: data.entry_date || null,
       street: data.street?.trim() || null,
       zip: data.zip?.trim() || null,
@@ -358,43 +355,35 @@ export function EditInstructorModal({
 
             <Separator />
 
-            {/* Section 4: Qualifications */}
+            {/* Section 4: Roles & Qualifications */}
             <div className="space-y-4">
               <h3 className="text-sm font-medium text-muted-foreground">
-                Qualifikationen
+                Rollen & Qualifikationen
               </h3>
-              <div className="space-y-2">
-                <Label>Ausbildungsstufe</Label>
-                <Select value={level || ""} onValueChange={(v) => setValue("level", v)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Stufe wählen..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {LEVEL_OPTIONS.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Spezialisierung</Label>
-                <RadioGroup
-                  value={specialization || "ski"}
-                  onValueChange={(v) => setValue("specialization", v)}
-                  className="flex gap-4"
-                >
-                  {SPECIALIZATION_OPTIONS.map((option) => (
-                    <div key={option.value} className="flex items-center space-x-2">
-                      <RadioGroupItem value={option.value} id={`edit-spec-${option.value}`} />
-                      <Label htmlFor={`edit-spec-${option.value}`} className="font-normal cursor-pointer">
-                        {option.label}
-                      </Label>
-                    </div>
-                  ))}
-                </RadioGroup>
-              </div>
+              <RoleSelector
+                value={roles || []}
+                onChange={(newRoles) => setValue("roles", newRoles)}
+                error={errors.roles?.message}
+              />
+              
+              {/* Only show instructor qualifications if has teaching role */}
+              {isInstructor && (
+                <div className="space-y-2">
+                  <Label>Ausbildungsstufe</Label>
+                  <Select value={level || ""} onValueChange={(v) => setValue("level", v)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Stufe wählen..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {LEVEL_OPTIONS.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
             </div>
 
             <Separator />
@@ -422,48 +411,31 @@ export function EditInstructorModal({
                     <p className="text-xs text-destructive">{errors.hourly_rate.message}</p>
                   )}
                 </div>
-                <div className="space-y-2">
-                  <Label>Status</Label>
-                  <Select value={status || "active"} onValueChange={(v) => setValue("status", v)}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {STATUS_OPTIONS.map((option) => (
-                        <SelectItem key={option.value} value={option.value}>
-                          {option.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Rolle</Label>
-                  <Select value={role || "rolle_1"} onValueChange={(v) => setValue("role", v)}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {ROLE_OPTIONS.map((option) => (
-                        <SelectItem key={option.value} value={option.value}>
-                          {option.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="entry_date">Eintrittsdatum</Label>
-                  <Input
-                    id="entry_date"
-                    type="date"
-                    {...register("entry_date")}
-                  />
-                </div>
+              <div className="space-y-2">
+                <Label>Status</Label>
+                <Select value={status || "active"} onValueChange={(v) => setValue("status", v)}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {STATUS_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
+            <div className="space-y-2">
+              <Label htmlFor="entry_date">Eintrittsdatum</Label>
+              <Input
+                id="entry_date"
+                type="date"
+                {...register("entry_date")}
+              />
+            </div>
+          </div>
 
             <Separator />
 

@@ -44,7 +44,7 @@ import { cn } from "@/lib/utils";
 import { useSchedulerCustomerSearch, type SchedulerCustomer } from "@/hooks/useSchedulerCustomerSearch";
 import { toast } from "sonner";
 import { useIsMobile } from "@/hooks/use-mobile";
-
+import { SchedulerLegend } from "./SchedulerLegend";
 export type ViewMode = "daily" | "3days" | "weekly" | "period";
 
 interface SchedulerHeaderProps {
@@ -131,7 +131,8 @@ export function SchedulerHeader({
   };
 
   return (
-    <div className="flex items-center gap-2 px-3 py-2 border-b bg-card">
+    <div className="flex flex-col border-b bg-card">
+      <div className="flex items-center gap-2 px-3 py-2">
       {/* Date Navigation Group */}
       <div className="flex items-center gap-1">
         <Button variant="outline" size="icon" className="h-8 w-8" onClick={goToPreviousDay}>
@@ -373,6 +374,10 @@ export function SchedulerHeader({
           </Button>
         )}
       </div>
+      </div>
+      
+      {/* Legend Row */}
+      <SchedulerLegend className="px-3 py-1.5 border-t bg-muted/30" />
     </div>
   );
 }
