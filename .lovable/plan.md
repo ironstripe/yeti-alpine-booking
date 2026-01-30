@@ -1,66 +1,69 @@
 
-# Fix: Open Bookings Filter from Dashboard Link
+# Fix: Make Open Bookings Scrollable in Dashboard
 
 ## Summary
 
-The dashboard's "Alle anzeigen" button navigates to `/bookings?status=open`, but the Bookings page doesn't read URL parameters. The fix adds URL parameter parsing to initialize the payment status filter.
+Enable scrolling within the Open Bookings box to show more items directly in the dashboard view, using the ScrollArea component for a polished experience.
 
 ---
 
 ## Current Behavior
 
-| Action | Result |
-|--------|--------|
-| Click "Alle anzeigen" in Open Bookings | Navigates to `/bookings?status=open` |
-| Bookings page loads | Ignores `?status=open`, shows ALL bookings |
+| Issue | Cause |
+|-------|-------|
+| Only 3 bookings shown | `slice(0, 3)` limits display |
+| No scrolling | No max-height constraint on content |
+| Must click "Alle anzeigen" to see more | Design decision, but user wants inline scrolling |
 
 ---
 
 ## Solution
 
-Read URL parameters on Bookings page mount and initialize the `paymentStatus` filter accordingly.
-
-### URL Parameter Mapping
-
-| URL Param | Filter Applied |
-|-----------|---------------|
-| `?status=open` | `paymentStatus: ["open", "partial"]` (unpaid bookings) |
-| `?status=paid` | `paymentStatus: ["paid"]` |
-| No param | Default (no filter) |
+1. Remove the 3-item limit to show more bookings
+2. Add a ScrollArea with max-height for scrolling
+3. Keep "Alle anzeigen" button for navigating to full list
 
 ---
 
 ## Changes
 
-### File: `src/pages/Bookings.tsx`
+### File: `src/components/dashboard/OpenBookingsBox.tsx`
 
-1. **Import hooks** - Add `useSearchParams` from `react-router-dom`
-
-2. **Read URL params** - Parse `status` parameter on mount
-
-3. **Initialize filter state** - Set `paymentStatus` based on URL param
+1. **Import ScrollArea** component
+2. **Remove slice limit** - Show all fetched bookings (up to 20 from query)
+3. **Wrap content in ScrollArea** with max-height
 
 ```typescript
-import { useSearchParams } from "react-router-dom";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
-const Bookings = () => {
-  const [searchParams, setSearchParams] = useSearchParams();
+// In the return statement:
+<DashboardTaskCard
+  title="Offene Buchungen"
+  count={count}
+  isEmpty={count === 0}
+  emptyMessage="Keine offenen Buchungen"
+>
+  <ScrollArea className="h-[200px]">
+    <div className="space-y-2 pr-2">
+      {openBookings?.map((booking) => (  // Remove slice(0, 3)
+        // ... booking items
+      ))}
+    </div>
+  </ScrollArea>
   
-  // Initialize filters from URL params
-  const initialFilters = useMemo(() => {
-    const statusParam = searchParams.get("status");
-    if (statusParam === "open") {
-      return { ...defaultFilters, paymentStatus: ["open", "partial"] };
-    }
-    return defaultFilters;
-  }, []);
-  
-  const [filters, setFilters] = useState<TicketFilters>(initialFilters);
-  // ...
-};
+  {count > 0 && (
+    <Button
+      variant="ghost"
+      size="sm"
+      className="w-full h-7 text-xs mt-2"
+      onClick={() => navigate("/bookings?status=open")}
+    >
+      Alle in Buchungsliste anzeigen
+      <ChevronRight className="h-3 w-3 ml-1" />
+    </Button>
+  )}
+</DashboardTaskCard>
 ```
-
-4. **Clear URL param when filters change** - Remove `?status=open` when user manually changes filters
 
 ---
 
@@ -68,9 +71,9 @@ const Bookings = () => {
 
 | Before | After |
 |--------|-------|
-| "Alle anzeigen" → Shows all 500+ bookings | "Alle anzeigen" → Shows only unpaid bookings |
-| URL param ignored | URL param initializes payment filter |
-| No visual filter indication | Filter chips show "Offen", "Teilbezahlt" selected |
+| Shows max 3 bookings | Shows up to 20 with scrolling |
+| No scroll capability | Smooth scrollable list |
+| "Alle X anzeigen" only way to see more | Inline scrolling + link to full list |
 
 ---
 
@@ -78,4 +81,4 @@ const Bookings = () => {
 
 | Action | File |
 |--------|------|
-| **MODIFY** | `src/pages/Bookings.tsx` |
+| **MODIFY** | `src/components/dashboard/OpenBookingsBox.tsx` |
