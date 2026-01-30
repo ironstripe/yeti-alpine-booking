@@ -1,77 +1,73 @@
 
-# Fix: Restore Tabs Functionality in AI Test Panel
+# Fix: AI Test Panel Layout Issue
 
 ## Problem
 
-The recent layout change broke the AI Test Panel by wrapping `TabsContent` components inside a single `ScrollArea`. This breaks Radix UI's tab visibility mechanism - the inactive tab content uses `display: none`, causing the ScrollArea to incorrectly calculate its height and hide all content.
+The current implementation uses `ScrollArea className="h-full"` inside `TabsContent` with `flex-1`. This combination doesn't work because:
 
-## Root Cause
-
-| Before (broken) | Why it fails |
-|-----------------|--------------|
-| `ScrollArea` wrapping both `TabsContent` | ScrollArea can't measure hidden content |
-| `TabsContent` visibility controlled by CSS | Content becomes invisible to ScrollArea |
-| Result: Empty panel with only button visible | Both tabs appear empty |
+| Element | CSS | Issue |
+|---------|-----|-------|
+| TabsContent | `flex-1` | Grows to fill space, but has no explicit height |
+| ScrollArea | `h-full` | Needs explicit parent height to calculate 100% |
+| Result | | ScrollArea collapses to 0 height, content invisible |
 
 ## Solution
 
-Move `ScrollArea` INSIDE each `TabsContent` instead of wrapping them. This ensures each tab's content scrolls independently while maintaining proper visibility.
+Remove `ScrollArea` from wrapping the entire tab content and only use it where needed for scrolling long lists. The input fields (Subject and Textarea) should just be in a simple div - they don't need scroll wrapping.
 
-```text
-WRONG (current):                    CORRECT (fix):
-ScrollArea                          TabsContent value="samples"
-  TabsContent value="samples"         ScrollArea
-    content...                           content...
-  TabsContent value="custom"        TabsContent value="custom"
-    content...                        ScrollArea
-                                        content...
-```
+For the samples tab, keep ScrollArea but with an explicit height rather than `h-full`.
 
 ## Changes
 
 ### File: `src/components/inbox/AITestPanel.tsx`
 
-Remove the outer `ScrollArea` wrapper and add individual `ScrollArea` inside each `TabsContent`:
+**Key changes:**
+1. Remove `flex-1` from `Tabs` and `TabsContent` - these don't need to grow
+2. Give samples ScrollArea an explicit max height
+3. Remove ScrollArea from custom tab - the textarea handles its own sizing
+4. Keep button at bottom with a simple layout
 
 ```typescript
-<Tabs value={tab} onValueChange={...} className="flex-1 flex flex-col min-h-0">
-  <TabsList className="grid w-full grid-cols-2 shrink-0">
-    <TabsTrigger value="samples">Beispiele</TabsTrigger>
-    <TabsTrigger value="custom">Eigener Text</TabsTrigger>
-  </TabsList>
+{/* Input Section */}
+<div className="flex flex-col gap-4">
+  <Tabs value={tab} onValueChange={(v) => setTab(v as "samples" | "custom")}>
+    <TabsList className="grid w-full grid-cols-2">
+      <TabsTrigger value="samples">Beispiele</TabsTrigger>
+      <TabsTrigger value="custom">Eigener Text</TabsTrigger>
+    </TabsList>
 
-  {/* Each TabsContent gets its own ScrollArea */}
-  <TabsContent value="samples" className="flex-1 mt-3 data-[state=inactive]:hidden">
-    <ScrollArea className="h-full">
-      <div className="space-y-3 pr-4">
-        {/* Sample cards */}
-      </div>
-    </ScrollArea>
-  </TabsContent>
+    <TabsContent value="samples" className="mt-3">
+      <ScrollArea className="h-[300px]">
+        <div className="space-y-3 pr-4">
+          {/* Sample cards */}
+        </div>
+      </ScrollArea>
+    </TabsContent>
 
-  <TabsContent value="custom" className="flex-1 mt-3 data-[state=inactive]:hidden">
-    <ScrollArea className="h-full">
-      <div className="space-y-3 pr-4">
+    <TabsContent value="custom" className="mt-3">
+      <div className="space-y-3">
         {/* Subject input */}
-        {/* Textarea */}
+        {/* Textarea - no ScrollArea wrapper needed */}
       </div>
-    </ScrollArea>
-  </TabsContent>
-</Tabs>
+    </TabsContent>
+  </Tabs>
 
-{/* Button stays outside tabs, always visible */}
-<div className="flex gap-2 shrink-0">
-  <Button ...>Extraktion starten</Button>
+  {/* Button at bottom */}
+  <div className="flex gap-2">
+    <Button onClick={handleRunTest} ...>
+      Extraktion starten
+    </Button>
+  </div>
 </div>
 ```
 
-## Expected Result
+## Why This Works
 
 | Before (broken) | After (fixed) |
 |-----------------|---------------|
-| Empty panel, no tabs visible | Tabs with content visible |
-| Cannot enter custom text | Input fields work properly |
-| Button at top, nothing else | Button at bottom, content above |
+| `flex-1` + `h-full` = no computed height | Explicit `h-[300px]` on samples ScrollArea |
+| ScrollArea wrapping textarea breaks input | Textarea in simple div, handles own scroll |
+| Complex flex layout | Simple stack layout |
 
 ## Files to Modify
 
