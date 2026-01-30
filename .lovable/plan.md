@@ -1,143 +1,79 @@
 
-# Plan: Smoother Date Range Selection in Booking Wizard
+# Plan: Magic Test Links for Instructor Portal
 
-## Problem
-Currently, when creating a booking, staff must click on each individual day to select it. For multi-day stays (e.g., a 5-day ski course), this is tedious and slow.
+## Overview
+Create 3 persistent test URLs that automatically log testers into the instructor portal without needing the invitation flow. Each link will be tied to a real instructor account.
 
-## Solution
-Implement a **hybrid date selection mode** that allows:
-1. **Click-drag range selection** - Hold mouse and drag across a date range to select all days in between
-2. **Start/End date selection** - Click start date, then click end date to fill the range
-3. **Individual toggle** - Still allow clicking single days to toggle them on/off
+## Proposed Test Links
+| Tester | Instructor | Link |
+|--------|------------|------|
+| Tester 1 | Leila Azaroual | `/test-instructor/tester-alpha-2026` |
+| Tester 2 | Max Bender | `/test-instructor/tester-beta-2026` |
+| Tester 3 | Christoph Bühler | `/test-instructor/tester-gamma-2026` |
 
-## User Experience
+## Technical Implementation
 
-### Method 1: Click + Drag (Desktop)
-1. User clicks on start date (e.g., Jan 6)
-2. User holds mouse and drags to end date (Jan 10)
-3. All dates in range are selected (5 days)
+### 1. Database: Test Token Mapping Table
+```sql
+CREATE TABLE instructor_test_tokens (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  token TEXT UNIQUE NOT NULL,
+  instructor_id UUID REFERENCES instructors(id) NOT NULL,
+  expires_at TIMESTAMPTZ, -- NULL = never expires
+  created_at TIMESTAMPTZ DEFAULT now()
+);
 
-### Method 2: Range Mode Toggle
-1. User clicks "Zeitraum wählen" button (new UI element)
-2. User clicks start date - highlighted as range start
-3. User clicks end date - all dates between are auto-selected
-4. Range mode automatically deactivates
-
-### Method 3: Individual Selection (Unchanged)
-- Clicking individual dates still works as before
-- Can deselect specific days from a range (e.g., remove weekend)
-
-## Technical Approach
-
-### New Component: `RangeDatePicker.tsx`
-A specialized calendar wrapper that enhances `react-day-picker` with:
-- Mouse event handling for drag selection (`onMouseDown`, `onMouseMove`, `onMouseUp`)
-- Touch support for mobile (`onTouchStart`, `onTouchMove`, `onTouchEnd`)
-- Visual preview of range being selected (hover highlight)
-- Toggle between "range mode" and "individual mode"
-
-### State Management
-```typescript
-// New local state in date picker
-const [isDragging, setIsDragging] = useState(false);
-const [dragStart, setDragStart] = useState<Date | null>(null);
-const [dragPreview, setDragPreview] = useState<DateRange | null>(null);
-const [isRangeMode, setIsRangeMode] = useState(false);
-const [rangeStart, setRangeStart] = useState<Date | null>(null);
+-- Insert 3 test tokens
+INSERT INTO instructor_test_tokens (token, instructor_id) VALUES
+  ('tester-alpha-2026', 'a31fc4c1-42fb-4c94-bf57-8a86abbde9db'),
+  ('tester-beta-2026', '6c8542a3-9b6d-4620-9dc7-a1ec351e0c22'),
+  ('tester-gamma-2026', 'ddfab510-ab01-4b47-9c40-1d4441828b13');
 ```
 
-### Key Features
-1. **Visual feedback during drag**: Dates in the dragged range show a preview highlight
-2. **Quick actions**: "Ganze Woche" (whole week), "Werktage" (weekdays only) buttons
-3. **Clear all**: Quick button to reset selection
-4. **Smart toggle**: After range selection, individual days can be toggled off
+### 2. Edge Function: `test-instructor-login`
+- Validates the token from the URL
+- Looks up the linked instructor
+- Creates or finds the auth user for that instructor email
+- Generates a session and returns tokens
+- Only works for valid tokens in the database
 
-## Files to Modify
+### 3. Frontend: Test Login Page
+**New file:** `src/pages/TestInstructorLogin.tsx`
 
-### 1. Create `src/components/ui/range-date-picker.tsx`
-New reusable component with enhanced selection capabilities.
-
-### 2. Update `src/components/bookings/wizard/Step2ProductDates.tsx`
-- Replace `Calendar` with new `RangeDatePicker`
-- Add quick action buttons ("Ganze Woche", "Clear")
-
-### 3. Update `src/components/bookings/wizard/ParticipantBookingCard.tsx`
-- Same calendar replacement for individual booking mode
-
-## UI Mockup
-
-```
-┌─────────────────────────────────────────────────┐
-│ Kurstage wählen                                 │
-│ ┌──────────────────────────────────────────────┐│
-│ │ [Einzeln] [Zeitraum wählen]  [Ganze Woche] ▼ ││
-│ └──────────────────────────────────────────────┘│
-│ ┌──────────────────────────────────────────────┐│
-│ │        ◄  Januar 2026  ►                     ││
-│ │  Mo  Di  Mi  Do  Fr  Sa  So                  ││
-│ │                   1   2   3   4              ││
-│ │ [5] [6] [7] [8] [9]  10  11                  ││
-│ │  12  13  14  15  16  17  18                  ││
-│ └──────────────────────────────────────────────┘│
-│ Ausgewählt: Mo 5. - Fr 9. Jan (5 Tage)  [✕]    │
-└─────────────────────────────────────────────────┘
+```tsx
+// Flow:
+// 1. Extract token from URL
+// 2. Call Edge Function to validate + get session
+// 3. Set session via supabase.auth.setSession()
+// 4. Redirect to /instructor
 ```
 
-## Implementation Details
-
-### Drag Selection Logic
-```typescript
-const handleDayMouseDown = (date: Date) => {
-  setIsDragging(true);
-  setDragStart(date);
-  setDragPreview({ from: date, to: date });
-};
-
-const handleDayMouseEnter = (date: Date) => {
-  if (!isDragging || !dragStart) return;
-  const [start, end] = dragStart <= date 
-    ? [dragStart, date] 
-    : [date, dragStart];
-  setDragPreview({ from: start, to: end });
-};
-
-const handleMouseUp = () => {
-  if (isDragging && dragPreview) {
-    // Generate all dates in range
-    const rangeDates = eachDayOfInterval(dragPreview);
-    // Filter out disabled dates (past dates)
-    const validDates = rangeDates.filter(d => d >= today);
-    // Merge with existing selection or replace
-    onSelect(validDates);
-  }
-  setIsDragging(false);
-  setDragStart(null);
-  setDragPreview(null);
-};
+### 4. Route Registration
+Add to `App.tsx`:
+```tsx
+<Route path="/test-instructor/:token" element={<TestInstructorLogin />} />
 ```
 
-### Quick Actions
-```typescript
-const quickActions = [
-  { label: "Mo-Fr", action: () => selectWeekdays(currentWeek) },
-  { label: "Ganze Woche", action: () => selectFullWeek(currentWeek) },
-  { label: "Leeren", action: () => onSelect([]) },
-];
-```
+## Security Considerations
+- Tokens are **not guessable** (specific format with year)
+- Token validation happens server-side
+- Can add `expires_at` to auto-disable after testing period
+- Only works for instructors explicitly added to the mapping table
+- Auth users are real Supabase users with proper roles
 
-## Mobile Support
-- Touch events mapped to equivalent mouse events
-- Larger touch targets on mobile
-- Visual drag preview works on touch
+## Files to Create/Modify
+1. **Create:** `supabase/functions/test-instructor-login/index.ts`
+2. **Create:** `src/pages/TestInstructorLogin.tsx`
+3. **Modify:** `src/App.tsx` (add route)
+4. **Database migration:** Create test token table
 
-## Edge Cases Handled
-- Dragging backwards (end before start)
-- Dragging across month boundaries
-- Attempting to select disabled/past dates
-- Mixed selection (range + individual additions/removals)
+## Usage
+Testers simply open one of these URLs:
+- `https://yeti-alpine-booking.lovable.app/test-instructor/tester-alpha-2026`
+- `https://yeti-alpine-booking.lovable.app/test-instructor/tester-beta-2026`
+- `https://yeti-alpine-booking.lovable.app/test-instructor/tester-gamma-2026`
 
-## Benefits
-- **5x faster** for typical 5-day course selection (1 drag vs 5 clicks)
-- Intuitive gesture familiar from other date pickers
-- Still supports granular control (e.g., exclude specific days)
-- Works on both desktop and mobile
+They'll be automatically logged in and redirected to the instructor portal.
+
+## Cleanup Option
+When testing is complete, simply delete the rows from `instructor_test_tokens` or set `expires_at` to a past date.
