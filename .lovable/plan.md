@@ -1,91 +1,77 @@
 
-# Fix: Make AI Test Panel Button Always Visible
+# Fix: Restore Tabs Functionality in AI Test Panel
 
-## Summary
+## Problem
 
-The "Extraktion starten" button exists but is hidden below the visible area when the custom text tab is active. The textarea's min-height pushes the button outside the dialog's visible bounds.
-
----
+The recent layout change broke the AI Test Panel by wrapping `TabsContent` components inside a single `ScrollArea`. This breaks Radix UI's tab visibility mechanism - the inactive tab content uses `display: none`, causing the ScrollArea to incorrectly calculate its height and hide all content.
 
 ## Root Cause
 
-| Element | Issue |
-|---------|-------|
-| Dialog | Has `max-h-[90vh]` and `overflow-hidden` |
-| Input section | No scroll capability (`flex flex-col gap-4`) |
-| Textarea | Has `min-h-[200px]` which takes significant space |
-| Button | Positioned after Tabs, gets pushed below visible area |
-
----
+| Before (broken) | Why it fails |
+|-----------------|--------------|
+| `ScrollArea` wrapping both `TabsContent` | ScrollArea can't measure hidden content |
+| `TabsContent` visibility controlled by CSS | Content becomes invisible to ScrollArea |
+| Result: Empty panel with only button visible | Both tabs appear empty |
 
 ## Solution
 
-Restructure the input section to keep the button always visible at the bottom, with a scrollable content area above it.
-
-### Layout Change
+Move `ScrollArea` INSIDE each `TabsContent` instead of wrapping them. This ensures each tab's content scrolls independently while maintaining proper visibility.
 
 ```text
-Before:                          After:
-+------------------+             +------------------+
-| Tabs Header      |             | Tabs Header      |
-+------------------+             +------------------+
-| Tab Content      |             | Tab Content      |
-| (grows freely)   |             | (scrollable)     |
-+------------------+             +------------------+
-| Button           |  <- hidden  | Button           |  <- always visible
-+------------------+             +------------------+
+WRONG (current):                    CORRECT (fix):
+ScrollArea                          TabsContent value="samples"
+  TabsContent value="samples"         ScrollArea
+    content...                           content...
+  TabsContent value="custom"        TabsContent value="custom"
+    content...                        ScrollArea
+                                        content...
 ```
-
----
 
 ## Changes
 
 ### File: `src/components/inbox/AITestPanel.tsx`
 
-1. **Wrap Tabs content in ScrollArea** - Make the tab content scrollable
-2. **Keep button outside scroll area** - Fixed at bottom of input section
-3. **Add proper height constraints** - Ensure content area scrolls
+Remove the outer `ScrollArea` wrapper and add individual `ScrollArea` inside each `TabsContent`:
 
 ```typescript
-{/* Input Section */}
-<div className="flex flex-col gap-4 min-h-0">
-  <Tabs value={tab} onValueChange={...} className="flex-1 flex flex-col min-h-0">
-    <TabsList className="grid w-full grid-cols-2 shrink-0">
-      ...
-    </TabsList>
+<Tabs value={tab} onValueChange={...} className="flex-1 flex flex-col min-h-0">
+  <TabsList className="grid w-full grid-cols-2 shrink-0">
+    <TabsTrigger value="samples">Beispiele</TabsTrigger>
+    <TabsTrigger value="custom">Eigener Text</TabsTrigger>
+  </TabsList>
 
-    <ScrollArea className="flex-1 mt-3">
-      <TabsContent value="samples" className="space-y-3 mt-0">
-        ...
-      </TabsContent>
-
-      <TabsContent value="custom" className="space-y-3 mt-0">
-        ...
-      </TabsContent>
+  {/* Each TabsContent gets its own ScrollArea */}
+  <TabsContent value="samples" className="flex-1 mt-3 data-[state=inactive]:hidden">
+    <ScrollArea className="h-full">
+      <div className="space-y-3 pr-4">
+        {/* Sample cards */}
+      </div>
     </ScrollArea>
-  </Tabs>
+  </TabsContent>
 
-  {/* Button always visible at bottom */}
-  <div className="flex gap-2 shrink-0">
-    <Button onClick={handleRunTest} ...>
-      Extraktion starten
-    </Button>
-    ...
-  </div>
+  <TabsContent value="custom" className="flex-1 mt-3 data-[state=inactive]:hidden">
+    <ScrollArea className="h-full">
+      <div className="space-y-3 pr-4">
+        {/* Subject input */}
+        {/* Textarea */}
+      </div>
+    </ScrollArea>
+  </TabsContent>
+</Tabs>
+
+{/* Button stays outside tabs, always visible */}
+<div className="flex gap-2 shrink-0">
+  <Button ...>Extraktion starten</Button>
 </div>
 ```
 
----
-
 ## Expected Result
 
-| Before | After |
-|--------|-------|
-| Button hidden when typing custom text | Button always visible at bottom |
-| No way to trigger extraction | Clear "Extraktion starten" button visible |
-| Must scroll (but can't) to find button | Fixed layout with scrollable content above |
-
----
+| Before (broken) | After (fixed) |
+|-----------------|---------------|
+| Empty panel, no tabs visible | Tabs with content visible |
+| Cannot enter custom text | Input fields work properly |
+| Button at top, nothing else | Button at bottom, content above |
 
 ## Files to Modify
 
