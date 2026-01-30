@@ -1,229 +1,317 @@
 
-# Plan: Make First Column of Scheduler Dynamically Resizable
+# Plan: Office Staff Training Management
 
-## Overview
+## Summary
 
-The scheduler's instructor column (currently fixed at `w-28` = 112px) will be made resizable by dragging its right edge. This requires:
-1. Managing column width state in SchedulerGrid
-2. Passing width to all child components
-3. Adding a drag handle between the instructor column and the time grid
-4. Persisting width preference in localStorage
-
-## Technical Approach
-
-Since the scheduler uses a custom table-like layout (not `react-resizable-panels`), we'll implement a custom resize handle that tracks mouse drag to adjust width.
+Extend the existing training system to support office shift planning. Office trainings will be managed from the same Trainings page using a category toggle. Multiple staff members can be assigned equally (no lead/assistant distinction) to the same office shift. Time slots will support both fixed presets and custom times.
 
 ---
 
-## Files to Modify
+## Current State Analysis
 
-| File | Changes |
-|------|---------|
-| `src/components/scheduler/SchedulerGrid.tsx` | Add `instructorColumnWidth` state + persistence |
-| `src/components/scheduler/StickyTimeHeader.tsx` | Accept `instructorColumnWidth` prop, replace fixed `w-28` |
-| `src/components/scheduler/SingleDayInstructorRow.tsx` | Accept `instructorColumnWidth` prop, replace fixed `w-28` |
-| `src/components/scheduler/InstructorWeekBlock.tsx` | Accept `instructorColumnWidth` prop, replace fixed `w-28` |
-| `src/components/scheduler/InstructorFocusView.tsx` | Pass through `instructorColumnWidth`, update skeleton |
-| `src/components/scheduler/ColumnResizeHandle.tsx` | **NEW** - Custom resize handle component |
+### Existing Infrastructure
+| Component | Status |
+|-----------|--------|
+| `trainings` table | Has `training_type` (group/camp/office) and `is_internal` columns |
+| `group_courses` table | Primary table for trainings, missing office support columns |
+| `group_course_instances` | Supports `instructor_id` + `assistant_instructor_id` (needs multi-assignment) |
+| Scheduler | Already filters by role, shows gray blocks for office/internal |
+| TrainingFormModal | Only supports `weekly` and `saturday_course` types |
+
+### Key Insight
+The `group_courses` table is the active training system (not `trainings` table which appears legacy). We need to extend `group_courses` to support office trainings with:
+- `course_type = 'office'` 
+- Multi-staff assignment via a new join table
+- Flexible scheduling (Mon-Sun, half/full day)
 
 ---
 
-## Implementation Details
+## Database Changes
 
-### 1. New Component: ColumnResizeHandle
+### 1. Extend group_courses Table
 
-Create a draggable resize handle that sits on the right edge of the instructor column:
+```sql
+-- Add office-specific columns
+ALTER TABLE group_courses 
+  ADD COLUMN IF NOT EXISTS is_internal BOOLEAN DEFAULT false;
 
-```typescript
-// src/components/scheduler/ColumnResizeHandle.tsx
-interface ColumnResizeHandleProps {
-  onResize: (deltaX: number) => void;
-  onResizeEnd: () => void;
-}
-
-export function ColumnResizeHandle({ onResize, onResizeEnd }: ColumnResizeHandleProps) {
-  // Track mouse drag
-  // Show visual indicator (thin line with grip icon on hover)
-  // Call onResize with delta during drag
-  // Call onResizeEnd when mouse up
-}
+-- Update constraint to allow 'office' as course_type
+-- The existing course_type column already allows any text
 ```
 
-**Visual Design:**
-- Default: 2px transparent border that shows slate-300 on hover
-- Dragging: Blue highlight line
-- Cursor: `col-resize`
-- Optional grip icon appears on hover
+### 2. Create Multi-Assignment Table
 
-### 2. State Management in SchedulerGrid
+For equal staff assignment (no lead/assistant distinction):
 
-Add state and localStorage persistence:
+```sql
+CREATE TABLE public.office_shift_assignments (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  instance_id UUID NOT NULL REFERENCES public.group_course_instances(id) ON DELETE CASCADE,
+  instructor_id UUID NOT NULL REFERENCES public.instructors(id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  UNIQUE(instance_id, instructor_id)
+);
 
-```typescript
-// Constants
-const MIN_INSTRUCTOR_COL_WIDTH = 80;  // Minimum readable width
-const MAX_INSTRUCTOR_COL_WIDTH = 200; // Maximum to prevent overflow
-const DEFAULT_INSTRUCTOR_COL_WIDTH = 112; // Current w-28 = 7rem = 112px
-const STORAGE_KEY = 'scheduler-instructor-col-width';
+-- Enable RLS
+ALTER TABLE office_shift_assignments ENABLE ROW LEVEL SECURITY;
 
-// State with persistence
-const [instructorColumnWidth, setInstructorColumnWidth] = useState(() => {
-  const saved = localStorage.getItem(STORAGE_KEY);
-  return saved ? parseInt(saved, 10) : DEFAULT_INSTRUCTOR_COL_WIDTH;
-});
+CREATE POLICY "Authenticated users can manage office_shift_assignments"
+ON public.office_shift_assignments FOR ALL
+USING (true) WITH CHECK (true);
 
-// Resize handler with bounds clamping
-const handleColumnResize = useCallback((deltaX: number) => {
-  setInstructorColumnWidth(prev => 
-    Math.max(MIN_INSTRUCTOR_COL_WIDTH, 
-      Math.min(MAX_INSTRUCTOR_COL_WIDTH, prev + deltaX)
-    )
-  );
-}, []);
+CREATE INDEX idx_office_shift_assignments_instance 
+ON office_shift_assignments(instance_id);
 
-// Persist on resize end
-const handleResizeEnd = useCallback(() => {
-  localStorage.setItem(STORAGE_KEY, instructorColumnWidth.toString());
-}, [instructorColumnWidth]);
+CREATE INDEX idx_office_shift_assignments_instructor 
+ON office_shift_assignments(instructor_id);
 ```
 
-### 3. Update StickyTimeHeader
+### 3. Seed Default Office Trainings
 
-Replace fixed width with dynamic:
-
-```typescript
-interface StickyTimeHeaderProps {
-  slotWidth: number;
-  showDayColumn?: boolean;
-  instructorColumnWidth: number; // NEW
-}
-
-// Replace w-28 with inline style
-<div 
-  className="shrink-0 border-r border-slate-300 px-2 py-1.5 ..."
-  style={{ width: `${instructorColumnWidth}px` }}
->
-  Lehrer
-</div>
-
-// Update sticky left position for day column
-{showDayColumn && (
-  <div 
-    className="w-14 shrink-0 ..."
-    style={{ left: `${instructorColumnWidth}px` }}
-  >
-    Tag
-  </div>
-)}
-```
-
-### 4. Update SingleDayInstructorRow
-
-```typescript
-interface SingleDayInstructorRowProps {
-  // ... existing
-  instructorColumnWidth: number; // NEW
-}
-
-// Replace w-28 with dynamic width
-<div 
-  className="shrink-0 border-r border-slate-300 px-2 py-1 flex ..."
-  style={{ width: `${instructorColumnWidth}px` }}
->
-```
-
-### 5. Update InstructorWeekBlock
-
-More complex because day column has `sticky left-28`:
-
-```typescript
-interface InstructorWeekBlockProps {
-  // ... existing
-  instructorColumnWidth: number; // NEW
-}
-
-// Instructor column
-<div 
-  className="shrink-0 border-r border-slate-300 sticky left-0 z-20"
-  style={{ width: `${instructorColumnWidth}px` }}
->
-
-// Day column sticky position
-<div 
-  className="w-14 shrink-0 border-r ... sticky z-10"
-  style={{ left: `${instructorColumnWidth}px` }}
->
-```
-
-### 6. Update InstructorFocusView
-
-Pass through the width and update skeleton placeholders:
-
-```typescript
-interface InstructorFocusViewProps {
-  // ... existing
-  instructorColumnWidth: number; // NEW
-}
-
-// Pass to child components
-<SingleDayInstructorRow
-  instructorColumnWidth={instructorColumnWidth}
-  // ...
-/>
-
-<InstructorWeekBlock
-  instructorColumnWidth={instructorColumnWidth}
-  // ...
-/>
-
-// Update skeleton widths
-<div 
-  className="shrink-0 border-r border-slate-300 px-2 py-2"
-  style={{ width: `${instructorColumnWidth}px` }}
->
+```sql
+INSERT INTO group_courses (
+  name, description, discipline, min_age, max_age, 
+  max_participants, price_per_day, course_type, is_internal, color
+) VALUES 
+  ('Büro Vormittag', 'Office shift morning', 'ski', 18, 99, 10, 0, 'office', true, '#6B7280'),
+  ('Büro Nachmittag', 'Office shift afternoon', 'ski', 18, 99, 10, 0, 'office', true, '#6B7280'),
+  ('Büro Ganztag', 'Office shift full day', 'ski', 18, 99, 10, 0, 'office', true, '#6B7280');
 ```
 
 ---
 
-## Visual Behavior
+## UI Changes
+
+### 1. Trainings Page - Category Tabs
+
+Add a tab switcher to toggle between "Kurse" (courses) and "Intern" (office):
 
 ```text
-Before resize:
-┌──────────────┬────────────────────────────────────┐
-│ Lehrer       │ 09:00 │ 10:00 │ 11:00 │ ...       │
-├──────────────┼────────────────────────────────────┤
-│ Max M. ⛷️   ║ [Booking blocks...]                │
-│ Anna S. 🏂  ║                                    │
-└──────────────┴────────────────────────────────────┘
-              ↑
-         Resize handle (hover to show, drag to resize)
+┌─────────────────────────────────────────────────────────────────┐
+│ Trainings                                              [+ Neu]  │
+├─────────────────────────────────────────────────────────────────┤
+│ [Kurse] [Intern]                                                │
+│  ━━━━━                                                          │
+├─────────────────────────────────────────────────────────────────┤
+│ [Search...] [Disziplin ▼] [Status ▼]                            │
+├─────────────────────────────────────────────────────────────────┤
+│ ┌──────────────┐ ┌──────────────┐ ┌──────────────┐              │
+│ │ Büro AM      │ │ Büro PM      │ │ Büro Ganztag │              │
+│ │ 09:00-12:00  │ │ 13:00-17:00  │ │ 09:00-17:00  │              │
+│ │ Mo-Fr        │ │ Mo-Fr        │ │ Mo-Fr        │              │
+│ └──────────────┘ └──────────────┘ └──────────────┘              │
+└─────────────────────────────────────────────────────────────────┘
+```
 
-After dragging wider:
-┌────────────────────┬──────────────────────────────┐
-│ Lehrer             │ 09:00 │ 10:00 │ 11:00 │ ... │
-├────────────────────┼──────────────────────────────┤
-│ Max Mueller ⛷️    ║ [Booking blocks...]          │
-│ Anna Schmidt 🏂   ║                              │
-└────────────────────┴──────────────────────────────┘
+**Files to modify:**
+- `src/pages/Trainings.tsx` - Add category state + tabs
+- `src/components/trainings/TrainingsFilters.tsx` - Add category filter
+
+### 2. Training Form Modal - Office Mode
+
+When course_type = 'office':
+- Hide age fields (not relevant for office)
+- Hide product linkage (internal, no price)
+- Hide "Next Training" progression
+- Show office-specific schedule options
+
+```text
+┌─────────────────────────────────────────────────────────────────┐
+│ Neue interne Schicht erstellen                            [X]  │
+├─────────────────────────────────────────────────────────────────┤
+│ Kurstyp:                                                        │
+│ ○ Wöchentlich  ○ Samstagskurs  ● Büro/Intern                   │
+├─────────────────────────────────────────────────────────────────┤
+│ Name: [Büro Vormittag                    ]                      │
+│                                                                 │
+│ Zeitfenster:                                                    │
+│ [Vormittag ▼]  oder  [Benutzerdefiniert ▼]                     │
+│ Von: [09:00]  Bis: [12:00]                                      │
+│                                                                 │
+│ Wochentage:                                                     │
+│ [Mo] [Di] [Mi] [Do] [Fr] [Sa] [So]                              │
+│  ✓    ✓    ✓    ✓    ✓    ○    ○                               │
+│                                                                 │
+│ Max. Personen: [5]                                              │
+│ Farbe: [Grau ●]                                                 │
+├─────────────────────────────────────────────────────────────────┤
+│                              [Abbrechen] [Speichern]            │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Files to modify:**
+- `src/components/trainings/TrainingFormModal.tsx` - Add office mode logic
+- `src/types/group-courses.ts` - Add 'office' to CourseType
+
+### 3. Training Card - Office Variant
+
+Office trainings display differently:
+
+```text
+┌──────────────────────────────────────┐
+│ ▓▓ Büro Vormittag                    │
+│ ─────────────────────────────────    │
+│ [Intern] [Grau]                      │
+│                                      │
+│ 📅 Mo-Fr                             │
+│ 🕐 09:00 - 12:00                     │
+│ 👥 Max. 5 Mitarbeiter                │
+│                                      │
+│ Diese Woche: 3/5 besetzt             │
+│ ████████░░░░░                        │
+│                                      │
+│ [Bearbeiten] [Instanzen]             │
+└──────────────────────────────────────┘
+```
+
+**Files to modify:**
+- `src/components/trainings/TrainingCard.tsx` - Conditional rendering for office type
+
+### 4. Instance View - Multi-Staff Assignment
+
+For office trainings, show a multi-select for staff assignment instead of single instructor:
+
+```text
+┌─────────────────────────────────────────────────────────────────┐
+│ Büro Vormittag - Woche 5 (27.01 - 02.02.2026)                   │
+├─────────────────────────────────────────────────────────────────┤
+│        │ Mo 27.01 │ Di 28.01 │ Mi 29.01 │ Do 30.01 │ Fr 31.01 │
+├────────┼──────────┼──────────┼──────────┼──────────┼──────────┤
+│ Besetzung │ Graf M. │ Graf M. │ Müller S.│ Graf M. │ [+]      │
+│           │ Huber T.│         │ Huber T. │          │          │
+└─────────────────────────────────────────────────────────────────┘
+
+[+ Mitarbeiter hinzufügen] opens a multi-select popover:
+┌─────────────────────────┐
+│ ☐ Graf, Michaela       │
+│ ☐ Huber, Thomas        │
+│ ☑ Müller, Stefan       │
+│ ☐ Weber, Anna          │
+│                         │
+│ [Zuweisen]              │
+└─────────────────────────┘
+```
+
+**Files to modify/create:**
+- `src/pages/TrainingDetail.tsx` - Add office training support
+- `src/components/trainings/OfficeStaffAssignment.tsx` - **NEW** multi-select component
+
+---
+
+## Scheduler Integration
+
+### Display Office Shifts
+
+Office shifts will appear in the scheduler using the existing gray color scheme:
+
+```text
+Instructor Row:
+┌──────────────┬─────────┬─────────┬─────────┬─────────┬─────────┐
+│ Graf M. 🏢   │ 09   10 │ 11   12 │ 13   14 │ 15   16 │         │
+│              │ ████████│█████████│         │         │         │
+│              │ Büro VM │         │         │         │         │
+└──────────────┴─────────┴─────────┴─────────┴─────────┴─────────┘
+```
+
+**Files to modify:**
+- `src/hooks/useSchedulerData.ts` - Fetch office shift assignments
+- `src/lib/scheduler-utils.ts` - Already has `office_shift` type support
+
+---
+
+## Data Flow
+
+```text
+                    ┌──────────────────┐
+                    │   group_courses  │
+                    │ (course_type =   │
+                    │    'office')     │
+                    └────────┬─────────┘
+                             │
+                             ▼
+               ┌─────────────────────────────┐
+               │  group_course_schedules     │
+               │  (days: Mo-Su, times)       │
+               └─────────────┬───────────────┘
+                             │
+                             ▼
+               ┌─────────────────────────────┐
+               │  group_course_instances     │
+               │  (specific date + times)    │
+               └─────────────┬───────────────┘
+                             │
+                             ▼
+               ┌─────────────────────────────┐
+               │  office_shift_assignments   │
+               │  (multiple instructors      │
+               │   per instance)             │
+               └─────────────────────────────┘
 ```
 
 ---
 
-## Implementation Order
+## Implementation Phases
 
-1. Create `ColumnResizeHandle.tsx` component
-2. Add state + handlers to `SchedulerGrid.tsx`
-3. Update `StickyTimeHeader.tsx` to accept dynamic width
-4. Update `SingleDayInstructorRow.tsx` to accept dynamic width
-5. Update `InstructorWeekBlock.tsx` to accept dynamic width + adjust day column sticky position
-6. Update `InstructorFocusView.tsx` to pass through width + update skeletons
+### Phase 1: Database Schema
+1. Add `is_internal` column to `group_courses`
+2. Create `office_shift_assignments` table
+3. Seed default office trainings
+
+### Phase 2: Types & Hooks
+1. Update `src/types/group-courses.ts` - Add 'office' to CourseType, add is_internal flag
+2. Create `src/hooks/useOfficeShiftAssignments.ts` - CRUD for multi-assignment
+
+### Phase 3: Training Management UI
+1. Update `Trainings.tsx` - Add category tabs (Kurse/Intern)
+2. Update `TrainingsFilters.tsx` - Filter by is_internal
+3. Update `TrainingFormModal.tsx` - Office mode with preset/custom times
+4. Update `TrainingCard.tsx` - Office variant display
+
+### Phase 4: Instance Management
+1. Create `OfficeStaffAssignment.tsx` - Multi-select staff component
+2. Update `TrainingDetail.tsx` - Handle office instance assignment
+
+### Phase 5: Scheduler Integration
+1. Update `useSchedulerData.ts` - Fetch office assignments
+2. Verify gray block display for office shifts
 
 ---
 
 ## Technical Notes
 
-- **Bounds**: Width clamped between 80px and 200px
-- **Persistence**: Saved to localStorage as `scheduler-instructor-col-width`
-- **Performance**: Resize uses inline styles for smooth animation
-- **Accessibility**: Handle is keyboard focusable with arrow key support (optional enhancement)
-- **Mobile**: Resize handle hidden on touch devices (column uses default width)
+### Time Slot Presets
+```typescript
+const OFFICE_TIME_PRESETS = [
+  { value: 'morning', label: 'Vormittag', start: '09:00', end: '12:00' },
+  { value: 'afternoon', label: 'Nachmittag', start: '13:00', end: '17:00' },
+  { value: 'fullday', label: 'Ganztag', start: '09:00', end: '17:00' },
+  { value: 'custom', label: 'Benutzerdefiniert', start: null, end: null },
+] as const;
+```
+
+### Office Training Validation
+- `is_internal = true` automatically when `course_type = 'office'`
+- No product linkage required (internal use)
+- Age fields hidden (default to 18-99)
+- All weekdays selectable (Mon-Sun)
+
+### Equal Assignment vs Lead/Assistant
+For office shifts, all assigned staff have equal status. This differs from group courses which have `instructor_id` + `assistant_instructor_id`. The new `office_shift_assignments` table handles this pattern.
+
+---
+
+## Files Summary
+
+| Action | File |
+|--------|------|
+| **CREATE** | `supabase/migrations/[timestamp]_office_trainings.sql` |
+| **CREATE** | `src/hooks/useOfficeShiftAssignments.ts` |
+| **CREATE** | `src/components/trainings/OfficeStaffAssignment.tsx` |
+| **MODIFY** | `src/types/group-courses.ts` |
+| **MODIFY** | `src/pages/Trainings.tsx` |
+| **MODIFY** | `src/components/trainings/TrainingsFilters.tsx` |
+| **MODIFY** | `src/components/trainings/TrainingFormModal.tsx` |
+| **MODIFY** | `src/components/trainings/TrainingCard.tsx` |
+| **MODIFY** | `src/pages/TrainingDetail.tsx` |
+| **MODIFY** | `src/hooks/useSchedulerData.ts` |
+| **MODIFY** | `src/hooks/useGroupCourses.ts` |
