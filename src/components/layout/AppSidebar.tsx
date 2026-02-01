@@ -18,6 +18,7 @@ import {
   Gift,
   BarChart3,
   Settings,
+  Trophy,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -39,6 +40,7 @@ const navItems = [
   { title: "Berichte", url: "/reports", icon: BarChart3 },
   { title: "Tagesabschluss", url: "/reconciliation", icon: Calculator },
   { title: "Trainings", url: "/trainings", icon: GraduationCap },
+  { title: "Events", url: "/events", icon: Trophy },
   { title: "Wochenplanung", url: "/trainings/planning", icon: LayoutGrid },
   { title: "Einstellungen", url: "/settings", icon: Settings },
 ];
