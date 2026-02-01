@@ -1,6 +1,22 @@
 
 # Event Module Implementation Plan - Gästeskirennen
 
+## ✅ Completed Phases
+
+- **Phase 1**: Database Schema (events, event_categories, event_participants tables with RLS)
+- **Phase 2**: Navigation & Routing (sidebar, bottom nav, App.tsx routes)
+- **Phase 3**: Events List Page + EventCard + useEvents hook
+- **Phase 4**: Event Detail Page with Tabs (Participants, Startlists, Results, Settings)
+- **Phase 5**: Startlist Tab + Start Number Assignment
+- **Phase 6**: Results Tab + Entry Table
+
+## 🔄 Remaining Phases (TODO)
+
+- **Phase 7**: Instructor Portal Integration (add race tab, instructor race page)
+- **Phase 8**: Fine-tune Settings Tab
+
+---
+
 ## Overview
 
 Implement a complete Event module for managing weekly ski races with two components:

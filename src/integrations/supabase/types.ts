@@ -1094,6 +1094,243 @@ export type Database = {
         }
         Relationships: []
       }
+      event_categories: {
+        Row: {
+          age_group: string | null
+          category_type: string
+          color: string | null
+          created_at: string | null
+          discipline: string | null
+          event_id: string
+          id: string
+          name: string
+          sort_order: number | null
+          start_number_from: number | null
+          start_number_to: number | null
+          start_time: string | null
+          training_id: string | null
+        }
+        Insert: {
+          age_group?: string | null
+          category_type: string
+          color?: string | null
+          created_at?: string | null
+          discipline?: string | null
+          event_id: string
+          id?: string
+          name: string
+          sort_order?: number | null
+          start_number_from?: number | null
+          start_number_to?: number | null
+          start_time?: string | null
+          training_id?: string | null
+        }
+        Update: {
+          age_group?: string | null
+          category_type?: string
+          color?: string | null
+          created_at?: string | null
+          discipline?: string | null
+          event_id?: string
+          id?: string
+          name?: string
+          sort_order?: number | null
+          start_number_from?: number | null
+          start_number_to?: number | null
+          start_time?: string | null
+          training_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_categories_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_categories_training_id_fkey"
+            columns: ["training_id"]
+            isOneToOne: false
+            referencedRelation: "group_courses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_participants: {
+        Row: {
+          category_id: string
+          checked_in: boolean | null
+          checked_in_at: string | null
+          confirmed_by_instructor: string | null
+          created_at: string | null
+          days_attended: number | null
+          disqualification_reason: string | null
+          event_id: string
+          fee_amount: number | null
+          finish_time_ms: number | null
+          guest_birth_year: number | null
+          guest_email: string | null
+          guest_first_name: string | null
+          guest_last_name: string | null
+          guest_phone: string | null
+          id: string
+          is_disqualified: boolean | null
+          opt_out_reason: string | null
+          opted_out: boolean | null
+          participant_id: string | null
+          payment_status: string | null
+          rank_in_category: number | null
+          source: string
+          start_number: number | null
+          ticket_item_id: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          category_id: string
+          checked_in?: boolean | null
+          checked_in_at?: string | null
+          confirmed_by_instructor?: string | null
+          created_at?: string | null
+          days_attended?: number | null
+          disqualification_reason?: string | null
+          event_id: string
+          fee_amount?: number | null
+          finish_time_ms?: number | null
+          guest_birth_year?: number | null
+          guest_email?: string | null
+          guest_first_name?: string | null
+          guest_last_name?: string | null
+          guest_phone?: string | null
+          id?: string
+          is_disqualified?: boolean | null
+          opt_out_reason?: string | null
+          opted_out?: boolean | null
+          participant_id?: string | null
+          payment_status?: string | null
+          rank_in_category?: number | null
+          source: string
+          start_number?: number | null
+          ticket_item_id?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          category_id?: string
+          checked_in?: boolean | null
+          checked_in_at?: string | null
+          confirmed_by_instructor?: string | null
+          created_at?: string | null
+          days_attended?: number | null
+          disqualification_reason?: string | null
+          event_id?: string
+          fee_amount?: number | null
+          finish_time_ms?: number | null
+          guest_birth_year?: number | null
+          guest_email?: string | null
+          guest_first_name?: string | null
+          guest_last_name?: string | null
+          guest_phone?: string | null
+          id?: string
+          is_disqualified?: boolean | null
+          opt_out_reason?: string | null
+          opted_out?: boolean | null
+          participant_id?: string | null
+          payment_status?: string | null
+          rank_in_category?: number | null
+          source?: string
+          start_number?: number | null
+          ticket_item_id?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_participants_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "event_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_participants_confirmed_by_instructor_fkey"
+            columns: ["confirmed_by_instructor"]
+            isOneToOne: false
+            referencedRelation: "instructors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_participants_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_participants_participant_id_fkey"
+            columns: ["participant_id"]
+            isOneToOne: false
+            referencedRelation: "customer_participants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_participants_ticket_item_id_fkey"
+            columns: ["ticket_item_id"]
+            isOneToOne: false
+            referencedRelation: "ticket_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      events: {
+        Row: {
+          course_race_time: string | null
+          created_at: string | null
+          event_date: string
+          event_type: string | null
+          guest_fee: number | null
+          guest_race_time: string | null
+          id: string
+          instructor_deadline: string | null
+          name: string
+          reserve_per_group: number | null
+          result_ceremony_time: string | null
+          status: string | null
+          total_numbers: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          course_race_time?: string | null
+          created_at?: string | null
+          event_date: string
+          event_type?: string | null
+          guest_fee?: number | null
+          guest_race_time?: string | null
+          id?: string
+          instructor_deadline?: string | null
+          name?: string
+          reserve_per_group?: number | null
+          result_ceremony_time?: string | null
+          status?: string | null
+          total_numbers?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          course_race_time?: string | null
+          created_at?: string | null
+          event_date?: string
+          event_type?: string | null
+          guest_fee?: number | null
+          guest_race_time?: string | null
+          id?: string
+          instructor_deadline?: string | null
+          name?: string
+          reserve_per_group?: number | null
+          result_ceremony_time?: string | null
+          status?: string | null
+          total_numbers?: number | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       group_course_enrollments: {
         Row: {
           attendance_status: string | null
@@ -3477,6 +3714,7 @@ export type Database = {
         Args: { p_target_week_start_date: string }
         Returns: Json
       }
+      create_next_friday_race_event: { Args: never; Returns: string }
       generate_group_course_instances_for_week: {
         Args: { p_week_start_date: string }
         Returns: Json
