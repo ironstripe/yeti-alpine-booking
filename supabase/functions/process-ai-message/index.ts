@@ -6,10 +6,53 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// Enhanced extraction prompt for maximum information extraction with participant-specific booking support
-const EXTRACTION_PROMPT = `Du bist ein Experte für die Analyse von Buchungsanfragen einer Skischule in Liechtenstein/Schweiz.
+// Generate dynamic extraction prompt with current date context
+function generateExtractionPrompt(): string {
+  const now = new Date();
+  const currentDate = now.toISOString().split("T")[0]; // e.g., "2026-02-02"
+  const currentYear = now.getFullYear(); // e.g., 2026
+  const nextYear = currentYear + 1;
+  
+  // Get current month for context
+  const currentMonth = now.getMonth() + 1; // 1-12
+  const monthNames = ["Januar", "Februar", "März", "April", "Mai", "Juni", 
+                      "Juli", "August", "September", "Oktober", "November", "Dezember"];
+  const currentMonthName = monthNames[currentMonth - 1];
+  
+  return `Du bist ein Experte für die Analyse von Buchungsanfragen einer Skischule in Liechtenstein/Schweiz.
+
+**AKTUELLES DATUM: ${currentDate}**
+**AKTUELLES JAHR: ${currentYear}**
+**AKTUELLER MONAT: ${currentMonthName}**
 
 **DEINE AUFGABE:** Extrahiere ALLE verfügbaren Informationen aus der Nachricht. Sei gründlich und nutze auch implizite Hinweise.
+
+**KRITISCH - DATUMS- UND JAHRESLOGIK:**
+Da du das aktuelle Datum kennst, wende diese Regeln STRIKT an:
+
+1. **JAHRES-ERKENNUNG:**
+   - Wenn KEIN Jahr genannt wird, verwende ${currentYear}
+   - Wenn das resultierende Datum VOR heute (${currentDate}) liegt, verwende ${nextYear}
+   - Beispiele (heute ist ${currentDate}):
+     * "2.2." oder "02.02" → ${currentYear}-02-02 (wenn heute oder später) ODER ${nextYear}-02-02 (wenn bereits vorbei)
+     * "15. Januar" → ${nextYear}-01-15 (da Januar ${currentYear} bereits vorbei ist wenn wir in ${currentMonthName} sind)
+     * "15. März" → ${currentYear}-03-15 (wenn März ${currentYear} noch in der Zukunft liegt)
+
+2. **WOCHENTAG-BERECHNUNG:**
+   - Wenn nur ein Wochentag genannt wird, berechne das NÄCHSTE Vorkommen ab heute
+   - "nächsten Mittwoch" → finde den nächsten Mittwoch nach ${currentDate}
+   - "Samstag" ohne Datum → nächster Samstag
+
+3. **PLAUSIBILITÄTSPRÜFUNG:**
+   - Buchungen können NUR in der Zukunft liegen
+   - Wenn ein extrahiertes Datum vor ${currentDate} liegt, verschiebe es ins nächste Jahr
+   - NIEMALS Daten in der Vergangenheit extrahieren!
+
+4. **BEISPIELE (heute ist ${currentDate}):**
+   - "2.2." → ${currentDate >= currentYear + "-02-02" ? nextYear + "-02-02" : currentYear + "-02-02"}
+   - "mittwoch 2.2." → Extrahiere date: "YYYY-02-02" mit mentioned_weekday: "Mittwoch"
+   - "im März" → März ${currentYear} (wenn noch in Zukunft)
+   - "im Januar" → Januar ${nextYear} (da Januar ${currentYear} vorbei ist, falls wir nach Januar sind)
 
 **WICHTIG - TEILNEHMER-SPEZIFISCHE BUCHUNGEN:**
 Jeder Teilnehmer kann individuelle Buchungsdetails haben (unterschiedliche Produkte, Tage, Zeiten).
@@ -55,9 +98,9 @@ Zeiten für Gruppenkurse:
    - Wenn der Kunde einen Wochentag MIT einem Datum nennt, extrahiere BEIDES!
    - Das Feld "mentioned_weekday" speichert den vom Kunden genannten Wochentag
    - Beispiele:
-     * "am Montag, 17. Januar" → date: "2026-01-17", mentioned_weekday: "Montag"
-     * "Samstag, den 18.01.2026" → date: "2026-01-18", mentioned_weekday: "Samstag"
-     * "am 17.01." (ohne Wochentag) → date: "2026-01-17", mentioned_weekday: null
+     * "am Montag, 17. Januar" → date: "${currentYear}-01-17", mentioned_weekday: "Montag"
+     * "Samstag, den 18.01.${currentYear}" → date: "${currentYear}-01-18", mentioned_weekday: "Samstag"
+     * "am 17.01." (ohne Wochentag) → date: "${currentYear}-01-17", mentioned_weekday: null
      * "nächsten Freitag" → date: [berechne nächsten Freitag], mentioned_weekday: "Freitag"
    - WICHTIG: Extrahiere den genannten Wochentag IMMER, auch wenn er nicht zum Datum passt!
      Die Validierung erfolgt in einem separaten Schritt.
@@ -123,7 +166,7 @@ Zeiten für Gruppenkurse:
       "booking": {
         "product_type": "group",
         "product_suggestion": "anfaenger-gruppenkurs",
-        "dates": [{"date": "2026-01-15"}, {"date": "2026-01-16"}],
+        "dates": [{"date": "${currentYear}-01-15"}, {"date": "${currentYear}-01-16"}],
         "lunch_supervision": true
       }
     },
@@ -134,7 +177,7 @@ Zeiten für Gruppenkurse:
       "booking": {
         "product_type": "group",
         "product_suggestion": "fortgeschrittenen-gruppenkurs",
-        "dates": [{"date": "2026-01-15"}, {"date": "2026-01-16"}, {"date": "2026-01-17"}]
+        "dates": [{"date": "${currentYear}-01-15"}, {"date": "${currentYear}-01-16"}, {"date": "${currentYear}-01-17"}]
       }
     }
   ],
@@ -146,6 +189,7 @@ Zeiten für Gruppenkurse:
 }
 
 Du MUSST die Funktion "extract_booking_info" aufrufen mit den extrahierten Daten.`;
+}
 
 // Enhanced tool schema for comprehensive extraction
 const extractionTools = [
@@ -435,7 +479,7 @@ serve(async (req) => {
       body: JSON.stringify({
         model: "google/gemini-3-flash-preview",
         messages: [
-          { role: "system", content: EXTRACTION_PROMPT },
+          { role: "system", content: generateExtractionPrompt() },
           { role: "user", content: messageContent },
         ],
         tools: extractionTools,
@@ -476,8 +520,11 @@ serve(async (req) => {
     const extractedNotes = extractedData.notes as string | undefined;
     const enrichedData = extractBookingDataFallback(messageContent, extractedData, extractedNotes);
 
+    // 5.5. Correct all dates to ensure they are in the future
+    const dateCorrectedData = correctExtractedDates(enrichedData);
+
     // 6. Validate and clean extracted data
-    const cleanedData = validateAndCleanExtraction(enrichedData, isExistingCustomer);
+    const cleanedData = validateAndCleanExtraction(dateCorrectedData, isExistingCustomer);
 
     // Add customer matching info to extracted data
     cleanedData.matched_customer_id = matchedCustomerId;
@@ -721,12 +768,114 @@ function generateBookingSummary(data: Record<string, unknown>): Record<string, u
 // Date/Weekday Validation Types
 interface DateValidationResult {
   date: string;
+  original_date?: string; // Date before year correction
   mentioned_weekday: string | null;
   actual_weekday: string;
   is_valid: boolean;
-  conflict_type: "none" | "weekday_mismatch";
+  year_was_corrected: boolean;
+  conflict_type: "none" | "weekday_mismatch" | "year_corrected";
   suggestion: string | null;
   participant_name?: string;
+}
+
+// Correct all dates in extracted data to ensure they are in the future
+function correctExtractedDates(data: Record<string, unknown>): Record<string, unknown> {
+  const now = new Date();
+  // Set to start of today for comparison
+  now.setHours(0, 0, 0, 0);
+  const currentYear = now.getFullYear();
+
+  // Helper to correct a single date and track if correction was applied
+  const correctDate = (dateStr: string): { date: string; yearCorrected: boolean; originalDate: string } => {
+    if (!dateStr) return { date: dateStr, yearCorrected: false, originalDate: dateStr };
+    
+    let date: Date;
+    try {
+      date = new Date(dateStr);
+      if (isNaN(date.getTime())) {
+        return { date: dateStr, yearCorrected: false, originalDate: dateStr };
+      }
+    } catch {
+      return { date: dateStr, yearCorrected: false, originalDate: dateStr };
+    }
+    
+    const originalDate = date.toISOString().split("T")[0];
+    let yearCorrected = false;
+    
+    // If date is in the past, move to next year
+    if (date < now) {
+      date.setFullYear(currentYear + 1);
+      yearCorrected = true;
+      console.log(`Date correction: ${originalDate} was in the past, moved to ${date.toISOString().split("T")[0]}`);
+    }
+    
+    // Edge case: if still in past after correction (shouldn't happen often)
+    if (date < now) {
+      date.setFullYear(date.getFullYear() + 1);
+    }
+    
+    return { 
+      date: date.toISOString().split("T")[0], 
+      yearCorrected, 
+      originalDate 
+    };
+  };
+
+  // Correct participant booking dates
+  const participants = data.participants as Array<Record<string, unknown>> | undefined;
+  if (participants) {
+    for (const participant of participants) {
+      const pBooking = participant.booking as Record<string, unknown> | undefined;
+      if (pBooking?.dates && Array.isArray(pBooking.dates)) {
+        pBooking.dates = (pBooking.dates as Array<Record<string, unknown>>).map(d => {
+          const dateStr = d.date as string;
+          if (dateStr) {
+            const corrected = correctDate(dateStr);
+            return {
+              ...d,
+              date: corrected.date,
+              year_was_corrected: corrected.yearCorrected,
+              original_date: corrected.yearCorrected ? corrected.originalDate : undefined,
+            };
+          }
+          return d;
+        });
+      }
+    }
+  }
+
+  // Correct global booking dates
+  const booking = data.booking as Record<string, unknown> | undefined;
+  if (booking?.dates && Array.isArray(booking.dates)) {
+    booking.dates = (booking.dates as Array<Record<string, unknown>>).map(d => {
+      const dateStr = d.date as string;
+      if (dateStr) {
+        const corrected = correctDate(dateStr);
+        return {
+          ...d,
+          date: corrected.date,
+          year_was_corrected: corrected.yearCorrected,
+          original_date: corrected.yearCorrected ? corrected.originalDate : undefined,
+        };
+      }
+      return d;
+    });
+  }
+
+  // Also correct date_range if present
+  if (booking?.date_range) {
+    const dateRange = booking.date_range as Record<string, unknown>;
+    if (dateRange.start) {
+      const startCorrected = correctDate(dateRange.start as string);
+      dateRange.start = startCorrected.date;
+    }
+    if (dateRange.end) {
+      const endCorrected = correctDate(dateRange.end as string);
+      dateRange.end = endCorrected.date;
+    }
+  }
+
+  return data;
 }
 
 // German weekday names for validation
@@ -746,7 +895,8 @@ function formatDateGerman(dateStr: string): string {
 // Validate a single date against its mentioned weekday
 function validateDateWeekday(
   dateStr: string,
-  mentionedWeekday: string | null
+  mentionedWeekday: string | null,
+  yearWasCorrected: boolean = false
 ): DateValidationResult {
   const date = new Date(dateStr);
   const actualWeekday = WEEKDAYS[date.getDay()];
@@ -759,7 +909,8 @@ function validateDateWeekday(
       mentioned_weekday: null,
       actual_weekday: actualWeekday,
       is_valid: true,
-      conflict_type: "none",
+      year_was_corrected: yearWasCorrected,
+      conflict_type: yearWasCorrected ? "year_corrected" : "none",
       suggestion: null,
     };
   }
@@ -782,7 +933,8 @@ function validateDateWeekday(
       mentioned_weekday: mentionedWeekday,
       actual_weekday: actualWeekday,
       is_valid: true,
-      conflict_type: "none",
+      year_was_corrected: yearWasCorrected,
+      conflict_type: yearWasCorrected ? "year_corrected" : "none",
       suggestion: null,
     };
   }
@@ -805,6 +957,7 @@ function validateDateWeekday(
     mentioned_weekday: mentionedWeekday,
     actual_weekday: actualWeekday,
     is_valid: false,
+    year_was_corrected: yearWasCorrected,
     conflict_type: "weekday_mismatch",
     suggestion: nextOccurrence
       ? `Der ${mentionedWeekday} wäre der ${formatDateGerman(nextOccurrence)}`
@@ -827,13 +980,20 @@ function validateAllDates(data: Record<string, unknown>): DateValidationResult[]
     for (const dateInfo of dates) {
       const dateStr = dateInfo.date as string;
       const mentionedWeekday = dateInfo.mentioned_weekday as string | null;
+      const yearWasCorrected = dateInfo.year_was_corrected as boolean || false;
+      const originalDate = dateInfo.original_date as string | undefined;
 
       if (dateStr) {
-        const validation = validateDateWeekday(dateStr, mentionedWeekday);
+        const validation = validateDateWeekday(dateStr, mentionedWeekday, yearWasCorrected);
 
-        // Add actual weekday to date info for display
+        // Add actual weekday and correction info to date info for display
         dateInfo.actual_weekday = validation.actual_weekday;
         dateInfo.is_valid = validation.is_valid;
+
+        // Include original date in validation result if year was corrected
+        if (originalDate) {
+          validation.original_date = originalDate;
+        }
 
         if (!validation.is_valid) {
           dateConflicts.push({
@@ -850,12 +1010,19 @@ function validateAllDates(data: Record<string, unknown>): DateValidationResult[]
   for (const dateInfo of globalDates) {
     const dateStr = dateInfo.date as string;
     const mentionedWeekday = dateInfo.mentioned_weekday as string | null;
+    const yearWasCorrected = dateInfo.year_was_corrected as boolean || false;
+    const originalDate = dateInfo.original_date as string | undefined;
 
     if (dateStr) {
-      const validation = validateDateWeekday(dateStr, mentionedWeekday);
+      const validation = validateDateWeekday(dateStr, mentionedWeekday, yearWasCorrected);
 
       dateInfo.actual_weekday = validation.actual_weekday;
       dateInfo.is_valid = validation.is_valid;
+
+      // Include original date in validation result if year was corrected
+      if (originalDate) {
+        validation.original_date = originalDate;
+      }
 
       if (!validation.is_valid) {
         // Avoid duplicates if already added from participant
