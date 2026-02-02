@@ -634,35 +634,6 @@ export function TrainingFormModal({ open, onOpenChange, course, mode }: Training
                   )}
                 />
 
-                {/* Sort Order (Progression) - hide for office */}
-                {!isOfficeMode && (
-                  <FormField
-                    control={form.control}
-                    name="sort_order"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="flex items-center gap-1">
-                          <ArrowRight className="h-3 w-3" />
-                          Reihenfolge
-                        </FormLabel>
-                        <FormControl>
-                          <Input 
-                            type="number" 
-                            min={0}
-                            max={999}
-                            placeholder="z.B. 1, 2, 3..."
-                            {...field}
-                            onChange={e => field.onChange(parseInt(e.target.value) || 0)}
-                          />
-                        </FormControl>
-                        <FormDescription>
-                          Niedrigere Zahlen = frühere Stufen in der Progression
-                        </FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                )}
               </div>
 
               {/* Age fields - hide for office */}

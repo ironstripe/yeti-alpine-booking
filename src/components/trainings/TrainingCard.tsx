@@ -48,9 +48,8 @@ export function TrainingCard({ course, onEdit, onCopy, onViewCapacity, onDelete 
     ? Math.round((course.this_week_participants || 0) / course.this_week_max_spots * 100)
     : 0;
 
-  // Get price from linked product or fallback to legacy price_per_day
+  // Check if product is linked
   const hasLinkedProduct = !!course.product;
-  const displayPrice = hasLinkedProduct ? course.product!.price : course.price_per_day;
 
   // Saturday course dates count
   const saturdayCount = course.course_dates?.length || 
@@ -165,18 +164,19 @@ export function TrainingCard({ course, onEdit, onCopy, onViewCapacity, onDelete 
           </div>
         )}
 
-        {/* Price - from linked product or legacy - not for office */}
+        {/* Product - not for office */}
         {!isOfficeCourse && (
           <div className="text-sm">
-            <span className="font-medium">
-              CHF {displayPrice.toFixed(0)}{isSaturdayCourse ? '/Samstag' : '/Tag'}
-            </span>
             {hasLinkedProduct ? (
-              <span className="text-muted-foreground font-normal ml-1">
-                via {course.product!.name}
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="font-medium">{course.product!.name}</span>
+                <Badge variant="secondary" className="text-xs">
+                  {course.product!.pricing_type === 'tiered' ? 'Staffel' : 
+                   course.product!.pricing_type === 'hourly' ? 'Stunde' : 'Fix'}
+                </Badge>
+              </div>
             ) : (
-              <span className="text-amber-600 font-normal ml-1 flex items-center gap-1 inline-flex">
+              <span className="text-amber-600 flex items-center gap-1">
                 <AlertTriangle className="h-3 w-3" />
                 Kein Produkt verknüpft
               </span>

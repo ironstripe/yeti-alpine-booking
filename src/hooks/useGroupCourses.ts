@@ -20,7 +20,7 @@ export function useGroupCourses(options?: { activeOnly?: boolean }) {
         .from('group_courses')
         .select(`
           *,
-          product:product_id(id, name, price, type)
+          product:product_id(id, name, price, type, pricing_type)
         `)
         .order('sort_order', { ascending: true })
         .order('name');
