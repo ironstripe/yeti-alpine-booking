@@ -114,7 +114,7 @@ export function NewInstructorModal({ open, onOpenChange }: NewInstructorModalPro
       });
 
       toast.success("Skilehrer erfolgreich erstellt");
-      handleClose();
+      handleClose(false);
     } catch (error) {
       if (error instanceof Error) {
         toast.error(error.message);
@@ -124,11 +124,13 @@ export function NewInstructorModal({ open, onOpenChange }: NewInstructorModalPro
     }
   };
 
-  const handleClose = () => {
-    reset();
-    setIbanValue("");
-    setAhvValue("");
-    onOpenChange(false);
+  const handleClose = (open: boolean) => {
+    if (!open) {
+      reset();
+      setIbanValue("");
+      setAhvValue("");
+    }
+    onOpenChange(open);
   };
 
   const handleIbanChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -402,7 +404,7 @@ export function NewInstructorModal({ open, onOpenChange }: NewInstructorModalPro
 
             {/* Footer */}
             <div className="flex justify-end gap-3 pt-4">
-              <Button type="button" variant="outline" onClick={handleClose}>
+              <Button type="button" variant="outline" onClick={() => handleClose(false)}>
                 Abbrechen
               </Button>
               <Button type="submit" disabled={createInstructor.isPending}>
