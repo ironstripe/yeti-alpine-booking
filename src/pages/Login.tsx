@@ -24,13 +24,16 @@ const authSchema = z.object({
 
 const Login = () => {
   const navigate = useNavigate();
-  const { signIn, signUp } = useAuth();
+  const { signIn, signUp, resetPassword } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSignUp, setIsSignUp] = useState(false);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [resetEmail, setResetEmail] = useState("");
+  const [resetLoading, setResetLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -87,10 +90,39 @@ const Login = () => {
     }
   };
 
-  const handleForgotPassword = () => {
-    toast.info("Funktion kommt bald", {
-      description: "Passwort zurücksetzen wird in Kürze verfügbar sein.",
-    });
+  const handleForgotPassword = async () => {
+    if (!resetEmail.trim()) {
+      toast.error("Bitte gib deine E-Mail-Adresse ein");
+      return;
+    }
+
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(resetEmail.trim())) {
+      toast.error("Ungültige E-Mail-Adresse");
+      return;
+    }
+
+    setResetLoading(true);
+    try {
+      const { error } = await resetPassword(resetEmail.trim());
+      if (error) {
+        console.error("Password reset error:", error);
+      }
+      // Always show success message (no email enumeration)
+      toast.success("E-Mail gesendet", {
+        description: "Falls ein Konto mit dieser E-Mail existiert, erhältst du einen Link zum Zurücksetzen.",
+      });
+      setShowForgotPassword(false);
+      setResetEmail("");
+    } catch (err) {
+      console.error("Password reset error:", err);
+      toast.success("E-Mail gesendet", {
+        description: "Falls ein Konto mit dieser E-Mail existiert, erhältst du einen Link zum Zurücksetzen.",
+      });
+    } finally {
+      setResetLoading(false);
+    }
   };
 
   const toggleMode = () => {
@@ -198,15 +230,60 @@ const Login = () => {
                   : "Noch kein Konto? Registrieren"}
               </button>
 
-              {!isSignUp && (
+              {!isSignUp && !showForgotPassword && (
                 <div>
                   <button
                     type="button"
-                    onClick={handleForgotPassword}
+                    onClick={() => setShowForgotPassword(true)}
                     className="text-sm text-muted-foreground hover:text-primary transition-colors"
                   >
                     Passwort vergessen?
                   </button>
+                </div>
+              )}
+
+              {!isSignUp && showForgotPassword && (
+                <div className="space-y-3 p-3 rounded-lg bg-muted/50 border">
+                  <p className="text-sm text-muted-foreground">
+                    E-Mail für Passwort-Reset:
+                  </p>
+                  <Input
+                    type="email"
+                    placeholder="name@beispiel.ch"
+                    value={resetEmail}
+                    onChange={(e) => setResetEmail(e.target.value)}
+                    disabled={resetLoading}
+                  />
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={handleForgotPassword}
+                      disabled={resetLoading}
+                      className="flex-1"
+                    >
+                      {resetLoading ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Senden...
+                        </>
+                      ) : (
+                        "Zurücksetzen"
+                      )}
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setShowForgotPassword(false);
+                        setResetEmail("");
+                      }}
+                      disabled={resetLoading}
+                    >
+                      Abbrechen
+                    </Button>
+                  </div>
                 </div>
               )}
             </div>
