@@ -1,91 +1,46 @@
 
-# Handle Pre-existing Auth Users When Creating Instructors
+# Show All User Emails & Add Password Management
 
-## Current Situation
+## Problem
+Currently, the Settings/Users page only shows the email for the logged-in user. All other users display truncated IDs because the frontend cannot access `auth.users` directly.
 
-The system has two separate concepts:
-1. **Login accounts** (`auth.users`) - Created when any user logs in
-2. **Instructor records** (`instructors` table) - Created by admin for staff
+## Solution
 
-The linking happens via email matching in `useUserRole`:
-- Fetches `instructorId` by matching user email to instructor email
-- Fetches roles from `user_roles` table
+### 1. New Edge Function: `list-auth-users`
 
-## Problem Scenario
+**File:** `supabase/functions/list-auth-users/index.ts`
 
-1. User logs in as tester/external → `auth.users` entry created
-2. Later, admin creates instructor with same email → `instructors` entry created
-3. **Gap**: The user doesn't have "teacher" role in `user_roles`, so they can't access instructor portal
-
-## Solution: Auto-assign Role on Instructor Creation
-
-When an instructor is created, check if an auth user exists with that email and assign the appropriate role.
-
-### Implementation Approach
-
-**Option A: Backend trigger (preferred)**
-Create a database function/trigger that runs after instructor insert:
-1. Look up auth user by email
-2. If found, insert "teacher" role into `user_roles`
-
-**Option B: Frontend hook enhancement**
-After successful instructor creation:
-1. Call edge function to check/assign role
-2. More complex but doesn't require DB trigger
-
-### Recommended: Edge Function Approach
-
-Since we can't directly query `auth.users` from frontend and database triggers can't easily access auth schema, we'll use an edge function.
-
----
-
-## Technical Changes
-
-### 1. Create Edge Function: `link-instructor-to-user`
-
-**File: `supabase/functions/link-instructor-to-user/index.ts`**
-
-This function:
-- Takes instructor email and optionally the desired roles
-- Checks if auth user exists with that email
-- Adds "teacher" role to `user_roles` if not present
-- Returns whether a link was made
-
+Returns all auth users using the admin API:
 ```typescript
-// Pseudo-logic:
-1. Receive { email, roles: ["teacher"] }
-2. Use admin API to find auth user by email
-3. If found, ensure user_roles has required roles
-4. Return { linked: true/false, userId }
+// Returns: { users: [{ id, email, created_at, last_sign_in_at }] }
 ```
 
-### 2. Update `useCreateInstructor` Hook
+### 2. New Edge Function: `reset-user-password`
 
-**File: `src/hooks/useCreateInstructor.ts`**
+**File:** `supabase/functions/reset-user-password/index.ts`
 
-After successful instructor creation, call the edge function to link:
-
+Sends password reset email to a user:
 ```typescript
-onSuccess: async (data) => {
-  // Try to link if auth user exists
-  await supabase.functions.invoke("link-instructor-to-user", {
-    body: { 
-      email: data.email,
-      roles: data.roles // e.g., ["ski"] maps to "teacher", ["office"] maps to "office"
-    }
-  });
-  
-  queryClient.invalidateQueries({ queryKey: ["instructors"] });
-}
+// Input: { email: string }
+// Uses supabaseAdmin.auth.resetPasswordForEmail()
 ```
 
-### 3. Role Mapping Logic
+### 3. Update `useSettingsUsers` Hook
 
-| Instructor roles | user_roles entry |
-|------------------|------------------|
-| `["ski"]`, `["snowboard"]`, or any teaching role | `teacher` |
-| `["office"]` | `office` |
-| Both teaching + office | Both `teacher` + `office` |
+**File:** `src/hooks/useSettingsUsers.ts`
+
+- Call `list-auth-users` edge function to get all users with emails
+- Merge with `user_roles` data
+- Add `last_sign_in` field for reference
+
+### 4. Update Settings Users Page
+
+**File:** `src/pages/SettingsUsers.tsx`
+
+- Add "Aktionen" column with dropdown menu
+- Actions per user:
+  - **Passwort zurücksetzen** - sends reset email
+  - (Future: Role management)
 
 ---
 
@@ -93,23 +48,61 @@ onSuccess: async (data) => {
 
 | File | Change |
 |------|--------|
-| `supabase/functions/link-instructor-to-user/index.ts` | **NEW** - Edge function to link auth users |
-| `src/hooks/useCreateInstructor.ts` | Call edge function after creation |
+| `supabase/functions/list-auth-users/index.ts` | **NEW** - List all auth users with emails |
+| `supabase/functions/reset-user-password/index.ts` | **NEW** - Send password reset email |
+| `supabase/config.toml` | Register new functions |
+| `src/hooks/useSettingsUsers.ts` | Fetch all users via edge function |
+| `src/pages/SettingsUsers.tsx` | Add actions column with password reset |
 
 ---
 
-## Result
+## Technical Details
 
-- Pre-existing auth users automatically get correct roles when instructor created
-- No manual intervention needed
-- Instructor portal becomes accessible immediately
-- Works for all role combinations (teacher, office, both)
+### Edge Function: list-auth-users
+```typescript
+const { data } = await supabaseAdmin.auth.admin.listUsers();
+return data.users.map(u => ({
+  id: u.id,
+  email: u.email,
+  created_at: u.created_at,
+  last_sign_in_at: u.last_sign_in_at
+}));
+```
+
+### Edge Function: reset-user-password
+```typescript
+await supabaseAdmin.auth.resetPasswordForEmail(email, {
+  redirectTo: `${origin}/reset-password`
+});
+```
+
+### Updated Hook Flow
+```
+┌──────────────────────────────────────┐
+│  useSettingsUsers()                  │
+├──────────────────────────────────────┤
+│  1. Call list-auth-users edge fn     │
+│  2. Fetch user_roles from DB         │
+│  3. Fetch instructors for linking    │
+│  4. Merge all data by user_id        │
+│  5. Return complete user list        │
+└──────────────────────────────────────┘
+```
+
+### UI Changes
+
+| Current | After |
+|---------|-------|
+| `916bc71b...` | `admin@example.com` |
+| No actions | Dropdown: Passwort zurücksetzen |
 
 ---
 
-## Edge Cases Handled
+## User Flow for Password Reset
 
-1. **Auth user exists, instructor created later** → Role added automatically
-2. **Instructor created first, user registers later** → Existing flow (invite-instructor) handles this
-3. **Office-only staff** → Gets "office" role, not "teacher"
-4. **Mixed roles (teacher + office)** → Gets both roles assigned
+1. Admin opens Settings > Users
+2. Clicks "..." menu on any user row
+3. Selects "Passwort zurücksetzen"
+4. Confirmation dialog appears
+5. On confirm: Edge function sends reset email
+6. Toast: "E-Mail zum Zurücksetzen gesendet"
