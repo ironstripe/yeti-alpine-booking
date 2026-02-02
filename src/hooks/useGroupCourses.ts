@@ -20,8 +20,7 @@ export function useGroupCourses(options?: { activeOnly?: boolean }) {
         .from('group_courses')
         .select(`
           *,
-          product:product_id(id, name, price, type),
-          next_training:next_training_id(id, name)
+          product:product_id(id, name, price, type)
         `)
         .order('sort_order', { ascending: true })
         .order('name');
@@ -89,11 +88,20 @@ export function useGroupCourses(options?: { activeOnly?: boolean }) {
         const thisWeekParticipants = courseInstances.reduce((sum, i) => sum + (i.current_participants || 0), 0);
         const thisWeekMaxSpots = totalSlotsThisWeek * course.max_participants;
 
+        // Find the next training based on sort_order (same discipline)
+        const currentSortOrder = course.sort_order ?? 0;
+        const nextTraining = courses.find(c => 
+          c.id !== course.id && 
+          (c.sort_order ?? 0) > currentSortOrder &&
+          (c.discipline === course.discipline || c.discipline === 'both' || course.discipline === 'both') &&
+          !c.is_internal
+        );
+
         return {
           ...course,
           course_type: course.course_type || 'weekly',
           product: course.product as any,
-          next_training: course.next_training as any,
+          next_training: nextTraining ? { id: nextTraining.id, name: nextTraining.name } : null,
           schedules: courseSchedules,
           course_dates: courseCourseDates,
           this_week_participants: thisWeekParticipants,
@@ -114,10 +122,7 @@ export function useGroupCourse(courseId: string | undefined) {
 
       const { data: course, error } = await supabase
         .from('group_courses')
-        .select(`
-          *,
-          next_training:next_training_id(id, name)
-        `)
+        .select('*')
         .eq('id', courseId)
         .single();
 
@@ -150,7 +155,7 @@ export function useGroupCourse(courseId: string | undefined) {
       return {
         ...course,
         course_type: course.course_type || 'weekly',
-        next_training: course.next_training as any,
+        next_training: null, // Can be computed client-side if needed
         schedules: schedules as GroupCourseSchedule[],
         course_dates: courseDates,
       } as GroupCourseWithSchedules;
@@ -212,7 +217,7 @@ export function useCreateGroupCourse() {
         course_type: formData.course_type,
         period_start_date: formData.period_start_date,
         period_end_date: formData.period_end_date,
-        next_training_id: isOffice ? null : formData.next_training_id,
+        sort_order: formData.sort_order ?? 0,
       };
 
       const { data: course, error: courseError } = await supabase

@@ -35,7 +35,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Plus, Trash2, Info, Loader2, Calendar as CalendarIcon, ArrowRight } from 'lucide-react';
-import { useCreateGroupCourse, useUpdateGroupCourse, useGroupCourses } from '@/hooks/useGroupCourses';
+import { useCreateGroupCourse, useUpdateGroupCourse } from '@/hooks/useGroupCourses';
 import { useTrainingProducts } from '@/hooks/useProducts';
 import type { GroupCourseWithSchedules, GroupCourseFormData, CourseType } from '@/types/group-courses';
 import { DISCIPLINES, DAYS_OF_WEEK, COURSE_COLORS, COURSE_TYPES, OFFICE_TIME_PRESETS } from '@/types/group-courses';
@@ -56,7 +56,7 @@ const formSchema = z.object({
   course_type: z.enum(['weekly', 'saturday_course', 'custom', 'office']),
   period_start_date: z.date().nullable(),
   period_end_date: z.date().nullable(),
-  next_training_id: z.string().nullable(),
+  sort_order: z.number().min(0).max(999),
 });
 
 interface TrainingFormModalProps {
@@ -70,7 +70,6 @@ export function TrainingFormModal({ open, onOpenChange, course, mode }: Training
   const createCourse = useCreateGroupCourse();
   const updateCourse = useUpdateGroupCourse();
   const { data: trainingProducts, isLoading: productsLoading } = useTrainingProducts();
-  const { data: allCourses = [] } = useGroupCourses();
   
   // Determine actual mode: explicit mode prop takes precedence
   const actualMode = mode ?? (course ? 'edit' : 'create');
@@ -100,14 +99,13 @@ export function TrainingFormModal({ open, onOpenChange, course, mode }: Training
       course_type: 'weekly',
       period_start_date: null,
       period_end_date: null,
-      next_training_id: null,
+      sort_order: 0,
     },
   });
 
   const courseType = form.watch('course_type');
   const periodStartDate = form.watch('period_start_date');
   const periodEndDate = form.watch('period_end_date');
-  const currentDiscipline = form.watch('discipline');
   const isOfficeMode = courseType === 'office';
 
   // Generate preview of Saturdays
@@ -117,17 +115,6 @@ export function TrainingFormModal({ open, onOpenChange, course, mode }: Training
     }
     return generateSaturdays(periodStartDate, periodEndDate);
   }, [courseType, periodStartDate, periodEndDate]);
-
-  // Filter courses for "next training" dropdown - same discipline, not self
-  const availableNextCourses = useMemo(() => {
-    return allCourses.filter(c => {
-      // Exclude current course
-      if (course && c.id === course.id) return false;
-      // Must be same discipline or both
-      if (currentDiscipline !== 'both' && c.discipline !== 'both' && c.discipline !== currentDiscipline) return false;
-      return true;
-    });
-  }, [allCourses, course, currentDiscipline]);
 
   // Reset form when course changes or modal opens
   useEffect(() => {
@@ -151,7 +138,7 @@ export function TrainingFormModal({ open, onOpenChange, course, mode }: Training
         course_type: (course.course_type as CourseType) || 'weekly',
         period_start_date: course.period_start_date ? new Date(course.period_start_date) : null,
         period_end_date: course.period_end_date ? new Date(course.period_end_date) : null,
-        next_training_id: course.next_training_id || null,
+        sort_order: course.sort_order ?? 0,
       });
 
       // Extract schedule info
@@ -225,7 +212,7 @@ export function TrainingFormModal({ open, onOpenChange, course, mode }: Training
       course_type: values.course_type,
       period_start_date: values.period_start_date ? format(values.period_start_date, 'yyyy-MM-dd') : null,
       period_end_date: values.period_end_date ? format(values.period_end_date, 'yyyy-MM-dd') : null,
-      next_training_id: values.course_type === 'office' ? null : values.next_training_id,
+      sort_order: isOfficeMode ? 100 : values.sort_order,
       schedules: {
         days: values.course_type === 'saturday_course' ? [6] : selectedDays,
         time_slots: values.course_type === 'saturday_course' 
@@ -647,41 +634,30 @@ export function TrainingFormModal({ open, onOpenChange, course, mode }: Training
                   )}
                 />
 
-                {/* Next Training (Progression) - hide for office */}
+                {/* Sort Order (Progression) - hide for office */}
                 {!isOfficeMode && (
                   <FormField
                     control={form.control}
-                    name="next_training_id"
+                    name="sort_order"
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel className="flex items-center gap-1">
                           <ArrowRight className="h-3 w-3" />
-                          Nächstes Training
+                          Reihenfolge
                         </FormLabel>
-                        <Select 
-                          value={field.value || 'none'} 
-                          onValueChange={(v) => field.onChange(v === 'none' ? null : v)}
-                        >
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Kein Folgetraining" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="none">Kein Folgetraining</SelectItem>
-                            {availableNextCourses.map(c => (
-                              <SelectItem key={c.id} value={c.id}>
-                                <div className="flex items-center gap-2">
-                                  <div 
-                                    className="w-3 h-3 rounded-full" 
-                                    style={{ backgroundColor: c.color }}
-                                  />
-                                  {c.name}
-                                </div>
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <FormControl>
+                          <Input 
+                            type="number" 
+                            min={0}
+                            max={999}
+                            placeholder="z.B. 1, 2, 3..."
+                            {...field}
+                            onChange={e => field.onChange(parseInt(e.target.value) || 0)}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          Niedrigere Zahlen = frühere Stufen in der Progression
+                        </FormDescription>
                         <FormMessage />
                       </FormItem>
                     )}
