@@ -1,4 +1,5 @@
-import { Loader2, Users, Crown, Briefcase, GraduationCap } from "lucide-react";
+import { useState } from "react";
+import { Loader2, Users, Crown, Briefcase, GraduationCap, MoreHorizontal, KeyRound } from "lucide-react";
 import { SettingsLayout } from "@/components/settings/SettingsLayout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -10,8 +11,16 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
-import { useSettingsUsers } from "@/hooks/useSettingsUsers";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { useSettingsUsers, useResetUserPassword, UserWithRole } from "@/hooks/useSettingsUsers";
 import { useAuth } from "@/contexts/AuthContext";
 
 const roleConfig = {
@@ -23,6 +32,21 @@ const roleConfig = {
 export default function SettingsUsers() {
   const { data: users, isLoading } = useSettingsUsers();
   const { user: currentUser } = useAuth();
+  const resetPassword = useResetUserPassword();
+  
+  const [resetDialogOpen, setResetDialogOpen] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<UserWithRole | null>(null);
+
+  const handleResetPassword = (user: UserWithRole) => {
+    setSelectedUser(user);
+    setResetDialogOpen(true);
+  };
+
+  const confirmResetPassword = async () => {
+    if (selectedUser?.email) {
+      await resetPassword.mutateAsync(selectedUser.email);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -42,7 +66,6 @@ export default function SettingsUsers() {
           <CardHeader>
             <div className="flex items-center justify-between">
               <CardTitle className="text-base">Benutzer</CardTitle>
-              {/* Invite button would go here - requires Supabase Admin API */}
             </div>
           </CardHeader>
           <CardContent>
@@ -59,6 +82,7 @@ export default function SettingsUsers() {
                     <TableHead>Benutzer</TableHead>
                     <TableHead>Rollen</TableHead>
                     <TableHead>Verknüpfter Lehrer</TableHead>
+                    <TableHead className="w-[80px]">Aktionen</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -67,40 +91,36 @@ export default function SettingsUsers() {
                       <TableCell>
                         <div className="flex flex-col gap-1">
                           <div className="flex items-center gap-2">
-                            {user.email ? (
-                              <span className="font-medium text-sm">{user.email}</span>
-                            ) : (
-                              <code className="text-xs bg-muted px-2 py-1 rounded">
-                                {user.user_id.slice(0, 8)}...
-                              </code>
-                            )}
+                            <span className="font-medium text-sm">{user.email || "Keine E-Mail"}</span>
                             {user.user_id === currentUser?.id && (
                               <Badge variant="outline" className="text-xs">Du</Badge>
                             )}
                           </div>
-                          {user.email && (
-                            <code className="text-xs text-muted-foreground">
-                              ID: {user.user_id.slice(0, 8)}...
-                            </code>
-                          )}
+                          <code className="text-xs text-muted-foreground">
+                            ID: {user.user_id.slice(0, 8)}...
+                          </code>
                         </div>
                       </TableCell>
                       <TableCell>
                         <div className="flex flex-wrap gap-1">
-                          {user.roles.map((role) => {
-                            const config = roleConfig[role];
-                            const Icon = config?.icon || Users;
-                            return (
-                              <Badge
-                                key={role}
-                                variant="secondary"
-                                className="flex items-center gap-1"
-                              >
-                                <Icon className={`h-3 w-3 ${config?.color || ""}`} />
-                                {config?.label || role}
-                              </Badge>
-                            );
-                          })}
+                          {user.roles.length === 0 ? (
+                            <span className="text-sm text-muted-foreground">Keine Rollen</span>
+                          ) : (
+                            user.roles.map((role) => {
+                              const config = roleConfig[role];
+                              const Icon = config?.icon || Users;
+                              return (
+                                <Badge
+                                  key={role}
+                                  variant="secondary"
+                                  className="flex items-center gap-1"
+                                >
+                                  <Icon className={`h-3 w-3 ${config?.color || ""}`} />
+                                  {config?.label || role}
+                                </Badge>
+                              );
+                            })
+                          )}
                         </div>
                       </TableCell>
                       <TableCell>
@@ -109,6 +129,24 @@ export default function SettingsUsers() {
                         ) : (
                           <span className="text-sm text-muted-foreground">-</span>
                         )}
+                      </TableCell>
+                      <TableCell>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem 
+                              onClick={() => handleResetPassword(user)}
+                              disabled={!user.email}
+                            >
+                              <KeyRound className="h-4 w-4 mr-2" />
+                              Passwort zurücksetzen
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -161,6 +199,22 @@ export default function SettingsUsers() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Password Reset Confirmation Dialog */}
+      <ConfirmDialog
+        open={resetDialogOpen}
+        onOpenChange={setResetDialogOpen}
+        title="Passwort zurücksetzen"
+        description={
+          <span>
+            Eine E-Mail zum Zurücksetzen des Passworts wird an <strong>{selectedUser?.email}</strong> gesendet. Der Benutzer erhält einen Link, um ein neues Passwort zu wählen.
+          </span>
+        }
+        confirmLabel="E-Mail senden"
+        variant="warning"
+        onConfirm={confirmResetPassword}
+        isLoading={resetPassword.isPending}
+      />
     </SettingsLayout>
   );
 }
