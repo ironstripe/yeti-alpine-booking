@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { startOfWeek } from 'date-fns';
 import { Calendar } from 'lucide-react';
-import { PageHeader } from '@/components/layout/PageHeader';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -9,6 +8,7 @@ import { GroupPlanningHeader } from '@/components/planning/GroupPlanningHeader';
 import { GroupPlanningStats } from '@/components/planning/GroupPlanningStats';
 import { GroupPlanningCourseCard } from '@/components/planning/GroupPlanningCourseCard';
 import { DailyAssignmentModal } from '@/components/planning/DailyAssignmentModal';
+import { TrainingsLayout } from '@/components/trainings/TrainingsLayout';
 import { useGroupPlanningData, type GroupPlanningCourse } from '@/hooks/useGroupPlanningData';
 import { useInstructors } from '@/hooks/useInstructors';
 import { useGenerateInstances, useCopyWeekAssignments } from '@/hooks/useGroupCourses';
@@ -101,11 +101,7 @@ export default function GroupCoursePlanning() {
   };
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title="Gruppenplanung"
-        description="Wochenweise Lehrerzuweisung für Gruppenkurse"
-      />
+    <TrainingsLayout>
 
       <GroupPlanningHeader
         weekStart={currentWeek}
@@ -148,6 +144,6 @@ export default function GroupCoursePlanning() {
         weekStart={currentWeek}
         instructors={instructors}
       />
-    </div>
+    </TrainingsLayout>
   );
 }

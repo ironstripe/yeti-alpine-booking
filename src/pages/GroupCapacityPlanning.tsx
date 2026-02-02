@@ -11,7 +11,7 @@ import {
   CheckCircle2,
   Loader2
 } from 'lucide-react';
-import { PageHeader } from '@/components/layout/PageHeader';
+import { TrainingsLayout } from '@/components/trainings/TrainingsLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -117,11 +117,7 @@ export default function GroupCapacityPlanning() {
   )}`;
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title="Kapazitätsplanung"
-        description="Gruppen aufteilen, zusammenlegen und Teilnehmer verteilen"
-      />
+    <TrainingsLayout>
 
       {/* Week Navigation */}
       <div className="flex items-center justify-between">
@@ -308,6 +304,6 @@ export default function GroupCapacityPlanning() {
         group={assistantDialogGroup}
         instructors={instructors}
       />
-    </div>
+    </TrainingsLayout>
   );
 }
