@@ -1,172 +1,170 @@
 
-# Add Existing Client Linking to Event Guest Registration
+# Password Reset Implementation Plan
 
-## Problem
+## Current State
 
-Currently, the "Gast anmelden" dialog only allows manual entry of guest data. When adding a private course participant, the office staff cannot search and link existing customers/participants from the database - they must re-enter all information manually.
+The "Passwort vergessen?" link on the login page shows a placeholder toast: "Funktion kommt bald". Users cannot reset their password.
 
 ## Solution
 
-Modify the AddGuestDialog to allow searching and linking existing `customer_participants` when the source is "private_course". This provides:
-- Autocomplete search for existing participants
-- Auto-fill of name, birth year, and contact info from linked record
-- Proper `participant_id` linking in the `event_participants` table
+Implement a complete password reset flow using Supabase Auth:
+
+1. User clicks "Passwort vergessen?" → Opens dialog to enter email
+2. System sends reset email via Supabase
+3. User clicks link in email → Redirects to reset password page
+4. User enters new password → Updates password and redirects to login
 
 ---
 
 ## Technical Implementation
 
-### Phase 1: Create Participant Search Hook
+### Phase 1: Add Reset Password Method to AuthContext
 
-**New file: `src/hooks/useParticipantSearch.ts`**
+**File: `src/contexts/AuthContext.tsx`**
 
-```typescript
-// Search customer_participants by name with debounce
-// Returns: id, first_name, last_name, birth_date, customer info
-// Query across customer_participants joined with customers for contact data
-```
-
-### Phase 2: Modify AddGuestDialog
-
-**File: `src/components/events/AddGuestDialog.tsx`**
-
-| Change | Details |
-|--------|---------|
-| Add state | `selectedParticipant` for linked participant |
-| Add state | `searchMode` toggle between search/manual |
-| Conditional UI | Show search input when source is "private_course" |
-| Auto-fill | Pre-fill form fields when participant selected |
-| Submit logic | Include `participant_id` in mutation payload |
-
-### UI Flow
-
-```text
-Source: [x] Privatkurs-Gast  [ ] Walk-in
-
-When "Privatkurs-Gast" selected:
-+-----------------------------------------------+
-| 🔍 Teilnehmer suchen...              [Manual] |
-+-----------------------------------------------+
-| > Max Mustermann (Jahrgang 2015)              |
-| > Anna Beispiel (Jahrgang 2012)               |
-+-----------------------------------------------+
-
-After selection:
-+-----------------------------------------------+
-| ✓ Max Mustermann                    [Ändern]  |
-|   Jahrgang 2015 · kontakt@email.com           |
-+-----------------------------------------------+
-
-When "Walk-in" selected:
-- Current manual entry form (unchanged)
-```
-
-### Phase 3: Update Schema Usage
-
-The `useCreateEventParticipant` hook already supports `participant_id` - just need to pass it:
+Add a new `resetPassword` method:
 
 ```typescript
-createParticipant.mutate({
-  event_id: event.id,
-  category_id: data.category_id,
-  source: "private_course",
-  participant_id: selectedParticipant.id,  // Link to existing
-  // guest_* fields can be null when linked
-  payment_status: data.payment_status,
-  fee_amount: event.guest_fee,
-});
+interface AuthContextType {
+  // ... existing
+  resetPassword: (email: string) => Promise<{ error: Error | null }>;
+}
+
+const resetPassword = async (email: string) => {
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: `${window.location.origin}/reset-password`,
+  });
+  return { error: error as Error | null };
+};
+```
+
+### Phase 2: Create Reset Password Page
+
+**New file: `src/pages/ResetPassword.tsx`**
+
+Similar to SetPassword.tsx but for password reset:
+- Extracts tokens from URL hash
+- Establishes session via `setSession()`
+- Shows password form
+- Updates password via `updateUser()`
+- Redirects to login on success
+
+### Phase 3: Update Login Page
+
+**File: `src/pages/Login.tsx`**
+
+Replace the placeholder `handleForgotPassword` with:
+- Show inline email input (collapsible)
+- Call `resetPassword()` from AuthContext
+- Show success message when email sent
+
+### Phase 4: Add Route
+
+**File: `src/App.tsx`**
+
+Add route for `/reset-password`:
+
+```typescript
+<Route path="/reset-password" element={<ResetPassword />} />
 ```
 
 ---
 
-## Files to Modify
+## Files to Create/Modify
 
 | Action | File | Purpose |
 |--------|------|---------|
-| **CREATE** | `src/hooks/useParticipantSearch.ts` | Search hook with debounce |
-| **MODIFY** | `src/components/events/AddGuestDialog.tsx` | Add search UI and linking |
+| **MODIFY** | `src/contexts/AuthContext.tsx` | Add `resetPassword` method |
+| **CREATE** | `src/pages/ResetPassword.tsx` | Password reset form page |
+| **MODIFY** | `src/pages/Login.tsx` | Replace placeholder with email form |
+| **MODIFY** | `src/App.tsx` | Add `/reset-password` route |
 
-## Implementation Details
+---
 
-### useParticipantSearch Hook
+## User Flow
 
-```typescript
-interface SearchableParticipant {
-  id: string;
-  first_name: string;
-  last_name: string | null;
-  birth_date: string;
-  customer: {
-    id: string;
-    first_name: string | null;
-    last_name: string;
-    email: string;
-    phone: string | null;
-  };
-}
-
-export function useParticipantSearch(query: string) {
-  const debouncedQuery = useDebounce(query, 300);
-  
-  return useQuery({
-    queryKey: ["participant-search", debouncedQuery],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("customer_participants")
-        .select(`
-          id, first_name, last_name, birth_date,
-          customer:customers!customer_participants_customer_id_fkey (
-            id, first_name, last_name, email, phone
-          )
-        `)
-        .or(`first_name.ilike.%${query}%,last_name.ilike.%${query}%`)
-        .limit(10);
-      return data;
-    },
-    enabled: debouncedQuery.length >= 2,
-  });
-}
-```
-
-### Modified AddGuestDialog Flow
-
-1. User selects "Privatkurs-Gast"
-2. Search input appears (similar to CustomerSearch component)
-3. User types name → debounced search
-4. Results show participant name + birth year + parent contact
-5. User selects participant → form auto-fills:
-   - `guest_first_name` from `participant.first_name`
-   - `guest_last_name` from `participant.last_name`  
-   - `guest_birth_year` calculated from `participant.birth_date`
-   - `guest_phone` from `participant.customer.phone`
-   - `guest_email` from `participant.customer.email`
-6. User can still edit pre-filled values if needed
-7. On submit, both `participant_id` AND `guest_*` fields are saved
-
-### Zod Schema Update
-
-```typescript
-const guestSchema = z.object({
-  source: z.enum(["private_course", "walkin"]),
-  participant_id: z.string().nullable().optional(),  // NEW
-  guest_first_name: z.string().min(1, "Vorname erforderlich"),
-  // ... rest unchanged
-});
+```text
+Login Page
+    │
+    ▼
+[Passwort vergessen?] clicked
+    │
+    ▼
+Email input appears
+    │
+    ▼
+User enters email → [Zurücksetzen] clicked
+    │
+    ▼
+Toast: "E-Mail gesendet"
+    │
+    ▼
+User clicks link in email
+    │
+    ▼
+/reset-password#access_token=...&type=recovery
+    │
+    ▼
+Password form shown
+    │
+    ▼
+User sets new password
+    │
+    ▼
+Success → Redirect to /login
 ```
 
 ---
 
-## User Experience
+## UI Design
 
-| Scenario | Behavior |
-|----------|----------|
-| Private course guest exists | Search → Select → Auto-fill → Confirm category/payment |
-| Private course guest new | Click "Manuell eingeben" → Manual form |
-| Walk-in | Direct manual entry (current behavior) |
+### Login Page - Forgot Password Section
 
-## Benefits
+```text
+[Passwort vergessen?]
+       ↓ (expanded)
++----------------------------------------+
+| E-Mail für Passwort-Reset:             |
+| [email@example.com        ]            |
+| [Zurücksetzen]  [Abbrechen]            |
++----------------------------------------+
+```
 
-1. **Data consistency**: Links to actual participant record
-2. **Time saving**: No re-typing of existing data
-3. **Traceability**: Can see which event participants are linked to booking data
-4. **Reporting**: Can query participants across events via `participant_id`
+### Reset Password Page
+
+```text
++----------------------------------------+
+|           🔐 Neues Passwort            |
+|                                        |
+| Bitte gib ein neues Passwort ein.      |
+|                                        |
+| Neues Passwort:                        |
+| [••••••••••••••••      ]               |
+|                                        |
+| Passwort bestätigen:                   |
+| [••••••••••••••••      ]               |
+|                                        |
+| [    Passwort speichern    ]           |
++----------------------------------------+
+```
+
+---
+
+## Error Handling
+
+| Scenario | Message |
+|----------|---------|
+| Invalid email format | "Ungültige E-Mail-Adresse" |
+| Email not found | "E-Mail wurde gesendet" (no leak) |
+| Link expired | "Link ungültig oder abgelaufen" |
+| Passwords don't match | "Passwörter stimmen nicht überein" |
+| Password too short | "Passwort muss mindestens 6 Zeichen haben" |
+
+---
+
+## Security Notes
+
+1. **No email enumeration**: Always show success message even if email doesn't exist
+2. **Rate limiting**: Supabase handles rate limiting on reset emails
+3. **Token expiry**: Recovery tokens expire after 1 hour (Supabase default)
+4. **HTTPS only**: Redirect URL uses `window.location.origin` (inherits HTTPS from published site)
