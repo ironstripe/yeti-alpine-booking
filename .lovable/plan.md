@@ -1,80 +1,108 @@
 
-# Adjust Test Data Generation for Realistic Booking Distribution
+# Fix: Maximum Update Depth Error in NewInstructorModal
 
-## Context
+## Problem Analysis
 
-With 7 instructors assigned to weekly group courses, the remaining 20 instructors handle private lessons. The current 90% private / 10% group ratio needs adjustment to reflect realistic capacity.
+The application crashes with "Maximum update depth exceeded" when the NewInstructorModal is opened. This is caused by an infinite loop in the Dialog's open/close cycle.
 
-## Current vs Proposed Ratio
+### Root Cause
 
-| Type | Current | Proposed | Reasoning |
-|------|---------|----------|-----------|
-| Private | 90% | 100% | Test generator focuses on private bookings only |
-| Group | 10% | 0% | Group enrollments handled separately via training management |
+In `NewInstructorModal.tsx` (line 156), the `handleClose` function is incorrectly used as the `onOpenChange` handler:
 
-**Why remove group from generator?**
-Group course bookings follow a different flow (training enrollment) and shouldn't be mixed with private lesson ticket generation. The test data generator should focus on what it's designed for: filling the scheduler with private lessons.
+```tsx
+// Current problematic code
+const handleClose = () => {
+  reset();           // Always resets form
+  setIbanValue("");  // Always clears state
+  setAhvValue("");   // Always clears state
+  onOpenChange(false); // Always closes
+};
 
-## Implementation Changes
+<Dialog open={open} onOpenChange={handleClose}>
+```
 
-### 1. Exclude Group Course Instructors from Private Assignments
+**The issue:** Radix Dialog's `onOpenChange` is called with `true` when opening AND `false` when closing. Since `handleClose` doesn't accept any parameter, it always runs the reset logic and calls `onOpenChange(false)`, even when the dialog is trying to open. This creates an infinite loop.
 
-Store the 7 group instructor IDs (or mark them in DB) and filter them out when assigning instructors to private lessons.
+### Correct Pattern (from BulkUploadModal.tsx)
 
-**Approach:** Add a query to identify instructors already assigned to group courses this week, then exclude them from the private lesson pool.
+```tsx
+const handleClose = (open: boolean) => {
+  if (!open) {
+    resetState();
+  }
+  onOpenChange(open);
+};
+```
 
-### 2. Simplify Booking Distribution
-
-Remove the group product logic since group enrollments are managed through the training system.
-
-| Old Logic | New Logic |
-|-----------|-----------|
-| 70% private 2h | 60% private 2h |
-| 20% private 1h | 25% private 1h |
-| 10% group | 15% private 3h (half-day) |
-
-### 3. Update Time Slot Distribution
-
-Align with realistic demand patterns:
-- Morning 09:00-11:00: 35%
-- Morning 10:00-12:00: 25%
-- Afternoon 14:00-16:00: 25%
-- Half-day 09:00-12:00 or 13:00-16:00: 15%
+This pattern:
+1. Receives the `open` boolean from Dialog
+2. Only runs reset logic when closing (`!open`)
+3. Passes the correct value through to parent
 
 ---
 
-## Technical Changes
+## Solution
 
-**File: `supabase/functions/generate-test-bookings/index.ts`**
+Update `handleClose` in `NewInstructorModal.tsx` to properly handle both open and close events.
 
-1. **Query group course instructor assignments**
-   - Fetch instructors assigned to `training_groups` for the date range
-   - Build exclusion list
+### File Changes
 
-2. **Filter instructor pool**
-   - Remove group-assigned instructors before random assignment
-   - Only remaining ~20 instructors available for private lessons
+**`src/components/instructors/NewInstructorModal.tsx`**
 
-3. **Remove group product selection**
-   - Delete the `groupProducts` filter
-   - Delete the 10% group product assignment logic
+Change the `handleClose` function from:
+```tsx
+const handleClose = () => {
+  reset();
+  setIbanValue("");
+  setAhvValue("");
+  onOpenChange(false);
+};
+```
 
-4. **Update distribution comments**
-   - Change from "70% private 2h, 20% private 1h, 10% group"
-   - To "60% 2h, 25% 1h, 15% half-day"
+To:
+```tsx
+const handleClose = (open: boolean) => {
+  if (!open) {
+    reset();
+    setIbanValue("");
+    setAhvValue("");
+  }
+  onOpenChange(open);
+};
+```
+
+Also update button click handlers that call `handleClose()` directly to pass `false`:
+```tsx
+// Cancel button (line 405)
+<Button type="button" variant="outline" onClick={() => handleClose(false)}>
+```
 
 ---
 
-## File Changes Summary
+## Technical Details
+
+| Aspect | Before | After |
+|--------|--------|-------|
+| `handleClose` signature | `() => void` | `(open: boolean) => void` |
+| Reset on open | Yes (bug) | No |
+| Reset on close | Yes | Yes |
+| Infinite loop | Yes | No |
+
+---
+
+## Files to Modify
 
 | File | Change |
 |------|--------|
-| `supabase/functions/generate-test-bookings/index.ts` | Query group instructors, filter pool, remove group logic |
+| `src/components/instructors/NewInstructorModal.tsx` | Fix `handleClose` to accept boolean parameter |
 
 ---
 
-## Result
+## Testing
 
-- Private lessons assigned only to non-group instructors
-- More realistic scheduler load for testing
-- Group course capacity tested separately via training enrollment
+After the fix:
+1. Navigate to /instructors
+2. Click "Neuer Skilehrer" button
+3. Modal should open without crashing
+4. Fill out form and cancel - modal should close and reset
+5. Open again - form should be empty
