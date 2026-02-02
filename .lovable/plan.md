@@ -1,82 +1,80 @@
 
-# Simplify Training Form & Card Display
+# Adjust Test Data Generation for Realistic Booking Distribution
 
-## Changes Overview
+## Context
 
-Two UI simplifications to reduce clutter and confusion:
+With 7 instructors assigned to weekly group courses, the remaining 20 instructors handle private lessons. The current 90% private / 10% group ratio needs adjustment to reflect realistic capacity.
 
-| Current | Proposed |
-|---------|----------|
-| Sort order input field visible | Remove from UI (keep internal logic) |
-| "CHF 0.00/Tag via Produkt X" | Just show "Produkt X" with pricing type badge |
+## Current vs Proposed Ratio
 
----
+| Type | Current | Proposed | Reasoning |
+|------|---------|----------|-----------|
+| Private | 90% | 100% | Test generator focuses on private bookings only |
+| Group | 10% | 0% | Group enrollments handled separately via training management |
 
-## 1. Remove "Reihenfolge" Field from Form
+**Why remove group from generator?**
+Group course bookings follow a different flow (training enrollment) and shouldn't be mixed with private lesson ticket generation. The test data generator should focus on what it's designed for: filling the scheduler with private lessons.
 
-The sort order field doesn't provide value to users - it's an internal mechanism for determining progression. We'll keep the logic working but hide the field from the UI.
+## Implementation Changes
 
-**File: `TrainingFormModal.tsx`**
+### 1. Exclude Group Course Instructors from Private Assignments
 
-- Delete the entire FormField block for `sort_order` (lines 637-665)
-- Keep `sort_order` in the form schema and submission logic (it will use the existing value or default to 0)
-- Progression continues to work automatically based on database values
+Store the 7 group instructor IDs (or mark them in DB) and filter them out when assigning instructors to private lessons.
 
----
+**Approach:** Add a query to identify instructors already assigned to group courses this week, then exclude them from the private lesson pool.
 
-## 2. Simplify Product Display on Training Cards
+### 2. Simplify Booking Distribution
 
-Instead of showing a potentially misleading "CHF 0.00/Tag" (which happens with tiered pricing), we show:
-- Product name only
-- A small badge indicating pricing type (Staffel, Stunde, or Fixpreis)
+Remove the group product logic since group enrollments are managed through the training system.
 
-**Example:**
+| Old Logic | New Logic |
+|-----------|-----------|
+| 70% private 2h | 60% private 2h |
+| 20% private 1h | 25% private 1h |
+| 10% group | 15% private 3h (half-day) |
 
-```text
-BEFORE:
-┌────────────────────────────────────┐
-│ CHF 0/Tag via Gruppenkurs Standard │
-│     ⚠️ Kein Produkt verknüpft      │
-└────────────────────────────────────┘
+### 3. Update Time Slot Distribution
 
-AFTER:
-┌────────────────────────────────────┐
-│ 📦 Gruppenkurs Standard [Staffel]  │
-│     ⚠️ Kein Produkt verknüpft      │
-└────────────────────────────────────┘
-```
+Align with realistic demand patterns:
+- Morning 09:00-11:00: 35%
+- Morning 10:00-12:00: 25%
+- Afternoon 14:00-16:00: 25%
+- Half-day 09:00-12:00 or 13:00-16:00: 15%
 
 ---
 
 ## Technical Changes
 
-### File: `src/types/group-courses.ts`
-Add `pricing_type` to `LinkedProduct` interface
+**File: `supabase/functions/generate-test-bookings/index.ts`**
 
-### File: `src/hooks/useGroupCourses.ts`  
-Update product select query to include `pricing_type`
+1. **Query group course instructor assignments**
+   - Fetch instructors assigned to `training_groups` for the date range
+   - Build exclusion list
 
-### File: `src/components/trainings/TrainingCard.tsx`
-Replace price display with product name + pricing type badge
+2. **Filter instructor pool**
+   - Remove group-assigned instructors before random assignment
+   - Only remaining ~20 instructors available for private lessons
 
-### File: `src/components/trainings/TrainingFormModal.tsx`
-Remove sort_order FormField from JSX
+3. **Remove group product selection**
+   - Delete the `groupProducts` filter
+   - Delete the 10% group product assignment logic
+
+4. **Update distribution comments**
+   - Change from "70% private 2h, 20% private 1h, 10% group"
+   - To "60% 2h, 25% 1h, 15% half-day"
 
 ---
 
 ## File Changes Summary
 
-| Action | File | Change |
-|--------|------|--------|
-| MODIFY | `src/types/group-courses.ts` | Add `pricing_type` to LinkedProduct |
-| MODIFY | `src/hooks/useGroupCourses.ts` | Include `pricing_type` in product query |
-| MODIFY | `src/components/trainings/TrainingCard.tsx` | Show product name + pricing badge |
-| MODIFY | `src/components/trainings/TrainingFormModal.tsx` | Remove sort_order field from UI |
+| File | Change |
+|------|--------|
+| `supabase/functions/generate-test-bookings/index.ts` | Query group instructors, filter pool, remove group logic |
 
 ---
 
 ## Result
 
-- **Form:** Cleaner, fewer confusing fields
-- **Cards:** Clear product association without misleading prices
-- **Progression:** Still works automatically via database sort_order values
+- Private lessons assigned only to non-group instructors
+- More realistic scheduler load for testing
+- Group course capacity tested separately via training enrollment
