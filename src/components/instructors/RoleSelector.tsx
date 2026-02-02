@@ -16,16 +16,19 @@ const AVAILABLE_ROLES = [
 ] as const;
 
 export function RoleSelector({ value, onChange, error, disabled }: RoleSelectorProps) {
-  const toggleRole = (roleId: string) => {
+  const handleRoleChange = (roleId: string, checked: boolean) => {
     if (disabled) return;
     
-    if (value.includes(roleId)) {
-      // Don't allow removing last role
+    if (checked) {
+      // Add role if not present
+      if (!value.includes(roleId)) {
+        onChange([...value, roleId]);
+      }
+    } else {
+      // Remove role only if more than one remains
       if (value.length > 1) {
         onChange(value.filter((r) => r !== roleId));
       }
-    } else {
-      onChange([...value, roleId]);
     }
   };
 
@@ -35,29 +38,33 @@ export function RoleSelector({ value, onChange, error, disabled }: RoleSelectorP
         Rollen <span className="text-destructive">*</span>
       </Label>
       <div className="flex flex-wrap gap-4">
-        {AVAILABLE_ROLES.map((role) => (
-          <div
-            key={role.id}
-            className={cn(
-              "flex items-center gap-2 p-2 rounded-md border transition-colors cursor-pointer",
-              value.includes(role.id)
-                ? "border-primary bg-primary/5"
-                : "border-border hover:bg-muted/50",
-              disabled && "opacity-50 cursor-not-allowed"
-            )}
-            onClick={() => toggleRole(role.id)}
-          >
-            <Checkbox
-              checked={value.includes(role.id)}
-              onCheckedChange={() => toggleRole(role.id)}
-              disabled={disabled || (value.includes(role.id) && value.length === 1)}
-            />
-            <span className="flex items-center gap-1.5 text-sm">
-              <span>{role.icon}</span>
-              <span>{role.label}</span>
-            </span>
-          </div>
-        ))}
+        {AVAILABLE_ROLES.map((role) => {
+          const isChecked = value.includes(role.id);
+          const isLastRole = isChecked && value.length === 1;
+          
+          return (
+            <label
+              key={role.id}
+              className={cn(
+                "flex items-center gap-2 p-2 rounded-md border transition-colors cursor-pointer select-none",
+                isChecked
+                  ? "border-primary bg-primary/5"
+                  : "border-border hover:bg-muted/50",
+                disabled && "opacity-50 cursor-not-allowed"
+              )}
+            >
+              <Checkbox
+                checked={isChecked}
+                onCheckedChange={(checked) => handleRoleChange(role.id, checked === true)}
+                disabled={disabled || isLastRole}
+              />
+              <span className="flex items-center gap-1.5 text-sm">
+                <span>{role.icon}</span>
+                <span>{role.label}</span>
+              </span>
+            </label>
+          );
+        })}
       </div>
       {error && (
         <p className="text-xs text-destructive flex items-center gap-1">
