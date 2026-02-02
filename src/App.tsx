@@ -24,7 +24,6 @@ import Customers from "./pages/Customers";
 import Instructors from "./pages/Instructors";
 import InstructorDetail from "./pages/InstructorDetail";
 import Trainings from "./pages/Trainings";
-import TrainingDetail from "./pages/TrainingDetail";
 import GroupCoursePlanning from "./pages/GroupCoursePlanning";
 import GroupCapacityPlanning from "./pages/GroupCapacityPlanning";
 import Events from "./pages/Events";
@@ -176,8 +175,6 @@ const AppRoutes = () => (
       <Route path="trainings" element={<Trainings />} />
       <Route path="trainings/planning" element={<GroupCoursePlanning />} />
       <Route path="trainings/capacity" element={<GroupCapacityPlanning />} />
-      <Route path="trainings/:id" element={<TrainingDetail />} />
-      <Route path="trainings/:id/instances" element={<TrainingDetail />} />
       <Route path="events" element={<Events />} />
       <Route path="events/:id" element={<EventDetail />} />
       <Route path="reconciliation" element={<Reconciliation />} />
