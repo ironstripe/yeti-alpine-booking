@@ -130,13 +130,15 @@ export function TestDataGenerator() {
         </div>
 
         <div className="text-sm text-muted-foreground">
-          <p>Verteilung der generierten Buchungen:</p>
+          <p>Verteilung der generierten Privatlektionen:</p>
           <ul className="mt-1 list-disc list-inside">
-            <li>70% Privatlektionen (2h)</li>
-            <li>20% Privatlektionen (1h)</li>
-            <li>10% Gruppenkurse</li>
+            <li>35% Vormittag 09:00-11:00 (2h)</li>
+            <li>25% Vormittag 10:00-12:00 (2h)</li>
+            <li>25% Nachmittag 14:00-16:00 (2h)</li>
+            <li>15% Halbtag (3h)</li>
             <li>80% mit Instruktor bestätigt</li>
           </ul>
+          <p className="mt-2 text-xs">Gruppen-Instruktoren werden automatisch ausgeschlossen.</p>
         </div>
 
         {isGenerating && (
