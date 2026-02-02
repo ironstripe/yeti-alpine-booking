@@ -101,18 +101,19 @@ export function LevelSelector({
         let fallbackLevel: LevelOption | null = null;
 
         if (currentTrainingId) {
-          // Find current training and check for next in progression
-          const { data: currentTraining } = await supabase
-            .from('group_courses')
-            .select('id, name, color, next_training_id')
-            .eq('id', currentTrainingId)
-            .single();
-
-          if (currentTraining?.next_training_id) {
-            suggestedLevel = levels.find(l => l.id === currentTraining.next_training_id) || null;
-            fallbackLevel = levels.find(l => l.id === currentTrainingId) || null;
-          } else if (currentTraining) {
-            suggestedLevel = levels.find(l => l.id === currentTrainingId) || null;
+          // Find current training index in the sorted list
+          const currentIndex = levels.findIndex(l => l.id === currentTrainingId);
+          
+          if (currentIndex >= 0) {
+            fallbackLevel = levels[currentIndex]; // Current level as fallback
+            
+            // Suggest the next level in progression (next in sorted list)
+            if (currentIndex < levels.length - 1) {
+              suggestedLevel = levels[currentIndex + 1];
+            } else {
+              // Already at highest level, suggest current
+              suggestedLevel = levels[currentIndex];
+            }
           }
         }
 

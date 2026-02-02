@@ -131,7 +131,6 @@ export interface GroupCourseWithSchedules extends GroupCourse {
 export interface GroupCourseFormData {
   name: string;
   description: string;
-  // REMOVED: skill_level_id - training itself IS the skill level
   discipline: 'ski' | 'snowboard' | 'both';
   min_age: number | null;
   max_age: number | null;
@@ -143,8 +142,7 @@ export interface GroupCourseFormData {
   course_type: CourseType;
   period_start_date: string | null;
   period_end_date: string | null;
-  // NEW: Progression tracking
-  next_training_id: string | null;
+  sort_order: number;
   schedules: {
     days: number[];
     time_slots: { start_time: string; end_time: string }[];
