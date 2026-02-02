@@ -84,8 +84,8 @@ const Trainings = () => {
     setIsModalOpen(true);
   };
 
-  const handleViewInstances = (course: GroupCourseWithSchedules) => {
-    navigate(`/trainings/${course.id}/instances`);
+  const handleViewCapacity = (course: GroupCourseWithSchedules) => {
+    navigate(`/trainings/capacity?course=${course.id}`);
   };
 
   const handleDeleteClick = async (course: GroupCourseWithSchedules) => {
@@ -158,7 +158,7 @@ const Trainings = () => {
               course={course}
               onEdit={handleEditClick}
               onCopy={handleCopyClick}
-              onViewInstances={handleViewInstances}
+              onViewCapacity={handleViewCapacity}
               onDelete={handleDeleteClick}
             />
           ))}

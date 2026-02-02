@@ -13,7 +13,8 @@ import {
   AlertTriangle,
   Copy,
   Trash2,
-  ArrowRight
+  ArrowRight,
+  BarChart3
 } from 'lucide-react';
 import type { GroupCourseWithSchedules } from '@/types/group-courses';
 import { DISCIPLINES, DAYS_OF_WEEK } from '@/types/group-courses';
@@ -22,11 +23,11 @@ interface TrainingCardProps {
   course: GroupCourseWithSchedules;
   onEdit: (course: GroupCourseWithSchedules) => void;
   onCopy: (course: GroupCourseWithSchedules) => void;
-  onViewInstances: (course: GroupCourseWithSchedules) => void;
+  onViewCapacity: (course: GroupCourseWithSchedules) => void;
   onDelete: (course: GroupCourseWithSchedules) => void;
 }
 
-export function TrainingCard({ course, onEdit, onCopy, onViewInstances, onDelete }: TrainingCardProps) {
+export function TrainingCard({ course, onEdit, onCopy, onViewCapacity, onDelete }: TrainingCardProps) {
   const disciplineLabel = DISCIPLINES.find(d => d.value === course.discipline)?.label || course.discipline;
 
   const isSaturdayCourse = course.course_type === 'saturday_course';
@@ -229,10 +230,10 @@ export function TrainingCard({ course, onEdit, onCopy, onViewInstances, onDelete
             variant="outline" 
             size="sm" 
             className="flex-1"
-            onClick={() => onViewInstances(course)}
+            onClick={() => onViewCapacity(course)}
           >
-            <List className="h-4 w-4 mr-1" />
-            {isOfficeCourse ? 'Besetzung' : isSaturdayCourse ? 'Termine' : 'Instanzen'}
+            <BarChart3 className="h-4 w-4 mr-1" />
+            Kapazität
           </Button>
           <Button 
             variant="outline" 

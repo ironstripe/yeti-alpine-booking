@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { startOfWeek, format, addWeeks, subWeeks } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { 
@@ -81,6 +82,9 @@ function EmptyState({ onGenerate, isGenerating }: { onGenerate: () => void; isGe
 }
 
 export default function GroupCapacityPlanning() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const courseFilter = searchParams.get('course');
+  
   const [currentWeek, setCurrentWeek] = useState(() => 
     startOfWeek(new Date(), { weekStartsOn: 1 })
   );
@@ -94,8 +98,19 @@ export default function GroupCapacityPlanning() {
   const { data: instructors = [] } = useInstructors();
   const generateMutation = useGenerateTrainingGroups();
 
-  const groups = data?.groups || [];
+  // Filter groups by course if filter is set
+  const groups = useMemo(() => {
+    const allGroups = data?.groups || [];
+    if (!courseFilter) return allGroups;
+    return allGroups.filter(g => g.courseId === courseFilter);
+  }, [data?.groups, courseFilter]);
+  
   const stats = data?.stats;
+  const filteredCourseName = courseFilter ? groups[0]?.courseName : null;
+
+  const clearFilter = () => {
+    setSearchParams({});
+  };
 
   const overbookedGroups = groups.filter(g => g.capacityStatus === 'overbooked');
   const underbookedGroups = groups.filter(g => g.capacityStatus === 'underbooked');
@@ -118,6 +133,19 @@ export default function GroupCapacityPlanning() {
 
   return (
     <TrainingsLayout>
+      {/* Course filter indicator */}
+      {courseFilter && filteredCourseName && (
+        <Alert className="mb-4">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Gefiltert nach: {filteredCourseName}</AlertTitle>
+          <AlertDescription className="flex items-center justify-between">
+            <span>Zeigt nur Kapazität für dieses Training an.</span>
+            <Button variant="outline" size="sm" onClick={clearFilter}>
+              Filter entfernen
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
 
       {/* Week Navigation */}
       <div className="flex items-center justify-between">
