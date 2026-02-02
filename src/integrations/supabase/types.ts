@@ -1339,8 +1339,10 @@ export type Database = {
           id: string
           instance_id: string
           notes: string | null
+          original_course_id: string | null
           participant_id: string | null
           ticket_item_id: string | null
+          training_group_id: string | null
         }
         Insert: {
           attendance_status?: string | null
@@ -1349,8 +1351,10 @@ export type Database = {
           id?: string
           instance_id: string
           notes?: string | null
+          original_course_id?: string | null
           participant_id?: string | null
           ticket_item_id?: string | null
+          training_group_id?: string | null
         }
         Update: {
           attendance_status?: string | null
@@ -1359,8 +1363,10 @@ export type Database = {
           id?: string
           instance_id?: string
           notes?: string | null
+          original_course_id?: string | null
           participant_id?: string | null
           ticket_item_id?: string | null
+          training_group_id?: string | null
         }
         Relationships: [
           {
@@ -1368,6 +1374,13 @@ export type Database = {
             columns: ["instance_id"]
             isOneToOne: false
             referencedRelation: "group_course_instances"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "group_course_enrollments_original_course_id_fkey"
+            columns: ["original_course_id"]
+            isOneToOne: false
+            referencedRelation: "group_courses"
             referencedColumns: ["id"]
           },
           {
@@ -1382,6 +1395,13 @@ export type Database = {
             columns: ["ticket_item_id"]
             isOneToOne: false
             referencedRelation: "ticket_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "group_course_enrollments_training_group_id_fkey"
+            columns: ["training_group_id"]
+            isOneToOne: false
+            referencedRelation: "training_groups"
             referencedColumns: ["id"]
           },
         ]
@@ -1512,6 +1532,7 @@ export type Database = {
           max_participants: number
           meeting_point: string | null
           min_age: number
+          min_participants: number | null
           name: string
           next_training_id: string | null
           period_end_date: string | null
@@ -1536,6 +1557,7 @@ export type Database = {
           max_participants?: number
           meeting_point?: string | null
           min_age: number
+          min_participants?: number | null
           name: string
           next_training_id?: string | null
           period_end_date?: string | null
@@ -1560,6 +1582,7 @@ export type Database = {
           max_participants?: number
           meeting_point?: string | null
           min_age?: number
+          min_participants?: number | null
           name?: string
           next_training_id?: string | null
           period_end_date?: string | null
@@ -3372,6 +3395,80 @@ export type Database = {
           },
         ]
       }
+      training_groups: {
+        Row: {
+          assistant_instructor_id: string | null
+          course_id: string
+          created_at: string | null
+          custom_name: string | null
+          group_number: number | null
+          id: string
+          instructor_id: string | null
+          merged_into_group_id: string | null
+          notes: string | null
+          status: string | null
+          updated_at: string | null
+          week_start: string
+        }
+        Insert: {
+          assistant_instructor_id?: string | null
+          course_id: string
+          created_at?: string | null
+          custom_name?: string | null
+          group_number?: number | null
+          id?: string
+          instructor_id?: string | null
+          merged_into_group_id?: string | null
+          notes?: string | null
+          status?: string | null
+          updated_at?: string | null
+          week_start: string
+        }
+        Update: {
+          assistant_instructor_id?: string | null
+          course_id?: string
+          created_at?: string | null
+          custom_name?: string | null
+          group_number?: number | null
+          id?: string
+          instructor_id?: string | null
+          merged_into_group_id?: string | null
+          notes?: string | null
+          status?: string | null
+          updated_at?: string | null
+          week_start?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "training_groups_assistant_instructor_id_fkey"
+            columns: ["assistant_instructor_id"]
+            isOneToOne: false
+            referencedRelation: "instructors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_groups_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "group_courses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_groups_instructor_id_fkey"
+            columns: ["instructor_id"]
+            isOneToOne: false
+            referencedRelation: "instructors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_groups_merged_into_group_id_fkey"
+            columns: ["merged_into_group_id"]
+            isOneToOne: false
+            referencedRelation: "training_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       training_participants: {
         Row: {
           attended_at: string | null
@@ -3719,6 +3816,10 @@ export type Database = {
         Args: { p_week_start_date: string }
         Returns: Json
       }
+      generate_training_groups_for_week: {
+        Args: { p_week_start: string }
+        Returns: Json
+      }
       get_instructor_for_user: { Args: { _user_id: string }; Returns: string }
       has_role: {
         Args: {
@@ -3728,10 +3829,27 @@ export type Database = {
         Returns: boolean
       }
       is_admin_or_office: { Args: { _user_id: string }; Returns: boolean }
+      merge_training_groups: {
+        Args: {
+          p_instructor_id?: string
+          p_new_group_name?: string
+          p_source_group_ids: string[]
+          p_target_group_id: string
+        }
+        Returns: Json
+      }
+      move_participant_to_group: {
+        Args: { p_enrollment_id: string; p_target_group_id: string }
+        Returns: Json
+      }
       queue_confirmation_reminders: { Args: never; Returns: number }
       set_instructor_capabilities: {
         Args: { p_capability_ids: string[]; p_instructor_id: string }
         Returns: undefined
+      }
+      split_training_group: {
+        Args: { p_new_groups: Json; p_source_group_id: string }
+        Returns: Json
       }
     }
     Enums: {
