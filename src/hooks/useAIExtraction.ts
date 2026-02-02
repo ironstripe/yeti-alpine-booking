@@ -29,10 +29,12 @@ export interface ExtractedParticipant {
 
 export interface DateConflict {
   date: string;
+  original_date?: string; // Date before year correction
   mentioned_weekday: string | null;
   actual_weekday: string;
   is_valid: boolean;
-  conflict_type: "none" | "weekday_mismatch";
+  year_was_corrected: boolean;
+  conflict_type: "none" | "weekday_mismatch" | "year_corrected";
   suggestion: string | null;
   participant_name?: string;
 }
