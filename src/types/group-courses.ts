@@ -34,6 +34,7 @@ export interface LinkedProduct {
   name: string;
   price: number;
   type: string;
+  pricing_type: 'fixed' | 'tiered' | 'hourly';
 }
 
 export interface GroupCourseSchedule {
