@@ -168,13 +168,7 @@ export function TrainingCard({ course, onEdit, onCopy, onViewCapacity, onDelete 
         {!isOfficeCourse && (
           <div className="text-sm">
             {hasLinkedProduct ? (
-              <div className="flex items-center gap-2">
-                <span className="font-medium">{course.product!.name}</span>
-                <Badge variant="secondary" className="text-xs">
-                  {course.product!.pricing_type === 'tiered' ? 'Staffel' : 
-                   course.product!.pricing_type === 'hourly' ? 'Stunde' : 'Fix'}
-                </Badge>
-              </div>
+              <span className="font-medium">{course.product!.name}</span>
             ) : (
               <span className="text-amber-600 flex items-center gap-1">
                 <AlertTriangle className="h-3 w-3" />
