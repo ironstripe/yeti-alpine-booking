@@ -31,7 +31,20 @@ export function useCreateInstructor() {
 
       return data;
     },
-    onSuccess: () => {
+    onSuccess: async (data) => {
+      // Try to link pre-existing auth user to this instructor's roles
+      try {
+        await supabase.functions.invoke("link-instructor-to-user", {
+          body: {
+            email: data.email,
+            roles: data.roles,
+          },
+        });
+      } catch (linkError) {
+        // Non-critical - log but don't fail the mutation
+        console.warn("Could not link instructor to auth user:", linkError);
+      }
+
       queryClient.invalidateQueries({ queryKey: ["instructors"] });
     },
   });

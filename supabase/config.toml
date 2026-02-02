@@ -38,3 +38,6 @@ verify_jwt = false
 
 [functions.test-instructor-login]
 verify_jwt = false
+
+[functions.link-instructor-to-user]
+verify_jwt = false
