@@ -92,12 +92,6 @@ export function TrainingCard({ course, onEdit, onCopy, onViewCapacity, onDelete 
           {ageRangeLabel && (
             <Badge variant="outline" className="bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">{ageRangeLabel}</Badge>
           )}
-          {course.next_training && (
-            <Badge variant="outline" className="flex items-center gap-1 text-muted-foreground">
-              <ArrowRight className="h-3 w-3" />
-              {course.next_training.name}
-            </Badge>
-          )}
         </div>
       </CardHeader>
 
