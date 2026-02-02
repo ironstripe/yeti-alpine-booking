@@ -1,63 +1,115 @@
 
-## What’s happening (rephrased)
-You can open the “Neuer Skilehrer” modal, but as soon as you interact with the **roles** (notably clicking “Büro”), the app crashes with **“Maximum update depth exceeded”**.
+# Handle Pre-existing Auth Users When Creating Instructors
 
-We already fixed one potential loop (`Dialog onOpenChange`), but the crash persists, so the loop is happening elsewhere.
+## Current Situation
 
-## What I observed / isolated
-- The crash is reproducible when interacting with **RoleSelector** inside `NewInstructorModal`.
-- The error stack points into Radix internals (`@radix-ui/react-compose-refs` → `setRef`), which is a common symptom when rapid/repeated synchronous re-renders happen during Radix event handling (Radix uses `flushSync` for certain discrete events).
-- `RoleSelector.tsx` currently triggers role changes from **two handlers for a single click**:
-  - The **wrapper row** has `onClick={() => toggleRole(role.id)}`
-  - The **Checkbox** also has `onCheckedChange={() => toggleRole(role.id)}`
-  This can lead to immediate double updates (toggle on + toggle off) in a single interaction and can cascade into Radix/Presence ref re-composition loops (the “setRef” part of the stack).
+The system has two separate concepts:
+1. **Login accounts** (`auth.users`) - Created when any user logs in
+2. **Instructor records** (`instructors` table) - Created by admin for staff
 
-## Do I know what the issue is?
-Yes: **RoleSelector fires role state updates twice per user click**, which can trigger a nested update loop inside Radix’s discrete-event/ref composition logic (seen as `setRef` in the stack).
+The linking happens via email matching in `useUserRole`:
+- Fetches `instructorId` by matching user email to instructor email
+- Fetches roles from `user_roles` table
 
-## Fix approach (code changes)
-### 1) Make RoleSelector update roles from exactly one source of truth
-In `src/components/instructors/RoleSelector.tsx`:
-- Remove the clickable wrapper behavior OR ensure it does not also trigger the checkbox handler.
-- Recommended: keep the UI clickable, but make the Checkbox be the only controller and use the `checked` argument properly.
+## Problem Scenario
 
-Concretely:
-- Remove `onClick={() => toggleRole(role.id)}` from the wrapper row
-  - Option A (simplest): wrapper becomes non-clickable; user clicks checkbox.
-  - Option B (better UX): replace wrapper `div` with a `<label>` pattern or a `<button type="button">` that toggles, while the checkbox uses `onClick={(e) => e.stopPropagation()}` to prevent double triggers.
-- Change `onCheckedChange={() => toggleRole(role.id)}` to use the passed value:
-  - If `checked === true`, add role if not present
-  - If `checked === false`, remove role (but prevent removing the last role)
+1. User logs in as tester/external → `auth.users` entry created
+2. Later, admin creates instructor with same email → `instructors` entry created
+3. **Gap**: The user doesn't have "teacher" role in `user_roles`, so they can't access instructor portal
 
-This ensures a click produces exactly one state transition and matches Radix’s controlled component expectations.
+## Solution: Auto-assign Role on Instructor Creation
 
-### 2) Verify EditInstructorModal is also safe
-`RoleSelector` is also used in `src/components/instructors/EditInstructorModal.tsx`.
-- Once RoleSelector is fixed centrally, both New and Edit modals should stop crashing.
-- We’ll still open the Edit modal and toggle roles to confirm.
+When an instructor is created, check if an auth user exists with that email and assign the appropriate role.
 
-### 3) (Optional hardening) Prevent office-only from leaving stale instructor-only fields
-Not required for the crash, but good hygiene:
-- When roles become “office only” (no teaching role), we can clear `level` via `setValue("level", "")` or a placeholder value in a `useEffect`.
-- This should be done carefully to avoid reintroducing loops (effect must only run on meaningful transitions).
+### Implementation Approach
 
-## Testing checklist (end-to-end)
-1. Go to **/instructors**
-2. Click **Neuer Skilehrer**
-3. Toggle roles repeatedly:
-   - Add/remove “Büro”
-   - Add/remove “Snowboardlehrer”
-   - Ensure you cannot remove the last remaining role
-4. Confirm **no crash** and UI remains responsive
-5. Confirm “Ausbildungsstufe” only shows when a teaching role is selected
-6. Repeat role toggling inside **Edit Instructor** modal (if available)
+**Option A: Backend trigger (preferred)**
+Create a database function/trigger that runs after instructor insert:
+1. Look up auth user by email
+2. If found, insert "teacher" role into `user_roles`
 
-## Files involved
-- `src/components/instructors/RoleSelector.tsx` (primary fix)
-- `src/components/instructors/EditInstructorModal.tsx` (verification, possibly minor adjustment if needed)
-- `src/components/instructors/NewInstructorModal.tsx` (no further changes expected for this crash)
+**Option B: Frontend hook enhancement**
+After successful instructor creation:
+1. Call edge function to check/assign role
+2. More complex but doesn't require DB trigger
 
-## If the crash still happens after this fix
-We’ll do a focused minimal reproduction:
-- Temporarily replace the Radix `Checkbox` with a native `<input type="checkbox">` in RoleSelector to confirm whether the loop is purely Radix-event/ref related or something else in the form integration.
-- Add targeted `console.log` markers around role updates to detect unintended repeated updates.
+### Recommended: Edge Function Approach
+
+Since we can't directly query `auth.users` from frontend and database triggers can't easily access auth schema, we'll use an edge function.
+
+---
+
+## Technical Changes
+
+### 1. Create Edge Function: `link-instructor-to-user`
+
+**File: `supabase/functions/link-instructor-to-user/index.ts`**
+
+This function:
+- Takes instructor email and optionally the desired roles
+- Checks if auth user exists with that email
+- Adds "teacher" role to `user_roles` if not present
+- Returns whether a link was made
+
+```typescript
+// Pseudo-logic:
+1. Receive { email, roles: ["teacher"] }
+2. Use admin API to find auth user by email
+3. If found, ensure user_roles has required roles
+4. Return { linked: true/false, userId }
+```
+
+### 2. Update `useCreateInstructor` Hook
+
+**File: `src/hooks/useCreateInstructor.ts`**
+
+After successful instructor creation, call the edge function to link:
+
+```typescript
+onSuccess: async (data) => {
+  // Try to link if auth user exists
+  await supabase.functions.invoke("link-instructor-to-user", {
+    body: { 
+      email: data.email,
+      roles: data.roles // e.g., ["ski"] maps to "teacher", ["office"] maps to "office"
+    }
+  });
+  
+  queryClient.invalidateQueries({ queryKey: ["instructors"] });
+}
+```
+
+### 3. Role Mapping Logic
+
+| Instructor roles | user_roles entry |
+|------------------|------------------|
+| `["ski"]`, `["snowboard"]`, or any teaching role | `teacher` |
+| `["office"]` | `office` |
+| Both teaching + office | Both `teacher` + `office` |
+
+---
+
+## Files to Create/Modify
+
+| File | Change |
+|------|--------|
+| `supabase/functions/link-instructor-to-user/index.ts` | **NEW** - Edge function to link auth users |
+| `src/hooks/useCreateInstructor.ts` | Call edge function after creation |
+
+---
+
+## Result
+
+- Pre-existing auth users automatically get correct roles when instructor created
+- No manual intervention needed
+- Instructor portal becomes accessible immediately
+- Works for all role combinations (teacher, office, both)
+
+---
+
+## Edge Cases Handled
+
+1. **Auth user exists, instructor created later** → Role added automatically
+2. **Instructor created first, user registers later** → Existing flow (invite-instructor) handles this
+3. **Office-only staff** → Gets "office" role, not "teacher"
+4. **Mixed roles (teacher + office)** → Gets both roles assigned
