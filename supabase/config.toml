@@ -41,3 +41,9 @@ verify_jwt = false
 
 [functions.link-instructor-to-user]
 verify_jwt = false
+
+[functions.list-auth-users]
+verify_jwt = false
+
+[functions.reset-user-password]
+verify_jwt = false
