@@ -1,146 +1,107 @@
 
 
-# Simplify Training Navigation
+# Consolidate Training Management
 
-## Problem
+## Current Problem
 
-The sidebar currently has 3 separate items for training-related features:
+Two separate features do almost the same thing:
 
-| Current Item | Route | Purpose |
-|--------------|-------|---------|
-| Trainings | `/trainings` | Course template management (Blue Prince, etc.) |
-| Wochenplanung | `/trainings/planning` | Weekly instructor assignments |
-| Kapazität | `/trainings/capacity` | Split/merge overbooked groups |
+| Feature | Access | Functionality |
+|---------|--------|---------------|
+| Training Instanzen | Kurse → Card → "Instanzen" | View week, assign instructor per day |
+| Wochenplanung | Trainings → Wochenplanung tab | View all courses, assign instructors, copy week |
 
-This is inconsistent with how **Einstellungen** works (single sidebar item with internal navigation for all sub-pages). All three pages deal with the same domain: managing group courses.
-
----
-
-## Solution
-
-### Consolidate into Single Sidebar Item with Tabs
-
-Create a unified training management experience using the same pattern as Settings:
-
-```text
-Sidebar:                    Internal Navigation:
-+------------------+        +------------------------------------------+
-| ...              |        | Trainings                                |
-| Trainings  ●─────|───────>| [Kurse] [Wochenplanung] [Kapazität]     |
-| Events           |        |                                          |
-| ...              |        | (content based on selected tab)          |
-+------------------+        +------------------------------------------+
-```
-
-### Changes
-
-**1. Remove from Sidebar:**
-- "Wochenplanung" item
-- "Kapazität" item
-
-**2. Create TrainingsLayout Component:**
-Similar to `SettingsLayout.tsx`, with horizontal tabs:
-
-| Tab | Route | Current Page |
-|-----|-------|--------------|
-| Kurse | `/trainings` | Trainings.tsx |
-| Wochenplanung | `/trainings/planning` | GroupCoursePlanning.tsx |
-| Kapazität | `/trainings/capacity` | GroupCapacityPlanning.tsx |
-
-**3. Update Each Training Page:**
-Wrap content in the new `TrainingsLayout` component.
+This confuses users and creates maintenance overhead.
 
 ---
 
-## Implementation Details
+## Solution: Remove Instanzen, Enhance Wochenplanung
 
-### New Component: `TrainingsLayout.tsx`
+**Keep** Wochenplanung as the single source for instructor assignment.
 
-```text
-src/components/trainings/TrainingsLayout.tsx
+**Simplify** TrainingCard actions to:
+- Bearbeiten (edit course template)
+- Duplizieren (copy course)
+- Löschen (delete course)
+- **Kapazität** (direct link to capacity planning filtered by this course)
 
-- PageHeader with "Trainings" title
-- Horizontal tab navigation (Tabs component)
-- Routes to /trainings, /trainings/planning, /trainings/capacity
-- Children slot for page content
-```
+---
 
-### Files to Modify
+## Changes
 
-| File | Change |
-|------|--------|
-| `src/components/layout/AppSidebar.tsx` | Remove Wochenplanung and Kapazität nav items |
-| `src/components/trainings/TrainingsLayout.tsx` | NEW - wrapper with tab navigation |
-| `src/pages/Trainings.tsx` | Wrap in TrainingsLayout |
-| `src/pages/GroupCoursePlanning.tsx` | Wrap in TrainingsLayout |
-| `src/pages/GroupCapacityPlanning.tsx` | Wrap in TrainingsLayout |
-
-### Sidebar Before/After
+### 1. TrainingCard - Replace "Instanzen" with "Kapazität"
 
 ```text
 BEFORE:                          AFTER:
-- Dashboard                      - Dashboard
-- Posteingang                    - Posteingang
-- Buchungen                      - Buchungen
-- Stundenplan                    - Stundenplan
-- Kunden                         - Kunden
-- Skilehrer                      - Skilehrer
-- Listen                         - Listen
-- Shop                           - Shop
-- Gutscheine                     - Gutscheine
-- Berichte                       - Berichte
-- Tagesabschluss                 - Tagesabschluss
-- Trainings           ───────>   - Trainings (with tabs inside)
-- Events                         - Events
-- Wochenplanung       (removed)
-- Kapazität           (removed)
-- Einstellungen                  - Einstellungen
+[Bearbeiten] [Kopie] [Instanzen] [Löschen]    [Bearbeiten] [Kopie] [Kapazität] [Löschen]
 ```
+
+The "Kapazität" button navigates to `/trainings/capacity?course={courseId}` to show only that course's capacity.
+
+### 2. GroupCapacityPlanning - Add Course Filter
+
+Add URL parameter support to filter capacity view to a single course when navigating from a training card.
+
+### 3. Delete Unused Files
+
+| File | Reason |
+|------|--------|
+| `src/pages/TrainingDetail.tsx` | No longer needed |
+| `src/components/trainings/TrainingInstancesView.tsx` | Replaced by Wochenplanung |
+| Route `/trainings/:id` in App.tsx | Remove |
+
+### 4. Wochenplanung - Add Notification Confirmation
+
+When changing instructor via `DailyAssignmentModal`, show confirmation dialog if participants exist (migrate feature from removed TrainingInstancesView).
 
 ---
 
-## UI Design
+## File Changes
 
-The `TrainingsLayout` will use horizontal tabs (not a vertical sidebar like Settings) since there are only 3 sub-pages:
+| Action | File | Change |
+|--------|------|--------|
+| MODIFY | `src/components/trainings/TrainingCard.tsx` | Replace "Instanzen" with "Kapazität" link |
+| MODIFY | `src/pages/Trainings.tsx` | Remove onViewInstances handler |
+| MODIFY | `src/pages/GroupCapacityPlanning.tsx` | Add course filter from URL param |
+| MODIFY | `src/components/planning/DailyAssignmentModal.tsx` | Add notification confirmation |
+| MODIFY | `src/App.tsx` | Remove `/trainings/:id` route |
+| DELETE | `src/pages/TrainingDetail.tsx` | Unused |
+| DELETE | `src/components/trainings/TrainingInstancesView.tsx` | Replaced by Wochenplanung |
+
+---
+
+## Updated User Flow
 
 ```text
-+----------------------------------------------------------+
-| Trainings                                    [+ Neues...] |
-| Verwalte Gruppenkurse, Lehrerzuweisungen und Kapazität   |
-+----------------------------------------------------------+
-| [Kurse]  [Wochenplanung]  [Kapazität]                    |
-+----------------------------------------------------------+
-|                                                          |
-|  (Tab content renders here)                              |
-|                                                          |
-+----------------------------------------------------------+
+Trainings Page:
+┌─────────────────────────────────────────────────────────┐
+│ [Kurse]  [Wochenplanung]  [Kapazität]                   │
+├─────────────────────────────────────────────────────────┤
+│                                                         │
+│  Kurse Tab:                                             │
+│  ┌─────────────────────┐  ┌─────────────────────┐      │
+│  │ Blue Prince         │  │ Blue King           │      │
+│  │ 5-7 J. • Mo-Fr     │  │ 6-8 J. • Mo-Fr     │      │
+│  │ [Bearbeiten][Kapazität][Löschen]            │      │
+│  └─────────────────────┘  └─────────────────────┘      │
+│                                                         │
+│  Wochenplanung Tab:                                     │
+│  → Assign instructors to all courses for the week      │
+│  → Bulk assign, copy from previous week                │
+│                                                         │
+│  Kapazität Tab:                                         │
+│  → Split/merge groups, add assistants                  │
+│  → Can be filtered to single course via card link      │
+│                                                         │
+└─────────────────────────────────────────────────────────┘
 ```
-
-### Tab Behavior
-- Active tab highlighted
-- URL-based routing (tabs change route)
-- Each tab shows its own action button in the header
-
----
-
-## Technical Summary
-
-### Create
-- `src/components/trainings/TrainingsLayout.tsx`
-
-### Modify
-- `src/components/layout/AppSidebar.tsx` - remove 2 items
-- `src/pages/Trainings.tsx` - add TrainingsLayout wrapper
-- `src/pages/GroupCoursePlanning.tsx` - add TrainingsLayout wrapper  
-- `src/pages/GroupCapacityPlanning.tsx` - add TrainingsLayout wrapper
 
 ---
 
 ## Benefits
 
-1. **Cleaner sidebar** - 2 fewer items, less visual clutter
-2. **Consistent pattern** - matches how Settings works
-3. **Logical grouping** - all training features in one place
-4. **Easier navigation** - users find related features together
-5. **Routes unchanged** - no breaking changes to bookmarks/links
+1. **No redundancy** - One place for instructor assignment (Wochenplanung)
+2. **Direct access** - Each course card links directly to its capacity management
+3. **Simpler mental model** - Kurse = templates, Wochenplanung = assignments, Kapazität = group management
+4. **Less code** - 2 files deleted, fewer routes to maintain
 
