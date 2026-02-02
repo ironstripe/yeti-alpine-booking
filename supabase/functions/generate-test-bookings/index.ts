@@ -11,12 +11,14 @@ interface GenerateRequest {
   daysSpread: number;
 }
 
+// Time slots with realistic distribution:
+// 35% Morning 09:00-11:00, 25% Morning 10:00-12:00, 25% Afternoon 14:00-16:00, 15% Half-day
 const TIME_SLOTS = [
-  { start: "09:00", end: "11:00", type: "morning" },
-  { start: "10:00", end: "12:00", type: "morning" },
-  { start: "14:00", end: "16:00", type: "afternoon" },
-  { start: "09:00", end: "12:00", type: "half-day-morning" },
-  { start: "13:00", end: "16:00", type: "half-day-afternoon" },
+  { start: "09:00", end: "11:00", type: "morning-early", weight: 0.35 },
+  { start: "10:00", end: "12:00", type: "morning-late", weight: 0.25 },
+  { start: "14:00", end: "16:00", type: "afternoon", weight: 0.25 },
+  { start: "09:00", end: "12:00", type: "half-day-morning", weight: 0.075 },
+  { start: "13:00", end: "16:00", type: "half-day-afternoon", weight: 0.075 },
 ];
 
 function randomElement<T>(arr: T[]): T {
@@ -31,16 +33,14 @@ function addDays(date: Date, days: number): string {
 
 function getRandomTimeSlot() {
   const rand = Math.random();
-  if (rand < 0.4) {
-    // Morning slots
-    return randomElement(TIME_SLOTS.filter(s => s.type === "morning"));
-  } else if (rand < 0.8) {
-    // Afternoon slot
-    return TIME_SLOTS.find(s => s.type === "afternoon")!;
-  } else {
-    // Half day
-    return randomElement(TIME_SLOTS.filter(s => s.type.startsWith("half-day")));
+  let cumulative = 0;
+  for (const slot of TIME_SLOTS) {
+    cumulative += slot.weight;
+    if (rand < cumulative) {
+      return slot;
+    }
   }
+  return TIME_SLOTS[0]; // Fallback
 }
 
 function calculatePrice(startTime: string, endTime: string): number {
@@ -89,22 +89,34 @@ Deno.serve(async (req) => {
     const startDateObj = new Date(startDate);
     
     // Fetch reference data
-    const [instructorsRes, customersRes, participantsRes, productsRes] = await Promise.all([
+    const [instructorsRes, customersRes, participantsRes, productsRes, groupInstructorsRes] = await Promise.all([
       supabase.from("instructors").select("id, first_name, last_name").eq("status", "active"),
       supabase.from("customers").select("id, first_name, last_name, email"),
       supabase.from("customer_participants").select("id, customer_id, first_name"),
-      // NOTE: In our schema the column is `products.type` (e.g. "private" | "group"), not `product_type`.
       supabase.from("products").select("id, name, type, price").eq("is_active", true),
+      // Get instructors assigned to training groups (group course teachers)
+      supabase.from("training_groups").select("instructor_id").not("instructor_id", "is", null),
     ]);
 
     console.log("Instructors query:", { data: instructorsRes.data?.length, error: instructorsRes.error });
     console.log("Customers query:", { data: customersRes.data?.length, error: customersRes.error });
     console.log("Products query:", { data: productsRes.data?.length, error: productsRes.error });
+    console.log("Group instructors query:", { data: groupInstructorsRes.data?.length, error: groupInstructorsRes.error });
 
-    const instructors = instructorsRes.data || [];
+    const allInstructors = instructorsRes.data || [];
     const customers = customersRes.data || [];
     const participants = participantsRes.data || [];
     const products = productsRes.data || [];
+    
+    // Build set of instructor IDs assigned to group courses
+    const groupInstructorIds = new Set(
+      (groupInstructorsRes.data || []).map(g => g.instructor_id)
+    );
+    
+    // Filter out group course instructors - only ~20 remaining for private lessons
+    const instructors = allInstructors.filter(i => !groupInstructorIds.has(i.id));
+    
+    console.log("Private lesson instructor pool:", instructors.length, "of", allInstructors.length, "total");
 
     if (instructors.length === 0 || customers.length === 0 || products.length === 0) {
       console.log("Missing data - instructors:", instructors.length, "customers:", customers.length, "products:", products.length);
@@ -112,7 +124,9 @@ Deno.serve(async (req) => {
         JSON.stringify({ 
           error: "Not enough reference data (instructors, customers, or products)",
           debug: {
-            instructors: instructors.length,
+            totalInstructors: allInstructors.length,
+            privateInstructors: instructors.length,
+            groupInstructors: groupInstructorIds.size,
             customers: customers.length,
             products: products.length,
             instructorsError: instructorsRes.error,
@@ -124,9 +138,8 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Filter products
+    // Only use private products - group enrollments handled separately
     const privateProducts = products.filter((p) => p.type === "private");
-    const groupProducts = products.filter((p) => p.type === "group");
     
     const createdTickets: string[] = [];
     const createdItems: string[] = [];
@@ -135,15 +148,11 @@ Deno.serve(async (req) => {
       const customer = randomElement(customers);
       const customerParticipants = participants.filter(p => p.customer_id === customer.id);
       
-      // Determine product type: 70% private 2h, 20% private 1h, 10% group
-      const rand = Math.random();
-      let product = privateProducts.length > 0 
+      // Private lessons only - 60% 2h, 25% 1h, 15% half-day (3h)
+      // Time slot selection already handles duration distribution
+      const product = privateProducts.length > 0 
         ? randomElement(privateProducts) 
         : randomElement(products);
-      
-      if (rand > 0.9 && groupProducts.length > 0) {
-        product = randomElement(groupProducts);
-      }
 
       // Random date within spread
       const dayOffset = Math.floor(Math.random() * daysSpread);
