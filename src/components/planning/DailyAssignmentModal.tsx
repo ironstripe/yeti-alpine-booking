@@ -113,14 +113,14 @@ export function DailyAssignmentModal({
                   {/* Instructor selects */}
                   <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <Select
-                      value={instance.instructorId || ''}
-                      onValueChange={(v) => handleInstanceAssign(instance.id, v, false)}
+                      value={instance.instructorId || 'none'}
+                      onValueChange={(v) => handleInstanceAssign(instance.id, v === 'none' ? '' : v, false)}
                     >
                       <SelectTrigger className="h-9">
                         <SelectValue placeholder="Lehrer wählen..." />
                       </SelectTrigger>
                       <SelectContent className="bg-popover">
-                        <SelectItem value="">Nicht zugewiesen</SelectItem>
+                        <SelectItem value="none">Nicht zugewiesen</SelectItem>
                         {instructors.map(i => (
                           <SelectItem key={i.id} value={i.id}>
                             {i.first_name} {i.last_name}
@@ -130,14 +130,14 @@ export function DailyAssignmentModal({
                     </Select>
 
                     <Select
-                      value={instance.assistantId || ''}
-                      onValueChange={(v) => handleInstanceAssign(instance.id, v, true)}
+                      value={instance.assistantId || 'none'}
+                      onValueChange={(v) => handleInstanceAssign(instance.id, v === 'none' ? '' : v, true)}
                     >
                       <SelectTrigger className="h-9">
                         <SelectValue placeholder="Hilfskraft..." />
                       </SelectTrigger>
                       <SelectContent className="bg-popover">
-                        <SelectItem value="">Keine</SelectItem>
+                        <SelectItem value="none">Keine</SelectItem>
                         {instructors
                           .filter(i => i.id !== instance.instructorId)
                           .map(i => (

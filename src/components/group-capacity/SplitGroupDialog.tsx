@@ -266,13 +266,13 @@ export function SplitGroupDialog({
                       className="font-semibold"
                     />
                     <Select
-                      value={splitGroup.instructorId || ''}
+                      value={splitGroup.instructorId || 'none'}
                       onValueChange={(value) => {
                         setSplitGroups(prev => {
                           const newGroups = [...prev];
                           newGroups[groupIndex] = { 
                             ...newGroups[groupIndex], 
-                            instructorId: value || null 
+                            instructorId: value === 'none' ? null : value 
                           };
                           return newGroups;
                         });
@@ -282,7 +282,7 @@ export function SplitGroupDialog({
                         <SelectValue placeholder="Lehrer wählen..." />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">Kein Lehrer</SelectItem>
+                        <SelectItem value="none">Kein Lehrer</SelectItem>
                         {instructors.map(instructor => (
                           <SelectItem key={instructor.id} value={instructor.id}>
                             {instructor.first_name} {instructor.last_name}
