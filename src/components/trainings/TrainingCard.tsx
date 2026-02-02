@@ -164,17 +164,13 @@ export function TrainingCard({ course, onEdit, onCopy, onViewCapacity, onDelete 
           </div>
         )}
 
-        {/* Product - not for office */}
-        {!isOfficeCourse && (
+        {/* Warning if no product linked - not for office */}
+        {!isOfficeCourse && !hasLinkedProduct && (
           <div className="text-sm">
-            {hasLinkedProduct ? (
-              <span className="font-medium">{course.product!.name}</span>
-            ) : (
-              <span className="text-amber-600 flex items-center gap-1">
-                <AlertTriangle className="h-3 w-3" />
-                Kein Produkt verknüpft
-              </span>
-            )}
+            <span className="text-amber-600 flex items-center gap-1">
+              <AlertTriangle className="h-3 w-3" />
+              Kein Produkt verknüpft
+            </span>
           </div>
         )}
 
