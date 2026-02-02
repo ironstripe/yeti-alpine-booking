@@ -19,6 +19,7 @@ import {
   BarChart3,
   Settings,
   Trophy,
+  Users2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -42,6 +43,7 @@ const navItems = [
   { title: "Trainings", url: "/trainings", icon: GraduationCap },
   { title: "Events", url: "/events", icon: Trophy },
   { title: "Wochenplanung", url: "/trainings/planning", icon: LayoutGrid },
+  { title: "Kapazität", url: "/trainings/capacity", icon: Users2 },
   { title: "Einstellungen", url: "/settings", icon: Settings },
 ];
 
