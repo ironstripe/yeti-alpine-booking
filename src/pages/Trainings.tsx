@@ -1,6 +1,5 @@
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { PageHeader } from '@/components/layout';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -9,6 +8,7 @@ import { TrainingCard } from '@/components/trainings/TrainingCard';
 import { TrainingFormModal } from '@/components/trainings/TrainingFormModal';
 import { TrainingsFilters } from '@/components/trainings/TrainingsFilters';
 import { TrainingsEmptyState } from '@/components/trainings/TrainingsEmptyState';
+import { TrainingsLayout } from '@/components/trainings/TrainingsLayout';
 import { useGroupCourses, useDeleteGroupCourse } from '@/hooks/useGroupCourses';
 import { useConfirmDialog } from '@/components/ui/confirm-dialog';
 import { toast } from '@/hooks/use-toast';
@@ -117,20 +117,14 @@ const Trainings = () => {
   };
 
   return (
-    <>
-      <PageHeader
-        title="Trainings"
-        description={category === 'courses' 
-          ? "Verwalte Gruppenkurse für Kunden. Jedes Training definiert ein Niveau."
-          : "Verwalte interne Schichten und Bürobesetzung."
-        }
-        actions={
-          <Button size="sm" onClick={handleCreateClick}>
-            <Plus className="h-4 w-4 mr-2" />
-            {category === 'internal' ? 'Neue Schicht' : 'Neues Training'}
-          </Button>
-        }
-      />
+    <TrainingsLayout
+      actions={
+        <Button size="sm" onClick={handleCreateClick}>
+          <Plus className="h-4 w-4 mr-2" />
+          {category === 'internal' ? 'Neue Schicht' : 'Neues Training'}
+        </Button>
+      }
+    >
 
       {/* Category Tabs */}
       <Tabs value={category} onValueChange={(v) => setCategory(v as 'courses' | 'internal')} className="mb-4">
@@ -185,7 +179,7 @@ const Trainings = () => {
       />
 
       {dialog}
-    </>
+    </TrainingsLayout>
   );
 };
 
