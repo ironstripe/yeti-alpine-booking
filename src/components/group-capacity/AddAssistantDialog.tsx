@@ -104,12 +104,15 @@ export function AddAssistantDialog({
 
           <div>
             <Label className="mb-2 block">Hilfslehrer</Label>
-            <Select value={assistantId} onValueChange={setAssistantId}>
+            <Select 
+              value={assistantId || "none"} 
+              onValueChange={(v) => setAssistantId(v === "none" ? "" : v)}
+            >
               <SelectTrigger>
                 <SelectValue placeholder="Hilfslehrer wählen..." />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Kein Hilfslehrer</SelectItem>
+                <SelectItem value="none">Kein Hilfslehrer</SelectItem>
                 {availableInstructors.map(instructor => (
                   <SelectItem key={instructor.id} value={instructor.id}>
                     {instructor.first_name} {instructor.last_name}

@@ -173,12 +173,15 @@ export function GroupPlanningCourseCard({
 
           <div className="space-y-1.5">
             <Label className="text-xs text-muted-foreground">Hilfskraft</Label>
-            <Select value={selectedAssistant} onValueChange={setSelectedAssistant}>
+            <Select 
+              value={selectedAssistant || "none"} 
+              onValueChange={(v) => setSelectedAssistant(v === "none" ? "" : v)}
+            >
               <SelectTrigger className="h-9">
                 <SelectValue placeholder="(keine)" />
               </SelectTrigger>
               <SelectContent className="bg-popover">
-                <SelectItem value="">Keine</SelectItem>
+                <SelectItem value="none">Keine</SelectItem>
                 {instructors
                   .filter(i => i.id !== selectedInstructor)
                   .map(i => (

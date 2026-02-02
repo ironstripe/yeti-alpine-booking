@@ -219,12 +219,15 @@ export function MergeGroupsDialog({
             {/* Instructor */}
             <div>
               <Label className="mb-2 block">Lehrer</Label>
-              <Select value={instructorId} onValueChange={setInstructorId}>
+              <Select 
+                value={instructorId || 'none'} 
+                onValueChange={(v) => setInstructorId(v === 'none' ? '' : v)}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Lehrer wählen..." />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Kein Lehrer</SelectItem>
+                  <SelectItem value="none">Kein Lehrer</SelectItem>
                   {instructors.map(instructor => (
                     <SelectItem key={instructor.id} value={instructor.id}>
                       {instructor.first_name} {instructor.last_name}
