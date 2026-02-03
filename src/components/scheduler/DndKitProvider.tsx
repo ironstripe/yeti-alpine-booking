@@ -1,4 +1,4 @@
-import { ReactNode, useState, useCallback } from "react";
+import { ReactNode, useState, useCallback, useMemo } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -14,6 +14,7 @@ import {
 import { toast } from "sonner";
 import type { SchedulerBooking } from "@/lib/scheduler-utils";
 import { cn } from "@/lib/utils";
+import { DndKitDragContext } from "@/contexts/DndKitDragContext";
 
 interface DndKitProviderProps {
   children: ReactNode;
@@ -97,16 +98,21 @@ export function DndKitProvider({ children, onBookingDrop }: DndKitProviderProps)
     setLastInvalidAttempt(null);
   }, []);
 
+  const contextValue = useMemo(() => ({
+    activeDragBookingId: activeBooking?.id ?? null,
+  }), [activeBooking?.id]);
+
   return (
-    <DndContext
-      sensors={sensors}
-      collisionDetection={closestCenter}
-      onDragStart={handleDragStart}
-      onDragOver={handleDragOver}
-      onDragEnd={handleDragEnd}
-      onDragCancel={handleDragCancel}
-    >
-      {children}
+    <DndKitDragContext.Provider value={contextValue}>
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragStart={handleDragStart}
+        onDragOver={handleDragOver}
+        onDragEnd={handleDragEnd}
+        onDragCancel={handleDragCancel}
+      >
+        {children}
 
       {/* Drag Overlay - renders dragged item outside of normal flow */}
       <DragOverlay dropAnimation={{ duration: 200, easing: "ease-out" }}>
@@ -130,7 +136,8 @@ export function DndKitProvider({ children, onBookingDrop }: DndKitProviderProps)
           </div>
         )}
       </DragOverlay>
-    </DndContext>
+      </DndContext>
+    </DndKitDragContext.Provider>
   );
 }
 
