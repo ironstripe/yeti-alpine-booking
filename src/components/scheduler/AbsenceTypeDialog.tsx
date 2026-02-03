@@ -123,7 +123,7 @@ export function AbsenceTypeDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-md max-h-[85vh] flex flex-col">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             {willBePending ? (
@@ -141,184 +141,186 @@ export function AbsenceTypeDialog({
           </DialogDescription>
         </DialogHeader>
 
-        {/* Teacher Not Creating For Self Warning */}
-        {!canCreateAbsence && (
-          <Alert variant="destructive">
-            <AlertTriangle className="h-4 w-4" />
-            <AlertTitle>Keine Berechtigung</AlertTitle>
-            <AlertDescription>
-              Du kannst nur Abwesenheiten für dich selbst beantragen.
-            </AlertDescription>
-          </Alert>
-        )}
+        <div className="flex-1 overflow-y-auto space-y-4 py-2">
+          {/* Teacher Not Creating For Self Warning */}
+          {!canCreateAbsence && (
+            <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertTitle>Keine Berechtigung</AlertTitle>
+              <AlertDescription>
+                Du kannst nur Abwesenheiten für dich selbst beantragen.
+              </AlertDescription>
+            </Alert>
+          )}
 
-        {/* Conflict Warning */}
-        {hasConflicts && (
-          <Alert variant="destructive">
-            <AlertTriangle className="h-4 w-4" />
-            <AlertTitle>Konflikt mit bestehenden Buchungen</AlertTitle>
-            <AlertDescription className="mt-2">
-              <p className="mb-2">
-                Es gibt {conflicts.length} Buchung(en) im ausgewählten Zeitraum. 
-                Diese müssen zuerst verschoben werden:
-              </p>
-              <ul className="list-disc list-inside space-y-1 text-sm">
-                {conflicts.slice(0, 3).map((booking) => (
-                  <li key={booking.id}>
-                    {booking.date}: {booking.timeStart} - {booking.timeEnd}
-                    {booking.participantName && ` (${booking.participantName})`}
-                  </li>
-                ))}
-                {conflicts.length > 3 && (
-                  <li>...und {conflicts.length - 3} weitere</li>
-                )}
-              </ul>
-            </AlertDescription>
-          </Alert>
-        )}
+          {/* Conflict Warning */}
+          {hasConflicts && (
+            <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertTitle>Konflikt mit bestehenden Buchungen</AlertTitle>
+              <AlertDescription className="mt-2">
+                <p className="mb-2">
+                  Es gibt {conflicts.length} Buchung(en) im ausgewählten Zeitraum. 
+                  Diese müssen zuerst verschoben werden:
+                </p>
+                <ul className="list-disc list-inside space-y-1 text-sm">
+                  {conflicts.slice(0, 3).map((booking) => (
+                    <li key={booking.id}>
+                      {booking.date}: {booking.timeStart} - {booking.timeEnd}
+                      {booking.participantName && ` (${booking.participantName})`}
+                    </li>
+                  ))}
+                  {conflicts.length > 3 && (
+                    <li>...und {conflicts.length - 3} weitere</li>
+                  )}
+                </ul>
+              </AlertDescription>
+            </Alert>
+          )}
 
-        {/* Pending Info Banner */}
-        {willBePending && canCreateAbsence && !hasConflicts && (
-          <Alert className="border-amber-500/30 bg-amber-500/10">
-            <Clock className="h-4 w-4 text-amber-500" />
-            <AlertTitle className="text-amber-600">Antrag erforderlich</AlertTitle>
-            <AlertDescription className="text-amber-600/80">
-              Deine Abwesenheit wird als Antrag eingereicht und muss vom Büro genehmigt werden.
-            </AlertDescription>
-          </Alert>
-        )}
+          {/* Pending Info Banner */}
+          {willBePending && canCreateAbsence && !hasConflicts && (
+            <Alert className="border-amber-500/30 bg-amber-500/10">
+              <Clock className="h-4 w-4 text-amber-500" />
+              <AlertTitle className="text-amber-600">Antrag erforderlich</AlertTitle>
+              <AlertDescription className="text-amber-600/80">
+                Deine Abwesenheit wird als Antrag eingereicht und muss vom Büro genehmigt werden.
+              </AlertDescription>
+            </Alert>
+          )}
 
-        {/* Selection Summary */}
-        <div className="flex items-center gap-2 p-3 bg-muted rounded-md">
-          <Calendar className="h-4 w-4 text-muted-foreground" />
-          <span className="text-sm">
-            {state.selections.length} Zeitfenster ausgewählt
-          </span>
-        </div>
+          {/* Selection Summary */}
+          <div className="flex items-center gap-2 p-3 bg-muted rounded-md">
+            <Calendar className="h-4 w-4 text-muted-foreground" />
+            <span className="text-sm">
+              {state.selections.length} Zeitfenster ausgewählt
+            </span>
+          </div>
 
-        {/* Absence Type Selection */}
-        <div className="space-y-3">
-          <Label>Art der Abwesenheit</Label>
-          <RadioGroup
-            value={selectedType}
-            onValueChange={(value) => setSelectedType(value as AbsenceType)}
-            className="space-y-2"
-          >
-            {Object.entries(ABSENCE_TYPES).map(([key, { label, description }]) => (
-              <label
-                key={key}
-                className={cn(
-                  "flex items-start gap-3 p-3 rounded-md border cursor-pointer",
-                  "hover:bg-muted/50 transition-colors",
-                  selectedType === key && "border-primary bg-primary/5"
-                )}
-              >
-                <RadioGroupItem value={key} className="mt-0.5" />
-                <div>
-                  <span className="font-medium">{label}</span>
-                  <p className="text-sm text-muted-foreground">{description}</p>
-                </div>
-              </label>
-            ))}
-          </RadioGroup>
-        </div>
+          {/* Absence Type Selection */}
+          <div className="space-y-3">
+            <Label>Art der Abwesenheit</Label>
+            <RadioGroup
+              value={selectedType}
+              onValueChange={(value) => setSelectedType(value as AbsenceType)}
+              className="space-y-2"
+            >
+              {Object.entries(ABSENCE_TYPES).map(([key, { label, description }]) => (
+                <label
+                  key={key}
+                  className={cn(
+                    "flex items-start gap-3 p-3 rounded-md border cursor-pointer",
+                    "hover:bg-muted/50 transition-colors",
+                    selectedType === key && "border-primary bg-primary/5"
+                  )}
+                >
+                  <RadioGroupItem value={key} className="mt-0.5" />
+                  <div>
+                    <span className="font-medium">{label}</span>
+                    <p className="text-sm text-muted-foreground">{description}</p>
+                  </div>
+                </label>
+              ))}
+            </RadioGroup>
+          </div>
 
-        {/* Optional Reason */}
-        <div className="space-y-2">
-          <Label htmlFor="reason">Bemerkung (optional)</Label>
-          <Textarea
-            id="reason"
-            value={reason}
-            onChange={(e) => setReason(e.target.value)}
-            placeholder="z.B. Arzttermin, Fortbildung..."
-            rows={2}
-          />
-        </div>
-
-        {/* Full Day Toggle */}
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="space-y-0.5">
-              <Label>Ganztägig</Label>
-              <p className="text-sm text-muted-foreground">
-                Gesamten Tag blockieren
-              </p>
-            </div>
-            <Switch
-              checked={isFullDay}
-              onCheckedChange={setIsFullDay}
+          {/* Optional Reason */}
+          <div className="space-y-2">
+            <Label htmlFor="reason">Bemerkung (optional)</Label>
+            <Textarea
+              id="reason"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder="z.B. Arzttermin, Fortbildung..."
+              rows={2}
             />
           </div>
-          
-          {/* Time Selection - Only show when not full day */}
-          {!isFullDay && (
-            <div className="space-y-2">
-              <Label>Zeitraum</Label>
-              <div className="flex items-center gap-2">
-                <Select value={timeStart} onValueChange={setTimeStart}>
-                  <SelectTrigger className="flex-1">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {TIME_SLOTS.slice(0, -1).map((time) => (
-                      <SelectItem key={time} value={time}>
-                        {time}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <span className="text-muted-foreground">bis</span>
-                <Select value={timeEnd} onValueChange={setTimeEnd}>
-                  <SelectTrigger className="flex-1">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {TIME_SLOTS.slice(1).map((time) => (
-                      <SelectItem 
-                        key={time} 
-                        value={time}
-                        disabled={time <= timeStart}
-                      >
-                        {time}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              {timeStart >= timeEnd && (
-                <p className="text-xs text-destructive">
-                  Endzeit muss nach Startzeit liegen
+
+          {/* Full Day Toggle */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label>Ganztägig</Label>
+                <p className="text-sm text-muted-foreground">
+                  Gesamten Tag blockieren
                 </p>
+              </div>
+              <Switch
+                checked={isFullDay}
+                onCheckedChange={setIsFullDay}
+              />
+            </div>
+            
+            {/* Time Selection - Only show when not full day */}
+            {!isFullDay && (
+              <div className="space-y-2">
+                <Label>Zeitraum</Label>
+                <div className="flex items-center gap-2">
+                  <Select value={timeStart} onValueChange={setTimeStart}>
+                    <SelectTrigger className="flex-1">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {TIME_SLOTS.slice(0, -1).map((time) => (
+                        <SelectItem key={time} value={time}>
+                          {time}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <span className="text-muted-foreground">bis</span>
+                  <Select value={timeEnd} onValueChange={setTimeEnd}>
+                    <SelectTrigger className="flex-1">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {TIME_SLOTS.slice(1).map((time) => (
+                        <SelectItem 
+                          key={time} 
+                          value={time}
+                          disabled={time <= timeStart}
+                        >
+                          {time}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                {timeStart >= timeEnd && (
+                  <p className="text-xs text-destructive">
+                    Endzeit muss nach Startzeit liegen
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Submit for Approval Toggle - Only for Admin/Office */}
+          {isAdminOrOffice && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label>Als Antrag senden</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Erfordert Genehmigung im Dashboard
+                  </p>
+                </div>
+                <Switch
+                  checked={submitForApproval}
+                  onCheckedChange={setSubmitForApproval}
+                />
+              </div>
+              {submitForApproval && (
+                <Alert className="border-amber-500/30 bg-amber-500/10">
+                  <Info className="h-4 w-4 text-amber-500" />
+                  <AlertDescription className="text-amber-600/80">
+                    Die Abwesenheit wird als Antrag eingereicht und erscheint im Dashboard zur Genehmigung.
+                  </AlertDescription>
+                </Alert>
               )}
             </div>
           )}
         </div>
-
-        {/* Submit for Approval Toggle - Only for Admin/Office */}
-        {isAdminOrOffice && (
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label>Als Antrag senden</Label>
-                <p className="text-sm text-muted-foreground">
-                  Erfordert Genehmigung im Dashboard
-                </p>
-              </div>
-              <Switch
-                checked={submitForApproval}
-                onCheckedChange={setSubmitForApproval}
-              />
-            </div>
-            {submitForApproval && (
-              <Alert className="border-amber-500/30 bg-amber-500/10">
-                <Info className="h-4 w-4 text-amber-500" />
-                <AlertDescription className="text-amber-600/80">
-                  Die Abwesenheit wird als Antrag eingereicht und erscheint im Dashboard zur Genehmigung.
-                </AlertDescription>
-              </Alert>
-            )}
-          </div>
-        )}
 
         <DialogFooter>
           <Button variant="outline" onClick={handleClose}>
