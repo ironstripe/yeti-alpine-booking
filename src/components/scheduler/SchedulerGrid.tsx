@@ -59,6 +59,8 @@ function SchedulerGridContent() {
   const [isPlanningMode, setIsPlanningMode] = useState(false);
   // NEW: Booking type filter (private/group)
   const [bookingTypeFilter, setBookingTypeFilter] = useState<string | null>(null);
+  // NEW: Sort by option
+  const [sortBy, setSortBy] = useState<string>("name");
   
   // Instructor column width with localStorage persistence
   const [instructorColumnWidth, setInstructorColumnWidth] = useState(() => {
@@ -207,7 +209,7 @@ function SchedulerGridContent() {
     return hours * 60 + (minutes || 0);
   }
 
-  // Filter instructors by role and compact mode
+  // Filter instructors by role, compact mode, and sort
   const filteredInstructors = useMemo(() => {
     let filtered = instructors;
     
@@ -225,7 +227,40 @@ function SchedulerGridContent() {
       });
     }
 
-    // Planning mode: sort available instructors first
+    // Determine effective sort: auto-sort when filter is active
+    const effectiveSort = bookingTypeFilter === "group" ? "group" : 
+                          bookingTypeFilter === "private" ? "private" : 
+                          sortBy;
+
+    // Sort by booking type
+    if (effectiveSort === "group") {
+      filtered = [...filtered].sort((a, b) => {
+        const aHasGroup = bookings.some(bk => bk.instructorId === a.id && bk.type === "group");
+        const bHasGroup = bookings.some(bk => bk.instructorId === b.id && bk.type === "group");
+        if (aHasGroup && !bHasGroup) return -1;
+        if (!aHasGroup && bHasGroup) return 1;
+        // Secondary: count of group bookings
+        const aGroupCount = bookings.filter(bk => bk.instructorId === a.id && bk.type === "group").length;
+        const bGroupCount = bookings.filter(bk => bk.instructorId === b.id && bk.type === "group").length;
+        if (bGroupCount !== aGroupCount) return bGroupCount - aGroupCount;
+        // Tertiary: alphabetical
+        return a.last_name.localeCompare(b.last_name);
+      });
+    } else if (effectiveSort === "private") {
+      filtered = [...filtered].sort((a, b) => {
+        const aHasPrivate = bookings.some(bk => bk.instructorId === a.id && bk.type === "private");
+        const bHasPrivate = bookings.some(bk => bk.instructorId === b.id && bk.type === "private");
+        if (aHasPrivate && !bHasPrivate) return -1;
+        if (!aHasPrivate && bHasPrivate) return 1;
+        const aPrivateCount = bookings.filter(bk => bk.instructorId === a.id && bk.type === "private").length;
+        const bPrivateCount = bookings.filter(bk => bk.instructorId === b.id && bk.type === "private").length;
+        if (bPrivateCount !== aPrivateCount) return bPrivateCount - aPrivateCount;
+        return a.last_name.localeCompare(b.last_name);
+      });
+    }
+    // "name" sort: keep default alphabetical order from DB query
+
+    // Planning mode: sort available instructors first (takes precedence)
     if (isPlanningMode) {
       filtered = [...filtered].sort((a, b) => {
         const aBookings = bookings.filter(book => book.instructorId === a.id).length;
@@ -242,7 +277,7 @@ function SchedulerGridContent() {
     }
     
     return filtered;
-  }, [instructors, bookings, absences, compactMode, roleFilter, isPlanningMode]);
+  }, [instructors, bookings, absences, compactMode, roleFilter, isPlanningMode, bookingTypeFilter, sortBy]);
 
   const compactStats = useMemo(() => ({
     visible: filteredInstructors.length,
@@ -463,6 +498,8 @@ function SchedulerGridContent() {
             onPlanningModeToggle={setIsPlanningMode}
             bookingTypeFilter={bookingTypeFilter}
             onBookingTypeFilterChange={setBookingTypeFilter}
+            sortBy={sortBy}
+            onSortChange={setSortBy}
           />
           {/* Admin: Show Pending Absences Button */}
           {isAdminOrOffice && <PendingAbsencesList />}
