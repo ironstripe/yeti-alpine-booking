@@ -3,6 +3,7 @@ import { useDroppable } from "@dnd-kit/core";
 import { cn } from "@/lib/utils";
 import { Plus, Ban } from "lucide-react";
 import { useSchedulerSelection } from "@/contexts/SchedulerSelectionContext";
+import { useDndKitDrag } from "@/contexts/DndKitDragContext";
 import type { SchedulerBooking, SchedulerAbsence } from "@/lib/scheduler-utils";
 
 interface EmptySlotProps {
@@ -44,18 +45,24 @@ export function EmptySlot({
     shiftClickSelect,
   } = useSchedulerSelection();
 
+  const { activeDragBookingId } = useDndKitDrag();
+
   // Check if slot is occupied by an existing booking (for drop zone validation)
+  // Excludes the booking currently being dragged to allow moving within overlapping slots
   const isOccupied = useMemo(() => {
     const slotMin = timeToMinutes(timeSlot);
     const slotEnd = slotMin + 60; // 1-hour slot
     
     return bookings.some((b) => {
+      // Skip the booking currently being dragged
+      if (b.id === activeDragBookingId) return false;
+      
       if (b.instructorId !== instructorId || b.date !== date) return false;
       const bookingStart = timeToMinutes(b.timeStart);
       const bookingEnd = timeToMinutes(b.timeEnd);
       return slotMin < bookingEnd && slotEnd > bookingStart;
     });
-  }, [bookings, instructorId, date, timeSlot]);
+  }, [bookings, instructorId, date, timeSlot, activeDragBookingId]);
 
   // Slot is invalid for drop if blocked (absence) OR occupied (booking)
   const isInvalidDropZone = isBlocked || isOccupied;
