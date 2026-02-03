@@ -5,6 +5,7 @@ import {
   useState,
   useCallback,
   useMemo,
+  useRef,
   ReactNode,
 } from "react";
 import { User, Session, AuthChangeEvent } from "@supabase/supabase-js";
@@ -26,47 +27,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
-  const [initialized, setInitialized] = useState(false);
+  
+  // Use ref instead of state to avoid effect re-runs
+  const initializedRef = useRef(false);
 
   useEffect(() => {
     // Prevent double initialization in StrictMode
-    if (initialized) return;
+    if (initializedRef.current) return;
+    initializedRef.current = true;
     
     let mounted = true;
 
-    const initializeAuth = async () => {
-      try {
-        // Get initial session first
-        const { data: { session: initialSession } } = await supabase.auth.getSession();
-        
-        if (mounted) {
-          if (initialSession) {
-            // Validate session is not expired
-            const expiresAt = initialSession.expires_at ? initialSession.expires_at * 1000 : 0;
-            const isExpired = expiresAt < Date.now() + 30000; // 30s buffer
-            
-            if (!isExpired) {
-              setSession(initialSession);
-              setUser(initialSession.user);
-            }
-          }
-          setLoading(false);
-          setInitialized(true);
-        }
-      } catch (error) {
-        console.error("Auth initialization error:", error);
-        if (mounted) {
-          setLoading(false);
-          setInitialized(true);
-        }
-      }
-    };
-
-    // Set up auth state listener
+    // Set up auth state listener FIRST (before getSession)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event: AuthChangeEvent, newSession: Session | null) => {
-        // Only update on meaningful events
         if (!mounted) return;
+        
+        console.log("Auth event:", event); // Debug logging
         
         switch (event) {
           case "SIGNED_IN":
@@ -83,33 +60,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           case "USER_UPDATED":
             setUser(newSession?.user ?? null);
             break;
-          // Ignore INITIAL_SESSION - we handle it in initializeAuth
           case "INITIAL_SESSION":
-            // Only process if not yet initialized
-            if (!initialized && mounted) {
-              if (newSession) {
-                const expiresAt = newSession.expires_at ? newSession.expires_at * 1000 : 0;
-                const isExpired = expiresAt < Date.now() + 30000;
-                if (!isExpired) {
-                  setSession(newSession);
-                  setUser(newSession.user);
-                }
-              }
-              setLoading(false);
-              setInitialized(true);
+            if (newSession) {
+              setSession(newSession);
+              setUser(newSession.user);
             }
+            setLoading(false);
             break;
         }
       }
     );
 
-    initializeAuth();
+    // Get initial session
+    supabase.auth.getSession().then(({ data: { session: initialSession } }) => {
+      if (mounted && initialSession) {
+        setSession(initialSession);
+        setUser(initialSession.user);
+      }
+      if (mounted) {
+        setLoading(false);
+      }
+    });
 
     return () => {
       mounted = false;
       subscription.unsubscribe();
     };
-  }, [initialized]);
+  }, []); // Empty dependency array - run once only
 
   // Memoize all auth functions to prevent re-renders
   const signIn = useCallback(async (email: string, password: string) => {
