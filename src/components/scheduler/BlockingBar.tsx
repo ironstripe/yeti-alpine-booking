@@ -42,9 +42,11 @@ export function BlockingBar({ absence, slotWidth }: BlockingBarProps) {
 
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    // Don't open dialog for recurring blocks (they're expanded from rules)
+    // For recurring blocks, navigate to instructor page with recurring tab focused
     if (absence.id.startsWith("recurring-")) {
-      navigate(`/instructors/${absence.instructorId}?absences=open`);
+      // Extract the actual block ID from the expanded absence ID (format: recurring-{blockId}-{date})
+      const blockId = absence.id.split("-")[1];
+      navigate(`/instructors/${absence.instructorId}?tab=recurring&blockId=${blockId}`);
     } else {
       setIsDetailOpen(true);
     }
