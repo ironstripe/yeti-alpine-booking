@@ -1,176 +1,127 @@
 
-# Extend Test Data Generator for Group Course Bookings
+# Fix Test Data Generator Timeout Issue
 
-## Overview
+## Problem
 
-Extend the existing test data generator to create group course enrollments with various capacity scenarios for testing the Group Capacity Planning feature.
+The edge function times out (default 60s limit) when generating group course data because it makes too many sequential database operations:
+- 8 weeks × 11 courses × ~10 participants = ~880 enrollments
+- Each enrollment requires ~6 sequential DB calls
+- Total: 5,000+ individual database operations
 
-## Data Model Understanding
+## Solution
 
-The group course enrollment chain is:
-```
-group_courses (templates)
-    -> training_groups (weekly instances per course)
-    -> group_course_instances (specific day/time slots)
-    -> group_course_enrollments (participant links)
-        -> ticket_items -> tickets -> customers
-        -> customer_participants (children)
-```
-
-Key tables:
-- `group_courses`: Contains `max_participants`, `min_participants` (nullable, default ~4), `price_per_day`
-- `training_groups`: `course_id`, `week_start`, `group_number`, `instructor_id`
-- `group_course_enrollments`: Links `instance_id`, `ticket_item_id`, `participant_id`, `training_group_id`
+Optimize the edge function with batch operations and reduce sequential queries.
 
 ## Implementation
 
-### Part 1: UI Component Changes (`src/components/settings/TestDataGenerator.tsx`)
+### File: `supabase/functions/generate-test-bookings/index.ts`
 
-**Add State Variables:**
+**Key Optimizations:**
+
+1. **Pre-generate ticket numbers** in batch instead of per-enrollment
+2. **Batch insert customers, participants, tickets, and enrollments** per course
+3. **Reuse existing customers more aggressively** (increase reuse rate from 30% to 70%)
+4. **Process courses in parallel** within each week using `Promise.all`
+5. **Reduce the default weeks** from 8 to 4 for faster generation
+
+### Changes:
+
+**1. Add batch insert helper:**
 ```typescript
-const [generateGroupCourses, setGenerateGroupCourses] = useState(true);
-const [weeksToGenerate, setWeeksToGenerate] = useState(8);
-const [includeCapacityScenarios, setIncludeCapacityScenarios] = useState(true);
-```
-
-**Add UI Section (after private lesson settings):**
-- Checkbox: "Gruppenkurs-Buchungen generieren"
-- Number input: "Wochen generieren" (1-12, default 8)
-- Checkbox: "Kapazitäts-Szenarien einschliessen"
-- Info text explaining the distribution
-
-**Update Result Interface:**
-```typescript
-interface GenerationResult {
-  success: boolean;
-  created?: {
-    tickets: number;
-    items: number;
-  };
-  dateRange?: { start: string; end: string };
-  error?: string;
-  // NEW
-  groupCourses?: {
-    trainingGroups: number;
-    enrollments: number;
-    customersCreated: number;
-  };
+async function batchInsert(supabase: any, table: string, records: any[]): Promise<any[]> {
+  if (records.length === 0) return [];
+  
+  // Insert in chunks of 50 to avoid payload limits
+  const results: any[] = [];
+  for (let i = 0; i < records.length; i += 50) {
+    const chunk = records.slice(i, i + 50);
+    const { data, error } = await supabase
+      .from(table)
+      .insert(chunk)
+      .select();
+    
+    if (error) throw error;
+    results.push(...(data || []));
+  }
+  return results;
 }
 ```
 
-**Update API Call:** Pass new parameters to edge function
-
-**Update Result Display:** Show group course generation stats
-
-### Part 2: Edge Function Changes (`supabase/functions/generate-test-bookings/index.ts`)
-
-**Update Request Interface:**
+**2. Pre-fetch more customers for reuse:**
 ```typescript
-interface GenerateRequest {
-  startDate: string;
-  bookingCount: number;
-  daysSpread: number;
-  generateGroupCourses?: boolean;
-  weeksToGenerate?: number;
-  includeCapacityScenarios?: boolean;
+// Fetch up to 200 existing customers for reuse
+const { data: existingCustomers } = await supabase
+  .from("customers")
+  .select("id, last_name")
+  .limit(200);
+
+// 70% reuse existing, 30% create new (inverted from before)
+```
+
+**3. Pre-generate ticket numbers:**
+```typescript
+async function generateTicketNumbers(supabase: any, count: number): Promise<string[]> {
+  const year = new Date().getFullYear();
+  const { data } = await supabase
+    .from("tickets")
+    .select("ticket_number")
+    .like("ticket_number", `YETY-${year}-%`)
+    .order("ticket_number", { ascending: false })
+    .limit(1);
+
+  let nextNumber = 1;
+  if (data && data.length > 0) {
+    const match = data[0].ticket_number.match(/YETY-\d{4}-(\d+)/);
+    if (match) nextNumber = parseInt(match[1], 10) + 1;
+  }
+
+  return Array.from({ length: count }, (_, i) => 
+    `YETY-${year}-${(nextNumber + i).toString().padStart(5, "0")}`
+  );
 }
 ```
 
-**Add Group Course Generation Logic:**
-
-1. **Fetch active group courses** (weekly type only, `course_type = 'weekly'`)
-2. **For each week in range:**
-   - Calculate Monday of that week
-   - Create training_group for each active course
-   - Determine participant count based on scenario:
-     - 50% OK (between min and max)
-     - 20% Overbooked (+4 to +12 over max)
-     - 20% Underbooked (1 to min-1)
-     - 10% Empty (0 participants)
-3. **For each enrollment:**
-   - Create/reuse customer
-   - Create customer_participant (child with Swiss/German name)
-   - Create ticket with group product
-   - Create ticket_item linked to a group course instance
-   - Create enrollment linking everything
-
-**Helper Functions to Add:**
-
+**4. Batch enrollment creation per course:**
 ```typescript
-// Scenario selection
-function getRandomScenario(): 'ok' | 'overbooked' | 'underbooked' | 'empty'
+// Collect all data for a course, then batch insert
+const customersToCreate: any[] = [];
+const participantsToCreate: any[] = [];
+const ticketsToCreate: any[] = [];
+const ticketItemsToCreate: any[] = [];
+const enrollmentsToCreate: any[] = [];
 
-// Get Monday of week
-function getMonday(date: Date): string
+// Pre-generate ticket numbers for all enrollments in this course
+const ticketNumbers = await generateTicketNumbers(supabase, targetParticipants);
 
-// Random Swiss/German child names
-function getRandomChildFirstName(): string
-function getRandomSwissLastName(): string
+for (let i = 0; i < targetParticipants; i++) {
+  // Build records without inserting yet
+  // ... 
+}
 
-// Random birthdate for children (4-14 years old)
-function getRandomChildBirthDate(): string
-
-// Get or create test customer
-async function getOrCreateTestCustomer(supabase: any): Promise<Customer>
-
-// Main group course generator
-async function generateGroupCourseData(
-  supabase: any,
-  startDate: Date,
-  weeks: number,
-  includeScenarios: boolean
-): Promise<GroupCourseResult>
+// Batch inserts
+const customers = await batchInsert(supabase, 'customers', customersToCreate);
+const participants = await batchInsert(supabase, 'customer_participants', participantsToCreate);
+const tickets = await batchInsert(supabase, 'tickets', ticketsToCreate);
+const ticketItems = await batchInsert(supabase, 'ticket_items', ticketItemsToCreate);
+await batchInsert(supabase, 'group_course_enrollments', enrollmentsToCreate);
 ```
 
-**Name Lists (Swiss/German):**
+**5. Update UI default:**
 ```typescript
-const CHILD_FIRST_NAMES = [
-  'Emma', 'Mia', 'Sofia', 'Anna', 'Lena', 'Laura', 'Julia', 'Sara',
-  'Noah', 'Liam', 'Leon', 'Lucas', 'Felix', 'Tim', 'Max', 'Paul',
-  'Leonie', 'Nina', 'Lara', 'Elena', 'Emilia', 'Valentina',
-  'David', 'Jan', 'Lukas', 'Nico', 'Julian', 'Finn'
-];
-
-const SWISS_LAST_NAMES = [
-  'Müller', 'Meier', 'Schmid', 'Keller', 'Weber', 'Huber', 'Schneider',
-  'Meyer', 'Steiner', 'Fischer', 'Gerber', 'Brunner', 'Baumann', 'Frei',
-  'Moser', 'Widmer', 'Wyss', 'Graf', 'Roth', 'Bühler'
-];
-```
-
-### Part 3: Full Generation Flow for One Enrollment
-
-```
-1. Select random customer (or create new)
-2. Create customer_participant:
-   - first_name: random from CHILD_FIRST_NAMES
-   - last_name: customer's last name
-   - birth_date: random 4-14 years ago
-3. Find group_course_instance for the course/week
-4. Create ticket:
-   - customer_id, status: 'confirmed'
-   - total_amount: course.price_per_day * 5 (week)
-   - paid_amount: 70% paid, 30% pending
-5. Create ticket_item:
-   - ticket_id, product_id: course.product_id
-   - participant_id, date, time_start, time_end
-6. Create group_course_enrollment:
-   - instance_id, ticket_item_id, participant_id
-   - training_group_id, attendance_status: 'registered'
+// In TestDataGenerator.tsx
+const [weeksToGenerate, setWeeksToGenerate] = useState(4); // Changed from 8
 ```
 
 ## Changes Summary
 
-| File | Changes |
-|------|---------|
-| `TestDataGenerator.tsx` | Add group course UI options, update result display |
-| `generate-test-bookings/index.ts` | Add group course generation logic, helper functions |
+| File | Change |
+|------|--------|
+| `generate-test-bookings/index.ts` | Add batch operations, pre-generate ticket numbers, optimize customer reuse |
+| `TestDataGenerator.tsx` | Reduce default weeks from 8 to 4 |
 
 ## Technical Notes
 
-- Uses existing `group_course_instances` - requires instances to exist for the weeks being generated
-- Creates `training_groups` records for capacity planning
-- 70% of group bookings marked as paid
-- Names are Swiss/German appropriate
-- Backward compatible - existing private lesson generation unchanged
-- Falls back gracefully if no active weekly courses exist
+- Batch inserts reduce DB calls from ~6 per enrollment to ~5 total batches per course
+- Pre-fetching 200 customers allows better reuse without per-enrollment queries
+- Processing drops from 5,000+ calls to ~500 calls (10x improvement)
+- Edge function should complete within 30-40 seconds instead of timing out
