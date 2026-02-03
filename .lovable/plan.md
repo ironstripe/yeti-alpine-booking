@@ -1,93 +1,32 @@
 
-
-# Update Onboarding Dialog for Latest Features
+# Add First-Time Login Hint Text
 
 ## Overview
 
-Update the `OnboardingDialog` to reflect the latest functional changes and present the most important features to new office/admin users.
+Add a helpful hint on the login page for invited users (instructors) who haven't set their password yet.
 
-## Current State
+## Change
 
-The existing onboarding covers:
-1. Willkommen bei YETY
-2. Buchungen erstellen
-3. KI-Posteingang
-4. Kurse & Lehrer
-5. Einstellungen
+### File: `src/pages/Login.tsx`
 
-**Missing key features:**
-- Stundenplan (visual scheduler - central tool)
-- Skilehrer-Verwaltung (instructor management with new recurring blocks)
-- Events (newly added)
-- Shop & Gutscheine
+Add a hint text box below the password field (before the submit button) that only shows on the login view (not sign-up):
 
-## Proposed Changes
-
-### File: `src/components/onboarding/OnboardingDialog.tsx`
-
-Update the `ONBOARDING_STEPS` array to reflect the current feature set and workflow:
-
-```typescript
-const ONBOARDING_STEPS = [
-  {
-    title: 'Willkommen bei YETY',
-    description: 'Ihr Buchungssystem für die Skischule. Lassen Sie uns die wichtigsten Funktionen durchgehen.',
-    icon: LayoutDashboard,
-  },
-  {
-    title: 'Stundenplan',
-    description: 'Der visuelle Stundenplan zeigt alle Buchungen und Skilehrer auf einen Blick. Ziehen Sie Buchungen per Drag & Drop.',
-    icon: LayoutGrid,
-  },
-  {
-    title: 'Buchungen erstellen',
-    description: 'Erstellen Sie Buchungen für Privat- und Gruppenkurse. Der Wizard führt Sie Schritt für Schritt durch den Prozess.',
-    icon: Calendar,
-  },
-  {
-    title: 'KI-Posteingang',
-    description: 'E-Mails und Anfragen werden automatisch analysiert. Prüfen Sie die extrahierten Daten und erstellen Sie Buchungen mit einem Klick.',
-    icon: Inbox,
-  },
-  {
-    title: 'Skilehrer-Verwaltung',
-    description: 'Verwalten Sie Skilehrer, Abwesenheiten und wiederkehrende Blockzeiten. Sehen Sie auf einen Blick, wer verfügbar ist.',
-    icon: UserCheck,
-  },
-  {
-    title: 'Einstellungen',
-    description: 'Passen Sie Produkte, Preise, E-Mail-Vorlagen, Benutzer und mehr an Ihre Bedürfnisse an.',
-    icon: Settings,
-  }
-];
+```tsx
+{/* First-time user hint - only show on login */}
+{!isSignUp && (
+  <div className="p-3 rounded-lg bg-blue-50 border border-blue-200 dark:bg-blue-950/30 dark:border-blue-900">
+    <p className="text-xs text-blue-700 dark:text-blue-300">
+      <strong>Neu eingeladen?</strong> Falls du noch kein Passwort gesetzt hast, 
+      nutze "Passwort vergessen?" um ein neues Passwort zu erstellen.
+    </p>
+  </div>
+)}
 ```
 
-### Key Updates
+**Location:** After the password field div (line 211), before the submit button (line 213).
 
-| Step | Old | New |
-|------|-----|-----|
-| 2 | Buchungen erstellen | **Stundenplan** (key visual tool) |
-| 3 | KI-Posteingang | Buchungen erstellen |
-| 4 | Kurse & Lehrer | KI-Posteingang |
-| 5 | Einstellungen | **Skilehrer-Verwaltung** (incl. recurring blocks) |
-| 6 | - | Einstellungen |
+## Result
 
-### Import Updates
-
-Add missing icon imports:
-
-```typescript
-import { 
-  Calendar, Users, Inbox, Settings, LayoutDashboard,
-  ChevronRight, ChevronLeft, Check,
-  LayoutGrid, UserCheck  // NEW imports
-} from 'lucide-react';
-```
-
-## Summary
-
-- **6 steps** instead of 5 (add Stundenplan and expand Skilehrer)
-- Emphasizes the **visual scheduler** as a key differentiator
-- Mentions **recurring blocks** in instructor management
-- Better reflects the actual daily workflow: Scheduler > Bookings > Inbox > Instructors
-
+- New users see clear guidance immediately
+- No confusion about what to do if they lost/missed the invitation email
+- Subtle blue styling to stand out without being alarming
