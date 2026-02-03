@@ -1,127 +1,118 @@
 
-# Fix Test Data Generator Timeout Issue
+# Fix Group Course Loading Performance
 
 ## Problem
 
-The edge function times out (default 60s limit) when generating group course data because it makes too many sequential database operations:
-- 8 weeks × 11 courses × ~10 participants = ~880 enrollments
-- Each enrollment requires ~6 sequential DB calls
-- Total: 5,000+ individual database operations
+The training planning view takes 6+ seconds to load because of:
+1. Sequential database queries instead of parallel
+2. Missing index for date-range queries
+3. Expensive inline instructor JOINs on 400+ instances
 
 ## Solution
 
-Optimize the edge function with batch operations and reduce sequential queries.
+### 1. Add Database Index for Date Range Queries
 
-## Implementation
-
-### File: `supabase/functions/generate-test-bookings/index.ts`
-
-**Key Optimizations:**
-
-1. **Pre-generate ticket numbers** in batch instead of per-enrollment
-2. **Batch insert customers, participants, tickets, and enrollments** per course
-3. **Reuse existing customers more aggressively** (increase reuse rate from 30% to 70%)
-4. **Process courses in parallel** within each week using `Promise.all`
-5. **Reduce the default weeks** from 8 to 4 for faster generation
-
-### Changes:
-
-**1. Add batch insert helper:**
-```typescript
-async function batchInsert(supabase: any, table: string, records: any[]): Promise<any[]> {
-  if (records.length === 0) return [];
-  
-  // Insert in chunks of 50 to avoid payload limits
-  const results: any[] = [];
-  for (let i = 0; i < records.length; i += 50) {
-    const chunk = records.slice(i, i + 50);
-    const { data, error } = await supabase
-      .from(table)
-      .insert(chunk)
-      .select();
-    
-    if (error) throw error;
-    results.push(...(data || []));
-  }
-  return results;
-}
+```sql
+CREATE INDEX idx_group_course_instances_date 
+ON public.group_course_instances (date);
 ```
 
-**2. Pre-fetch more customers for reuse:**
-```typescript
-// Fetch up to 200 existing customers for reuse
-const { data: existingCustomers } = await supabase
-  .from("customers")
-  .select("id, last_name")
-  .limit(200);
+This allows efficient date-range filtering without requiring course_id.
 
-// 70% reuse existing, 30% create new (inverted from before)
+### 2. Parallelize Queries in `useGroupCourses`
+
+**File:** `src/hooks/useGroupCourses.ts`
+
+Change sequential queries to parallel using `Promise.all()`:
+
+```typescript
+// BEFORE: Sequential (slow)
+const { data: courses } = await supabase.from('group_courses')...
+const { data: schedules } = await supabase.from('group_course_schedules')...
+const { data: courseDates } = await supabase.from('training_course_dates')...
+const { data: instances } = await supabase.from('group_course_instances')...
+
+// AFTER: Parallel (fast)
+const [coursesResult, schedulesResult, courseDatesResult, instancesResult] = 
+  await Promise.all([
+    supabase.from('group_courses')...,
+    supabase.from('group_course_schedules')...,
+    supabase.from('training_course_dates')...,
+    supabase.from('group_course_instances')...
+  ]);
 ```
 
-**3. Pre-generate ticket numbers:**
+### 3. Parallelize Queries in `useGroupPlanningData`
+
+**File:** `src/hooks/useGroupPlanningData.ts`
+
+Current flow:
+1. Fetch courses → Wait
+2. Extract course IDs
+3. Fetch schedules → Wait
+4. Fetch instances → Wait
+
+Optimized flow:
+1. Fetch courses + schedules + instances in parallel (filter instances by date only)
+2. Then filter by course IDs client-side
+
 ```typescript
-async function generateTicketNumbers(supabase: any, count: number): Promise<string[]> {
-  const year = new Date().getFullYear();
-  const { data } = await supabase
-    .from("tickets")
-    .select("ticket_number")
-    .like("ticket_number", `YETY-${year}-%`)
-    .order("ticket_number", { ascending: false })
-    .limit(1);
+// Fetch all data in parallel - instances filtered by date only
+const [coursesResult, schedulesResult, instancesResult] = await Promise.all([
+  supabase.from('group_courses')
+    .select('...')
+    .eq('is_active', true)
+    .eq('course_type', 'weekly'),
+  supabase.from('group_course_schedules')
+    .select('...')
+    .eq('is_active', true),
+  supabase.from('group_course_instances')
+    .select('...')
+    .gte('date', weekStartStr)
+    .lte('date', weekEndStr)
+]);
 
-  let nextNumber = 1;
-  if (data && data.length > 0) {
-    const match = data[0].ticket_number.match(/YETY-\d{4}-(\d+)/);
-    if (match) nextNumber = parseInt(match[1], 10) + 1;
-  }
-
-  return Array.from({ length: count }, (_, i) => 
-    `YETY-${year}-${(nextNumber + i).toString().padStart(5, "0")}`
-  );
-}
+// Filter client-side
+const courseIds = new Set(courses.map(c => c.id));
+const relevantInstances = instances.filter(i => courseIds.has(i.course_id));
 ```
 
-**4. Batch enrollment creation per course:**
+### 4. Separate Instructor Fetch (Optional Optimization)
+
+If JOINs remain slow, fetch instructors separately and merge client-side:
+
 ```typescript
-// Collect all data for a course, then batch insert
-const customersToCreate: any[] = [];
-const participantsToCreate: any[] = [];
-const ticketsToCreate: any[] = [];
-const ticketItemsToCreate: any[] = [];
-const enrollmentsToCreate: any[] = [];
+// Fetch instances without instructor JOINs
+const { data: instances } = await supabase
+  .from('group_course_instances')
+  .select('id, course_id, date, start_time, end_time, instructor_id, assistant_instructor_id, current_participants')
+  .gte('date', weekStartStr)
+  .lte('date', weekEndStr);
 
-// Pre-generate ticket numbers for all enrollments in this course
-const ticketNumbers = await generateTicketNumbers(supabase, targetParticipants);
+// Fetch instructors in bulk
+const instructorIds = [...new Set([
+  ...instances.map(i => i.instructor_id),
+  ...instances.map(i => i.assistant_instructor_id)
+].filter(Boolean))];
 
-for (let i = 0; i < targetParticipants; i++) {
-  // Build records without inserting yet
-  // ... 
-}
+const { data: instructors } = await supabase
+  .from('instructors')
+  .select('id, first_name, last_name')
+  .in('id', instructorIds);
 
-// Batch inserts
-const customers = await batchInsert(supabase, 'customers', customersToCreate);
-const participants = await batchInsert(supabase, 'customer_participants', participantsToCreate);
-const tickets = await batchInsert(supabase, 'tickets', ticketsToCreate);
-const ticketItems = await batchInsert(supabase, 'ticket_items', ticketItemsToCreate);
-await batchInsert(supabase, 'group_course_enrollments', enrollmentsToCreate);
-```
-
-**5. Update UI default:**
-```typescript
-// In TestDataGenerator.tsx
-const [weeksToGenerate, setWeeksToGenerate] = useState(4); // Changed from 8
+// Build lookup map and merge client-side
+const instructorMap = new Map(instructors.map(i => [i.id, i]));
 ```
 
 ## Changes Summary
 
-| File | Change |
-|------|--------|
-| `generate-test-bookings/index.ts` | Add batch operations, pre-generate ticket numbers, optimize customer reuse |
-| `TestDataGenerator.tsx` | Reduce default weeks from 8 to 4 |
+| File/Area | Change |
+|-----------|--------|
+| Database | Add `idx_group_course_instances_date` index |
+| `useGroupCourses.ts` | Parallelize 4 queries with `Promise.all()` |
+| `useGroupPlanningData.ts` | Parallelize 3 queries, fetch instances by date-range first |
 
-## Technical Notes
+## Expected Improvement
 
-- Batch inserts reduce DB calls from ~6 per enrollment to ~5 total batches per course
-- Pre-fetching 200 customers allows better reuse without per-enrollment queries
-- Processing drops from 5,000+ calls to ~500 calls (10x improvement)
-- Edge function should complete within 30-40 seconds instead of timing out
+- **Before**: 6-10 seconds (sequential queries + slow JOINs)
+- **After**: 1-2 seconds (parallel queries + indexed date filter)
