@@ -1,131 +1,95 @@
 
-# Office Hours Planning Feature
+# Fix Discipline Label for Office-Only Staff
 
-## Overview
+## Problem
 
-Add a new "Bürodienst" (Office Hours) action to the scheduler that allows office staff to be scheduled for specific time slots. Unlike absences which block availability, office hours indicate when someone IS working in the office.
+Victoria Müller shows "Ski" as her discipline even though she only has the `office` role and no teaching specialization. This happens because:
+1. Her `roles` array is `['office']` - no teaching roles
+2. Her `specialization` is `null`
+3. The `getSpecializationLabel()` function defaults to "Ski" for null/unknown values
 
-## Current State
+## Solution
 
-- **Absences**: Block time slots, meaning "NOT available"
-- **Office Shifts**: Currently managed via `group_course_instances` with `is_internal = true`, requiring complex setup through the Trainings page
-- **User Need**: Simple, direct scheduling of office hours in the scheduler with hour-level precision (e.g., 09:00-10:00)
+Update the display logic to be **roles-aware**. When someone has only the `office` role (no `ski` or `snowboard`), display "Büro" instead of a teaching discipline.
 
-## Proposed Solution
+## Technical Changes
 
-### User Flow
+### File 1: `src/hooks/useInstructors.ts`
 
-1. Select time slot(s) for an office staff member in scheduler
-2. Click new "Bürodienst" button in SelectionToolbar
-3. Dialog opens with:
-   - Time display (pre-filled from selection)
-   - Optional note/reason field
-   - "Ganztägig" toggle (like absences)
-   - Custom time picker when not full-day
-4. On confirm, creates office hour block
-5. Block appears in scheduler with distinct styling (purple/gray)
-
-### Visual Design
-
-- **Color**: Purple (`bg-purple-600`) - already defined for `office_shift` type in `scheduler-utils.ts`
-- **Icon**: Building/Office icon to distinguish from absences
-- **Tooltip**: Shows "Bürodienst" with time range and optional note
-
-## Technical Implementation
-
-### 1. Database: New Table `office_hour_blocks`
-
-```sql
-CREATE TABLE office_hour_blocks (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  instructor_id UUID NOT NULL REFERENCES instructors(id) ON DELETE CASCADE,
-  date DATE NOT NULL,
-  time_start TIME NOT NULL,
-  time_end TIME NOT NULL,
-  note TEXT,
-  created_at TIMESTAMPTZ DEFAULT now(),
-  created_by UUID REFERENCES auth.users(id)
-);
-
--- Index for efficient queries
-CREATE INDEX idx_office_hour_blocks_instructor_date 
-  ON office_hour_blocks(instructor_id, date);
-
--- RLS policies for admin/office access
-ALTER TABLE office_hour_blocks ENABLE ROW LEVEL SECURITY;
-```
-
-### 2. New Hook: `useOfficeHourBlocks.ts`
+Update `getSpecializationLabel` to accept optional `roles` parameter:
 
 ```typescript
-// Fetch office hour blocks for date range
-export function useOfficeHourBlocks(startDate: string, endDate: string) {...}
-
-// Create new office hour block
-export function useCreateOfficeHourBlock() {...}
-
-// Delete office hour block
-export function useDeleteOfficeHourBlock() {...}
+export function getSpecializationLabel(spec: string | null, roles?: string[] | null): string {
+  // If roles provided and only has 'office' role, show "Büro"
+  if (roles && roles.length > 0) {
+    const hasTeachingRole = roles.includes('ski') || roles.includes('snowboard');
+    if (!hasTeachingRole) {
+      return "Büro";
+    }
+  }
+  
+  switch (spec) {
+    case "ski":
+      return "Ski";
+    case "snowboard":
+      return "Snowboard";
+    case "both":
+      return "Ski & Snowboard";
+    default:
+      // If no roles info, default to empty or derive from spec
+      return spec ? spec : "Ski";
+  }
+}
 ```
 
-### 3. Update `useSchedulerData.ts`
+### File 2: `src/pages/InstructorDetail.tsx`
 
-- Add query for `office_hour_blocks` table
-- Transform into `SchedulerBooking[]` with `type: "office_shift"`
-- Merge with other bookings for display
+Update line 133 to pass `roles`:
 
-### 4. New Component: `OfficeHoursDialog.tsx`
-
-Similar to `AbsenceTypeDialog.tsx` but simplified:
-- Date/time display (from selection)
-- Full-day toggle
-- Time pickers (when not full-day)
-- Optional note field
-- Create button
-
-### 5. Update `SelectionToolbar.tsx`
-
-Add new "Bürodienst" button:
-```tsx
-<Button
-  variant="outline"
-  size="sm"
-  onClick={handleMarkOfficeHours}
->
-  <Building className="h-4 w-4 mr-1" />
-  Bürodienst
-</Button>
+```typescript
+<p className="text-muted-foreground">
+  {getLevelLabel(instructor.level)} · {getSpecializationLabel(instructor.specialization, instructor.roles)}
+</p>
 ```
 
-### 6. Update `BlockingBar.tsx` / `BookingBar.tsx`
+### File 3: `src/components/instructors/InstructorCard.tsx`
 
-Ensure office hour blocks render with correct styling:
-- Purple background (`bg-purple-600`)
-- Building icon
-- "Bürodienst" label in tooltip
+Update line 56 to pass `roles`:
 
-## Files to Create/Modify
+```typescript
+<span>{getSpecializationLabel(instructor.specialization, instructor.roles)}</span>
+```
 
-| File | Action | Purpose |
-|------|--------|---------|
-| `supabase/migrations/*_office_hour_blocks.sql` | Create | Database table + RLS |
-| `src/hooks/useOfficeHourBlocks.ts` | Create | CRUD operations |
-| `src/components/scheduler/OfficeHoursDialog.tsx` | Create | Creation dialog |
-| `src/components/scheduler/SelectionToolbar.tsx` | Edit | Add "Bürodienst" button |
-| `src/hooks/useSchedulerData.ts` | Edit | Fetch & display office hours |
-| `src/lib/scheduler-utils.ts` | Edit | Add type definitions if needed |
+### File 4: `src/pages/InstructorProfile.tsx`
 
-## Interaction with Existing Features
+Update line 265 to pass `roles`:
 
-- **Absences**: Office hours and absences cannot overlap (validation)
-- **Bookings**: Office hours block time for teaching (shown as occupied)
-- **Recurring Blocks**: Office hours are one-time; use existing recurring system for regular schedules
+```typescript
+{getSpecializationLabel(instructor.specialization, instructor.roles)}
+```
+
+### File 5: `src/components/bookings/wizard/InstructorSelection.tsx`
+
+Update line 176 to pass `roles`:
+
+```typescript
+{getSpecializationLabel(instructor.specialization, instructor.roles)}
+```
 
 ## Expected Result
 
-After implementation:
-1. Office staff members can have office hours scheduled directly in scheduler
-2. Office hours appear as purple blocks with clear visual distinction
-3. Time can be specified precisely (e.g., 09:00-10:00 on specific date)
-4. Blocks prevent double-booking of that time slot
-5. Simple workflow: Select → Click "Bürodienst" → Confirm
+After fix:
+- Victoria Müller shows: `- · Büro` (or just "Büro" if no level)
+- Teaching staff with ski role shows: `Skilehrer · Ski`
+- Staff with both teaching and office roles shows their teaching discipline
+- Staff with snowboard role shows: `Snowboardlehrer · Snowboard`
+
+## Files to Modify
+
+| File | Change |
+|------|--------|
+| `src/hooks/useInstructors.ts` | Add roles parameter to `getSpecializationLabel` |
+| `src/pages/InstructorDetail.tsx` | Pass `instructor.roles` to function |
+| `src/components/instructors/InstructorCard.tsx` | Pass `instructor.roles` to function |
+| `src/pages/InstructorProfile.tsx` | Pass `instructor.roles` to function |
+| `src/components/bookings/wizard/InstructorSelection.tsx` | Pass `instructor.roles` to function |
