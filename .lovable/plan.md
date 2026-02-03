@@ -1,108 +1,118 @@
 
-# Show All User Emails & Add Password Management
+# Fix: Escape Key Not Exiting Fullscreen Mode
 
-## Problem
-Currently, the Settings/Users page only shows the email for the logged-in user. All other users display truncated IDs because the frontend cannot access `auth.users` directly.
+## Problem Analysis
+
+The Escape key to exit fullscreen mode doesn't work due to:
+
+1. **Multiple keydown handlers**: Two separate `useEffect` hooks attach keydown listeners to `window`
+2. **Stale closure issue**: The `clearSelection` function in the dependency array changes on re-renders, potentially causing the handler to have an outdated `isFullscreen` value
+3. **Popover interception**: When date picker, teacher search, or customer search popovers are open, they capture Escape to close themselves first
 
 ## Solution
 
-### 1. New Edge Function: `list-auth-users`
+Consolidate all keyboard handling into a single `useEffect` with proper priority:
 
-**File:** `supabase/functions/list-auth-users/index.ts`
+1. **Fullscreen exit first** (highest priority)
+2. **Drag cancellation second**
+3. **Selection clearing last** (lowest priority)
 
-Returns all auth users using the admin API:
+### Code Changes
+
+**File:** `src/components/scheduler/SchedulerGrid.tsx`
+
+Remove the second keyboard handler (lines 243-258) and merge its logic into the first handler (lines 173-187):
+
 ```typescript
-// Returns: { users: [{ id, email, created_at, last_sign_in_at }] }
+// BEFORE: Two separate handlers
+// Handler 1 (lines 173-187)
+const handleGlobalKeyDown = (e: KeyboardEvent) => {
+  if (e.key === "Escape" && state.drag.isDragging) {
+    cancelDrag();
+  }
+};
+
+// Handler 2 (lines 243-258) - SEPARATE useEffect
+useEffect(() => {
+  const handleKeyDown = (e: KeyboardEvent) => {
+    if (e.key === "Escape") {
+      if (isFullscreen) setIsFullscreen(false);
+      else clearSelection();
+    }
+  };
+  window.addEventListener("keydown", handleKeyDown);
+  return () => window.removeEventListener("keydown", handleKeyDown);
+}, [clearSelection, isFullscreen]);
+
+// AFTER: Single consolidated handler
+const handleGlobalKeyDown = (e: KeyboardEvent) => {
+  if (e.key === "Escape") {
+    // Priority 1: Exit fullscreen (most important)
+    if (isFullscreen) {
+      e.stopPropagation();
+      setIsFullscreen(false);
+      return;
+    }
+    // Priority 2: Cancel drag
+    if (state.drag.isDragging) {
+      cancelDrag();
+      return;
+    }
+    // Priority 3: Clear selection
+    clearSelection();
+    setHighlightedInstructorId(null);
+  }
+};
 ```
 
-### 2. New Edge Function: `reset-user-password`
+### Updated useEffect Dependencies
 
-**File:** `supabase/functions/reset-user-password/index.ts`
-
-Sends password reset email to a user:
 ```typescript
-// Input: { email: string }
-// Uses supabaseAdmin.auth.resetPasswordForEmail()
+useEffect(() => {
+  // ... mouse handlers unchanged ...
+
+  const handleGlobalKeyDown = (e: KeyboardEvent) => {
+    if (e.key === "Escape") {
+      if (isFullscreen) {
+        e.stopPropagation();
+        setIsFullscreen(false);
+        return;
+      }
+      if (state.drag.isDragging) {
+        cancelDrag();
+        return;
+      }
+      clearSelection();
+      setHighlightedInstructorId(null);
+    }
+  };
+
+  window.addEventListener("keydown", handleGlobalKeyDown);
+  return () => window.removeEventListener("keydown", handleGlobalKeyDown);
+}, [
+  state.drag.isDragging,
+  state.drag.instructorId,
+  state.drag.date,
+  bookings,
+  absences,
+  endDrag,
+  cancelDrag,
+  updateDrag,
+  checkSlotConflict,
+  isFullscreen,        // Added
+  clearSelection,      // Added
+  setHighlightedInstructorId // Added (via setter, stable reference)
+]);
 ```
 
-### 3. Update `useSettingsUsers` Hook
-
-**File:** `src/hooks/useSettingsUsers.ts`
-
-- Call `list-auth-users` edge function to get all users with emails
-- Merge with `user_roles` data
-- Add `last_sign_in` field for reference
-
-### 4. Update Settings Users Page
-
-**File:** `src/pages/SettingsUsers.tsx`
-
-- Add "Aktionen" column with dropdown menu
-- Actions per user:
-  - **Passwort zurücksetzen** - sends reset email
-  - (Future: Role management)
-
----
-
-## Files to Create/Modify
+## Summary of Changes
 
 | File | Change |
 |------|--------|
-| `supabase/functions/list-auth-users/index.ts` | **NEW** - List all auth users with emails |
-| `supabase/functions/reset-user-password/index.ts` | **NEW** - Send password reset email |
-| `supabase/config.toml` | Register new functions |
-| `src/hooks/useSettingsUsers.ts` | Fetch all users via edge function |
-| `src/pages/SettingsUsers.tsx` | Add actions column with password reset |
+| `src/components/scheduler/SchedulerGrid.tsx` | Consolidate two keyboard handlers into one with proper priority order |
 
----
+## Technical Notes
 
-## Technical Details
-
-### Edge Function: list-auth-users
-```typescript
-const { data } = await supabaseAdmin.auth.admin.listUsers();
-return data.users.map(u => ({
-  id: u.id,
-  email: u.email,
-  created_at: u.created_at,
-  last_sign_in_at: u.last_sign_in_at
-}));
-```
-
-### Edge Function: reset-user-password
-```typescript
-await supabaseAdmin.auth.resetPasswordForEmail(email, {
-  redirectTo: `${origin}/reset-password`
-});
-```
-
-### Updated Hook Flow
-```
-┌──────────────────────────────────────┐
-│  useSettingsUsers()                  │
-├──────────────────────────────────────┤
-│  1. Call list-auth-users edge fn     │
-│  2. Fetch user_roles from DB         │
-│  3. Fetch instructors for linking    │
-│  4. Merge all data by user_id        │
-│  5. Return complete user list        │
-└──────────────────────────────────────┘
-```
-
-### UI Changes
-
-| Current | After |
-|---------|-------|
-| `916bc71b...` | `admin@example.com` |
-| No actions | Dropdown: Passwort zurücksetzen |
-
----
-
-## User Flow for Password Reset
-
-1. Admin opens Settings > Users
-2. Clicks "..." menu on any user row
-3. Selects "Passwort zurücksetzen"
-4. Confirmation dialog appears
-5. On confirm: Edge function sends reset email
-6. Toast: "E-Mail zum Zurücksetzen gesendet"
+- `e.stopPropagation()` prevents popovers from also reacting to Escape when exiting fullscreen
+- The consolidated handler ensures `isFullscreen` is always read from the current closure
+- Single event listener reduces potential race conditions
