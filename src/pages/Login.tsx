@@ -1,5 +1,4 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useId } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { z } from "zod";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
@@ -23,7 +22,6 @@ const authSchema = z.object({
 });
 
 const Login = () => {
-  const navigate = useNavigate();
   const { signIn, signUp, resetPassword } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -34,6 +32,11 @@ const Login = () => {
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [resetEmail, setResetEmail] = useState("");
   const [resetLoading, setResetLoading] = useState(false);
+
+  // Stable IDs for form inputs
+  const emailId = useId();
+  const passwordId = useId();
+  const resetEmailId = useId();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -66,7 +69,6 @@ const Login = () => {
         toast.success("Registrierung erfolgreich!", {
           description: "Du wirst weitergeleitet...",
         });
-        // LoginRoute will handle redirect via auth state change
       } else {
         const { error } = await signIn(email, password);
 
@@ -80,8 +82,6 @@ const Login = () => {
           }
           return;
         }
-
-        // LoginRoute will handle redirect via auth state change
       }
     } catch (err) {
       setError("Ein unerwarteter Fehler ist aufgetreten");
@@ -151,7 +151,12 @@ const Login = () => {
         </CardHeader>
 
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4" autoComplete="on">
+          <form 
+            key="login-form" 
+            onSubmit={handleSubmit} 
+            className="space-y-4" 
+            autoComplete="on"
+          >
             {/* Error Message */}
             {error && (
               <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/20">
@@ -161,25 +166,26 @@ const Login = () => {
 
             {/* Email Field */}
             <div className="space-y-2">
-              <Label htmlFor="email">E-Mail</Label>
+              <Label htmlFor={emailId}>E-Mail</Label>
               <Input
-                id="email"
+                id={emailId}
                 name="email"
                 type="email"
                 placeholder="name@beispiel.ch"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => setEmail(e.target.value.trim().toLowerCase())}
                 disabled={loading}
                 autoComplete="username"
+                autoFocus
               />
             </div>
 
             {/* Password Field */}
             <div className="space-y-2">
-              <Label htmlFor="password">Passwort</Label>
+              <Label htmlFor={passwordId}>Passwort</Label>
               <div className="relative">
                 <Input
-                  id="password"
+                  id={passwordId}
                   name="password"
                   type={showPassword ? "text" : "password"}
                   placeholder="••••••••"
@@ -248,6 +254,7 @@ const Login = () => {
                     E-Mail für Passwort-Reset:
                   </p>
                   <Input
+                    id={resetEmailId}
                     type="email"
                     placeholder="name@beispiel.ch"
                     value={resetEmail}
