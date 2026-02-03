@@ -4,7 +4,6 @@ import {
   Maximize,
   Minimize,
   Users,
-  ListFilter,
   ArrowUpDown,
   BookOpen,
   RotateCcw,
@@ -56,10 +55,10 @@ export function SchedulerSettingsMenu({
   compactStats,
 }: SchedulerSettingsMenuProps) {
   // Calculate active filter count (non-default values)
+  // Note: bookingTypeFilter is excluded as it's now visible in the header
   const activeFilterCount = [
     filters.roleFilter !== null,
     filters.capabilityFilter !== null,
-    filters.bookingTypeFilter !== null,
     filters.sortBy !== "name",
     filters.compactMode,
   ].filter(Boolean).length;
@@ -172,31 +171,6 @@ export function SchedulerSettingsMenu({
                 <DropdownMenuRadioItem value="all">Alle</DropdownMenuRadioItem>
                 <DropdownMenuRadioItem value="ski">⛷️ Ski</DropdownMenuRadioItem>
                 <DropdownMenuRadioItem value="snowboard">🏂 Snowboard</DropdownMenuRadioItem>
-              </DropdownMenuRadioGroup>
-            </DropdownMenuSubContent>
-          </DropdownMenuPortal>
-        </DropdownMenuSub>
-
-        {/* Booking Type Filter Submenu */}
-        <DropdownMenuSub>
-          <DropdownMenuSubTrigger>
-            <ListFilter className="mr-2 h-4 w-4" />
-            <span>Buchungstypen</span>
-            {filters.bookingTypeFilter && (
-              <span className="ml-auto text-xs text-muted-foreground">
-                {filters.bookingTypeFilter === "private" ? "Privat" : "Gruppe"}
-              </span>
-            )}
-          </DropdownMenuSubTrigger>
-          <DropdownMenuPortal>
-            <DropdownMenuSubContent className="bg-popover">
-              <DropdownMenuRadioGroup
-                value={filters.bookingTypeFilter || "all"}
-                onValueChange={(v) => onFiltersChange({ bookingTypeFilter: v === "all" ? null : v })}
-              >
-                <DropdownMenuRadioItem value="all">Alle anzeigen</DropdownMenuRadioItem>
-                <DropdownMenuRadioItem value="private">Nur Privat</DropdownMenuRadioItem>
-                <DropdownMenuRadioItem value="group">Nur Gruppe</DropdownMenuRadioItem>
               </DropdownMenuRadioGroup>
             </DropdownMenuSubContent>
           </DropdownMenuPortal>
