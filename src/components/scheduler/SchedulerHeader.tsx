@@ -7,7 +7,6 @@ import {
   ChevronRight, 
   Calendar as CalendarIcon, 
   Target,
-  Plus,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -153,16 +152,25 @@ export function SchedulerHeader({
             compactStats={compactStats}
           />
 
-          {/* Quick Add Button */}
-          <Button
-            variant="outline"
-            size="icon"
-            className="h-8 w-8"
-            onClick={() => navigate("/bookings/new")}
-            title="Neue Buchung"
+          {/* Booking Type Quick Filter */}
+          <ToggleGroup 
+            type="single" 
+            value={filters.bookingTypeFilter || "all"}
+            onValueChange={(v) => v && onFiltersChange({ 
+              bookingTypeFilter: v === "all" ? null : v 
+            })}
+            className="bg-muted rounded-md p-0.5"
           >
-            <Plus className="h-4 w-4" />
-          </Button>
+            <ToggleGroupItem value="all" className="px-2 h-7 text-xs data-[state=on]:bg-background">
+              Alle
+            </ToggleGroupItem>
+            <ToggleGroupItem value="group" className="px-2 h-7 text-xs data-[state=on]:bg-background">
+              Gruppen
+            </ToggleGroupItem>
+            <ToggleGroupItem value="private" className="px-2 h-7 text-xs data-[state=on]:bg-background">
+              Privat
+            </ToggleGroupItem>
+          </ToggleGroup>
         </div>
       </div>
 
