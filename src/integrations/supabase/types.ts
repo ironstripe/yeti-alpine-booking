@@ -3937,6 +3937,10 @@ export type Database = {
         }
         Returns: Json
       }
+      cancel_participant_transfer_request: {
+        Args: { p_request_id: string }
+        Returns: Json
+      }
       check_recurring_block_conflicts: {
         Args: {
           p_end_time: string
@@ -3959,6 +3963,14 @@ export type Database = {
         Returns: Json
       }
       create_next_friday_race_event: { Args: never; Returns: string }
+      create_participant_transfer_request: {
+        Args: {
+          p_participant_id: string
+          p_source_group_id: string
+          p_target_group_id: string
+        }
+        Returns: Json
+      }
       generate_group_course_instances_for_week: {
         Args: { p_week_start_date: string }
         Returns: Json
@@ -3990,6 +4002,10 @@ export type Database = {
         Returns: Json
       }
       queue_confirmation_reminders: { Args: never; Returns: number }
+      respond_to_participant_transfer: {
+        Args: { p_request_id: string; p_response: string }
+        Returns: Json
+      }
       set_instructor_capabilities: {
         Args: { p_capability_ids: string[]; p_instructor_id: string }
         Returns: undefined
