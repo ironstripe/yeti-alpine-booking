@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { InstructorLayout } from "@/components/instructor-portal/InstructorLayout";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -9,7 +9,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Plus, Calendar, Trash2, AlertTriangle } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Plus, Calendar, Trash2, AlertTriangle, Repeat } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserRole } from "@/hooks/useUserRole";
@@ -17,6 +18,7 @@ import { format, parseISO } from "date-fns";
 import { de } from "date-fns/locale";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
+import { RecurringBlocksTab } from "@/components/instructor/RecurringBlocksTab";
 
 const absenceTypes = [
   { value: "vacation", label: "Urlaub", icon: "🏖️" },
@@ -177,206 +179,221 @@ export default function InstructorAvailability() {
 
   return (
     <InstructorLayout>
-      <div className="space-y-6">
-        {/* Absences List */}
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
+      <Tabs defaultValue="absences" className="space-y-4">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="absences" className="flex items-center gap-2">
+            <Calendar className="h-4 w-4" />
+            Abwesenheiten
+          </TabsTrigger>
+          <TabsTrigger value="recurring" className="flex items-center gap-2">
+            <Repeat className="h-4 w-4" />
+            Wiederkehrend
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="absences" className="space-y-4">
+          {/* Absences List */}
+          <div className="space-y-3">
             <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">
               ABWESENHEITEN
             </h2>
-          </div>
 
-          {(absences || []).length === 0 ? (
-            <Card className="border-dashed">
-              <CardContent className="p-6 text-center">
-                <Calendar className="h-8 w-8 mx-auto mb-2 text-muted-foreground/50" />
-                <p className="text-muted-foreground">Keine Abwesenheiten eingetragen</p>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="space-y-3">
-              {(absences || []).map((absence: any) => (
-                <Card key={absence.id}>
-                  <CardContent className="p-4">
-                    <div className="flex items-start justify-between">
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <span className="text-lg">{getTypeIcon(absence.type)}</span>
-                          <span className="font-medium">{getTypeLabel(absence.type)}</span>
-                        </div>
-                        <p className="text-sm text-muted-foreground">
-                          {format(parseISO(absence.start_date), "d. MMMM yyyy", { locale: de })}
-                          {absence.end_date !== absence.start_date && (
-                            <> - {format(parseISO(absence.end_date), "d. MMMM yyyy", { locale: de })}</>
-                          )}
-                        </p>
-                        {!absence.is_full_day && absence.time_start && (
+            {(absences || []).length === 0 ? (
+              <Card className="border-dashed">
+                <CardContent className="p-6 text-center">
+                  <Calendar className="h-8 w-8 mx-auto mb-2 text-muted-foreground/50" />
+                  <p className="text-muted-foreground">Keine Abwesenheiten eingetragen</p>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="space-y-3">
+                {(absences || []).map((absence: any) => (
+                  <Card key={absence.id}>
+                    <CardContent className="p-4">
+                      <div className="flex items-start justify-between">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <span className="text-lg">{getTypeIcon(absence.type)}</span>
+                            <span className="font-medium">{getTypeLabel(absence.type)}</span>
+                          </div>
                           <p className="text-sm text-muted-foreground">
-                            {absence.time_start?.slice(0, 5)} - {absence.time_end?.slice(0, 5)}
+                            {format(parseISO(absence.start_date), "d. MMMM yyyy", { locale: de })}
+                            {absence.end_date !== absence.start_date && (
+                              <> - {format(parseISO(absence.end_date), "d. MMMM yyyy", { locale: de })}</>
+                            )}
                           </p>
-                        )}
-                        {absence.reason && (
-                          <p className="text-sm text-muted-foreground mt-2">
-                            "{absence.reason}"
-                          </p>
-                        )}
+                          {!absence.is_full_day && absence.time_start && (
+                            <p className="text-sm text-muted-foreground">
+                              {absence.time_start?.slice(0, 5)} - {absence.time_end?.slice(0, 5)}
+                            </p>
+                          )}
+                          {absence.reason && (
+                            <p className="text-sm text-muted-foreground mt-2">
+                              "{absence.reason}"
+                            </p>
+                          )}
+                        </div>
+                        <div className="flex flex-col items-end gap-2">
+                          {getStatusBadge(absence.status)}
+                          {absence.status === "pending" && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-destructive h-8"
+                              onClick={() => cancelAbsenceMutation.mutate(absence.id)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
                       </div>
-                      <div className="flex flex-col items-end gap-2">
-                        {getStatusBadge(absence.status)}
-                        {absence.status === "pending" && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="text-destructive h-8"
-                            onClick={() => cancelAbsenceMutation.mutate(absence.id)}
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+
+            {/* Request Absence Button */}
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+              <DialogTrigger asChild>
+                <Button className="w-full">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Abwesenheit beantragen
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-md">
+                <DialogHeader>
+                  <DialogTitle>Abwesenheit beantragen</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 pt-4">
+                  {/* Type Selection */}
+                  <div className="space-y-2">
+                    <Label>Art der Abwesenheit</Label>
+                    <RadioGroup
+                      value={absenceType}
+                      onValueChange={setAbsenceType}
+                      className="grid grid-cols-2 gap-2"
+                    >
+                      {absenceTypes.map((type) => (
+                        <div key={type.value}>
+                          <RadioGroupItem
+                            value={type.value}
+                            id={type.value}
+                            className="peer sr-only"
+                          />
+                          <Label
+                            htmlFor={type.value}
+                            className="flex items-center gap-2 rounded-lg border-2 border-muted bg-popover p-3 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary cursor-pointer"
                           >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          )}
-
-          {/* Request Absence Button */}
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-              <Button className="w-full">
-                <Plus className="h-4 w-4 mr-2" />
-                Abwesenheit beantragen
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-md">
-              <DialogHeader>
-                <DialogTitle>Abwesenheit beantragen</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4 pt-4">
-                {/* Type Selection */}
-                <div className="space-y-2">
-                  <Label>Art der Abwesenheit</Label>
-                  <RadioGroup
-                    value={absenceType}
-                    onValueChange={setAbsenceType}
-                    className="grid grid-cols-2 gap-2"
-                  >
-                    {absenceTypes.map((type) => (
-                      <div key={type.value}>
-                        <RadioGroupItem
-                          value={type.value}
-                          id={type.value}
-                          className="peer sr-only"
-                        />
-                        <Label
-                          htmlFor={type.value}
-                          className="flex items-center gap-2 rounded-lg border-2 border-muted bg-popover p-3 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary cursor-pointer"
-                        >
-                          <span>{type.icon}</span>
-                          <span>{type.label}</span>
-                        </Label>
-                      </div>
-                    ))}
-                  </RadioGroup>
-                </div>
-
-                {/* Full Day Toggle */}
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="full-day">Ganztägig</Label>
-                  <Switch
-                    id="full-day"
-                    checked={isFullDay}
-                    onCheckedChange={setIsFullDay}
-                  />
-                </div>
-
-                {/* Date Selection */}
-                <div className="grid gap-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>Von</Label>
-                      <Input
-                        type="date"
-                        value={startDate}
-                        onChange={(e) => setStartDate(e.target.value)}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Bis</Label>
-                      <Input
-                        type="date"
-                        value={endDate}
-                        onChange={(e) => setEndDate(e.target.value)}
-                        min={startDate}
-                      />
-                    </div>
+                            <span>{type.icon}</span>
+                            <span>{type.label}</span>
+                          </Label>
+                        </div>
+                      ))}
+                    </RadioGroup>
                   </div>
 
-                  {/* Time Selection (if not full day) */}
-                  {!isFullDay && (
+                  {/* Full Day Toggle */}
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="full-day">Ganztägig</Label>
+                    <Switch
+                      id="full-day"
+                      checked={isFullDay}
+                      onCheckedChange={setIsFullDay}
+                    />
+                  </div>
+
+                  {/* Date Selection */}
+                  <div className="grid gap-4">
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label>Zeit von</Label>
+                        <Label>Von</Label>
                         <Input
-                          type="time"
-                          value={timeStart}
-                          onChange={(e) => setTimeStart(e.target.value)}
+                          type="date"
+                          value={startDate}
+                          onChange={(e) => setStartDate(e.target.value)}
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label>Zeit bis</Label>
+                        <Label>Bis</Label>
                         <Input
-                          type="time"
-                          value={timeEnd}
-                          onChange={(e) => setTimeEnd(e.target.value)}
+                          type="date"
+                          value={endDate}
+                          onChange={(e) => setEndDate(e.target.value)}
+                          min={startDate}
                         />
+                      </div>
+                    </div>
+
+                    {/* Time Selection (if not full day) */}
+                    {!isFullDay && (
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label>Zeit von</Label>
+                          <Input
+                            type="time"
+                            value={timeStart}
+                            onChange={(e) => setTimeStart(e.target.value)}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Zeit bis</Label>
+                          <Input
+                            type="time"
+                            value={timeEnd}
+                            onChange={(e) => setTimeEnd(e.target.value)}
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Reason */}
+                  <div className="space-y-2">
+                    <Label>Grund (optional)</Label>
+                    <Textarea
+                      value={reason}
+                      onChange={(e) => setReason(e.target.value)}
+                      placeholder="z.B. Arzttermin..."
+                      rows={2}
+                    />
+                  </div>
+
+                  {/* Conflict Warning */}
+                  {conflicts && conflicts.length > 0 && (
+                    <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg p-3">
+                      <div className="flex items-start gap-2">
+                        <AlertTriangle className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                        <div className="text-sm">
+                          <p className="font-medium text-amber-800 dark:text-amber-200">
+                            Achtung: {conflicts.length} Buchung(en) betroffen
+                          </p>
+                          <p className="text-amber-700 dark:text-amber-300">
+                            Diese müssen umgebucht werden.
+                          </p>
+                        </div>
                       </div>
                     </div>
                   )}
+
+                  {/* Submit */}
+                  <Button
+                    className="w-full"
+                    onClick={() => createAbsenceMutation.mutate()}
+                    disabled={!startDate || createAbsenceMutation.isPending}
+                  >
+                    {createAbsenceMutation.isPending ? "Wird beantragt..." : "Antrag senden"}
+                  </Button>
                 </div>
+              </DialogContent>
+            </Dialog>
+          </div>
+        </TabsContent>
 
-                {/* Reason */}
-                <div className="space-y-2">
-                  <Label>Grund (optional)</Label>
-                  <Textarea
-                    value={reason}
-                    onChange={(e) => setReason(e.target.value)}
-                    placeholder="z.B. Arzttermin..."
-                    rows={2}
-                  />
-                </div>
-
-                {/* Conflict Warning */}
-                {conflicts && conflicts.length > 0 && (
-                  <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg p-3">
-                    <div className="flex items-start gap-2">
-                      <AlertTriangle className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
-                      <div className="text-sm">
-                        <p className="font-medium text-amber-800 dark:text-amber-200">
-                          Achtung: {conflicts.length} Buchung(en) betroffen
-                        </p>
-                        <p className="text-amber-700 dark:text-amber-300">
-                          Diese müssen umgebucht werden.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Submit */}
-                <Button
-                  className="w-full"
-                  onClick={() => createAbsenceMutation.mutate()}
-                  disabled={!startDate || createAbsenceMutation.isPending}
-                >
-                  {createAbsenceMutation.isPending ? "Wird beantragt..." : "Antrag senden"}
-                </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
-        </div>
-      </div>
+        <TabsContent value="recurring">
+          {instructorId && <RecurringBlocksTab instructorId={instructorId} />}
+        </TabsContent>
+      </Tabs>
     </InstructorLayout>
   );
 }
