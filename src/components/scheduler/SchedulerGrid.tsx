@@ -213,9 +213,18 @@ function SchedulerGridContent() {
   const filteredInstructors = useMemo(() => {
     let filtered = instructors;
     
-    // Filter by role type (derived from roles array)
+    // Filter by role type - check actual roles array for multi-role support
     if (roleFilter) {
-      filtered = filtered.filter(i => i.roleType === roleFilter);
+      filtered = filtered.filter(i => {
+        const roles = i.roles || [];
+        if (roleFilter === 'instructor') {
+          return roles.includes('ski') || roles.includes('snowboard');
+        }
+        if (roleFilter === 'office_staff') {
+          return roles.includes('office');
+        }
+        return true;
+      });
     }
     
     // Compact mode: hide those without bookings or absences
