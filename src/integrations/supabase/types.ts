@@ -2421,6 +2421,68 @@ export type Database = {
           },
         ]
       }
+      participant_transfer_requests: {
+        Row: {
+          created_at: string
+          id: string
+          participant_id: string
+          requesting_instructor_id: string
+          source_group_id: string
+          status: string
+          target_group_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          participant_id: string
+          requesting_instructor_id: string
+          source_group_id: string
+          status?: string
+          target_group_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          participant_id?: string
+          requesting_instructor_id?: string
+          source_group_id?: string
+          status?: string
+          target_group_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "participant_transfer_requests_participant_id_fkey"
+            columns: ["participant_id"]
+            isOneToOne: false
+            referencedRelation: "customer_participants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "participant_transfer_requests_requesting_instructor_id_fkey"
+            columns: ["requesting_instructor_id"]
+            isOneToOne: false
+            referencedRelation: "instructors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "participant_transfer_requests_source_group_id_fkey"
+            columns: ["source_group_id"]
+            isOneToOne: false
+            referencedRelation: "group_course_instances"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "participant_transfer_requests_target_group_id_fkey"
+            columns: ["target_group_id"]
+            isOneToOne: false
+            referencedRelation: "group_course_instances"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       payments: {
         Row: {
           amount: number
