@@ -210,6 +210,16 @@ const Login = () => {
               </div>
             </div>
 
+            {/* First-time user hint - only show on login */}
+            {!isSignUp && (
+              <div className="p-3 rounded-lg bg-blue-50 border border-blue-200 dark:bg-blue-950/30 dark:border-blue-900">
+                <p className="text-xs text-blue-700 dark:text-blue-300">
+                  <strong>Neu eingeladen?</strong> Falls du noch kein Passwort gesetzt hast, 
+                  nutze "Passwort vergessen?" um ein neues Passwort zu erstellen.
+                </p>
+              </div>
+            )}
+
             {/* Submit Button */}
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? (
