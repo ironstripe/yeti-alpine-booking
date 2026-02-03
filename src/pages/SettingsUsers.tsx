@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Loader2, Users, Crown, Briefcase, GraduationCap, MoreHorizontal, KeyRound } from "lucide-react";
+import { Loader2, Users, Crown, Briefcase, GraduationCap, MoreHorizontal, KeyRound, Check, Clock, Mail } from "lucide-react";
 import { SettingsLayout } from "@/components/settings/SettingsLayout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -22,6 +22,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useSettingsUsers, useResetUserPassword, UserWithRole } from "@/hooks/useSettingsUsers";
 import { useAuth } from "@/contexts/AuthContext";
+import { useInviteInstructor } from "@/hooks/useInviteInstructor";
 
 const roleConfig = {
   admin: { label: "Admin", icon: Crown, color: "text-amber-600" },
@@ -33,6 +34,7 @@ export default function SettingsUsers() {
   const { data: users, isLoading } = useSettingsUsers();
   const { user: currentUser } = useAuth();
   const resetPassword = useResetUserPassword();
+  const inviteInstructor = useInviteInstructor();
   
   const [resetDialogOpen, setResetDialogOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<UserWithRole | null>(null);
@@ -45,6 +47,12 @@ export default function SettingsUsers() {
   const confirmResetPassword = async () => {
     if (selectedUser?.email) {
       await resetPassword.mutateAsync(selectedUser.email);
+    }
+  };
+
+  const handleInvite = async (user: UserWithRole) => {
+    if (user.instructor_id) {
+      await inviteInstructor.mutateAsync(user.instructor_id);
     }
   };
 
@@ -80,6 +88,7 @@ export default function SettingsUsers() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Benutzer</TableHead>
+                    <TableHead>Status</TableHead>
                     <TableHead>Rollen</TableHead>
                     <TableHead>Verknüpfter Lehrer</TableHead>
                     <TableHead className="w-[80px]">Aktionen</TableHead>
@@ -91,15 +100,28 @@ export default function SettingsUsers() {
                       <TableCell>
                         <div className="flex flex-col gap-1">
                           <div className="flex items-center gap-2">
-                            <span className="font-medium text-sm">{user.email || "Keine E-Mail"}</span>
+                            <span className="font-medium text-sm">{user.instructor_name || user.email || "Keine E-Mail"}</span>
                             {user.user_id === currentUser?.id && (
                               <Badge variant="outline" className="text-xs">Du</Badge>
                             )}
                           </div>
-                          <code className="text-xs text-muted-foreground">
-                            ID: {user.user_id.slice(0, 8)}...
-                          </code>
+                          <span className="text-xs text-muted-foreground">
+                            {user.email}
+                          </span>
                         </div>
+                      </TableCell>
+                      <TableCell>
+                        {user.invitation_status === 'invited' ? (
+                          <Badge variant="secondary" className="text-green-600">
+                            <Check className="h-3 w-3 mr-1" />
+                            Eingeladen
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-muted-foreground">
+                            <Clock className="h-3 w-3 mr-1" />
+                            Nicht eingeladen
+                          </Badge>
+                        )}
                       </TableCell>
                       <TableCell>
                         <div className="flex flex-wrap gap-1">
@@ -138,13 +160,24 @@ export default function SettingsUsers() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem 
-                              onClick={() => handleResetPassword(user)}
-                              disabled={!user.email}
-                            >
-                              <KeyRound className="h-4 w-4 mr-2" />
-                              Passwort zurücksetzen
-                            </DropdownMenuItem>
+                            {user.invitation_status === 'not_invited' && user.instructor_id && (
+                              <DropdownMenuItem 
+                                onClick={() => handleInvite(user)}
+                                disabled={inviteInstructor.isPending}
+                              >
+                                <Mail className="h-4 w-4 mr-2" />
+                                Einladen
+                              </DropdownMenuItem>
+                            )}
+                            {user.invitation_status === 'invited' && (
+                              <DropdownMenuItem 
+                                onClick={() => handleResetPassword(user)}
+                                disabled={!user.email}
+                              >
+                                <KeyRound className="h-4 w-4 mr-2" />
+                                Passwort zurücksetzen
+                              </DropdownMenuItem>
+                            )}
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </TableCell>

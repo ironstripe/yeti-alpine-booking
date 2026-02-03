@@ -4,13 +4,14 @@ import { toast } from "sonner";
 import { AppRole } from "./useUserRole";
 
 export interface UserWithRole {
-  user_id: string;
+  user_id: string | null;
   email: string;
   roles: AppRole[];
   instructor_id: string | null;
   instructor_name: string | null;
   created_at: string;
   last_sign_in: string | null;
+  invitation_status: 'invited' | 'not_invited';
 }
 
 interface AuthUser {
@@ -32,7 +33,7 @@ export function useSettingsUsers() {
       const [authResult, rolesResult, instructorsResult] = await Promise.all([
         supabase.functions.invoke<{ users: AuthUser[] }>("list-auth-users"),
         supabase.from("user_roles").select("user_id, role, created_at"),
-        supabase.from("instructors").select("id, email, first_name, last_name")
+        supabase.from("instructors").select("id, email, first_name, last_name, created_at")
       ]);
 
       if (authResult.error) {
@@ -45,56 +46,63 @@ export function useSettingsUsers() {
       const userRoles = rolesResult.data;
       const instructors = instructorsResult.data;
 
-      // Create email lookup from instructors
-      const instructorByEmail = new Map<string, { id: string; name: string }>();
-      if (instructors) {
-        for (const instructor of instructors) {
-          instructorByEmail.set(instructor.email.toLowerCase(), {
-            id: instructor.id,
-            name: `${instructor.first_name} ${instructor.last_name}`,
-          });
-        }
-      }
-
-      // Create auth user lookup by ID
-      const authUserById = new Map<string, AuthUser>();
+      // Create auth user lookup by email (lowercase)
+      const authUserByEmail = new Map<string, AuthUser>();
       for (const authUser of authUsers) {
-        authUserById.set(authUser.id, authUser);
+        if (authUser.email) {
+          authUserByEmail.set(authUser.email.toLowerCase(), authUser);
+        }
       }
 
       // Group roles by user_id
       const rolesMap = new Map<string, AppRole[]>();
-      const roleCreatedAt = new Map<string, string>();
-      
       for (const role of userRoles || []) {
         if (!rolesMap.has(role.user_id)) {
           rolesMap.set(role.user_id, []);
-          roleCreatedAt.set(role.user_id, role.created_at);
         }
         rolesMap.get(role.user_id)!.push(role.role as AppRole);
       }
 
-      // Build final user list from auth users
-      const usersMap = new Map<string, UserWithRole>();
-      
-      for (const authUser of authUsers) {
-        const email = authUser.email || "";
-        const instructorInfo = instructorByEmail.get(email.toLowerCase());
+      // Build final list: start with all instructors
+      const resultList: UserWithRole[] = [];
+
+      for (const instructor of instructors || []) {
+        const authUser = authUserByEmail.get(instructor.email.toLowerCase());
         
-        usersMap.set(authUser.id, {
+        resultList.push({
+          user_id: authUser?.id || null,
+          email: instructor.email,
+          roles: authUser ? rolesMap.get(authUser.id) || [] : [],
+          instructor_id: instructor.id,
+          instructor_name: `${instructor.first_name} ${instructor.last_name}`,
+          created_at: instructor.created_at,
+          last_sign_in: authUser?.last_sign_in_at || null,
+          invitation_status: authUser ? 'invited' : 'not_invited',
+        });
+        
+        // Mark this auth user as processed
+        if (authUser) {
+          authUserByEmail.delete(instructor.email.toLowerCase());
+        }
+      }
+
+      // Add remaining auth users (not linked to instructors)
+      for (const [, authUser] of authUserByEmail) {
+        resultList.push({
           user_id: authUser.id,
-          email: email,
+          email: authUser.email,
           roles: rolesMap.get(authUser.id) || [],
-          instructor_id: instructorInfo?.id || null,
-          instructor_name: instructorInfo?.name || null,
-          created_at: roleCreatedAt.get(authUser.id) || authUser.created_at,
+          instructor_id: null,
+          instructor_name: null,
+          created_at: authUser.created_at,
           last_sign_in: authUser.last_sign_in_at,
+          invitation_status: 'invited',
         });
       }
 
-      // Sort by email
-      return Array.from(usersMap.values()).sort((a, b) => 
-        a.email.localeCompare(b.email)
+      // Sort by name/email
+      return resultList.sort((a, b) => 
+        (a.instructor_name || a.email).localeCompare(b.instructor_name || b.email)
       );
     },
   });
