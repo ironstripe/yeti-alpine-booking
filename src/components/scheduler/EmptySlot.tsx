@@ -187,9 +187,10 @@ export function EmptySlot({
         state.drag.isDragging && "cursor-crosshair",
         isInvalidDropZone && "cursor-not-allowed",
         isBlocked && "bg-muted/30", // Only show muted background for absences
-        // DnD drop zone feedback - green for valid, red for invalid (including occupied slots)
-        isOver && !isInvalidDropZone && "border-2 border-green-500 bg-green-50",
-        isOver && isInvalidDropZone && "border-2 border-red-500 bg-red-50 cursor-not-allowed",
+        // DnD drop zone feedback - subtle for valid, red for invalid
+        !isInvalidDropZone && activeDragBookingId && "transition-all duration-150",
+        isOver && !isInvalidDropZone && "bg-primary/10 ring-2 ring-primary/40 ring-inset",
+        isOver && isInvalidDropZone && "bg-destructive/10 ring-2 ring-destructive/40 ring-inset cursor-not-allowed",
         // Drag selection preview styling
         isDragPreview && !isDragBlocked && "bg-[rgba(59,130,246,0.15)] border-l-2 border-l-blue-500",
         isDragPreview && isDragBlocked && "bg-destructive/15",
