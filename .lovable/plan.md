@@ -1,105 +1,125 @@
 
-# Add Recurring Absences to Scheduler + Fix Navigation
+
+# Enhance Scheduler Sorting for Group/Private Bookings
 
 ## Overview
 
-Add tabs to the scheduler's absence creation dialog for both one-time and recurring absences, and improve navigation from absence blocks to show the specific absence detail.
+Add sorting functionality to the scheduler that prioritizes instructors based on their booking types, and automatically moves instructors with group bookings to the top when the "Gruppen" filter is active.
 
 ## Changes
 
-### 1. Enhance AbsenceTypeDialog with Tabs
+### 1. Add Sort State and UI in SchedulerHeader
 
-**File:** `src/components/scheduler/AbsenceTypeDialog.tsx`
+**File:** `src/components/scheduler/SchedulerHeader.tsx`
 
-Add a tabbed interface:
-- **Tab 1: "Einmalig"** - Current one-time absence form (existing functionality)
-- **Tab 2: "Wiederkehrend"** - Recurring block form (adapted from RecurringBlockDialog)
+Add a new sort dropdown with options:
+- "Name A-Z" (default)
+- "Gruppe" - Instructors with group bookings first
+- "Privat" - Instructors with private bookings first
 
-The recurring tab will include:
-- Time window selection (start/end time)
-- Weekday selection (with quick buttons: All, Mo-Fr, Weekend)
-- Validity period (from/until dates)
-- Reason field
-- Conflict checking via `check_recurring_block_conflicts` RPC
-
-### 2. Fix Navigation from Absence Blocks
-
-**File:** `src/components/scheduler/AbsenceDetailDialog.tsx`
-
-Change the "Bearbeiten" button behavior:
-- For **one-time absences**: Navigate to `/instructors/:id?absences=open&absenceId=:absenceId`
-- For **recurring blocks**: Navigate to `/instructors/:id` with recurring tab focused
-
-**File:** `src/components/instructors/detail/AbsenceRequestCard.tsx`
-
-Add support for `absenceId` URL parameter:
-- When `absenceId` is present, highlight/scroll to that specific absence entry
-- Auto-open the edit dialog for that absence
-
-### 3. Update BlockingBar for Recurring Block Click
-
-**File:** `src/components/scheduler/BlockingBar.tsx`
-
-For recurring blocks (id starts with `recurring-`):
-- Extract the actual block ID from the absence ID
-- Navigate to instructor page with recurring section focused
-
-## Technical Details
-
-### New Imports in AbsenceTypeDialog
 ```tsx
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Input } from "@/components/ui/input";
-import { 
-  useCreateRecurringBlock, 
-  useRecurringBlockConflicts 
-} from "@/hooks/useRecurringBlocks";
+// New prop
+sortBy: string;
+onSortChange: (sort: string) => void;
+
+// New select in the right-aligned utilities section
+<Select value={sortBy} onValueChange={onSortChange}>
+  <SelectTrigger className="w-8 h-8 p-0 md:w-[100px] md:px-2">
+    <ArrowUpDown className="h-3.5 w-3.5 md:mr-1" />
+    <SelectValue placeholder="Sort" />
+  </SelectTrigger>
+  <SelectContent>
+    <SelectItem value="name">Name A-Z</SelectItem>
+    <SelectItem value="group">Gruppe</SelectItem>
+    <SelectItem value="private">Privat</SelectItem>
+  </SelectContent>
+</Select>
 ```
 
-### State for Recurring Tab
+### 2. Implement Sorting Logic in SchedulerGrid
+
+**File:** `src/components/scheduler/SchedulerGrid.tsx`
+
+Add new state:
 ```tsx
-const [activeTab, setActiveTab] = useState<"one-time" | "recurring">("one-time");
-const [recurringStartTime, setRecurringStartTime] = useState("12:00");
-const [recurringEndTime, setRecurringEndTime] = useState("13:00");
-const [weekdays, setWeekdays] = useState<number[]>([1, 2, 3, 4, 5]);
-const [validFrom, setValidFrom] = useState(today);
-const [validUntil, setValidUntil] = useState("");
-const [recurringReason, setRecurringReason] = useState("");
+const [sortBy, setSortBy] = useState<string>("name");
 ```
 
-### AbsenceRequestCard Enhancement
+Enhance the `filteredInstructors` useMemo to:
+
+1. **Auto-sort when "Gruppen" filter is active**: When `bookingTypeFilter === "group"`, automatically move instructors with group bookings to top
+2. **Apply explicit sort options**: When `sortBy` is "group" or "private", sort accordingly
+
 ```tsx
-// In useEffect, check for absenceId param
-const absenceIdToHighlight = searchParams.get("absenceId");
-useEffect(() => {
-  if (absenceIdToHighlight) {
-    setIsHistoryOpen(true);
-    // Find and open edit dialog for this absence
-    const targetAbsence = absenceHistory.find(a => a.id === absenceIdToHighlight);
-    if (targetAbsence) {
-      setEditingAbsence(targetAbsence);
-    }
+const filteredInstructors = useMemo(() => {
+  let filtered = instructors;
+  
+  // ... existing role filter and compact mode logic ...
+
+  // Determine effective sort
+  // Auto-sort by group when group filter is active, otherwise use explicit sortBy
+  const effectiveSort = bookingTypeFilter === "group" ? "group" : 
+                        bookingTypeFilter === "private" ? "private" : 
+                        sortBy;
+
+  // Sort by booking type
+  if (effectiveSort === "group") {
+    filtered = [...filtered].sort((a, b) => {
+      const aHasGroup = bookings.some(bk => bk.instructorId === a.id && bk.type === "group");
+      const bHasGroup = bookings.some(bk => bk.instructorId === b.id && bk.type === "group");
+      if (aHasGroup && !bHasGroup) return -1;
+      if (!aHasGroup && bHasGroup) return 1;
+      // Secondary: count of group bookings
+      const aGroupCount = bookings.filter(bk => bk.instructorId === a.id && bk.type === "group").length;
+      const bGroupCount = bookings.filter(bk => bk.instructorId === b.id && bk.type === "group").length;
+      return bGroupCount - aGroupCount;
+    });
+  } else if (effectiveSort === "private") {
+    filtered = [...filtered].sort((a, b) => {
+      const aHasPrivate = bookings.some(bk => bk.instructorId === a.id && bk.type === "private");
+      const bHasPrivate = bookings.some(bk => bk.instructorId === b.id && bk.type === "private");
+      if (aHasPrivate && !bHasPrivate) return -1;
+      if (!aHasPrivate && bHasPrivate) return 1;
+      const aPrivateCount = bookings.filter(bk => bk.instructorId === a.id && bk.type === "private").length;
+      const bPrivateCount = bookings.filter(bk => bk.instructorId === b.id && bk.type === "private").length;
+      return bPrivateCount - aPrivateCount;
+    });
   }
-}, [absenceIdToHighlight, absenceHistory]);
+  // "name" sort: keep default alphabetical order from DB query
+
+  // Planning mode sort (takes precedence if active)
+  if (isPlanningMode) {
+    // ... existing planning mode sort logic ...
+  }
+  
+  return filtered;
+}, [instructors, bookings, absences, compactMode, roleFilter, isPlanningMode, bookingTypeFilter, sortBy]);
 ```
 
-## UI Structure
+### 3. Pass Sort Props to Header
 
-```
-+------------------------------------------+
-| Abwesenheit eintragen/beantragen         |
-+------------------------------------------+
-| [Einmalig] [Wiederkehrend]               | <- Tabs
-+------------------------------------------+
-| (Content based on active tab)            |
-+------------------------------------------+
-| [Abbrechen]        [Antrag senden]       |
-+------------------------------------------+
+**File:** `src/components/scheduler/SchedulerGrid.tsx`
+
+```tsx
+<SchedulerHeader
+  // ... existing props ...
+  sortBy={sortBy}
+  onSortChange={setSortBy}
+/>
 ```
 
-## Result
+## Behavior Summary
 
-- Users can create both one-time and recurring absences directly from the scheduler
-- Clicking an absence block and then "Bearbeiten" navigates to the instructor page with that specific absence highlighted and ready to edit
-- Consistent experience between scheduler and instructor page
+| Filter Active | Sort Selection | Result |
+|--------------|----------------|--------|
+| "Alle" | "Name" | Default alphabetical |
+| "Alle" | "Gruppe" | Group-assigned instructors first |
+| "Alle" | "Privat" | Private-booked instructors first |
+| "Gruppe" | Any | Auto-sorts group instructors to top |
+| "Privat" | Any | Auto-sorts private-booked instructors to top |
+
+## Files Modified
+
+1. `src/components/scheduler/SchedulerHeader.tsx` - Add sort dropdown UI and props
+2. `src/components/scheduler/SchedulerGrid.tsx` - Add sort state and sorting logic
+
