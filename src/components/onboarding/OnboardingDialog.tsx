@@ -2,16 +2,22 @@ import { useState, useEffect } from 'react';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { 
-  Calendar, Users, Inbox, Settings, LayoutDashboard,
-  ChevronRight, ChevronLeft, Check 
+  Calendar, Inbox, Settings, LayoutDashboard,
+  ChevronRight, ChevronLeft, Check,
+  LayoutGrid, UserCheck
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const ONBOARDING_STEPS = [
   {
     title: 'Willkommen bei YETY',
-    description: 'Ihr neues Buchungssystem für die Skischule. Lassen Sie uns die wichtigsten Funktionen durchgehen.',
+    description: 'Ihr Buchungssystem für die Skischule. Lassen Sie uns die wichtigsten Funktionen durchgehen.',
     icon: LayoutDashboard,
+  },
+  {
+    title: 'Stundenplan',
+    description: 'Der visuelle Stundenplan zeigt alle Buchungen und Skilehrer auf einen Blick. Ziehen Sie Buchungen per Drag & Drop.',
+    icon: LayoutGrid,
   },
   {
     title: 'Buchungen erstellen',
@@ -20,17 +26,17 @@ const ONBOARDING_STEPS = [
   },
   {
     title: 'KI-Posteingang',
-    description: 'E-Mails und WhatsApp-Anfragen werden automatisch analysiert. Prüfen Sie die extrahierten Daten und erstellen Sie Buchungen mit einem Klick.',
+    description: 'E-Mails und Anfragen werden automatisch analysiert. Prüfen Sie die extrahierten Daten und erstellen Sie Buchungen mit einem Klick.',
     icon: Inbox,
   },
   {
-    title: 'Kurse & Lehrer',
-    description: 'Verwalten Sie Gruppenkurse, weisen Sie Lehrer zu und behalten Sie den Überblick über alle Trainings.',
-    icon: Users,
+    title: 'Skilehrer-Verwaltung',
+    description: 'Verwalten Sie Skilehrer, Abwesenheiten und wiederkehrende Blockzeiten. Sehen Sie auf einen Blick, wer verfügbar ist.',
+    icon: UserCheck,
   },
   {
     title: 'Einstellungen',
-    description: 'Passen Sie Produkte, Preise, E-Mail-Vorlagen und mehr an Ihre Bedürfnisse an.',
+    description: 'Passen Sie Produkte, Preise, E-Mail-Vorlagen, Benutzer und mehr an Ihre Bedürfnisse an.',
     icon: Settings,
   }
 ];
