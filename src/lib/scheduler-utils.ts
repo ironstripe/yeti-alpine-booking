@@ -3,6 +3,7 @@ import type { Tables } from "@/integrations/supabase/types";
 export type SchedulerInstructor = Tables<"instructors"> & {
   color: InstructorColor;
   todayBookingsCount: number;
+  roleType: 'instructor' | 'office_staff';
 };
 
 export type InstructorColor = "red" | "yellow" | "light-blue" | "dark-blue";

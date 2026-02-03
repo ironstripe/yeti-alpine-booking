@@ -211,9 +211,9 @@ function SchedulerGridContent() {
   const filteredInstructors = useMemo(() => {
     let filtered = instructors;
     
-    // Filter by role
+    // Filter by role type (derived from roles array)
     if (roleFilter) {
-      filtered = filtered.filter(i => i.role === roleFilter);
+      filtered = filtered.filter(i => i.roleType === roleFilter);
     }
     
     // Compact mode: hide those without bookings or absences

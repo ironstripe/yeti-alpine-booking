@@ -70,7 +70,6 @@ export function useSchedulerData({ startDate, endDate, instructorId }: UseSchedu
         .from("instructors")
         .select("*")
         .eq("status", "active")
-        .not("role", "eq", "office")
         .order("last_name", { ascending: true });
 
       if (error) throw error;
@@ -160,7 +159,7 @@ export function useSchedulerData({ startDate, endDate, instructorId }: UseSchedu
     },
   });
 
-  // Derive enhanced instructors with colors
+  // Derive enhanced instructors with colors and role type
   const instructors: SchedulerInstructor[] = (instructorsQuery.data || [])
     .filter((i) => !instructorId || i.id === instructorId)
     .map((instructor) => {
@@ -174,10 +173,15 @@ export function useSchedulerData({ startDate, endDate, instructorId }: UseSchedu
         (b) => b.instructor_id === instructor.id
       ).length;
 
+      // Derive role type from roles array for filtering
+      const hasTeachingRole = instructor.roles?.some(r => r === 'ski' || r === 'snowboard');
+      const roleType: 'instructor' | 'office_staff' = hasTeachingRole ? 'instructor' : 'office_staff';
+
       return {
         ...instructor,
         color: deriveInstructorColor(instructor, hasGroupCourse),
         todayBookingsCount,
+        roleType,
       };
     });
 
