@@ -38,7 +38,7 @@ export function TestDataGenerator() {
 
   // Group course options
   const [generateGroupCourses, setGenerateGroupCourses] = useState(true);
-  const [weeksToGenerate, setWeeksToGenerate] = useState(8);
+  const [weeksToGenerate, setWeeksToGenerate] = useState(4);
   const [includeCapacityScenarios, setIncludeCapacityScenarios] = useState(true);
 
   const handleGenerate = async () => {
