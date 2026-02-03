@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
+import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { FlaskConical, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
@@ -20,6 +21,11 @@ interface GenerationResult {
     end: string;
   };
   error?: string;
+  groupCourses?: {
+    trainingGroups: number;
+    enrollments: number;
+    customersCreated: number;
+  };
 }
 
 export function TestDataGenerator() {
@@ -29,6 +35,11 @@ export function TestDataGenerator() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [progress, setProgress] = useState(0);
   const [result, setResult] = useState<GenerationResult | null>(null);
+
+  // Group course options
+  const [generateGroupCourses, setGenerateGroupCourses] = useState(true);
+  const [weeksToGenerate, setWeeksToGenerate] = useState(8);
+  const [includeCapacityScenarios, setIncludeCapacityScenarios] = useState(true);
 
   const handleGenerate = async () => {
     setIsGenerating(true);
@@ -46,6 +57,9 @@ export function TestDataGenerator() {
           startDate,
           bookingCount,
           daysSpread,
+          generateGroupCourses,
+          weeksToGenerate,
+          includeCapacityScenarios,
         },
       });
 
@@ -59,9 +73,12 @@ export function TestDataGenerator() {
       setResult(data as GenerationResult);
 
       if (data.success) {
+        const groupMsg = data.groupCourses 
+          ? ` Gruppenkurse: ${data.groupCourses.trainingGroups} Gruppen, ${data.groupCourses.enrollments} Einschreibungen.`
+          : "";
         toast({
           title: "Testdaten generiert",
-          description: `${data.created.tickets} Buchungen mit ${data.created.items} Lektionen erstellt.`,
+          description: `${data.created?.tickets || 0} Buchungen mit ${data.created?.items || 0} Lektionen erstellt.${groupMsg}`,
         });
       }
     } catch (error) {
@@ -92,53 +109,116 @@ export function TestDataGenerator() {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
-        <div className="grid gap-4 sm:grid-cols-3">
-          <div className="space-y-2">
-            <Label htmlFor="startDate">Startdatum</Label>
-            <Input
-              id="startDate"
-              type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              disabled={isGenerating}
-            />
+        {/* Private Lessons Section */}
+        <div className="space-y-4">
+          <Label className="text-base font-semibold">Privatlektionen</Label>
+          <div className="grid gap-4 sm:grid-cols-3">
+            <div className="space-y-2">
+              <Label htmlFor="startDate">Startdatum</Label>
+              <Input
+                id="startDate"
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                disabled={isGenerating}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="bookingCount">Anzahl Buchungen</Label>
+              <Input
+                id="bookingCount"
+                type="number"
+                min={1}
+                max={200}
+                value={bookingCount}
+                onChange={(e) => setBookingCount(Number(e.target.value))}
+                disabled={isGenerating}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="daysSpread">Tage verteilen</Label>
+              <Input
+                id="daysSpread"
+                type="number"
+                min={1}
+                max={30}
+                value={daysSpread}
+                onChange={(e) => setDaysSpread(Number(e.target.value))}
+                disabled={isGenerating}
+              />
+            </div>
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="bookingCount">Anzahl Buchungen</Label>
-            <Input
-              id="bookingCount"
-              type="number"
-              min={1}
-              max={200}
-              value={bookingCount}
-              onChange={(e) => setBookingCount(Number(e.target.value))}
-              disabled={isGenerating}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="daysSpread">Tage verteilen</Label>
-            <Input
-              id="daysSpread"
-              type="number"
-              min={1}
-              max={30}
-              value={daysSpread}
-              onChange={(e) => setDaysSpread(Number(e.target.value))}
-              disabled={isGenerating}
-            />
+
+          <div className="text-sm text-muted-foreground">
+            <p>Verteilung der generierten Privatlektionen:</p>
+            <ul className="mt-1 list-disc list-inside">
+              <li>35% Vormittag 09:00-11:00 (2h)</li>
+              <li>25% Vormittag 10:00-12:00 (2h)</li>
+              <li>25% Nachmittag 14:00-16:00 (2h)</li>
+              <li>15% Halbtag (3h)</li>
+              <li>80% mit Instruktor bestätigt</li>
+            </ul>
+            <p className="mt-2 text-xs">Gruppen-Instruktoren werden automatisch ausgeschlossen.</p>
           </div>
         </div>
 
-        <div className="text-sm text-muted-foreground">
-          <p>Verteilung der generierten Privatlektionen:</p>
-          <ul className="mt-1 list-disc list-inside">
-            <li>35% Vormittag 09:00-11:00 (2h)</li>
-            <li>25% Vormittag 10:00-12:00 (2h)</li>
-            <li>25% Nachmittag 14:00-16:00 (2h)</li>
-            <li>15% Halbtag (3h)</li>
-            <li>80% mit Instruktor bestätigt</li>
-          </ul>
-          <p className="mt-2 text-xs">Gruppen-Instruktoren werden automatisch ausgeschlossen.</p>
+        {/* Group Courses Section */}
+        <div className="space-y-4 border-t pt-4">
+          <Label className="text-base font-semibold">Gruppenkurse</Label>
+          
+          <div className="flex items-center space-x-2">
+            <Checkbox 
+              id="generateGroupCourses" 
+              checked={generateGroupCourses}
+              onCheckedChange={(checked) => setGenerateGroupCourses(!!checked)}
+              disabled={isGenerating}
+            />
+            <Label htmlFor="generateGroupCourses" className="cursor-pointer">
+              Gruppenkurs-Buchungen generieren
+            </Label>
+          </div>
+          
+          {generateGroupCourses && (
+            <div className="space-y-4 pl-6">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="weeksToGenerate">Wochen generieren</Label>
+                  <Input
+                    id="weeksToGenerate"
+                    type="number"
+                    min={1}
+                    max={12}
+                    value={weeksToGenerate}
+                    onChange={(e) => setWeeksToGenerate(Number(e.target.value))}
+                    disabled={isGenerating}
+                  />
+                </div>
+              </div>
+              
+              <div className="flex items-center space-x-2">
+                <Checkbox 
+                  id="includeCapacityScenarios" 
+                  checked={includeCapacityScenarios}
+                  onCheckedChange={(checked) => setIncludeCapacityScenarios(!!checked)}
+                  disabled={isGenerating}
+                />
+                <Label htmlFor="includeCapacityScenarios" className="cursor-pointer">
+                  Kapazitäts-Szenarien einschliessen (überbucht, unterbelegt)
+                </Label>
+              </div>
+              
+              <div className="text-sm text-muted-foreground">
+                <p>Pro Kurs/Woche werden generiert:</p>
+                <ul className="mt-1 list-disc list-inside">
+                  <li>50% normale Auslastung (min bis max)</li>
+                  <li>20% überbucht (+4 bis +12 über max)</li>
+                  <li>20% unterbelegt (1 bis min-1)</li>
+                  <li>10% leer (0 Teilnehmer)</li>
+                </ul>
+                <p className="mt-2 text-xs">70% der Buchungen werden als bezahlt markiert.</p>
+              </div>
+            </div>
+          )}
         </div>
 
         {isGenerating && (
@@ -163,11 +243,21 @@ export function TestDataGenerator() {
                 <CheckCircle2 className="h-5 w-5 mt-0.5 flex-shrink-0" />
                 <div>
                   <p className="font-medium">Erfolgreich generiert</p>
-                  <p className="text-sm mt-1">
-                    {result.created?.tickets} Buchungen mit {result.created?.items} Lektionen
-                    <br />
-                    Zeitraum: {result.dateRange?.start} bis {result.dateRange?.end}
-                  </p>
+                  <div className="text-sm mt-1 space-y-1">
+                    <p>
+                      Privatlektionen: {result.created?.tickets || 0} Buchungen mit {result.created?.items || 0} Lektionen
+                    </p>
+                    {result.groupCourses && (
+                      <p>
+                        Gruppenkurse: {result.groupCourses.trainingGroups} Gruppen, {result.groupCourses.enrollments} Einschreibungen
+                      </p>
+                    )}
+                    {result.dateRange && (
+                      <p className="text-xs opacity-75">
+                        Zeitraum: {result.dateRange.start} bis {result.dateRange.end}
+                      </p>
+                    )}
+                  </div>
                 </div>
               </>
             ) : (
@@ -195,7 +285,7 @@ export function TestDataGenerator() {
           ) : (
             <>
               <FlaskConical className="mr-2 h-4 w-4" />
-              {bookingCount} Testbuchungen generieren
+              Testdaten generieren
             </>
           )}
         </Button>

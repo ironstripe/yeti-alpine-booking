@@ -9,6 +9,15 @@ interface GenerateRequest {
   startDate: string;
   bookingCount: number;
   daysSpread: number;
+  generateGroupCourses?: boolean;
+  weeksToGenerate?: number;
+  includeCapacityScenarios?: boolean;
+}
+
+interface GroupCourseResult {
+  trainingGroups: number;
+  enrollments: number;
+  customersCreated: number;
 }
 
 // Time slots with realistic distribution:
@@ -19,6 +28,22 @@ const TIME_SLOTS = [
   { start: "14:00", end: "16:00", type: "afternoon", weight: 0.25 },
   { start: "09:00", end: "12:00", type: "half-day-morning", weight: 0.075 },
   { start: "13:00", end: "16:00", type: "half-day-afternoon", weight: 0.075 },
+];
+
+// Swiss/German names for realistic test data
+const CHILD_FIRST_NAMES = [
+  'Emma', 'Mia', 'Sofia', 'Anna', 'Lena', 'Laura', 'Julia', 'Sara',
+  'Noah', 'Liam', 'Leon', 'Lucas', 'Felix', 'Tim', 'Max', 'Paul',
+  'Leonie', 'Nina', 'Lara', 'Elena', 'Emilia', 'Valentina',
+  'David', 'Jan', 'Lukas', 'Nico', 'Julian', 'Finn', 'Ben', 'Luis',
+  'Marie', 'Hannah', 'Lea', 'Sophie', 'Ella', 'Clara', 'Lina', 'Mila'
+];
+
+const SWISS_LAST_NAMES = [
+  'Müller', 'Meier', 'Schmid', 'Keller', 'Weber', 'Huber', 'Schneider',
+  'Meyer', 'Steiner', 'Fischer', 'Gerber', 'Brunner', 'Baumann', 'Frei',
+  'Moser', 'Widmer', 'Wyss', 'Graf', 'Roth', 'Bühler', 'Berger', 'Koch',
+  'Suter', 'Kaufmann', 'Hofer', 'Baumgartner', 'Wirth', 'Pfister'
 ];
 
 function randomElement<T>(arr: T[]): T {
@@ -74,6 +99,332 @@ async function generateTicketNumber(supabase: any): Promise<string> {
   return `YETY-${year}-${nextNumber.toString().padStart(5, "0")}`;
 }
 
+// Group course helper functions
+function getRandomScenario(): 'ok' | 'overbooked' | 'underbooked' | 'empty' {
+  const rand = Math.random();
+  if (rand < 0.5) return 'ok';           // 50% correct capacity
+  if (rand < 0.7) return 'overbooked';   // 20% overbooked
+  if (rand < 0.9) return 'underbooked';  // 20% underbooked
+  return 'empty';                         // 10% empty
+}
+
+function getMonday(date: Date): string {
+  const d = new Date(date);
+  const day = d.getDay();
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+  d.setDate(diff);
+  return d.toISOString().split('T')[0];
+}
+
+function getRandomChildFirstName(): string {
+  return randomElement(CHILD_FIRST_NAMES);
+}
+
+function getRandomSwissLastName(): string {
+  return randomElement(SWISS_LAST_NAMES);
+}
+
+function getRandomChildBirthDate(): string {
+  // Children between 4-14 years old
+  const now = new Date();
+  const minAge = 4;
+  const maxAge = 14;
+  const age = minAge + Math.floor(Math.random() * (maxAge - minAge + 1));
+  const birthYear = now.getFullYear() - age;
+  const birthMonth = Math.floor(Math.random() * 12) + 1;
+  const birthDay = Math.floor(Math.random() * 28) + 1;
+  return `${birthYear}-${String(birthMonth).padStart(2, '0')}-${String(birthDay).padStart(2, '0')}`;
+}
+
+function getRandomEmail(firstName: string, lastName: string): string {
+  const domains = ['gmail.com', 'bluewin.ch', 'outlook.com', 'gmx.ch', 'hispeed.ch'];
+  const cleanFirst = firstName.toLowerCase().replace(/[^a-z]/g, '');
+  const cleanLast = lastName.toLowerCase().replace(/[^a-z]/g, '');
+  const rand = Math.floor(Math.random() * 1000);
+  return `${cleanFirst}.${cleanLast}${rand}@${randomElement(domains)}`;
+}
+
+function getRandomPhone(): string {
+  const prefix = randomElement(['079', '078', '076', '077']);
+  const number = Math.floor(Math.random() * 10000000).toString().padStart(7, '0');
+  return `${prefix} ${number.slice(0, 3)} ${number.slice(3, 5)} ${number.slice(5)}`;
+}
+
+async function getOrCreateTestCustomer(supabase: any): Promise<any> {
+  // 70% chance to create new customer, 30% to reuse existing
+  if (Math.random() < 0.3) {
+    const { data: existingCustomers } = await supabase
+      .from("customers")
+      .select("id, last_name")
+      .limit(50);
+    
+    if (existingCustomers && existingCustomers.length > 0) {
+      return randomElement(existingCustomers);
+    }
+  }
+
+  // Create new customer
+  const firstName = getRandomChildFirstName(); // Parents can have same names
+  const lastName = getRandomSwissLastName();
+  const email = getRandomEmail(firstName, lastName);
+
+  const { data: customer, error } = await supabase
+    .from("customers")
+    .insert({
+      first_name: firstName,
+      last_name: lastName,
+      email: email,
+      phone: getRandomPhone(),
+      holiday_address: `Hotel ${randomElement(['Alpenrose', 'Edelweiss', 'Bergblick', 'Sonnenhof', 'Alpina'])}`,
+      language: randomElement(['de', 'en', 'fr']),
+      notes: 'Test customer generated automatically',
+    })
+    .select()
+    .single();
+
+  if (error) {
+    console.error("Error creating customer:", error);
+    throw error;
+  }
+
+  return customer;
+}
+
+async function generateGroupCourseData(
+  supabase: any,
+  startDate: Date,
+  weeks: number,
+  includeScenarios: boolean
+): Promise<GroupCourseResult> {
+  const results: GroupCourseResult = {
+    trainingGroups: 0,
+    enrollments: 0,
+    customersCreated: 0,
+  };
+
+  // Fetch active weekly group courses
+  const { data: groupCourses, error: coursesError } = await supabase
+    .from('group_courses')
+    .select('*')
+    .eq('is_active', true)
+    .eq('course_type', 'weekly');
+
+  if (coursesError) {
+    console.error("Error fetching group courses:", coursesError);
+    throw new Error("Failed to fetch group courses");
+  }
+
+  if (!groupCourses || groupCourses.length === 0) {
+    console.log("No active weekly group courses found, skipping group course generation");
+    return results;
+  }
+
+  console.log(`Found ${groupCourses.length} active weekly courses`);
+
+  // Get group course instructors for assignment
+  const { data: groupInstructors } = await supabase
+    .from('training_groups')
+    .select('instructor_id')
+    .not('instructor_id', 'is', null);
+
+  const instructorIds = [...new Set((groupInstructors || []).map((g: { instructor_id: string }) => g.instructor_id))];
+  
+  // Fetch all instructors for random assignment
+  const { data: allInstructors } = await supabase
+    .from('instructors')
+    .select('id')
+    .eq('status', 'active');
+
+  const availableInstructors: { id: string }[] = allInstructors || [];
+
+  // Generate data for each week
+  for (let week = 0; week < weeks; week++) {
+    const weekStartDate = new Date(startDate);
+    weekStartDate.setDate(weekStartDate.getDate() + (week * 7));
+    const weekStart = getMonday(weekStartDate);
+
+    console.log(`Generating week ${week + 1}, starting ${weekStart}`);
+
+    for (const course of groupCourses) {
+      // Determine target participants based on scenario
+      let targetParticipants: number;
+      const minParticipants = course.min_participants || 4;
+      const maxParticipants = course.max_participants || 12;
+
+      if (includeScenarios) {
+        const scenario = getRandomScenario();
+        switch (scenario) {
+          case 'overbooked':
+            targetParticipants = maxParticipants + Math.floor(Math.random() * 9) + 4; // 4-12 over
+            break;
+          case 'underbooked':
+            targetParticipants = Math.max(1, minParticipants - Math.floor(Math.random() * 3) - 1); // 1-3 under min
+            break;
+          case 'empty':
+            targetParticipants = 0;
+            break;
+          default: // 'ok'
+            targetParticipants = minParticipants + 
+              Math.floor(Math.random() * (maxParticipants - minParticipants + 1));
+        }
+      } else {
+        // Random between min and max
+        targetParticipants = minParticipants + 
+          Math.floor(Math.random() * (maxParticipants - minParticipants + 1));
+      }
+
+      // Create training group for this course/week
+      const assignedInstructor = availableInstructors.length > 0 
+        ? randomElement(availableInstructors).id 
+        : null;
+
+      const { data: trainingGroup, error: tgError } = await supabase
+        .from('training_groups')
+        .insert({
+          course_id: course.id,
+          week_start: weekStart,
+          group_number: 1,
+          instructor_id: assignedInstructor,
+          status: 'active',
+        })
+        .select()
+        .single();
+
+      if (tgError) {
+        console.error('Error creating training group:', tgError);
+        continue;
+      }
+      results.trainingGroups++;
+
+      // Find or create instances for this course in this week (Mon-Fri)
+      const weekDays: string[] = [];
+      for (let d = 0; d < 5; d++) {
+        const dayDate = new Date(weekStart);
+        dayDate.setDate(dayDate.getDate() + d);
+        weekDays.push(dayDate.toISOString().split('T')[0]);
+      }
+
+      // Fetch existing instances for this course in this week
+      const { data: existingInstances } = await supabase
+        .from('group_course_instances')
+        .select('*')
+        .eq('course_id', course.id)
+        .in('date', weekDays);
+
+      // If no instances exist, we'll create enrollments without instance links
+      // (the capacity planning feature will still work via training_groups)
+      const instanceMap = new Map();
+      if (existingInstances) {
+        for (const inst of existingInstances) {
+          instanceMap.set(inst.date, inst);
+        }
+      }
+
+      // Create enrollments
+      for (let i = 0; i < targetParticipants; i++) {
+        try {
+          // Get or create customer
+          const customer = await getOrCreateTestCustomer(supabase);
+          results.customersCreated++;
+
+          // Create participant (child)
+          const { data: participant, error: partError } = await supabase
+            .from('customer_participants')
+            .insert({
+              customer_id: customer.id,
+              first_name: getRandomChildFirstName(),
+              last_name: customer.last_name,
+              birth_date: getRandomChildBirthDate(),
+            })
+            .select()
+            .single();
+
+          if (partError) {
+            console.error('Error creating participant:', partError);
+            continue;
+          }
+
+          // Create ticket
+          const isPaid = Math.random() < 0.7; // 70% paid
+          const weekPrice = (course.price_full_week || course.price_per_day * 5);
+          const ticketNumber = await generateTicketNumber(supabase);
+
+          const { data: ticket, error: ticketError } = await supabase
+            .from('tickets')
+            .insert({
+              ticket_number: ticketNumber,
+              customer_id: customer.id,
+              status: 'confirmed',
+              total_amount: weekPrice,
+              paid_amount: isPaid ? weekPrice : 0,
+              payment_method: isPaid ? randomElement(['cash', 'card', 'twint']) : null,
+              notes: `Test group course booking - ${course.name}`,
+            })
+            .select()
+            .single();
+
+          if (ticketError) {
+            console.error('Error creating ticket:', ticketError);
+            continue;
+          }
+
+          // Create ticket item for each day of the week
+          const firstDay = weekDays[0];
+          const instance = instanceMap.get(firstDay);
+          
+          const { data: ticketItem, error: itemError } = await supabase
+            .from('ticket_items')
+            .insert({
+              ticket_id: ticket.id,
+              product_id: course.product_id,
+              participant_id: participant.id,
+              instructor_id: assignedInstructor,
+              date: firstDay,
+              time_start: '09:00',
+              time_end: '12:00',
+              unit_price: weekPrice,
+              status: 'confirmed',
+              instructor_confirmation: 'confirmed',
+            })
+            .select()
+            .single();
+
+          if (itemError) {
+            console.error('Error creating ticket item:', itemError);
+            continue;
+          }
+
+          // Create enrollment linking to instance (if exists) and training group
+          if (instance) {
+            const { error: enrollError } = await supabase
+              .from('group_course_enrollments')
+              .insert({
+                instance_id: instance.id,
+                ticket_item_id: ticketItem.id,
+                participant_id: participant.id,
+                training_group_id: trainingGroup.id,
+                original_course_id: course.id,
+                attendance_status: 'registered',
+              });
+
+            if (enrollError) {
+              console.error('Error creating enrollment:', enrollError);
+              continue;
+            }
+          }
+
+          results.enrollments++;
+        } catch (err) {
+          console.error('Error in enrollment creation loop:', err);
+          continue;
+        }
+      }
+    }
+  }
+
+  return results;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -84,7 +435,14 @@ Deno.serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const { startDate, bookingCount, daysSpread }: GenerateRequest = await req.json();
+    const { 
+      startDate, 
+      bookingCount, 
+      daysSpread,
+      generateGroupCourses = false,
+      weeksToGenerate = 8,
+      includeCapacityScenarios = true,
+    }: GenerateRequest = await req.json();
     
     const startDateObj = new Date(startDate);
     
@@ -262,6 +620,24 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Generate group course data if enabled
+    let groupCourseResult: GroupCourseResult | undefined;
+    if (generateGroupCourses) {
+      console.log("Starting group course generation...");
+      try {
+        groupCourseResult = await generateGroupCourseData(
+          supabase,
+          startDateObj,
+          weeksToGenerate,
+          includeCapacityScenarios
+        );
+        console.log("Group course generation complete:", groupCourseResult);
+      } catch (err) {
+        console.error("Group course generation failed:", err);
+        // Don't fail the whole request, just log the error
+      }
+    }
+
     return new Response(
       JSON.stringify({
         success: true,
@@ -273,6 +649,7 @@ Deno.serve(async (req) => {
           start: startDate,
           end: addDays(startDateObj, daysSpread - 1),
         },
+        groupCourses: groupCourseResult,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
