@@ -21,6 +21,14 @@ interface CreateOfficeHourBlockData {
   note?: string;
 }
 
+interface UpdateOfficeHourBlockData {
+  id: string;
+  date?: string;
+  timeStart?: string;
+  timeEnd?: string;
+  note?: string | null;
+}
+
 export function useOfficeHourBlocks(startDate: string, endDate: string) {
   return useQuery({
     queryKey: ["office-hour-blocks", startDate, endDate],
@@ -65,6 +73,40 @@ export function useCreateOfficeHourBlock() {
     onError: (error) => {
       console.error("Error creating office hour block:", error);
       toast.error("Fehler beim Erstellen des Bürodienstes");
+    },
+  });
+}
+
+export function useUpdateOfficeHourBlock() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (data: UpdateOfficeHourBlockData) => {
+      const { id, ...updates } = data;
+      const updateData: Record<string, unknown> = {};
+      if (updates.date !== undefined) updateData.date = updates.date;
+      if (updates.timeStart !== undefined) updateData.time_start = updates.timeStart;
+      if (updates.timeEnd !== undefined) updateData.time_end = updates.timeEnd;
+      if (updates.note !== undefined) updateData.note = updates.note;
+
+      const { data: result, error } = await supabase
+        .from("office_hour_blocks")
+        .update(updateData)
+        .eq("id", id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return result;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["office-hour-blocks"] });
+      queryClient.invalidateQueries({ queryKey: ["scheduler-office-blocks"] });
+      toast.success("Bürodienst aktualisiert");
+    },
+    onError: (error) => {
+      console.error("Error updating office hour block:", error);
+      toast.error("Fehler beim Aktualisieren des Bürodienstes");
     },
   });
 }

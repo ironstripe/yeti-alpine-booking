@@ -11,6 +11,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { BookingDetailDialog } from "./BookingDetailDialog";
+import { OfficeHoursDetailDialog } from "./OfficeHoursDetailDialog";
 import { AlertTriangle, Building } from "lucide-react";
 
 interface BookingBarProps {
@@ -23,6 +24,7 @@ interface BookingBarProps {
 export function BookingBar({ booking, slotWidth, instructorSpecialization, isPlanningMode = false }: BookingBarProps) {
   const navigate = useNavigate();
   const [isDetailOpen, setIsDetailOpen] = useState(false);
+  const [isOfficeDetailOpen, setIsOfficeDetailOpen] = useState(false);
   const isPrivate = booking.type === "private";
   const isGroup = booking.type === "group";
   const isOfficeShift = booking.type === "office_shift";
@@ -71,8 +73,10 @@ export function BookingBar({ booking, slotWidth, instructorSpecialization, isPla
       } else if (isPrivate) {
         // Open detail dialog for private bookings
         setIsDetailOpen(true);
+      } else if (isOfficeShift) {
+        // Open detail dialog for office shifts
+        setIsOfficeDetailOpen(true);
       }
-      // Office shifts: no action for now
     }
   };
 
@@ -144,7 +148,9 @@ export function BookingBar({ booking, slotWidth, instructorSpecialization, isPla
                 ? "Ziehen zum Verschieben, klicken für Details" 
                 : isGroup 
                   ? "Klicken für Kursdetails" 
-                  : "Klicken für Details"}
+                  : isOfficeShift
+                    ? "Klicken zum Bearbeiten"
+                    : "Klicken für Details"}
             </p>
           </div>
         </TooltipContent>
@@ -156,6 +162,21 @@ export function BookingBar({ booking, slotWidth, instructorSpecialization, isPla
           open={isDetailOpen}
           onOpenChange={setIsDetailOpen}
           ticketItemId={booking.id}
+        />
+      )}
+
+      {/* Office Hours Detail Dialog */}
+      {isOfficeShift && (
+        <OfficeHoursDetailDialog
+          open={isOfficeDetailOpen}
+          onOpenChange={setIsOfficeDetailOpen}
+          block={{
+            id: booking.id.replace('office-block-', ''),
+            date: booking.date,
+            timeStart: booking.timeStart,
+            timeEnd: booking.timeEnd,
+            note: booking.participantName !== "Bürodienst" ? booking.participantName : null,
+          }}
         />
       )}
     </>
