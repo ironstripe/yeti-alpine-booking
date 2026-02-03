@@ -28,29 +28,22 @@ export function useSettingsUsers() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error("Not authenticated");
 
-      // Fetch all auth users via edge function
-      const { data: authData, error: authError } = await supabase.functions.invoke<{ users: AuthUser[] }>(
-        "list-auth-users"
-      );
+      // Fetch all data in parallel for faster loading
+      const [authResult, rolesResult, instructorsResult] = await Promise.all([
+        supabase.functions.invoke<{ users: AuthUser[] }>("list-auth-users"),
+        supabase.from("user_roles").select("user_id, role, created_at"),
+        supabase.from("instructors").select("id, email, first_name, last_name")
+      ]);
 
-      if (authError) {
-        console.error("Error fetching auth users:", authError);
-        throw authError;
+      if (authResult.error) {
+        console.error("Error fetching auth users:", authResult.error);
+        throw authResult.error;
       }
+      if (rolesResult.error) throw rolesResult.error;
 
-      const authUsers = authData?.users || [];
-
-      // Get all user roles
-      const { data: userRoles, error: rolesError } = await supabase
-        .from("user_roles")
-        .select("user_id, role, created_at");
-
-      if (rolesError) throw rolesError;
-
-      // Get all instructors for email matching
-      const { data: instructors } = await supabase
-        .from("instructors")
-        .select("id, email, first_name, last_name");
+      const authUsers = authResult.data?.users || [];
+      const userRoles = rolesResult.data;
+      const instructors = instructorsResult.data;
 
       // Create email lookup from instructors
       const instructorByEmail = new Map<string, { id: string; name: string }>();
