@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { calculateBarPosition, type SchedulerAbsence } from "@/lib/scheduler-utils";
@@ -7,6 +8,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { Ban, Clock } from "lucide-react";
+import { AbsenceDetailDialog } from "./AbsenceDetailDialog";
 
 interface BlockingBarProps {
   absence: SchedulerAbsence;
@@ -23,6 +25,7 @@ const ABSENCE_LABELS: Record<string, string> = {
 
 export function BlockingBar({ absence, slotWidth }: BlockingBarProps) {
   const navigate = useNavigate();
+  const [isDetailOpen, setIsDetailOpen] = useState(false);
   
   // Calculate position based on full-day or partial-day absence
   const { left, width } = absence.isFullDay
@@ -39,78 +42,91 @@ export function BlockingBar({ absence, slotWidth }: BlockingBarProps) {
 
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    navigate(`/instructors/${absence.instructorId}?absences=open`);
+    // Don't open dialog for recurring blocks (they're expanded from rules)
+    if (absence.id.startsWith("recurring-")) {
+      navigate(`/instructors/${absence.instructorId}?absences=open`);
+    } else {
+      setIsDetailOpen(true);
+    }
   };
 
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <div
-          onClick={handleClick}
-          className={cn(
-            "absolute top-0.5 bottom-0.5 rounded border px-1.5 py-0.5 text-[10px] font-medium",
-            "flex items-center gap-0.5",
-            "cursor-pointer hover:ring-2 hover:ring-gray-500",
-            isPending
-              ? "bg-gray-200 text-gray-600 border-dashed border-amber-500"
-              : "bg-gray-300 text-gray-700 border-gray-400"
-          )}
-          style={{
-            left: `${left}px`,
-            width: `${Math.max(width - 4, 40)}px`,
-            ...(isPending
-              ? {
-                  backgroundImage:
-                    "repeating-linear-gradient(45deg, transparent, transparent 3px, rgba(251, 191, 36, 0.15) 3px, rgba(251, 191, 36, 0.15) 6px)",
-                }
-              : {}),
-          }}
-        >
-          {isPending ? (
-            <Clock className="h-2.5 w-2.5 shrink-0 text-amber-400" />
-          ) : (
-            <Ban className="h-2.5 w-2.5 shrink-0" />
-          )}
-        <span className="truncate">
-            {ABSENCE_LABELS[absence.type]}
-            {isPending && " (Antrag)"}
-            {isPartialDay && ` ${absence.timeStart}-${absence.timeEnd}`}
-          </span>
-        </div>
-      </TooltipTrigger>
-      <TooltipContent side="top">
-        <div className="space-y-1">
-          <p className="font-medium flex items-center gap-1">
-            {ABSENCE_LABELS[absence.type]}
-            {isPending && (
-              <span className="text-amber-400 text-xs">(Ausstehend)</span>
+    <>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <div
+            onClick={handleClick}
+            className={cn(
+              "absolute top-0.5 bottom-0.5 rounded border px-1.5 py-0.5 text-[10px] font-medium",
+              "flex items-center gap-0.5",
+              "cursor-pointer hover:ring-2 hover:ring-gray-500",
+              isPending
+                ? "bg-gray-200 text-gray-600 border-dashed border-amber-500"
+                : "bg-gray-300 text-gray-700 border-gray-400"
             )}
-          </p>
-          <p className="text-sm text-muted-foreground">
-            {absence.startDate === absence.endDate
-              ? absence.startDate
-              : `${absence.startDate} - ${absence.endDate}`}
-            {isPartialDay && (
-              <span className="ml-1">
-                ({absence.timeStart} - {absence.timeEnd})
-              </span>
+            style={{
+              left: `${left}px`,
+              width: `${Math.max(width - 4, 40)}px`,
+              ...(isPending
+                ? {
+                    backgroundImage:
+                      "repeating-linear-gradient(45deg, transparent, transparent 3px, rgba(251, 191, 36, 0.15) 3px, rgba(251, 191, 36, 0.15) 6px)",
+                  }
+                : {}),
+            }}
+          >
+            {isPending ? (
+              <Clock className="h-2.5 w-2.5 shrink-0 text-amber-400" />
+            ) : (
+              <Ban className="h-2.5 w-2.5 shrink-0" />
             )}
-          </p>
-          {absence.reason && (
-            <p className="text-sm">{absence.reason}</p>
-          )}
-          <p className="text-xs text-destructive mt-1">
-            {isPending 
-              ? "Antrag wartet auf Genehmigung" 
-              : isPartialDay
-                ? `Blockiert: ${absence.timeStart} - ${absence.timeEnd}`
-                : "Keine Buchungen möglich (ganztägig)"}
-          </p>
-          <p className="text-xs text-muted-foreground italic mt-1">
-            Klicken für Abwesenheitsdetails
-          </p>
-        </div>
-      </TooltipContent>
-    </Tooltip>
+          <span className="truncate">
+              {ABSENCE_LABELS[absence.type]}
+              {isPending && " (Antrag)"}
+              {isPartialDay && ` ${absence.timeStart}-${absence.timeEnd}`}
+            </span>
+          </div>
+        </TooltipTrigger>
+        <TooltipContent side="top">
+          <div className="space-y-1">
+            <p className="font-medium flex items-center gap-1">
+              {ABSENCE_LABELS[absence.type]}
+              {isPending && (
+                <span className="text-amber-400 text-xs">(Ausstehend)</span>
+              )}
+            </p>
+            <p className="text-sm text-muted-foreground">
+              {absence.startDate === absence.endDate
+                ? absence.startDate
+                : `${absence.startDate} - ${absence.endDate}`}
+              {isPartialDay && (
+                <span className="ml-1">
+                  ({absence.timeStart} - {absence.timeEnd})
+                </span>
+              )}
+            </p>
+            {absence.reason && (
+              <p className="text-sm">{absence.reason}</p>
+            )}
+            <p className="text-xs text-destructive mt-1">
+              {isPending 
+                ? "Antrag wartet auf Genehmigung" 
+                : isPartialDay
+                  ? `Blockiert: ${absence.timeStart} - ${absence.timeEnd}`
+                  : "Keine Buchungen möglich (ganztägig)"}
+            </p>
+            <p className="text-xs text-muted-foreground italic mt-1">
+              Klicken für Abwesenheitsdetails
+            </p>
+          </div>
+        </TooltipContent>
+      </Tooltip>
+      
+      <AbsenceDetailDialog
+        open={isDetailOpen}
+        onOpenChange={setIsDetailOpen}
+        absence={absence}
+      />
+    </>
   );
 }
