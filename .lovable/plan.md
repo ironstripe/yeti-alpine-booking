@@ -1,99 +1,85 @@
 
-# Fix: Show Group Courses in Capacity Page Even Without Enrollments
+# Add Course Type Filter to Scheduler (Private vs Group)
 
 ## Problem
 
-The Capacity page shows "no groups created yet" because:
-1. No `training_groups` records exist for the week
-2. The fallback query filters out courses without enrollments (line 187: `filter(g => g.participantCount > 0)`)
-
-The Wochenplanung creates `group_course_instances` with instructors, but the Capacity page doesn't consider these as "groups to display" unless there are enrolled participants.
+The scheduler currently lacks the ability to filter bookings by type. Users need to quickly see only private lessons or only group courses to focus on specific booking types.
 
 ## Solution
 
-Update `useGroupCapacityData.ts` to show courses that have instances for the week, regardless of whether participants are enrolled. This aligns with the Wochenplanung behavior.
+Add a new filter dropdown in the scheduler header to filter bookings by type: "Alle" (All), "Privat" (Private), or "Gruppe" (Group).
 
 ## Implementation
 
-### File: `src/hooks/useGroupCapacityData.ts`
+### File: `src/components/scheduler/SchedulerGrid.tsx`
 
 **Changes:**
 
-1. **Remove the participant filter** (line 187) - show all courses with instances, not just those with enrollments
-
-2. **Add instance-based instructor info** - If instances have instructors assigned (from Wochenplanung), use that info
-
-3. **Update the fallback query** to also fetch instructor assignments from instances:
-
+1. Add new state for booking type filter:
 ```typescript
-// Lines 100-130 - Update the fallback query
-const { data: courses, error: coursesError } = await supabase
-  .from('group_courses')
-  .select(`
-    id,
-    name,
-    color,
-    min_participants,
-    max_participants,
-    group_course_instances!inner (
-      id,
-      date,
-      instructor_id,
-      group_course_enrollments (
-        id,
-        participant_id,
-        customer_participants (
-          id,
-          first_name,
-          last_name,
-          birth_date
-        )
-      )
-    )
-  `)
-  .eq('course_type', 'weekly')
-  .eq('is_active', true)
-  .gte('group_course_instances.date', weekStartStr)
-  .lte('group_course_instances.date', weekEndStr);
+const [bookingTypeFilter, setBookingTypeFilter] = useState<string | null>(null);
 ```
 
-4. **Extract instructor from first instance** (if assigned):
-
+2. Filter bookings based on type before passing to child components:
 ```typescript
-// In the transform section, get instructor from instances
-const firstInstanceWithInstructor = course.group_course_instances?.find(
-  inst => inst.instructor_id
-);
-
-return {
-  // ... existing fields ...
-  instructorId: firstInstanceWithInstructor?.instructor_id || null,
-  instructorName: null, // Would need separate query to get name
-  // ...
-};
+const filteredBookings = useMemo(() => {
+  if (!bookingTypeFilter) return bookings;
+  return bookings.filter(b => b.type === bookingTypeFilter);
+}, [bookings, bookingTypeFilter]);
 ```
 
-5. **Remove the participantCount > 0 filter** (line 187):
-
+3. Pass new props to SchedulerHeader:
 ```typescript
-// Change from:
-}).filter(g => g.participantCount > 0);
-
-// To:
-}); // Show all courses with instances
+bookingTypeFilter={bookingTypeFilter}
+onBookingTypeFilterChange={setBookingTypeFilter}
 ```
+
+4. Use `filteredBookings` instead of `bookings` in:
+   - `InstructorFocusView` component
+   - Compact mode filtering logic
+   - Conflict checking (keep original `bookings` for this)
+
+### File: `src/components/scheduler/SchedulerHeader.tsx`
+
+**Changes:**
+
+1. Add new props to interface:
+```typescript
+bookingTypeFilter: string | null;
+onBookingTypeFilterChange: (filter: string | null) => void;
+```
+
+2. Add new Select dropdown next to existing filters:
+```tsx
+{/* Booking Type Filter - NEW */}
+<Select 
+  value={bookingTypeFilter || "all"} 
+  onValueChange={(v) => onBookingTypeFilterChange(v === "all" ? null : v)}
+>
+  <SelectTrigger className="w-8 h-8 p-0 md:w-[100px] md:px-2 [&>span]:hidden md:[&>span]:inline">
+    <CalendarCheck className="h-3.5 w-3.5 md:mr-1" />
+    <SelectValue placeholder="Typ" />
+  </SelectTrigger>
+  <SelectContent>
+    <SelectItem value="all">Alle</SelectItem>
+    <SelectItem value="private">Privat</SelectItem>
+    <SelectItem value="group">Gruppe</SelectItem>
+  </SelectContent>
+</Select>
+```
+
+3. Add `CalendarCheck` icon import from lucide-react
 
 ## Changes Summary
 
-| Change | Description |
-|--------|-------------|
-| Remove participant filter | Show courses with instances even if no enrollments |
-| Fetch instructor_id from instances | Get instructor assignment from Wochenplanung |
-| Update capacity status logic | Handle 0 participants as "underbooked" or "empty" state |
+| File | Change |
+|------|--------|
+| `SchedulerGrid.tsx` | Add `bookingTypeFilter` state, filter bookings, pass props |
+| `SchedulerHeader.tsx` | Add props interface, add Select dropdown UI |
 
 ## Technical Notes
 
-- This aligns the Capacity page with what Wochenplanung shows
-- Empty groups (0 participants) will be shown as "ready to enroll"
-- The instructor assigned in Wochenplanung will be reflected in capacity view
-- Stats will update to count these empty groups appropriately
+- Filter is applied after data fetch, keeping API calls unchanged
+- Conflict checking continues to use all bookings (so you can see if a slot is truly available)
+- Compact mode considers filtered bookings (instructors without visible bookings can be hidden)
+- The filter persists during date/view changes (same as other filters)
