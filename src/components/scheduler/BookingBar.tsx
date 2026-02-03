@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useDraggable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import { cn } from "@/lib/utils";
@@ -20,8 +21,10 @@ interface BookingBarProps {
 }
 
 export function BookingBar({ booking, slotWidth, instructorSpecialization, isPlanningMode = false }: BookingBarProps) {
+  const navigate = useNavigate();
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const isPrivate = booking.type === "private";
+  const isGroup = booking.type === "group";
   const isOfficeShift = booking.type === "office_shift";
   
   // Check for cross-discipline booking
@@ -56,10 +59,17 @@ export function BookingBar({ booking, slotWidth, instructorSpecialization, isPla
   };
 
   const handleClick = (e: React.MouseEvent) => {
-    // Only open detail if not dragging
     if (!isDragging) {
       e.stopPropagation();
-      setIsDetailOpen(true);
+      
+      if (isGroup) {
+        // Navigate to Training Capacity page with course filter
+        navigate(`/trainings/capacity?course=${booking.ticketId}`);
+      } else if (isPrivate) {
+        // Open detail dialog for private bookings
+        setIsDetailOpen(true);
+      }
+      // Office shifts: no action for now
     }
   };
 
@@ -124,18 +134,24 @@ export function BookingBar({ booking, slotWidth, instructorSpecialization, isPla
               </p>
             )}
             <p className="text-xs text-muted-foreground italic mt-1">
-              {isPrivate ? "Ziehen zum Verschieben, klicken für Details" : "Klicken für Details"}
+              {isPrivate 
+                ? "Ziehen zum Verschieben, klicken für Details" 
+                : isGroup 
+                  ? "Klicken für Kursdetails" 
+                  : "Klicken für Details"}
             </p>
           </div>
         </TooltipContent>
       </Tooltip>
 
-      {/* Booking Detail Dialog */}
-      <BookingDetailDialog
-        open={isDetailOpen}
-        onOpenChange={setIsDetailOpen}
-        ticketItemId={booking.id}
-      />
+      {/* Booking Detail Dialog - only for private bookings */}
+      {isPrivate && (
+        <BookingDetailDialog
+          open={isDetailOpen}
+          onOpenChange={setIsDetailOpen}
+          ticketItemId={booking.id}
+        />
+      )}
     </>
   );
 }
