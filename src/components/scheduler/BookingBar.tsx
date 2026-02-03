@@ -89,7 +89,7 @@ export function BookingBar({ booking, slotWidth, instructorSpecialization, isPla
               "flex items-center gap-0.5",
               barClasses,
               isPrivate && "cursor-grab active:cursor-grabbing",
-              isDragging && "opacity-30",
+              isDragging && "invisible opacity-0",
               !isPrivate && "cursor-pointer",
               // Planning mode: dim existing bookings
               isPlanningMode && "opacity-50"

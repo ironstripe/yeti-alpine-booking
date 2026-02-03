@@ -119,13 +119,15 @@ export function DndKitProvider({ children, onBookingDrop }: DndKitProviderProps)
         {activeBooking && (
           <div
             className={cn(
-              "rounded-md border px-2 py-1 text-xs font-medium shadow-lg",
-              // Show green when over valid slot, red for blocked, gray otherwise
+              "rounded-md border px-2 py-1 text-xs font-medium",
+              "shadow-xl ring-1 ring-black/5",
+              "transform transition-colors duration-100",
+              // Show primary when over valid slot, destructive for blocked, muted otherwise
               overSlot && !overSlot.isBlocked 
-                ? "bg-green-500 text-white border-green-600" 
+                ? "bg-primary text-primary-foreground border-primary" 
                 : overSlot?.isBlocked 
-                  ? "bg-red-500 text-white border-red-600"
-                  : "bg-gray-400 text-white border-gray-500",
+                  ? "bg-destructive text-destructive-foreground border-destructive"
+                  : "bg-muted text-muted-foreground border-border",
               "cursor-grabbing"
             )}
             style={{ 
