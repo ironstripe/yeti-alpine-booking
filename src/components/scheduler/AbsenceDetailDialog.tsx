@@ -171,16 +171,18 @@ export function AbsenceDetailDialog({
         </DialogContent>
       </Dialog>
 
-      <ConfirmDialog
-        open={showDeleteConfirm}
-        onOpenChange={setShowDeleteConfirm}
-        title="Abwesenheit löschen"
-        description={`Möchtest du diese ${ABSENCE_LABELS[absence.type]}-Abwesenheit wirklich löschen?`}
-        confirmLabel="Löschen"
-        variant="destructive"
-        onConfirm={handleDelete}
-        isLoading={deleteAbsence.isPending}
-      />
+      {showDeleteConfirm && (
+        <ConfirmDialog
+          open={showDeleteConfirm}
+          onOpenChange={setShowDeleteConfirm}
+          title="Abwesenheit löschen"
+          description={`Möchtest du diese ${ABSENCE_LABELS[absence.type]}-Abwesenheit wirklich löschen?`}
+          confirmLabel="Löschen"
+          variant="destructive"
+          onConfirm={handleDelete}
+          isLoading={deleteAbsence.isPending}
+        />
+      )}
     </>
   );
 }
