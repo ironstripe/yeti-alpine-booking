@@ -16,11 +16,14 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
+  DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { useSettingsUsers, useResetUserPassword, UserWithRole } from "@/hooks/useSettingsUsers";
+import { useSettingsUsers, useResetUserPassword, useAddUserRole, useRemoveUserRole, UserWithRole } from "@/hooks/useSettingsUsers";
+import { AppRole } from "@/hooks/useUserRole";
 import { useAuth } from "@/contexts/AuthContext";
 import { useInviteInstructor } from "@/hooks/useInviteInstructor";
 
@@ -35,6 +38,8 @@ export default function SettingsUsers() {
   const { user: currentUser } = useAuth();
   const resetPassword = useResetUserPassword();
   const inviteInstructor = useInviteInstructor();
+  const addRole = useAddUserRole();
+  const removeRole = useRemoveUserRole();
   
   const [resetDialogOpen, setResetDialogOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<UserWithRole | null>(null);
@@ -53,6 +58,17 @@ export default function SettingsUsers() {
   const handleInvite = async (user: UserWithRole) => {
     if (user.instructor_id) {
       await inviteInstructor.mutateAsync(user.instructor_id);
+    }
+  };
+
+  const handleToggleRole = async (user: UserWithRole, role: AppRole) => {
+    if (!user.user_id) return;
+    
+    const hasRole = user.roles.includes(role);
+    if (hasRole) {
+      await removeRole.mutateAsync({ userId: user.user_id, role });
+    } else {
+      await addRole.mutateAsync({ userId: user.user_id, role });
     }
   };
 
@@ -177,6 +193,32 @@ export default function SettingsUsers() {
                                 <KeyRound className="h-4 w-4 mr-2" />
                                 Passwort zurücksetzen
                               </DropdownMenuItem>
+                            )}
+                            {/* Role management - only for invited users */}
+                            {user.user_id && (
+                              <>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuLabel className="text-xs text-muted-foreground">
+                                  Rollen verwalten
+                                </DropdownMenuLabel>
+                                {(['admin', 'office', 'teacher'] as const).map((role) => {
+                                  const config = roleConfig[role];
+                                  const Icon = config.icon;
+                                  const hasRole = user.roles.includes(role);
+                                  
+                                  return (
+                                    <DropdownMenuItem
+                                      key={role}
+                                      onClick={() => handleToggleRole(user, role)}
+                                      disabled={addRole.isPending || removeRole.isPending}
+                                    >
+                                      <Icon className={`h-4 w-4 mr-2 ${config.color}`} />
+                                      {config.label}
+                                      {hasRole && <Check className="h-4 w-4 ml-auto" />}
+                                    </DropdownMenuItem>
+                                  );
+                                })}
+                              </>
                             )}
                           </DropdownMenuContent>
                         </DropdownMenu>
