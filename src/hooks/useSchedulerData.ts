@@ -274,7 +274,7 @@ export function useSchedulerData({ startDate, endDate, instructorId }: UseSchedu
         timeStart: b.time_start || "09:00",
         timeEnd: b.time_end || "10:00",
         type: "private" as const,
-        isPaid: (ticket?.paid_amount || 0) >= (ticket?.total_amount || 0),
+        isPaid: (ticket?.total_amount || 0) > 0 && (ticket?.paid_amount || 0) >= (ticket?.total_amount || 0),
         ticketId: b.ticket_id,
         participantName: participant 
           ? `${participant.first_name} ${participant.last_name || ""}`.trim()
