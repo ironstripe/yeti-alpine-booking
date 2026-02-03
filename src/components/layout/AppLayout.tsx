@@ -1,5 +1,6 @@
 import { ReactNode } from "react";
 import { Navigate, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { AppSidebar } from "./AppSidebar";
 import { BottomNav } from "./BottomNav";
@@ -63,8 +64,13 @@ export function AppLayout({ children }: AppLayoutProps) {
         </div>
 
         {/* Page Content */}
-        <main className="flex-1 overflow-auto">
-          <div className="p-4 md:p-6 pb-24 md:pb-6">{children ?? <Outlet />}</div>
+        <main className="flex-1 overflow-auto min-h-0">
+          <div className={cn(
+            "h-full",
+            !['/scheduler'].includes(location.pathname) && "p-4 md:p-6 pb-24 md:pb-6"
+          )}>
+            {children ?? <Outlet />}
+          </div>
         </main>
       </div>
 
