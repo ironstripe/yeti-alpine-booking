@@ -26,6 +26,17 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { 
   CalendarDays, 
   Plus, 
@@ -36,9 +47,12 @@ import {
   X,
   AlertCircle,
   Info,
+  Pencil,
+  Trash2,
 } from "lucide-react";
-import { useCreateAbsence, type AbsenceType } from "@/hooks/useInstructorAbsences";
+import { useCreateAbsence, useDeleteAbsence, type AbsenceType } from "@/hooks/useInstructorAbsences";
 import { useInstructorAbsenceHistory, type AbsenceHistoryItem } from "@/hooks/useInstructorAbsenceHistory";
+import { AbsenceEditDialog } from "./AbsenceEditDialog";
 import { cn } from "@/lib/utils";
 
 interface AbsenceRequestCardProps {
@@ -96,7 +110,9 @@ export function AbsenceRequestCard({ instructorId, isTeacherView = false }: Abse
   const [submitForApproval, setSubmitForApproval] = useState(false);
 
   const createAbsence = useCreateAbsence();
+  const deleteAbsence = useDeleteAbsence();
   const { data: absenceHistory = [], isLoading: isHistoryLoading } = useInstructorAbsenceHistory(instructorId);
+  const [editingAbsence, setEditingAbsence] = useState<AbsenceHistoryItem | null>(null);
 
   const handleSubmit = async () => {
     if (!dateRange.from) return;
@@ -377,7 +393,7 @@ export function AbsenceRequestCard({ instructorId, isTeacherView = false }: Abse
                   key={absence.id}
                   className="flex items-center justify-between p-2 rounded-md bg-muted/30"
                 >
-                  <div className="space-y-1">
+                  <div className="space-y-1 flex-1">
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-medium">
                         {ABSENCE_TYPES.find(t => t.value === absence.type)?.label || absence.type}
@@ -396,12 +412,52 @@ export function AbsenceRequestCard({ instructorId, isTeacherView = false }: Abse
                       </p>
                     )}
                   </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      className="h-8 w-8"
+                      onClick={() => setEditingAbsence(absence)}
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive">
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Abwesenheit löschen?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Diese Aktion kann nicht rückgängig gemacht werden. Die Abwesenheit wird dauerhaft entfernt.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+                          <AlertDialogAction 
+                            onClick={() => deleteAbsence.mutate(absence.id)}
+                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                          >
+                            Löschen
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </div>
                 </div>
               ))
             )}
           </CollapsibleContent>
         </Collapsible>
       </CardContent>
+
+      {/* Edit Dialog */}
+      <AbsenceEditDialog 
+        absence={editingAbsence} 
+        onClose={() => setEditingAbsence(null)} 
+      />
     </Card>
   );
 }
