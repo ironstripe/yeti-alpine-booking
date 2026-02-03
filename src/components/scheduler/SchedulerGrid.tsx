@@ -57,6 +57,8 @@ function SchedulerGridContent() {
   const [roleFilter, setRoleFilter] = useState<string | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isPlanningMode, setIsPlanningMode] = useState(false);
+  // NEW: Booking type filter (private/group)
+  const [bookingTypeFilter, setBookingTypeFilter] = useState<string | null>(null);
   
   // Instructor column width with localStorage persistence
   const [instructorColumnWidth, setInstructorColumnWidth] = useState(() => {
@@ -246,6 +248,12 @@ function SchedulerGridContent() {
     visible: filteredInstructors.length,
     total: instructors.length,
   }), [filteredInstructors.length, instructors.length]);
+
+  // Filter bookings by type (private/group)
+  const filteredBookings = useMemo(() => {
+    if (!bookingTypeFilter) return bookings;
+    return bookings.filter(b => b.type === bookingTypeFilter);
+  }, [bookings, bookingTypeFilter]);
 
   // Clear selection when date changes
   useEffect(() => {
@@ -453,6 +461,8 @@ function SchedulerGridContent() {
             onFullscreenToggle={setIsFullscreen}
             isPlanningMode={isPlanningMode}
             onPlanningModeToggle={setIsPlanningMode}
+            bookingTypeFilter={bookingTypeFilter}
+            onBookingTypeFilterChange={setBookingTypeFilter}
           />
           {/* Admin: Show Pending Absences Button */}
           {isAdminOrOffice && <PendingAbsencesList />}
@@ -473,7 +483,7 @@ function SchedulerGridContent() {
           <InstructorFocusView
             instructors={filteredInstructors}
             dates={visibleDates}
-            bookings={bookings}
+            bookings={filteredBookings}
             absences={absences}
             slotWidth={SLOT_WIDTH}
             onSlotClick={handleSlotClick}

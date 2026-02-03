@@ -16,7 +16,8 @@ import {
   Users,
   Maximize,
   Minimize,
-  Crosshair
+  Crosshair,
+  CalendarCheck
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -72,6 +73,9 @@ interface SchedulerHeaderProps {
   // NEW: Planning mode
   isPlanningMode: boolean;
   onPlanningModeToggle: (planning: boolean) => void;
+  // NEW: Booking type filter
+  bookingTypeFilter: string | null;
+  onBookingTypeFilterChange: (filter: string | null) => void;
 }
 
 export function SchedulerHeader({
@@ -94,6 +98,8 @@ export function SchedulerHeader({
   onFullscreenToggle,
   isPlanningMode,
   onPlanningModeToggle,
+  bookingTypeFilter,
+  onBookingTypeFilterChange,
 }: SchedulerHeaderProps) {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
@@ -332,6 +338,22 @@ export function SchedulerHeader({
             <SelectItem value="all">Alle</SelectItem>
             <SelectItem value="ski">Ski</SelectItem>
             <SelectItem value="snowboard">Board</SelectItem>
+          </SelectContent>
+        </Select>
+
+        {/* Booking Type Filter - NEW */}
+        <Select 
+          value={bookingTypeFilter || "all"} 
+          onValueChange={(v) => onBookingTypeFilterChange(v === "all" ? null : v)}
+        >
+          <SelectTrigger className="w-8 h-8 p-0 md:w-[100px] md:px-2 [&>span]:hidden md:[&>span]:inline">
+            <CalendarCheck className="h-3.5 w-3.5 md:mr-1" />
+            <SelectValue placeholder="Typ" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Alle</SelectItem>
+            <SelectItem value="private">Privat</SelectItem>
+            <SelectItem value="group">Gruppe</SelectItem>
           </SelectContent>
         </Select>
 
