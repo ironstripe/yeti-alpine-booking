@@ -171,9 +171,21 @@ function SchedulerGridContent() {
     };
 
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
-      // Cancel drag on Escape
-      if (e.key === "Escape" && state.drag.isDragging) {
-        cancelDrag();
+      if (e.key === "Escape") {
+        // Priority 1: Exit fullscreen (highest priority)
+        if (isFullscreen) {
+          e.stopPropagation();
+          setIsFullscreen(false);
+          return;
+        }
+        // Priority 2: Cancel drag
+        if (state.drag.isDragging) {
+          cancelDrag();
+          return;
+        }
+        // Priority 3: Clear selection
+        clearSelection();
+        setHighlightedInstructorId(null);
       }
     };
 
@@ -185,7 +197,7 @@ function SchedulerGridContent() {
       window.removeEventListener("mouseup", handleGlobalMouseUp);
       window.removeEventListener("keydown", handleGlobalKeyDown);
     };
-  }, [state.drag.isDragging, state.drag.instructorId, state.drag.date, bookings, absences, endDrag, cancelDrag, updateDrag, checkSlotConflict]);
+  }, [state.drag.isDragging, state.drag.instructorId, state.drag.date, bookings, absences, endDrag, cancelDrag, updateDrag, checkSlotConflict, isFullscreen, clearSelection]);
 
   // Helper function
   function timeToMinutes(time: string): number {
@@ -240,22 +252,6 @@ function SchedulerGridContent() {
     clearSelection();
   }, [selectedDate, clearSelection]);
 
-  // Handle keyboard shortcuts (including ESC for fullscreen)
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        if (isFullscreen) {
-          setIsFullscreen(false);
-        } else {
-          clearSelection();
-          setHighlightedInstructorId(null);
-        }
-      }
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [clearSelection, isFullscreen]);
 
   // Scroll to instructor and highlight
   const scrollToInstructor = useCallback((instructorId: string) => {
