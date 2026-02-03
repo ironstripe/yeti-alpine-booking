@@ -1,148 +1,63 @@
 
-# Edit Office Hours Blocks in Scheduler
+# Fix Multi-Role Staff Filtering in Scheduler
 
-## Overview
+## Problem
 
-Add the ability to click on an existing office hour block in the scheduler to view details, edit (date/time/note), or delete it.
+Staff members with multiple roles (e.g., Heinert with `['ski', 'office']`) only appear in one filter category. Currently:
+- `roleType` is derived as a single value: `instructor` if they have ANY teaching role, otherwise `office_staff`
+- Filtering checks `i.roleType === roleFilter`
+- Result: Heinert shows under "Skilehrer" but NOT under "Büropersonal"
 
-## User Flow
+## Solution
 
-1. Click on a purple "Bürodienst" block in scheduler
-2. Detail dialog opens showing current date, time, and note
-3. User can:
-   - **Edit**: Adjust date, time range, and note inline
-   - **Delete**: Remove the block with confirmation
-4. Changes save immediately and update scheduler
+Change the filter logic to check the actual `roles` array instead of the derived single `roleType`:
+- "Skilehrer" filter: Show if `roles` includes `ski` OR `snowboard`
+- "Büropersonal" filter: Show if `roles` includes `office`
 
-## Technical Implementation
+This allows staff with multiple roles to appear in all relevant filter categories.
 
-### 1. Hook: Add Update Mutation (`src/hooks/useOfficeHourBlocks.ts`)
+## Technical Changes
 
-Add `useUpdateOfficeHourBlock` mutation:
+### File 1: `src/components/scheduler/SchedulerGrid.tsx`
 
+Update the role filtering logic (lines 216-219):
+
+**Before:**
 ```typescript
-interface UpdateOfficeHourBlockData {
-  id: string;
-  date?: string;
-  timeStart?: string;
-  timeEnd?: string;
-  note?: string | null;
+if (roleFilter) {
+  filtered = filtered.filter(i => i.roleType === roleFilter);
 }
+```
 
-export function useUpdateOfficeHourBlock() {
-  const queryClient = useQueryClient();
-  
-  return useMutation({
-    mutationFn: async (data: UpdateOfficeHourBlockData) => {
-      const { id, ...updates } = data;
-      const { data: result, error } = await supabase
-        .from("office_hour_blocks")
-        .update({
-          date: updates.date,
-          time_start: updates.timeStart,
-          time_end: updates.timeEnd,
-          note: updates.note,
-        })
-        .eq("id", id)
-        .select()
-        .single();
-      if (error) throw error;
-      return result;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["office-hour-blocks"] });
-      queryClient.invalidateQueries({ queryKey: ["scheduler-office-blocks"] });
-      toast.success("Bürodienst aktualisiert");
-    },
+**After:**
+```typescript
+if (roleFilter) {
+  filtered = filtered.filter(i => {
+    const roles = i.roles || [];
+    if (roleFilter === 'instructor') {
+      return roles.includes('ski') || roles.includes('snowboard');
+    }
+    if (roleFilter === 'office_staff') {
+      return roles.includes('office');
+    }
+    return true;
   });
 }
 ```
 
-### 2. New Component: `OfficeHoursDetailDialog.tsx`
+### File 2: `src/hooks/useSchedulerData.ts` (Optional Cleanup)
 
-Create a detail/edit dialog similar to `AbsenceDetailDialog`:
-
-**Features:**
-- Display current date, time range, and note
-- Toggle into "edit mode" to modify fields
-- Date picker for changing the date
-- Time dropdowns for start/end
-- Note textarea
-- Delete button with confirmation
-
-**Structure:**
-```tsx
-export function OfficeHoursDetailDialog({
-  open,
-  onOpenChange,
-  block, // { id, date, timeStart, timeEnd, note }
-}) {
-  const [isEditing, setIsEditing] = useState(false);
-  const [editDate, setEditDate] = useState(block.date);
-  const [editTimeStart, setEditTimeStart] = useState(block.timeStart);
-  const [editTimeEnd, setEditTimeEnd] = useState(block.timeEnd);
-  const [editNote, setEditNote] = useState(block.note);
-  
-  // View mode: show info + Edit/Delete buttons
-  // Edit mode: show form fields + Save/Cancel buttons
-}
-```
-
-### 3. Update `BookingBar.tsx`
-
-Add click handler for `office_shift` type:
-
-```tsx
-const [isOfficeDetailOpen, setIsOfficeDetailOpen] = useState(false);
-
-const handleClick = (e: React.MouseEvent) => {
-  if (!isDragging) {
-    e.stopPropagation();
-    
-    if (isGroup) {
-      navigate(`/trainings/capacity?course=${booking.ticketId}`);
-    } else if (isPrivate) {
-      setIsDetailOpen(true);
-    } else if (isOfficeShift) {
-      setIsOfficeDetailOpen(true); // NEW
-    }
-  }
-};
-
-// Add dialog for office shifts
-{isOfficeShift && (
-  <OfficeHoursDetailDialog
-    open={isOfficeDetailOpen}
-    onOpenChange={setIsOfficeDetailOpen}
-    block={{
-      id: booking.id.replace('office-block-', ''),
-      date: booking.date,
-      timeStart: booking.timeStart,
-      timeEnd: booking.timeEnd,
-      note: booking.participantName !== "Bürodienst" ? booking.participantName : null,
-    }}
-  />
-)}
-```
-
-Update tooltip hint:
-```tsx
-isOfficeShift ? "Klicken zum Bearbeiten" : "..."
-```
-
-## Files to Create/Modify
-
-| File | Action | Purpose |
-|------|--------|---------|
-| `src/hooks/useOfficeHourBlocks.ts` | Edit | Add `useUpdateOfficeHourBlock` mutation |
-| `src/components/scheduler/OfficeHoursDetailDialog.tsx` | Create | View/edit/delete dialog |
-| `src/components/scheduler/BookingBar.tsx` | Edit | Add click handler + dialog for office shifts |
+The `roleType` derivation (lines 290-291) can remain for other purposes (like default sorting), but the filtering no longer depends on it.
 
 ## Expected Result
 
-After implementation:
-1. Click on purple Bürodienst block → Detail dialog opens
-2. View mode shows date, time, note with Edit/Delete buttons
-3. Edit mode allows changing date (via date picker), time range, and note
-4. Delete with confirmation dialog
-5. Changes reflect immediately in scheduler via query invalidation
+After this fix:
+- **Heinert** (`roles: ['ski', 'office']`): Shows in BOTH "Skilehrer" AND "Büropersonal" filters
+- **Victoria** (`roles: ['office']`): Shows only in "Büropersonal" filter
+- **Pure instructors** (`roles: ['ski']`): Shows only in "Skilehrer" filter
+
+## Files to Modify
+
+| File | Change |
+|------|--------|
+| `src/components/scheduler/SchedulerGrid.tsx` | Update role filter logic to check `roles` array |
