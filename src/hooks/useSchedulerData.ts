@@ -56,10 +56,10 @@ export function useSchedulerData({ startDate, endDate, instructorId }: UseSchedu
     },
   });
 
-  // Realtime subscription for groups
-  useRealtimeSubscription<Tables<"groups">>({
-    table: "groups",
-    queryKey: ["scheduler-groups", startDateStr, endDateStr],
+  // Realtime subscription for group course instances
+  useRealtimeSubscription<Tables<"group_course_instances">>({
+    table: "group_course_instances",
+    queryKey: ["scheduler-group-instances", startDateStr, endDateStr],
   });
 
   // Fetch instructors (filter out office staff)
@@ -114,15 +114,30 @@ export function useSchedulerData({ startDate, endDate, instructorId }: UseSchedu
     },
   });
 
-  // Fetch groups (group courses) for the date range with participant counts
-  const groupsQuery = useQuery({
-    queryKey: ["scheduler-groups", startDateStr, endDateStr],
+  // Fetch group course instances for the date range
+  const groupInstancesQuery = useQuery({
+    queryKey: ["scheduler-group-instances", startDateStr, endDateStr],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("groups")
-        .select("*")
-        .lte("start_date", endDateStr)
-        .gte("end_date", startDateStr)
+        .from("group_course_instances")
+        .select(`
+          id,
+          course_id,
+          date,
+          start_time,
+          end_time,
+          instructor_id,
+          current_participants,
+          status,
+          group_courses!inner (
+            name,
+            color,
+            max_participants,
+            meeting_point
+          )
+        `)
+        .gte("date", startDateStr)
+        .lte("date", endDateStr)
         .not("instructor_id", "is", null);
 
       if (error) throw error;
@@ -150,7 +165,7 @@ export function useSchedulerData({ startDate, endDate, instructorId }: UseSchedu
     .filter((i) => !instructorId || i.id === instructorId)
     .map((instructor) => {
       // Check if instructor has a group course on this date
-      const hasGroupCourse = (groupsQuery.data || []).some(
+      const hasGroupCourse = (groupInstancesQuery.data || []).some(
         (g) => g.instructor_id === instructor.id
       );
 
@@ -190,62 +205,32 @@ export function useSchedulerData({ startDate, endDate, instructorId }: UseSchedu
       };
     });
 
-  // Add group courses as bookings - expand for each day in the range
-  const groupBookings: SchedulerBooking[] = (groupsQuery.data || [])
+  // Add group course instances as bookings
+  const groupBookings: SchedulerBooking[] = (groupInstancesQuery.data || [])
     .filter((g) => !instructorId || g.instructor_id === instructorId)
-    .flatMap((g) => {
-      const slots: SchedulerBooking[] = [];
-      // Generate bookings for each day the group is active within our date range
-      let current = new Date(Math.max(new Date(g.start_date).getTime(), startDate.getTime()));
-      const groupEnd = new Date(Math.min(new Date(g.end_date).getTime(), endDate.getTime()));
+    .map((g) => {
+      const course = g.group_courses as unknown as {
+        name: string;
+        color: string;
+        max_participants: number;
+        meeting_point: string | null;
+      };
       
-      // Note: Participant counts not available without group_id FK
-      // This could be implemented via a separate count query if needed
-      const currentParticipants = 0;
-      
-      while (current <= groupEnd) {
-        const currentDateStr = format(current, "yyyy-MM-dd");
-        
-        if (g.time_morning_start && g.time_morning_end) {
-          slots.push({
-            id: `group-${g.id}-morning-${currentDateStr}`,
-            instructorId: g.instructor_id!,
-            date: currentDateStr,
-            timeStart: g.time_morning_start,
-            timeEnd: g.time_morning_end,
-            type: "group",
-            isPaid: true,
-            ticketId: g.id,
-            participantName: g.name,
-            status: g.status || "active",
-            currentParticipants,
-            maxParticipants: g.max_participants || undefined,
-            meetingPoint: g.meeting_point || undefined,
-          });
-        }
-
-        if (g.time_afternoon_start && g.time_afternoon_end) {
-          slots.push({
-            id: `group-${g.id}-afternoon-${currentDateStr}`,
-            instructorId: g.instructor_id!,
-            date: currentDateStr,
-            timeStart: g.time_afternoon_start,
-            timeEnd: g.time_afternoon_end,
-            type: "group",
-            isPaid: true,
-            ticketId: g.id,
-            participantName: g.name,
-            status: g.status || "active",
-            currentParticipants,
-            maxParticipants: g.max_participants || undefined,
-            meetingPoint: g.meeting_point || undefined,
-          });
-        }
-        
-        current.setDate(current.getDate() + 1);
-      }
-      
-      return slots;
+      return {
+        id: `group-instance-${g.id}`,
+        instructorId: g.instructor_id!,
+        date: g.date,
+        timeStart: g.start_time,
+        timeEnd: g.end_time,
+        type: "group" as const,
+        isPaid: true,
+        ticketId: g.course_id,
+        participantName: course.name,
+        status: g.status || "scheduled",
+        currentParticipants: g.current_participants || 0,
+        maxParticipants: course.max_participants || undefined,
+        meetingPoint: course.meeting_point || undefined,
+      };
     });
 
   // Transform absences
@@ -272,17 +257,17 @@ export function useSchedulerData({ startDate, endDate, instructorId }: UseSchedu
     isLoading: 
       instructorsQuery.isLoading || 
       bookingsQuery.isLoading || 
-      groupsQuery.isLoading ||
+      groupInstancesQuery.isLoading ||
       absencesQuery.isLoading,
     error: 
       instructorsQuery.error || 
       bookingsQuery.error || 
-      groupsQuery.error ||
+      groupInstancesQuery.error ||
       absencesQuery.error,
     refetch: () => {
       instructorsQuery.refetch();
       bookingsQuery.refetch();
-      groupsQuery.refetch();
+      groupInstancesQuery.refetch();
       absencesQuery.refetch();
     },
   };
