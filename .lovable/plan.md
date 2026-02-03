@@ -1,50 +1,99 @@
 
-
-# Fix Open Bookings Showing Green in Scheduler
+# Fix: Exclude Dragged Booking from Drop Zone Occupancy Check
 
 ## Problem
 
-Private bookings with status "Offen" (open/unpaid) are incorrectly displayed in green instead of orange in the scheduler. The bug is in the `isPaid` calculation logic.
+When dragging a booking to move it to a new time slot, the system incorrectly considers the destination slot as "occupied" because the **booking being dragged** is still counted in the occupancy calculation.
+
+**Example scenario:**
+- Booking "Lukas Thot" with Graham is at 10:00-12:00
+- User tries to drag this booking to 11:00 slot
+- The 11:00 slot's `isOccupied` check sees the 10:00-12:00 booking overlapping with 11:00
+- Result: Drop is rejected even though the slot would be free after the move
 
 ## Root Cause
 
-In `src/hooks/useSchedulerData.ts` line 277:
-```typescript
-isPaid: (ticket?.paid_amount || 0) >= (ticket?.total_amount || 0),
-```
+In `EmptySlot.tsx` (lines 48-58), the occupancy check includes ALL bookings:
 
-When `total_amount` is 0, null, or not set, the comparison `0 >= 0` returns `true`, incorrectly marking the booking as paid.
+```typescript
+const isOccupied = useMemo(() => {
+  return bookings.some((b) => {
+    if (b.instructorId !== instructorId || b.date !== date) return false;
+    // BUG: Does not exclude the booking currently being dragged
+    return slotMin < bookingEnd && slotEnd > bookingStart;
+  });
+}, [bookings, instructorId, date, timeSlot]);
+```
 
 ## Solution
 
-Update the `isPaid` logic to require:
-1. A positive `total_amount` (there must be something to pay)
-2. `paid_amount >= total_amount` (fully paid)
+Share the active drag booking ID from `DndKitProvider` via React Context, then exclude it from the occupancy check in `EmptySlot`.
 
-## Changes
+## Technical Changes
 
-**File:** `src/hooks/useSchedulerData.ts`
+### 1. Create Context for Active Drag State
 
-### Line 277 - Fix isPaid calculation:
+**New file:** `src/contexts/DndKitDragContext.tsx`
 
-Change:
 ```typescript
-isPaid: (ticket?.paid_amount || 0) >= (ticket?.total_amount || 0),
+import { createContext, useContext } from "react";
+
+interface DndKitDragContextValue {
+  activeDragBookingId: string | null;
+}
+
+export const DndKitDragContext = createContext<DndKitDragContextValue>({
+  activeDragBookingId: null,
+});
+
+export const useDndKitDrag = () => useContext(DndKitDragContext);
 ```
 
-To:
+### 2. Update DndKitProvider to Expose Active Booking ID
+
+**File:** `src/components/scheduler/DndKitProvider.tsx`
+
+- Import the new context
+- Wrap children with context provider
+- Pass `activeBooking?.id` as context value
+
+### 3. Update EmptySlot to Exclude Dragged Booking
+
+**File:** `src/components/scheduler/EmptySlot.tsx`
+
+- Import `useDndKitDrag` hook
+- Modify `isOccupied` calculation to skip the active drag booking:
+
 ```typescript
-isPaid: (ticket?.total_amount || 0) > 0 && (ticket?.paid_amount || 0) >= (ticket?.total_amount || 0),
+const { activeDragBookingId } = useDndKitDrag();
+
+const isOccupied = useMemo(() => {
+  const slotMin = timeToMinutes(timeSlot);
+  const slotEnd = slotMin + 60;
+  
+  return bookings.some((b) => {
+    // Skip the booking currently being dragged
+    if (b.id === activeDragBookingId) return false;
+    
+    if (b.instructorId !== instructorId || b.date !== date) return false;
+    const bookingStart = timeToMinutes(b.timeStart);
+    const bookingEnd = timeToMinutes(b.timeEnd);
+    return slotMin < bookingEnd && slotEnd > bookingStart;
+  });
+}, [bookings, instructorId, date, timeSlot, activeDragBookingId]);
 ```
 
-This ensures:
-- If `total_amount` is 0 or null → `isPaid = false` (open)
-- If `total_amount > 0` and `paid_amount >= total_amount` → `isPaid = true` (paid)
-- Otherwise → `isPaid = false` (open/partial)
+## Files Summary
 
-## Color Reference
+| File | Action |
+|------|--------|
+| `src/contexts/DndKitDragContext.tsx` | Create |
+| `src/components/scheduler/DndKitProvider.tsx` | Edit |
+| `src/components/scheduler/EmptySlot.tsx` | Edit |
 
-From `scheduler-utils.ts`:
-- **Green** (`bg-emerald-500`): Paid private lessons
-- **Orange** (`bg-orange-500`): Unpaid/open private lessons
+## Expected Result
 
+After this fix:
+- Dragging a booking will allow dropping on any slot not occupied by OTHER bookings
+- The booking's original position will not block valid drop targets
+- Slots occupied by different bookings will still correctly show as blocked
