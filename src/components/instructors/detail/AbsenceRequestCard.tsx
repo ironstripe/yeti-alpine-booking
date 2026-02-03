@@ -82,20 +82,38 @@ const TIME_SLOTS = [
 export function AbsenceRequestCard({ instructorId, isTeacherView = false }: AbsenceRequestCardProps) {
   const [searchParams, setSearchParams] = useSearchParams();
   const shouldOpenHistory = searchParams.get("absences") === "open";
+  const absenceIdToHighlight = searchParams.get("absenceId");
   
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(shouldOpenHistory);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
 
-  // Auto-expand history when navigated from scheduler absence block
+  const createAbsence = useCreateAbsence();
+  const deleteAbsence = useDeleteAbsence();
+  const { data: absenceHistory = [], isLoading: isHistoryLoading } = useInstructorAbsenceHistory(instructorId);
+  const [editingAbsence, setEditingAbsence] = useState<AbsenceHistoryItem | null>(null);
+
+  // Auto-expand history and open edit dialog when navigating with absenceId
   useEffect(() => {
     if (shouldOpenHistory) {
       setIsHistoryOpen(true);
-      // Clean up URL
+    }
+    
+    // Auto-open edit dialog for specific absence
+    if (absenceIdToHighlight && absenceHistory.length > 0) {
+      const targetAbsence = absenceHistory.find(a => a.id === absenceIdToHighlight);
+      if (targetAbsence) {
+        setEditingAbsence(targetAbsence);
+      }
+    }
+    
+    // Clean up URL params
+    if (shouldOpenHistory || absenceIdToHighlight) {
       searchParams.delete("absences");
+      searchParams.delete("absenceId");
       setSearchParams(searchParams, { replace: true });
     }
-  }, [shouldOpenHistory, searchParams, setSearchParams]);
+  }, [shouldOpenHistory, absenceIdToHighlight, absenceHistory, searchParams, setSearchParams]);
   
   // Form state
   const [absenceType, setAbsenceType] = useState<AbsenceType>("vacation");
@@ -109,10 +127,6 @@ export function AbsenceRequestCard({ instructorId, isTeacherView = false }: Abse
   const [reason, setReason] = useState("");
   const [submitForApproval, setSubmitForApproval] = useState(false);
 
-  const createAbsence = useCreateAbsence();
-  const deleteAbsence = useDeleteAbsence();
-  const { data: absenceHistory = [], isLoading: isHistoryLoading } = useInstructorAbsenceHistory(instructorId);
-  const [editingAbsence, setEditingAbsence] = useState<AbsenceHistoryItem | null>(null);
 
   const handleSubmit = async () => {
     if (!dateRange.from) return;

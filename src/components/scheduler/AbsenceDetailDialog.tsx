@@ -62,7 +62,8 @@ export function AbsenceDetailDialog({
 
   const handleEdit = () => {
     onOpenChange(false);
-    navigate(`/instructors/${absence.instructorId}?absences=open`);
+    // Navigate with absenceId to auto-open edit dialog for this specific absence
+    navigate(`/instructors/${absence.instructorId}?absences=open&absenceId=${absence.id}`);
   };
 
   const handleDelete = async () => {
