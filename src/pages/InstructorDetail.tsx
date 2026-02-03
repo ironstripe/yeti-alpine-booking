@@ -130,7 +130,7 @@ export default function InstructorDetail() {
               {instructor.first_name} {instructor.last_name}
             </h1>
             <p className="text-muted-foreground">
-              {getLevelLabel(instructor.level)} · {getSpecializationLabel(instructor.specialization)}
+              {getLevelLabel(instructor.level)} · {getSpecializationLabel(instructor.specialization, instructor.roles)}
             </p>
           </div>
 

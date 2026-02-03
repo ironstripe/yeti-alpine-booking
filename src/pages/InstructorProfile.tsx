@@ -260,9 +260,9 @@ export default function InstructorProfile() {
               <Badge variant="secondary" className="mr-2">
                 🎿 {getLevelLabel(instructor.level)}
               </Badge>
-              {instructor.specialization && (
+              {(instructor.specialization || instructor.roles?.length) && (
                 <Badge variant="outline">
-                  {getSpecializationLabel(instructor.specialization)}
+                  {getSpecializationLabel(instructor.specialization, instructor.roles)}
                 </Badge>
               )}
             </div>

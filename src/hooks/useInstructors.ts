@@ -126,7 +126,15 @@ export function getStatusConfig(status: string | null) {
   }
 }
 
-export function getSpecializationLabel(spec: string | null) {
+export function getSpecializationLabel(spec: string | null, roles?: string[] | null): string {
+  // If roles provided and only has 'office' role (no teaching), show "Büro"
+  if (roles && roles.length > 0) {
+    const hasTeachingRole = roles.includes('ski') || roles.includes('snowboard');
+    if (!hasTeachingRole) {
+      return "Büro";
+    }
+  }
+  
   switch (spec) {
     case "ski":
       return "Ski";

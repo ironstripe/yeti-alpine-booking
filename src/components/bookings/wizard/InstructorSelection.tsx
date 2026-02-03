@@ -173,7 +173,7 @@ export function InstructorSelection({
                     </div>
                     <p className="text-sm text-muted-foreground">
                       {getLevelLabel(instructor.level)} ·{" "}
-                      {getSpecializationLabel(instructor.specialization)}
+                      {getSpecializationLabel(instructor.specialization, instructor.roles)}
                     </p>
                     <p className="text-sm text-muted-foreground">
                       {getAvailabilityNote(instructor)}
