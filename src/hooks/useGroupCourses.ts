@@ -16,7 +16,14 @@ export function useGroupCourses(options?: { activeOnly?: boolean }) {
   return useQuery({
     queryKey: ['group-courses', options?.activeOnly],
     queryFn: async (): Promise<GroupCourseWithSchedules[]> => {
-      let query = supabase
+      // Calculate week boundaries upfront
+      const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
+      const weekEnd = endOfWeek(new Date(), { weekStartsOn: 1 });
+      const weekStartStr = format(weekStart, 'yyyy-MM-dd');
+      const weekEndStr = format(weekEnd, 'yyyy-MM-dd');
+
+      // Build courses query
+      let coursesQuery = supabase
         .from('group_courses')
         .select(`
           *,
@@ -26,58 +33,47 @@ export function useGroupCourses(options?: { activeOnly?: boolean }) {
         .order('name');
 
       if (options?.activeOnly) {
-        query = query.eq('is_active', true);
+        coursesQuery = coursesQuery.eq('is_active', true);
       }
 
-      const { data: courses, error } = await query;
-      if (error) throw error;
-
-      // Fetch schedules for all courses
-      const { data: schedules, error: schedError } = await supabase
-        .from('group_course_schedules')
-        .select('*')
-        .in('course_id', courses.map(c => c.id))
-        .eq('is_active', true);
-
-      if (schedError) throw schedError;
-
-      // Fetch course dates for Saturday courses
-      const saturdayCourseIds = courses
-        .filter(c => c.course_type === 'saturday_course')
-        .map(c => c.id);
-
-      let courseDates: TrainingCourseDate[] = [];
-      if (saturdayCourseIds.length > 0) {
-        const { data: dates, error: datesError } = await supabase
+      // Fetch all data in parallel - schedules, dates, and instances don't depend on courses result
+      const [coursesResult, schedulesResult, courseDatesResult, instancesResult] = await Promise.all([
+        coursesQuery,
+        supabase
+          .from('group_course_schedules')
+          .select('*')
+          .eq('is_active', true),
+        supabase
           .from('training_course_dates')
           .select(`
             *,
             instructor:instructor_id(id, first_name, last_name)
           `)
-          .in('training_id', saturdayCourseIds)
-          .order('date');
+          .order('date'),
+        supabase
+          .from('group_course_instances')
+          .select('course_id, current_participants, instructor_id')
+          .gte('date', weekStartStr)
+          .lte('date', weekEndStr)
+      ]);
 
-        if (datesError) throw datesError;
-        courseDates = dates as unknown as TrainingCourseDate[];
-      }
+      if (coursesResult.error) throw coursesResult.error;
+      if (schedulesResult.error) throw schedulesResult.error;
+      if (courseDatesResult.error) throw courseDatesResult.error;
+      if (instancesResult.error) throw instancesResult.error;
 
-      // Fetch this week's instances for participant counts
-      const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
-      const weekEnd = endOfWeek(new Date(), { weekStartsOn: 1 });
+      const courses = coursesResult.data;
+      const courseIds = new Set(courses.map(c => c.id));
 
-      const { data: instances, error: instError } = await supabase
-        .from('group_course_instances')
-        .select('course_id, current_participants, instructor_id')
-        .in('course_id', courses.map(c => c.id))
-        .gte('date', format(weekStart, 'yyyy-MM-dd'))
-        .lte('date', format(weekEnd, 'yyyy-MM-dd'));
-
-      if (instError) throw instError;
+      // Filter to only relevant data client-side
+      const schedules = (schedulesResult.data || []).filter(s => courseIds.has(s.course_id));
+      const courseDates = (courseDatesResult.data || []).filter(d => courseIds.has(d.training_id)) as unknown as TrainingCourseDate[];
+      const instances = (instancesResult.data || []).filter(i => courseIds.has(i.course_id));
 
       // Combine data
       return courses.map(course => {
-        const courseSchedules = (schedules || []).filter(s => s.course_id === course.id) as GroupCourseSchedule[];
-        const courseInstances = (instances || []).filter(i => i.course_id === course.id);
+        const courseSchedules = schedules.filter(s => s.course_id === course.id) as GroupCourseSchedule[];
+        const courseInstances = instances.filter(i => i.course_id === course.id);
         const courseCourseDates = courseDates.filter(d => d.training_id === course.id);
         
         // Calculate this week's stats
