@@ -1931,6 +1931,74 @@ export type Database = {
           },
         ]
       }
+      instructor_recurring_blocks: {
+        Row: {
+          approved_at: string | null
+          approved_by: string | null
+          created_at: string | null
+          end_time: string
+          id: string
+          instructor_id: string
+          is_active: boolean | null
+          preset_type: string | null
+          reason: string | null
+          rejection_reason: string | null
+          requested_at: string | null
+          start_time: string
+          status: string | null
+          updated_at: string | null
+          valid_from: string
+          valid_until: string | null
+          weekdays: number[]
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
+          created_at?: string | null
+          end_time: string
+          id?: string
+          instructor_id: string
+          is_active?: boolean | null
+          preset_type?: string | null
+          reason?: string | null
+          rejection_reason?: string | null
+          requested_at?: string | null
+          start_time: string
+          status?: string | null
+          updated_at?: string | null
+          valid_from: string
+          valid_until?: string | null
+          weekdays: number[]
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by?: string | null
+          created_at?: string | null
+          end_time?: string
+          id?: string
+          instructor_id?: string
+          is_active?: boolean | null
+          preset_type?: string | null
+          reason?: string | null
+          rejection_reason?: string | null
+          requested_at?: string | null
+          start_time?: string
+          status?: string | null
+          updated_at?: string | null
+          valid_from?: string
+          valid_until?: string | null
+          weekdays?: number[]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "instructor_recurring_blocks_instructor_id_fkey"
+            columns: ["instructor_id"]
+            isOneToOne: false
+            referencedRelation: "instructors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       instructor_test_tokens: {
         Row: {
           created_at: string | null
@@ -3806,6 +3874,23 @@ export type Database = {
           p_week_start_date: string
         }
         Returns: Json
+      }
+      check_recurring_block_conflicts: {
+        Args: {
+          p_end_time: string
+          p_instructor_id: string
+          p_start_time: string
+          p_valid_from: string
+          p_valid_until: string
+          p_weekdays: number[]
+        }
+        Returns: {
+          booking_date: string
+          booking_id: string
+          participant_name: string
+          time_end: string
+          time_start: string
+        }[]
       }
       copy_instructor_assignments_from_previous_week: {
         Args: { p_target_week_start_date: string }

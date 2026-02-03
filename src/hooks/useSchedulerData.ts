@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { format } from "date-fns";
+import { format, addDays, parseISO } from "date-fns";
 import type { Tables } from "@/integrations/supabase/types";
 import { 
   deriveInstructorColor, 
@@ -53,6 +53,21 @@ export function useSchedulerData({ startDate, endDate, instructorId }: UseSchedu
     },
     onDelete: () => {
       queryClient.invalidateQueries({ queryKey: ["scheduler-absences", startDateStr, endDateStr] });
+    },
+  });
+
+  // Realtime subscription for recurring blocks
+  useRealtimeSubscription<Tables<"instructor_recurring_blocks">>({
+    table: "instructor_recurring_blocks",
+    queryKey: ["scheduler-recurring-blocks", startDateStr, endDateStr],
+    onInsert: () => {
+      queryClient.invalidateQueries({ queryKey: ["scheduler-recurring-blocks", startDateStr, endDateStr] });
+    },
+    onUpdate: () => {
+      queryClient.invalidateQueries({ queryKey: ["scheduler-recurring-blocks", startDateStr, endDateStr] });
+    },
+    onDelete: () => {
+      queryClient.invalidateQueries({ queryKey: ["scheduler-recurring-blocks", startDateStr, endDateStr] });
     },
   });
 
@@ -159,6 +174,66 @@ export function useSchedulerData({ startDate, endDate, instructorId }: UseSchedu
     },
   });
 
+  // Fetch recurring blocks for the date range
+  const recurringBlocksQuery = useQuery({
+    queryKey: ["scheduler-recurring-blocks", startDateStr, endDateStr],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("instructor_recurring_blocks")
+        .select("*")
+        .eq("status", "approved")
+        .eq("is_active", true)
+        .lte("valid_from", endDateStr)
+        .or(`valid_until.is.null,valid_until.gte.${startDateStr}`);
+
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // Helper function to expand recurring blocks into daily absences
+  const expandRecurringBlocks = (): SchedulerAbsence[] => {
+    const blocks = recurringBlocksQuery.data || [];
+    const expanded: SchedulerAbsence[] = [];
+
+    for (const block of blocks) {
+      if (instructorId && block.instructor_id !== instructorId) continue;
+
+      // Iterate through each day in the date range
+      let currentDate = startDate;
+      while (currentDate <= endDate) {
+        const dayOfWeek = currentDate.getDay();
+        const dateStr = format(currentDate, "yyyy-MM-dd");
+        const blockValidFrom = parseISO(block.valid_from);
+        const blockValidUntil = block.valid_until ? parseISO(block.valid_until) : null;
+
+        // Check if this day matches the recurring pattern
+        if (
+          block.weekdays.includes(dayOfWeek) &&
+          currentDate >= blockValidFrom &&
+          (!blockValidUntil || currentDate <= blockValidUntil)
+        ) {
+          expanded.push({
+            id: `recurring-${block.id}-${dateStr}`,
+            instructorId: block.instructor_id,
+            startDate: dateStr,
+            endDate: dateStr,
+            type: "other" as const,
+            status: "confirmed" as const,
+            reason: block.reason || "Wiederkehrender Block",
+            isFullDay: false,
+            timeStart: block.start_time,
+            timeEnd: block.end_time,
+          });
+        }
+
+        currentDate = addDays(currentDate, 1);
+      }
+    }
+
+    return expanded;
+  };
+
   // Derive enhanced instructors with colors and role type
   const instructors: SchedulerInstructor[] = (instructorsQuery.data || [])
     .filter((i) => !instructorId || i.id === instructorId)
@@ -238,7 +313,7 @@ export function useSchedulerData({ startDate, endDate, instructorId }: UseSchedu
     });
 
   // Transform absences
-  const absences: SchedulerAbsence[] = (absencesQuery.data || [])
+  const oneTimeAbsences: SchedulerAbsence[] = (absencesQuery.data || [])
     .filter((a) => !instructorId || a.instructor_id === instructorId)
     .filter((a) => a.status !== "rejected") // Don't show rejected absences
     .map((a) => ({
@@ -254,6 +329,9 @@ export function useSchedulerData({ startDate, endDate, instructorId }: UseSchedu
       timeEnd: a.time_end || undefined,
     }));
 
+  // Combine one-time absences with expanded recurring blocks
+  const absences: SchedulerAbsence[] = [...oneTimeAbsences, ...expandRecurringBlocks()];
+
   return {
     instructors,
     bookings: [...bookings, ...groupBookings],
@@ -262,17 +340,20 @@ export function useSchedulerData({ startDate, endDate, instructorId }: UseSchedu
       instructorsQuery.isLoading || 
       bookingsQuery.isLoading || 
       groupInstancesQuery.isLoading ||
-      absencesQuery.isLoading,
+      absencesQuery.isLoading ||
+      recurringBlocksQuery.isLoading,
     error: 
       instructorsQuery.error || 
       bookingsQuery.error || 
       groupInstancesQuery.error ||
-      absencesQuery.error,
+      absencesQuery.error ||
+      recurringBlocksQuery.error,
     refetch: () => {
       instructorsQuery.refetch();
       bookingsQuery.refetch();
       groupInstancesQuery.refetch();
       absencesQuery.refetch();
+      recurringBlocksQuery.refetch();
     },
   };
 }
