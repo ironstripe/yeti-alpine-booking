@@ -1,86 +1,99 @@
 
-# Enable Navigation from Group Course Blocks to Training Details
+# Fix: Show Group Courses in Capacity Page Even Without Enrollments
 
 ## Problem
 
-Currently, clicking a group course block in the scheduler opens the `BookingDetailDialog`, which is designed for private bookings and doesn't work correctly for group courses (it tries to fetch from `ticket_items` with an invalid ID like `group-instance-xyz`).
+The Capacity page shows "no groups created yet" because:
+1. No `training_groups` records exist for the week
+2. The fallback query filters out courses without enrollments (line 187: `filter(g => g.participantCount > 0)`)
+
+The Wochenplanung creates `group_course_instances` with instructors, but the Capacity page doesn't consider these as "groups to display" unless there are enrolled participants.
 
 ## Solution
 
-Modify `BookingBar.tsx` to:
-1. **Group courses**: Navigate directly to the Training Capacity page with the course filter
-2. **Private bookings**: Keep the existing dialog behavior
+Update `useGroupCapacityData.ts` to show courses that have instances for the week, regardless of whether participants are enrolled. This aligns with the Wochenplanung behavior.
 
 ## Implementation
 
-### File: `src/components/scheduler/BookingBar.tsx`
+### File: `src/hooks/useGroupCapacityData.ts`
 
 **Changes:**
-1. Import `useNavigate` from react-router-dom
-2. Update `handleClick` to navigate for group courses instead of opening dialog
+
+1. **Remove the participant filter** (line 187) - show all courses with instances, not just those with enrollments
+
+2. **Add instance-based instructor info** - If instances have instructors assigned (from Wochenplanung), use that info
+
+3. **Update the fallback query** to also fetch instructor assignments from instances:
 
 ```typescript
-import { useNavigate } from "react-router-dom";
-
-export function BookingBar({ booking, slotWidth, instructorSpecialization, isPlanningMode = false }: BookingBarProps) {
-  const navigate = useNavigate();
-  const [isDetailOpen, setIsDetailOpen] = useState(false);
-  const isPrivate = booking.type === "private";
-  const isGroup = booking.type === "group";
-  
-  // ... existing code ...
-
-  const handleClick = (e: React.MouseEvent) => {
-    if (!isDragging) {
-      e.stopPropagation();
-      
-      if (isGroup) {
-        // Navigate to Training Capacity page with course filter
-        // booking.ticketId contains the course_id for group instances
-        navigate(`/trainings/capacity?course=${booking.ticketId}`);
-      } else if (isPrivate) {
-        // Open detail dialog for private bookings
-        setIsDetailOpen(true);
-      }
-      // Office shifts: no action for now
-    }
-  };
-  
-  // ... rest of component ...
-  
-  // Only render dialog for private bookings
-  {isPrivate && (
-    <BookingDetailDialog
-      open={isDetailOpen}
-      onOpenChange={setIsDetailOpen}
-      ticketItemId={booking.id}
-    />
-  )}
+// Lines 100-130 - Update the fallback query
+const { data: courses, error: coursesError } = await supabase
+  .from('group_courses')
+  .select(`
+    id,
+    name,
+    color,
+    min_participants,
+    max_participants,
+    group_course_instances!inner (
+      id,
+      date,
+      instructor_id,
+      group_course_enrollments (
+        id,
+        participant_id,
+        customer_participants (
+          id,
+          first_name,
+          last_name,
+          birth_date
+        )
+      )
+    )
+  `)
+  .eq('course_type', 'weekly')
+  .eq('is_active', true)
+  .gte('group_course_instances.date', weekStartStr)
+  .lte('group_course_instances.date', weekEndStr);
 ```
 
-**Update tooltip hint:**
+4. **Extract instructor from first instance** (if assigned):
+
 ```typescript
-<p className="text-xs text-muted-foreground italic mt-1">
-  {isPrivate 
-    ? "Ziehen zum Verschieben, klicken für Details" 
-    : isGroup 
-      ? "Klicken für Kursdetails" 
-      : "Klicken für Details"}
-</p>
+// In the transform section, get instructor from instances
+const firstInstanceWithInstructor = course.group_course_instances?.find(
+  inst => inst.instructor_id
+);
+
+return {
+  // ... existing fields ...
+  instructorId: firstInstanceWithInstructor?.instructor_id || null,
+  instructorName: null, // Would need separate query to get name
+  // ...
+};
+```
+
+5. **Remove the participantCount > 0 filter** (line 187):
+
+```typescript
+// Change from:
+}).filter(g => g.participantCount > 0);
+
+// To:
+}); // Show all courses with instances
 ```
 
 ## Changes Summary
 
 | Change | Description |
 |--------|-------------|
-| Add navigation hook | Import and use `useNavigate` |
-| Conditional click handler | Navigate to `/trainings/capacity?course={id}` for groups |
-| Conditional dialog render | Only render `BookingDetailDialog` for private bookings |
-| Updated tooltip | Show "Klicken für Kursdetails" for group courses |
+| Remove participant filter | Show courses with instances even if no enrollments |
+| Fetch instructor_id from instances | Get instructor assignment from Wochenplanung |
+| Update capacity status logic | Handle 0 participants as "underbooked" or "empty" state |
 
 ## Technical Notes
 
-- `booking.ticketId` for group instances contains the `course_id` (training ID)
-- The capacity page already supports a `course` query parameter for filtering
-- Private bookings continue to use `booking.id` (ticket_item ID) for the dialog
-- Office shifts currently have no click action (can be extended later)
+- This aligns the Capacity page with what Wochenplanung shows
+- Empty groups (0 participants) will be shown as "ready to enroll"
+- The instructor assigned in Wochenplanung will be reflected in capacity view
+- Stats will update to count these empty groups appropriately
