@@ -150,44 +150,48 @@ function getRandomPhone(): string {
   return `${prefix} ${number.slice(0, 3)} ${number.slice(3, 5)} ${number.slice(5)}`;
 }
 
-async function getOrCreateTestCustomer(supabase: any): Promise<any> {
-  // 70% chance to create new customer, 30% to reuse existing
-  if (Math.random() < 0.3) {
-    const { data: existingCustomers } = await supabase
-      .from("customers")
-      .select("id, last_name")
-      .limit(50);
+// Batch insert helper - chunks records to avoid payload limits
+async function batchInsert(supabase: any, table: string, records: any[]): Promise<any[]> {
+  if (records.length === 0) return [];
+  
+  const results: any[] = [];
+  const chunkSize = 50;
+  
+  for (let i = 0; i < records.length; i += chunkSize) {
+    const chunk = records.slice(i, i + chunkSize);
+    const { data, error } = await supabase
+      .from(table)
+      .insert(chunk)
+      .select();
     
-    if (existingCustomers && existingCustomers.length > 0) {
-      return randomElement(existingCustomers);
+    if (error) {
+      console.error(`Batch insert error for ${table}:`, error);
+      throw error;
     }
+    results.push(...(data || []));
+  }
+  return results;
+}
+
+// Pre-generate ticket numbers to avoid sequential queries
+async function generateTicketNumbersBatch(supabase: any, count: number): Promise<string[]> {
+  const year = new Date().getFullYear();
+  const { data } = await supabase
+    .from("tickets")
+    .select("ticket_number")
+    .like("ticket_number", `YETY-${year}-%`)
+    .order("ticket_number", { ascending: false })
+    .limit(1);
+
+  let nextNumber = 1;
+  if (data && data.length > 0) {
+    const match = data[0].ticket_number.match(/YETY-\d{4}-(\d+)/);
+    if (match) nextNumber = parseInt(match[1], 10) + 1;
   }
 
-  // Create new customer
-  const firstName = getRandomChildFirstName(); // Parents can have same names
-  const lastName = getRandomSwissLastName();
-  const email = getRandomEmail(firstName, lastName);
-
-  const { data: customer, error } = await supabase
-    .from("customers")
-    .insert({
-      first_name: firstName,
-      last_name: lastName,
-      email: email,
-      phone: getRandomPhone(),
-      holiday_address: `Hotel ${randomElement(['Alpenrose', 'Edelweiss', 'Bergblick', 'Sonnenhof', 'Alpina'])}`,
-      language: randomElement(['de', 'en', 'fr']),
-      notes: 'Test customer generated automatically',
-    })
-    .select()
-    .single();
-
-  if (error) {
-    console.error("Error creating customer:", error);
-    throw error;
-  }
-
-  return customer;
+  return Array.from({ length: count }, (_, i) => 
+    `YETY-${year}-${(nextNumber + i).toString().padStart(5, "0")}`
+  );
 }
 
 async function generateGroupCourseData(
@@ -219,16 +223,17 @@ async function generateGroupCourseData(
     return results;
   }
 
-  console.log(`Found ${groupCourses.length} active weekly courses`);
+  console.log(`Found ${groupCourses.length} active weekly courses for ${weeks} weeks`);
 
-  // Get group course instructors for assignment
-  const { data: groupInstructors } = await supabase
-    .from('training_groups')
-    .select('instructor_id')
-    .not('instructor_id', 'is', null);
-
-  const instructorIds = [...new Set((groupInstructors || []).map((g: { instructor_id: string }) => g.instructor_id))];
+  // Pre-fetch existing customers for reuse (70% reuse rate)
+  const { data: existingCustomers } = await supabase
+    .from("customers")
+    .select("id, last_name")
+    .limit(200);
   
+  const customerPool = existingCustomers || [];
+  console.log(`Loaded ${customerPool.length} existing customers for reuse`);
+
   // Fetch all instructors for random assignment
   const { data: allInstructors } = await supabase
     .from('instructors')
@@ -237,14 +242,53 @@ async function generateGroupCourseData(
 
   const availableInstructors: { id: string }[] = allInstructors || [];
 
+  // Calculate total enrollments needed for ticket number pre-generation
+  let totalEnrollmentsEstimate = 0;
+  for (let week = 0; week < weeks; week++) {
+    for (const course of groupCourses) {
+      const maxParticipants = course.max_participants || 12;
+      totalEnrollmentsEstimate += maxParticipants + 12; // Worst case with overbooking
+    }
+  }
+
+  // Pre-generate all ticket numbers upfront
+  const allTicketNumbers = await generateTicketNumbersBatch(supabase, totalEnrollmentsEstimate);
+  let ticketNumberIndex = 0;
+  console.log(`Pre-generated ${allTicketNumbers.length} ticket numbers`);
+
   // Generate data for each week
   for (let week = 0; week < weeks; week++) {
     const weekStartDate = new Date(startDate);
     weekStartDate.setDate(weekStartDate.getDate() + (week * 7));
     const weekStart = getMonday(weekStartDate);
 
-    console.log(`Generating week ${week + 1}, starting ${weekStart}`);
+    console.log(`Processing week ${week + 1}/${weeks}, starting ${weekStart}`);
 
+    // Calculate week days once per week
+    const weekDays: string[] = [];
+    for (let d = 0; d < 5; d++) {
+      const dayDate = new Date(weekStart);
+      dayDate.setDate(dayDate.getDate() + d);
+      weekDays.push(dayDate.toISOString().split('T')[0]);
+    }
+
+    // Fetch all instances for all courses in this week in one query
+    const { data: allWeekInstances } = await supabase
+      .from('group_course_instances')
+      .select('*')
+      .in('date', weekDays);
+
+    const instancesByCourse = new Map<string, Map<string, any>>();
+    if (allWeekInstances) {
+      for (const inst of allWeekInstances) {
+        if (!instancesByCourse.has(inst.course_id)) {
+          instancesByCourse.set(inst.course_id, new Map());
+        }
+        instancesByCourse.get(inst.course_id)!.set(inst.date, inst);
+      }
+    }
+
+    // Process all courses for this week
     for (const course of groupCourses) {
       // Determine target participants based on scenario
       let targetParticipants: number;
@@ -255,23 +299,24 @@ async function generateGroupCourseData(
         const scenario = getRandomScenario();
         switch (scenario) {
           case 'overbooked':
-            targetParticipants = maxParticipants + Math.floor(Math.random() * 9) + 4; // 4-12 over
+            targetParticipants = maxParticipants + Math.floor(Math.random() * 9) + 4;
             break;
           case 'underbooked':
-            targetParticipants = Math.max(1, minParticipants - Math.floor(Math.random() * 3) - 1); // 1-3 under min
+            targetParticipants = Math.max(1, minParticipants - Math.floor(Math.random() * 3) - 1);
             break;
           case 'empty':
             targetParticipants = 0;
             break;
-          default: // 'ok'
+          default:
             targetParticipants = minParticipants + 
               Math.floor(Math.random() * (maxParticipants - minParticipants + 1));
         }
       } else {
-        // Random between min and max
         targetParticipants = minParticipants + 
           Math.floor(Math.random() * (maxParticipants - minParticipants + 1));
       }
+
+      if (targetParticipants === 0) continue;
 
       // Create training group for this course/week
       const assignedInstructor = availableInstructors.length > 0 
@@ -296,129 +341,114 @@ async function generateGroupCourseData(
       }
       results.trainingGroups++;
 
-      // Find or create instances for this course in this week (Mon-Fri)
-      const weekDays: string[] = [];
-      for (let d = 0; d < 5; d++) {
-        const dayDate = new Date(weekStart);
-        dayDate.setDate(dayDate.getDate() + d);
-        weekDays.push(dayDate.toISOString().split('T')[0]);
+      const instanceMap = instancesByCourse.get(course.id) || new Map();
+      const firstDay = weekDays[0];
+      const instance = instanceMap.get(firstDay);
+
+      if (!instance) {
+        console.log(`No instance found for course ${course.name} on ${firstDay}, skipping enrollments`);
+        continue;
       }
 
-      // Fetch existing instances for this course in this week
-      const { data: existingInstances } = await supabase
-        .from('group_course_instances')
-        .select('*')
-        .eq('course_id', course.id)
-        .in('date', weekDays);
+      // BATCH APPROACH: Build all records first, then insert in batches
+      const customersToCreate: any[] = [];
+      const customerReferences: { isNew: boolean; index: number; existingCustomer?: any }[] = [];
 
-      // If no instances exist, we'll create enrollments without instance links
-      // (the capacity planning feature will still work via training_groups)
-      const instanceMap = new Map();
-      if (existingInstances) {
-        for (const inst of existingInstances) {
-          instanceMap.set(inst.date, inst);
-        }
-      }
-
-      // Create enrollments
+      // Prepare customer data
       for (let i = 0; i < targetParticipants; i++) {
-        try {
-          // Get or create customer
-          const customer = await getOrCreateTestCustomer(supabase);
-          results.customersCreated++;
-
-          // Create participant (child)
-          const { data: participant, error: partError } = await supabase
-            .from('customer_participants')
-            .insert({
-              customer_id: customer.id,
-              first_name: getRandomChildFirstName(),
-              last_name: customer.last_name,
-              birth_date: getRandomChildBirthDate(),
-            })
-            .select()
-            .single();
-
-          if (partError) {
-            console.error('Error creating participant:', partError);
-            continue;
-          }
-
-          // Create ticket
-          const isPaid = Math.random() < 0.7; // 70% paid
-          const weekPrice = (course.price_full_week || course.price_per_day * 5);
-          const ticketNumber = await generateTicketNumber(supabase);
-
-          const { data: ticket, error: ticketError } = await supabase
-            .from('tickets')
-            .insert({
-              ticket_number: ticketNumber,
-              customer_id: customer.id,
-              status: 'confirmed',
-              total_amount: weekPrice,
-              paid_amount: isPaid ? weekPrice : 0,
-              payment_method: isPaid ? randomElement(['cash', 'card', 'twint']) : null,
-              notes: `Test group course booking - ${course.name}`,
-            })
-            .select()
-            .single();
-
-          if (ticketError) {
-            console.error('Error creating ticket:', ticketError);
-            continue;
-          }
-
-          // Create ticket item for each day of the week
-          const firstDay = weekDays[0];
-          const instance = instanceMap.get(firstDay);
-          
-          const { data: ticketItem, error: itemError } = await supabase
-            .from('ticket_items')
-            .insert({
-              ticket_id: ticket.id,
-              product_id: course.product_id,
-              participant_id: participant.id,
-              instructor_id: assignedInstructor,
-              date: firstDay,
-              time_start: '09:00',
-              time_end: '12:00',
-              unit_price: weekPrice,
-              status: 'confirmed',
-              instructor_confirmation: 'confirmed',
-            })
-            .select()
-            .single();
-
-          if (itemError) {
-            console.error('Error creating ticket item:', itemError);
-            continue;
-          }
-
-          // Create enrollment linking to instance (if exists) and training group
-          if (instance) {
-            const { error: enrollError } = await supabase
-              .from('group_course_enrollments')
-              .insert({
-                instance_id: instance.id,
-                ticket_item_id: ticketItem.id,
-                participant_id: participant.id,
-                training_group_id: trainingGroup.id,
-                original_course_id: course.id,
-                attendance_status: 'registered',
-              });
-
-            if (enrollError) {
-              console.error('Error creating enrollment:', enrollError);
-              continue;
-            }
-          }
-
-          results.enrollments++;
-        } catch (err) {
-          console.error('Error in enrollment creation loop:', err);
-          continue;
+        // 70% reuse existing, 30% create new
+        if (customerPool.length > 0 && Math.random() < 0.7) {
+          customerReferences.push({ 
+            isNew: false, 
+            index: -1, 
+            existingCustomer: randomElement(customerPool) 
+          });
+        } else {
+          const firstName = getRandomChildFirstName();
+          const lastName = getRandomSwissLastName();
+          customersToCreate.push({
+            first_name: firstName,
+            last_name: lastName,
+            email: getRandomEmail(firstName, lastName),
+            phone: getRandomPhone(),
+            holiday_address: `Hotel ${randomElement(['Alpenrose', 'Edelweiss', 'Bergblick', 'Sonnenhof', 'Alpina'])}`,
+            language: randomElement(['de', 'en', 'fr']),
+            notes: 'Test customer generated automatically',
+          });
+          customerReferences.push({ isNew: true, index: customersToCreate.length - 1 });
         }
       }
+
+      // Batch insert new customers
+      let newCustomers: any[] = [];
+      if (customersToCreate.length > 0) {
+        newCustomers = await batchInsert(supabase, 'customers', customersToCreate);
+        results.customersCreated += newCustomers.length;
+      }
+
+      // Build final customer list
+      const customers: any[] = customerReferences.map(ref => {
+        if (ref.isNew) {
+          return newCustomers[ref.index];
+        }
+        return ref.existingCustomer;
+      });
+
+      // Prepare participants
+      const participantsToCreate = customers.map(customer => ({
+        customer_id: customer.id,
+        first_name: getRandomChildFirstName(),
+        last_name: customer.last_name,
+        birth_date: getRandomChildBirthDate(),
+      }));
+
+      const participants = await batchInsert(supabase, 'customer_participants', participantsToCreate);
+
+      // Prepare tickets
+      const weekPrice = course.price_full_week || (course.price_per_day * 5);
+      const ticketsToCreate = customers.map((customer, i) => {
+        const isPaid = Math.random() < 0.7;
+        return {
+          ticket_number: allTicketNumbers[ticketNumberIndex++],
+          customer_id: customer.id,
+          status: 'confirmed',
+          total_amount: weekPrice,
+          paid_amount: isPaid ? weekPrice : 0,
+          payment_method: isPaid ? randomElement(['cash', 'card', 'twint']) : null,
+          notes: `Test group course booking - ${course.name}`,
+        };
+      });
+
+      const tickets = await batchInsert(supabase, 'tickets', ticketsToCreate);
+
+      // Prepare ticket items
+      const ticketItemsToCreate = tickets.map((ticket, i) => ({
+        ticket_id: ticket.id,
+        product_id: course.product_id,
+        participant_id: participants[i].id,
+        instructor_id: assignedInstructor,
+        date: firstDay,
+        time_start: '09:00',
+        time_end: '12:00',
+        unit_price: weekPrice,
+        status: 'confirmed',
+        instructor_confirmation: 'confirmed',
+      }));
+
+      const ticketItems = await batchInsert(supabase, 'ticket_items', ticketItemsToCreate);
+
+      // Prepare enrollments
+      const enrollmentsToCreate = ticketItems.map((ticketItem, i) => ({
+        instance_id: instance.id,
+        ticket_item_id: ticketItem.id,
+        participant_id: participants[i].id,
+        training_group_id: trainingGroup.id,
+        original_course_id: course.id,
+        attendance_status: 'registered',
+      }));
+
+      await batchInsert(supabase, 'group_course_enrollments', enrollmentsToCreate);
+      results.enrollments += enrollmentsToCreate.length;
     }
   }
 
