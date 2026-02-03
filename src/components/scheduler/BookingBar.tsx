@@ -51,11 +51,14 @@ export function BookingBar({ booking, slotWidth, instructorSpecialization, isPla
 
   const barClasses = getBookingBarClasses(booking.type as "private" | "group" | "office_shift", booking.isPaid);
 
-  const style = {
+  const style: React.CSSProperties = {
     left: `${left}px`,
     width: `${Math.max(width - 4, 40)}px`,
-    transform: CSS.Translate.toString(transform),
+    // Only apply transform when NOT dragging - DragOverlay handles visual during drag
+    transform: isDragging ? undefined : CSS.Translate.toString(transform),
     transition: isDragging ? undefined : "transform 200ms ease",
+    // Allow clicks to pass through to drop zones while dragging
+    pointerEvents: isDragging ? 'none' : undefined,
   };
 
   const handleClick = (e: React.MouseEvent) => {
@@ -86,7 +89,7 @@ export function BookingBar({ booking, slotWidth, instructorSpecialization, isPla
               "flex items-center gap-0.5",
               barClasses,
               isPrivate && "cursor-grab active:cursor-grabbing",
-              isDragging && "opacity-50 z-50 shadow-lg",
+              isDragging && "opacity-30",
               !isPrivate && "cursor-pointer",
               // Planning mode: dim existing bookings
               isPlanningMode && "opacity-50"
