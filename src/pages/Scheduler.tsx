@@ -3,7 +3,7 @@ import { SchedulerGrid } from "@/components/scheduler/SchedulerGrid";
 
 export default function Scheduler() {
   return (
-    <div className="flex flex-col h-[calc(100vh-8rem)] md:h-[calc(100vh-5rem)] bg-background">
+    <div className="flex flex-col flex-1 min-h-0 bg-background">
       <div className="p-4 md:p-6">
         <PageHeader
           title="Stundenplan"
