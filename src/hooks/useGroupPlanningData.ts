@@ -62,63 +62,62 @@ export function useGroupPlanningData(weekStart: Date): UseGroupPlanningDataRetur
   const { data, isLoading } = useQuery({
     queryKey: ['group-planning', weekStartStr],
     queryFn: async () => {
-      // Fetch active weekly courses with skill level
-      const { data: courses, error: coursesError } = await supabase
-        .from('group_courses')
-        .select(`
-          id,
-          name,
-          color,
-          skill_level_id,
-          discipline,
-          max_participants,
-          meeting_point,
-          linked_skill_level:skill_level_id(id, name)
-        `)
-        .eq('is_active', true)
-        .eq('course_type', 'weekly')
-        .order('name');
+      // Fetch all data in parallel - filter instances by date only (uses index)
+      const [coursesResult, schedulesResult, instancesResult] = await Promise.all([
+        supabase
+          .from('group_courses')
+          .select(`
+            id,
+            name,
+            color,
+            skill_level_id,
+            discipline,
+            max_participants,
+            meeting_point,
+            linked_skill_level:skill_level_id(id, name)
+          `)
+          .eq('is_active', true)
+          .eq('course_type', 'weekly')
+          .order('name'),
+        supabase
+          .from('group_course_schedules')
+          .select('id, course_id, day_of_week, start_time, end_time')
+          .eq('is_active', true),
+        supabase
+          .from('group_course_instances')
+          .select(`
+            id,
+            course_id,
+            date,
+            start_time,
+            end_time,
+            instructor_id,
+            assistant_instructor_id,
+            current_participants,
+            instructor:instructor_id(id, first_name, last_name),
+            assistant_instructor:assistant_instructor_id(id, first_name, last_name)
+          `)
+          .gte('date', weekStartStr)
+          .lte('date', weekEndStr)
+          .order('date')
+          .order('start_time')
+      ]);
 
-      if (coursesError) throw coursesError;
-      if (!courses || courses.length === 0) {
+      if (coursesResult.error) throw coursesResult.error;
+      if (schedulesResult.error) throw schedulesResult.error;
+      if (instancesResult.error) throw instancesResult.error;
+
+      const courses = coursesResult.data || [];
+      if (courses.length === 0) {
         return { courses: [], instances: [], schedules: [] };
       }
 
-      const courseIds = courses.map(c => c.id);
+      // Filter schedules and instances to only relevant courses client-side
+      const courseIds = new Set(courses.map(c => c.id));
+      const schedules = (schedulesResult.data || []).filter(s => courseIds.has(s.course_id));
+      const instances = (instancesResult.data || []).filter(i => courseIds.has(i.course_id));
 
-      // Fetch schedules for all courses
-      const { data: schedules, error: schedulesError } = await supabase
-        .from('group_course_schedules')
-        .select('id, course_id, day_of_week, start_time, end_time')
-        .in('course_id', courseIds)
-        .eq('is_active', true);
-
-      if (schedulesError) throw schedulesError;
-
-      // Fetch instances for the week with instructor joins
-      const { data: instances, error: instancesError } = await supabase
-        .from('group_course_instances')
-        .select(`
-          id,
-          course_id,
-          date,
-          start_time,
-          end_time,
-          instructor_id,
-          assistant_instructor_id,
-          current_participants,
-          instructor:instructor_id(id, first_name, last_name),
-          assistant_instructor:assistant_instructor_id(id, first_name, last_name)
-        `)
-        .in('course_id', courseIds)
-        .gte('date', weekStartStr)
-        .lte('date', weekEndStr)
-        .order('date')
-        .order('start_time');
-
-      if (instancesError) throw instancesError;
-
-      return { courses, instances: instances || [], schedules: schedules || [] };
+      return { courses, instances, schedules };
     },
   });
 
