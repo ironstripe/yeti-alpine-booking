@@ -1,104 +1,55 @@
 
-# Add Role Management for Users
+# Add Recurring Blocks to Instructor Detail Page
 
-## Overview
+## Problem
 
-Add the ability to toggle roles (admin, office, teacher) for users in the Settings > Users page.
+The `RecurringBlocksTab` component exists at `src/components/instructor/RecurringBlocksTab.tsx` but is not rendered anywhere in the instructor detail page. Users cannot see or manage recurring unavailability blocks.
 
-## Current State
+## Solution
 
-- The `useSettingsUsers.ts` hook already has `useAddUserRole()` and `useRemoveUserRole()` mutations
-- The SettingsUsers page displays roles but has no UI to add/remove them
-- Only users with a `user_id` (i.e., those who've been invited) can have roles assigned
+Add the `RecurringBlocksTab` component to the instructor detail page, either as:
+- A separate card below the AbsenceRequestCard, or
+- Integrated into the AbsenceRequestCard as a collapsible section
+
+The cleanest approach is to add it as a separate card with clear visual separation.
 
 ## Implementation
 
-### File: `src/pages/SettingsUsers.tsx`
+### File: `src/pages/InstructorDetail.tsx`
 
-**1. Import the role mutation hooks**
-
+1. **Import the component:**
 ```typescript
-import { useSettingsUsers, useResetUserPassword, useAddUserRole, useRemoveUserRole, UserWithRole } from "@/hooks/useSettingsUsers";
+import { RecurringBlocksTab } from "@/components/instructor/RecurringBlocksTab";
 ```
 
-**2. Add the hooks in the component**
+2. **Add the component to the right column (after AbsenceRequestCard):**
 
-```typescript
-const addRole = useAddUserRole();
-const removeRole = useRemoveUserRole();
-```
-
-**3. Add role toggle handler**
-
-```typescript
-const handleToggleRole = async (user: UserWithRole, role: AppRole) => {
-  if (!user.user_id) return; // Can't assign roles to non-invited users
-  
-  const hasRole = user.roles.includes(role);
-  if (hasRole) {
-    await removeRole.mutateAsync({ userId: user.user_id, role });
-  } else {
-    await addRole.mutateAsync({ userId: user.user_id, role });
-  }
-};
-```
-
-**4. Add role management items to the dropdown menu**
-
-After the existing menu items, add a submenu or additional items for role toggling:
+Location: Around line 164, after the AbsenceRequestCard and before SeasonStatsCard:
 
 ```tsx
-{/* Role management - only for invited users */}
-{user.user_id && (
-  <>
-    <DropdownMenuSeparator />
-    <DropdownMenuLabel className="text-xs text-muted-foreground">
-      Rollen verwalten
-    </DropdownMenuLabel>
-    {(['admin', 'office', 'teacher'] as const).map((role) => {
-      const config = roleConfig[role];
-      const Icon = config.icon;
-      const hasRole = user.roles.includes(role);
-      
-      return (
-        <DropdownMenuItem
-          key={role}
-          onClick={() => handleToggleRole(user, role)}
-          disabled={addRole.isPending || removeRole.isPending}
-        >
-          <Icon className={`h-4 w-4 mr-2 ${config.color}`} />
-          {config.label}
-          {hasRole && <Check className="h-4 w-4 ml-auto" />}
-        </DropdownMenuItem>
-      );
-    })}
-  </>
+{id && (
+  <AbsenceRequestCard 
+    instructorId={id} 
+    isTeacherView={isOwnProfile}
+  />
 )}
+{id && (
+  <RecurringBlocksTab instructorId={id} />
+)}
+<SeasonStatsCard stats={seasonStats} />
 ```
 
-**5. Add required imports**
+## Result
 
-```typescript
-import { DropdownMenuSeparator, DropdownMenuLabel } from "@/components/ui/dropdown-menu";
-import { AppRole } from "@/hooks/useUserRole";
-```
+- Recurring blocks section will appear below one-time absences
+- Users can create, view, edit, and delete recurring unavailability blocks
+- Presets (Mittagspause, Nur Vormittage, Nur Nachmittage) will be accessible
+- All existing functionality (conflict checking, approval workflow) will work
 
-## User Flow
+## Technical Note
 
-1. Click the "⋮" menu on a user row
-2. See existing actions (Invite / Reset Password)
-3. See "Rollen verwalten" section with checkmark indicators
-4. Click a role to toggle it on/off
-5. Toast confirms success
-
-## Constraints
-
-- Role toggles only appear for users with a `user_id` (invited users)
-- Non-invited instructors must first be invited before roles can be assigned
-- The current user can modify their own roles (be careful with admin removal!)
-
-## Technical Details
-
-- Uses existing `useAddUserRole` and `useRemoveUserRole` mutations
-- No database changes required (user_roles table already supports all three roles)
-- Mutations handle query invalidation automatically
+The component already has full functionality:
+- Uses `useRecurringBlocks` hook to fetch data
+- Has create/edit dialog with preset support
+- Displays status badges (pending/approved/rejected)
+- Supports delete functionality
