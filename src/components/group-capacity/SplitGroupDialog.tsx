@@ -36,7 +36,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
-import { ScrollArea } from '@/components/ui/scroll-area';
+
 import { cn } from '@/lib/utils';
 import { useSplitGroup, type GroupCapacityInfo, type GroupParticipant } from '@/hooks/useGroupCapacityData';
 import { toast } from 'sonner';
@@ -245,7 +245,7 @@ export function SplitGroupDialog({
           </Button>
         </div>
 
-        <ScrollArea className="flex-1 -mx-6 px-6">
+        <div className="flex-1 overflow-y-auto -mx-6 px-6">
           <DndContext
             sensors={sensors}
             collisionDetection={closestCenter}
@@ -327,7 +327,7 @@ export function SplitGroupDialog({
               ))}
             </div>
           </DndContext>
-        </ScrollArea>
+        </div>
 
         <DialogFooter className="mt-4 flex-col sm:flex-row gap-2">
           {!allGroupsHaveInstructor && (
