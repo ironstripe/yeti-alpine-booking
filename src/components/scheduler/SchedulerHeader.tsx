@@ -17,7 +17,8 @@ import {
   Maximize,
   Minimize,
   Crosshair,
-  CalendarCheck
+  CalendarCheck,
+  ArrowUpDown
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -76,6 +77,9 @@ interface SchedulerHeaderProps {
   // NEW: Booking type filter
   bookingTypeFilter: string | null;
   onBookingTypeFilterChange: (filter: string | null) => void;
+  // NEW: Sort functionality
+  sortBy: string;
+  onSortChange: (sort: string) => void;
 }
 
 export function SchedulerHeader({
@@ -100,6 +104,8 @@ export function SchedulerHeader({
   onPlanningModeToggle,
   bookingTypeFilter,
   onBookingTypeFilterChange,
+  sortBy,
+  onSortChange,
 }: SchedulerHeaderProps) {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
@@ -354,6 +360,19 @@ export function SchedulerHeader({
             <SelectItem value="all">Alle</SelectItem>
             <SelectItem value="private">Privat</SelectItem>
             <SelectItem value="group">Gruppe</SelectItem>
+          </SelectContent>
+        </Select>
+
+        {/* Sort Dropdown - NEW */}
+        <Select value={sortBy} onValueChange={onSortChange}>
+          <SelectTrigger className="w-8 h-8 p-0 md:w-[100px] md:px-2 [&>span]:hidden md:[&>span]:inline">
+            <ArrowUpDown className="h-3.5 w-3.5 md:mr-1" />
+            <SelectValue placeholder="Sort" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="name">Name A-Z</SelectItem>
+            <SelectItem value="group">Gruppe</SelectItem>
+            <SelectItem value="private">Privat</SelectItem>
           </SelectContent>
         </Select>
 
