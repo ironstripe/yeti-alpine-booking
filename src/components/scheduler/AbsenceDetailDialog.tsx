@@ -81,7 +81,7 @@ export function AbsenceDetailDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={handleClose}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md max-h-[85vh] flex flex-col">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Icon className="h-5 w-5" />
@@ -94,7 +94,7 @@ export function AbsenceDetailDialog({
             </DialogTitle>
           </DialogHeader>
 
-          <div className="space-y-4 py-4">
+          <div className="space-y-4 py-4 overflow-y-auto flex-1">
             {/* Date Range */}
             <div className="flex items-start gap-3">
               <Calendar className="h-4 w-4 mt-0.5 text-muted-foreground" />
