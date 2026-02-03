@@ -1,28 +1,44 @@
-# Fix Scheduler Role Filter for Office Staff
 
-## Status: ✅ Completed
+# Fix Slow User Loading in Settings
 
-## Problem (Solved)
+## Problem
 
-The role filter in the scheduler didn't work for office staff because:
-1. The `role` column was always "instructor" for everyone
-2. Office vs teaching staff is determined by the `roles` TEXT[] array
-3. The filter logic checked `i.role === roleFilter` which never matched "office_staff"
+The "Benutzer & Rollen" page takes too long to load because:
+1. Three data fetches run sequentially (edge function → user_roles → instructors)
+2. Edge function has cold start overhead
+3. All users are fetched without pagination
 
-## Solution Implemented
+## Solution
 
-Added `roleType` derived from the `roles` array for proper filtering.
+Parallelize all data fetching to reduce total wait time from ~3x to ~1x.
 
-## Changes Made
+## Changes
 
-| File | Change |
-|------|--------|
-| `useSchedulerData.ts` | Added `roleType` derived from `roles` array, removed ineffective DB filter |
-| `scheduler-utils.ts` | Added `roleType` to `SchedulerInstructor` type |
-| `SchedulerGrid.tsx` | Updated filter to use `roleType` instead of `role` |
+### File: `src/hooks/useSettingsUsers.ts`
 
-## Result
+Change sequential queries to parallel using `Promise.all()`:
 
-- "Skilehrer" filter shows instructors with teaching roles (`ski`/`snowboard`)
-- "Büropersonal" filter shows staff with only office role (`['office']`)
-- "Alle" shows everyone
+**Before (Sequential):**
+```typescript
+const authData = await supabase.functions.invoke("list-auth-users");  // Wait
+const userRoles = await supabase.from("user_roles").select(...);      // Wait
+const instructors = await supabase.from("instructors").select(...);   // Wait
+```
+
+**After (Parallel):**
+```typescript
+const [authResult, rolesResult, instructorsResult] = await Promise.all([
+  supabase.functions.invoke("list-auth-users"),
+  supabase.from("user_roles").select("user_id, role, created_at"),
+  supabase.from("instructors").select("id, email, first_name, last_name")
+]);
+```
+
+## Expected Improvement
+
+| Metric | Before | After |
+|--------|--------|-------|
+| Total wait time | ~3-5 seconds | ~1-2 seconds |
+| Network calls | 3 sequential | 3 parallel |
+
+The edge function call (slowest due to cold start) and database queries will now execute simultaneously, so total time = max(single query time) instead of sum(all query times).
