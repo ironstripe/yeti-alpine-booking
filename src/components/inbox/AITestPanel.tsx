@@ -5,7 +5,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -15,14 +14,9 @@ import {
   Users,
   Calendar,
   AlertCircle,
-  CheckCircle,
   Sparkles,
 } from "lucide-react";
-import {
-  useTestConversation,
-  SAMPLE_MESSAGES,
-  type SampleKey,
-} from "@/hooks/useTestConversation";
+import { useTestConversation } from "@/hooks/useTestConversation";
 import { ConfidenceIndicator } from "./ConfidenceIndicator";
 import { toast } from "@/hooks/use-toast";
 import type { ExtractedData } from "@/hooks/useAIExtraction";
@@ -33,8 +27,6 @@ interface AITestPanelProps {
 }
 
 export function AITestPanel({ open, onOpenChange }: AITestPanelProps) {
-  const [tab, setTab] = useState<"samples" | "custom">("samples");
-  const [selectedSample, setSelectedSample] = useState<SampleKey>("complete");
   const [customSubject, setCustomSubject] = useState("");
   const [customContent, setCustomContent] = useState("");
   const [extractionResult, setExtractionResult] = useState<{
@@ -52,15 +44,14 @@ export function AITestPanel({ open, onOpenChange }: AITestPanelProps) {
   const handleRunTest = async () => {
     setExtractionResult(null);
 
-    const sample = tab === "samples" ? SAMPLE_MESSAGES[selectedSample] : null;
-    const content = tab === "samples" ? sample!.content : customContent;
-    const subject = tab === "samples" ? sample!.subject : customSubject || undefined;
-
-    if (!content.trim()) return;
+    if (!customContent.trim()) return;
 
     try {
       // Create conversation
-      const conversation = await createConversation({ content, subject });
+      const conversation = await createConversation({ 
+        content: customContent, 
+        subject: customSubject || undefined 
+      });
 
       // Trigger AI extraction
       const result = await triggerExtraction(conversation.id);
@@ -79,10 +70,9 @@ export function AITestPanel({ open, onOpenChange }: AITestPanelProps) {
     setExtractionResult(null);
     setCustomContent("");
     setCustomSubject("");
-    setTab("samples");
   };
 
-  const isDisabled = isLoading || (tab === "custom" && !customContent.trim());
+  const isDisabled = isLoading || !customContent.trim();
 
   // Footer buttons - always visible at bottom of dialog
   const footer = (
@@ -124,71 +114,30 @@ export function AITestPanel({ open, onOpenChange }: AITestPanelProps) {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Input Section */}
         <div className="space-y-4">
-          <Tabs value={tab} onValueChange={(v) => setTab(v as "samples" | "custom")}>
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="samples">Beispiele</TabsTrigger>
-              <TabsTrigger value="custom">Eigener Text</TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="samples" className="mt-4">
-              <div className="space-y-3">
-                {(Object.keys(SAMPLE_MESSAGES) as SampleKey[]).map((key) => (
-                  <Card
-                    key={key}
-                    className={`cursor-pointer transition-all ${
-                      selectedSample === key
-                        ? "ring-2 ring-primary"
-                        : "hover:border-primary/50"
-                    }`}
-                    onClick={() => setSelectedSample(key)}
-                  >
-                    <CardContent className="p-3">
-                      <div className="flex items-center justify-between">
-                        <span className="font-medium text-sm">
-                          {SAMPLE_MESSAGES[key].label}
-                        </span>
-                        {selectedSample === key && (
-                          <CheckCircle className="h-4 w-4 text-primary" />
-                        )}
-                      </div>
-                      <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
-                        {SAMPLE_MESSAGES[key].content.slice(0, 100)}...
-                      </p>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            </TabsContent>
-
-            <TabsContent value="custom" className="mt-4">
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="subject">Betreff (optional)</Label>
-                  <Input
-                    id="subject"
-                    value={customSubject}
-                    onChange={(e) => setCustomSubject(e.target.value)}
-                    placeholder="z.B. Anfrage Skikurs"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="content">Nachrichteninhalt</Label>
-                  <Textarea
-                    id="content"
-                    value={customContent}
-                    onChange={(e) => setCustomContent(e.target.value)}
-                    placeholder="Fügen Sie hier den Text einer E-Mail oder WhatsApp-Nachricht ein..."
-                    className="min-h-[180px]"
-                  />
-                  {tab === "custom" && !customContent.trim() && (
-                    <p className="text-xs text-muted-foreground">
-                      Bitte Text eingeben, um die Extraktion zu starten.
-                    </p>
-                  )}
-                </div>
-              </div>
-            </TabsContent>
-          </Tabs>
+          <div className="space-y-2">
+            <Label htmlFor="subject">Betreff (optional)</Label>
+            <Input
+              id="subject"
+              value={customSubject}
+              onChange={(e) => setCustomSubject(e.target.value)}
+              placeholder="z.B. Anfrage Skikurs"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="content">Nachrichteninhalt</Label>
+            <Textarea
+              id="content"
+              value={customContent}
+              onChange={(e) => setCustomContent(e.target.value)}
+              placeholder="Fügen Sie hier den Text einer E-Mail oder WhatsApp-Nachricht ein..."
+              className="min-h-[220px]"
+            />
+            {!customContent.trim() && (
+              <p className="text-xs text-muted-foreground">
+                Bitte Text eingeben, um die Extraktion zu starten.
+              </p>
+            )}
+          </div>
         </div>
 
         {/* Results Section */}
