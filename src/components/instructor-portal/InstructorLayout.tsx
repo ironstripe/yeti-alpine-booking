@@ -2,8 +2,9 @@ import { ReactNode, useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserRole } from "@/hooks/useUserRole";
-import { Home, Calendar, Hand, User, Menu, Bell, LogOut, ClipboardCheck, Loader2 } from "lucide-react";
+import { Home, Calendar, Hand, User, Menu, Bell, LogOut, ClipboardCheck, Loader2, ArrowRightLeft } from "lucide-react";
 import { usePendingBookingsCount } from "@/hooks/usePendingBookingsCount";
+import { useTransferRequests } from "@/hooks/useTransferRequests";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -25,8 +26,8 @@ interface InstructorLayoutProps {
 const navItems = [
   { title: "Heute", url: "/instructor", icon: Home },
   { title: "Plan", url: "/instructor/schedule", icon: Calendar },
-  { title: "Bestätigen", url: "/instructor/confirmations", icon: ClipboardCheck },
-  { title: "Abwesend", url: "/instructor/availability", icon: Hand },
+  { title: "Planung", url: "/instructor/live-planning", icon: ArrowRightLeft, badgeKey: "transfers" },
+  { title: "Bestätigen", url: "/instructor/confirmations", icon: ClipboardCheck, badgeKey: "confirmations" },
   { title: "Profil", url: "/instructor/profile", icon: User },
 ];
 
@@ -36,6 +37,7 @@ export function InstructorLayout({ children }: InstructorLayoutProps) {
   const { user, signOut, loading: authLoading } = useAuth();
   const { isTeacher, isAdminOrOffice, loading: roleLoading, instructorId } = useUserRole();
   const { data: pendingCount } = usePendingBookingsCount();
+  const { pendingIncomingCount: transferPendingCount } = useTransferRequests();
   const [hasInitialized, setHasInitialized] = useState(false);
   const [autoLoginAttempted, setAutoLoginAttempted] = useState(false);
   const [autoLoginInProgress, setAutoLoginInProgress] = useState(false);
@@ -143,6 +145,10 @@ export function InstructorLayout({ children }: InstructorLayoutProps) {
         return "Mein Tag";
       case "/instructor/schedule":
         return "Mein Stundenplan";
+      case "/instructor/live-planning":
+        return "Live Planung";
+      case "/instructor/transfers":
+        return "Transfers";
       case "/instructor/confirmations":
         return "Bestätigungen";
       case "/instructor/availability":
@@ -242,7 +248,12 @@ export function InstructorLayout({ children }: InstructorLayoutProps) {
         <div className="flex justify-around items-center h-16">
           {navItems.map((item) => {
             const active = isActive(item.url);
-            const showBadge = item.url === "/instructor/confirmations" && pendingCount && pendingCount > 0;
+            const badgeCount = item.badgeKey === "confirmations" 
+              ? pendingCount 
+              : item.badgeKey === "transfers"
+              ? transferPendingCount
+              : 0;
+            const showBadge = badgeCount && badgeCount > 0;
             return (
               <button
                 key={item.url}
@@ -259,7 +270,7 @@ export function InstructorLayout({ children }: InstructorLayoutProps) {
                       variant="destructive"
                       className="absolute -top-2 -right-3 h-4 min-w-4 flex items-center justify-center p-0 text-[10px]"
                     >
-                      {pendingCount > 9 ? "9+" : pendingCount}
+                      {badgeCount > 9 ? "9+" : badgeCount}
                     </Badge>
                   )}
                 </div>
