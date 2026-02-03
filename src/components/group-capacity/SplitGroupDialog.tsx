@@ -103,6 +103,11 @@ export function SplitGroupDialog({
   const [splitGroups, setSplitGroups] = useState<SplitGroup[]>([]);
   const splitMutation = useSplitGroup();
 
+  // Validation: all groups must have an instructor
+  const allGroupsHaveInstructor = splitGroups.every(
+    group => group.instructorId !== null && group.instructorId !== 'none'
+  );
+
   const sensors = useSensors(
     useSensor(PointerSensor),
     useSensor(KeyboardSensor, {
@@ -324,14 +329,21 @@ export function SplitGroupDialog({
           </DndContext>
         </ScrollArea>
 
-        <DialogFooter className="mt-4">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Abbrechen
-          </Button>
-          <Button onClick={handleSave} disabled={splitMutation.isPending}>
-            {splitMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Speichern
-          </Button>
+        <DialogFooter className="mt-4 flex-col sm:flex-row gap-2">
+          {!allGroupsHaveInstructor && (
+            <p className="text-sm text-amber-600 sm:mr-auto">
+              Alle Gruppen müssen einen Lehrer zugewiesen haben.
+            </p>
+          )}
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => onOpenChange(false)}>
+              Abbrechen
+            </Button>
+            <Button onClick={handleSave} disabled={splitMutation.isPending || !allGroupsHaveInstructor}>
+              {splitMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Speichern
+            </Button>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>

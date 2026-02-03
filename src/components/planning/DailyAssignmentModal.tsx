@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { format, parseISO, getISOWeek, endOfWeek } from 'date-fns';
 import { de } from 'date-fns/locale';
-import { Users } from 'lucide-react';
+import { Users, Loader2, Check, AlertCircle } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -24,6 +24,7 @@ import { InstanceChangeConfirmDialog } from '@/components/trainings/InstanceChan
 import type { GroupPlanningCourse } from '@/hooks/useGroupPlanningData';
 import type { Instructor } from '@/hooks/useInstructors';
 import { useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 
 interface DailyAssignmentModalProps {
   open: boolean;
@@ -44,6 +45,9 @@ export function DailyAssignmentModal({
   const queryClient = useQueryClient();
   const weekEnd = endOfWeek(weekStart, { weekStartsOn: 1 });
   const weekNumber = getISOWeek(weekStart);
+
+  // Track save status per instance
+  const [saveStatus, setSaveStatus] = useState<Record<string, 'saving' | 'success' | 'error'>>({});
 
   // Pending change state for confirmation dialog
   const [pendingChange, setPendingChange] = useState<{
@@ -87,16 +91,34 @@ export function DailyAssignmentModal({
   };
 
   const performAssignment = async (instanceId: string, instructorId: string | null, isAssistant: boolean) => {
-    await assignInstructor.mutateAsync({
-      instanceId,
-      instructorId,
-      isAssistant,
-    });
+    setSaveStatus(prev => ({ ...prev, [instanceId]: 'saving' }));
     
-    // Invalidate the planning data to refresh
-    queryClient.invalidateQueries({ 
-      queryKey: ['group-planning', format(weekStart, 'yyyy-MM-dd')] 
-    });
+    try {
+      await assignInstructor.mutateAsync({
+        instanceId,
+        instructorId,
+        isAssistant,
+      });
+      
+      // Invalidate the planning data to refresh
+      queryClient.invalidateQueries({ 
+        queryKey: ['group-planning', format(weekStart, 'yyyy-MM-dd')] 
+      });
+      
+      setSaveStatus(prev => ({ ...prev, [instanceId]: 'success' }));
+      
+      // Clear success status after 2 seconds
+      setTimeout(() => {
+        setSaveStatus(prev => {
+          const next = { ...prev };
+          delete next[instanceId];
+          return next;
+        });
+      }, 2000);
+    } catch (error) {
+      setSaveStatus(prev => ({ ...prev, [instanceId]: 'error' }));
+      toast.error('Fehler beim Speichern');
+    }
   };
 
   const handleConfirmChange = async (notifyParticipants: boolean) => {
@@ -134,6 +156,7 @@ export function DailyAssignmentModal({
               const date = parseISO(instance.date);
               const isOverride = instance.instructorId !== course.weeklyInstructorId && 
                 course.weeklyInstructorId !== null;
+              const status = saveStatus[instance.id];
 
               return (
                 <div
@@ -206,10 +229,25 @@ export function DailyAssignmentModal({
                     </Select>
                   </div>
 
-                  {/* Participant count */}
-                  <div className="flex items-center gap-1.5 text-sm text-muted-foreground sm:w-16 justify-end">
-                    <Users className="h-3.5 w-3.5" />
-                    <span>{instance.currentParticipants} TN</span>
+                  {/* Participant count and status */}
+                  <div className="flex items-center gap-2 sm:w-20 justify-end">
+                    <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                      <Users className="h-3.5 w-3.5" />
+                      <span>{instance.currentParticipants} TN</span>
+                    </div>
+                    
+                    {/* Save status indicator */}
+                    <div className="w-4 h-4 flex items-center justify-center">
+                      {status === 'saving' && (
+                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                      )}
+                      {status === 'success' && (
+                        <Check className="h-4 w-4 text-green-500" />
+                      )}
+                      {status === 'error' && (
+                        <AlertCircle className="h-4 w-4 text-destructive" />
+                      )}
+                    </div>
                   </div>
                 </div>
               );

@@ -5,7 +5,7 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const trainingTabs = [
-  { title: "Kurse", url: "/trainings", icon: Package },
+  { title: "Kursvorlagen", url: "/trainings", icon: Package },
   { title: "Wochenplanung", url: "/trainings/planning", icon: Calendar },
   { title: "Kapazität", url: "/trainings/capacity", icon: Users2 },
 ];
@@ -39,7 +39,7 @@ export function TrainingsLayout({ children, actions }: TrainingsLayoutProps) {
     <div className="space-y-6">
       <PageHeader
         title="Trainings"
-        description="Verwalte Gruppenkurse, Lehrerzuweisungen und Kapazität"
+        description="Verwalte Kursvorlagen, Lehrerzuweisungen und Kapazität"
         actions={actions}
       />
 
