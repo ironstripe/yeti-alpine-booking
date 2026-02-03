@@ -1,11 +1,11 @@
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Banknote, UserPlus, Mail, ChevronRight } from "lucide-react";
+import { Banknote, UserPlus, Mail, Users2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { DashboardTaskCard } from "./DashboardTaskCard";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useUnassignedGroupsCheck } from "@/hooks/useUnassignedGroupsCheck";
 
 interface ActionCounts {
   overduePayments: number;
@@ -47,6 +47,9 @@ export function ActionRequiredBox() {
     },
   });
 
+  const { data: unassignedGroups } = useUnassignedGroupsCheck();
+  const unassignedGroupCount = unassignedGroups?.length || 0;
+
   if (isLoading) {
     return (
       <DashboardTaskCard title="Handlungsbedarf" count={0}>
@@ -60,8 +63,8 @@ export function ActionRequiredBox() {
   }
 
   const total = actions
-    ? actions.overduePayments + actions.unassignedInstructors + actions.pendingConfirmations
-    : 0;
+    ? actions.overduePayments + actions.unassignedInstructors + actions.pendingConfirmations + unassignedGroupCount
+    : unassignedGroupCount;
 
   const actionItems = [
     {
@@ -84,6 +87,20 @@ export function ActionRequiredBox() {
       count: actions?.pendingConfirmations || 0,
       onClick: () => navigate("/bookings?status=pending_confirmation"),
       color: "text-purple-600",
+    },
+    {
+      icon: Users2,
+      label: "Gruppen ohne Lehrer",
+      count: unassignedGroupCount,
+      onClick: () => {
+        if (unassignedGroups && unassignedGroups.length > 0) {
+          const firstGroup = unassignedGroups[0];
+          navigate(`/trainings/planning?week=${firstGroup.weekStart}`);
+        } else {
+          navigate("/trainings/planning");
+        }
+      },
+      color: "text-orange-600",
     },
   ];
 

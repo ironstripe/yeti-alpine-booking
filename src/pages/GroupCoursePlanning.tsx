@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { startOfWeek } from 'date-fns';
+import { useSearchParams } from 'react-router-dom';
+import { startOfWeek, parseISO } from 'date-fns';
 import { Calendar } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -78,9 +79,19 @@ function NoCourses() {
 }
 
 export default function GroupCoursePlanning() {
-  const [currentWeek, setCurrentWeek] = useState(() => 
-    startOfWeek(new Date(), { weekStartsOn: 1 })
-  );
+  const [searchParams] = useSearchParams();
+  const weekParam = searchParams.get('week');
+  
+  const [currentWeek, setCurrentWeek] = useState(() => {
+    if (weekParam) {
+      try {
+        return parseISO(weekParam);
+      } catch {
+        return startOfWeek(new Date(), { weekStartsOn: 1 });
+      }
+    }
+    return startOfWeek(new Date(), { weekStartsOn: 1 });
+  });
   const [selectedCourse, setSelectedCourse] = useState<GroupPlanningCourse | null>(null);
 
   const { courses, isLoading, hasInstances, stats } = useGroupPlanningData(currentWeek);
