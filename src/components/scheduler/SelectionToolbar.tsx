@@ -2,9 +2,10 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { X, Calendar, Clock, Ban } from "lucide-react";
+import { X, Calendar, Clock, Ban, Building } from "lucide-react";
 import { useSchedulerSelection } from "@/contexts/SchedulerSelectionContext";
 import { AbsenceTypeDialog } from "./AbsenceTypeDialog";
+import { OfficeHoursDialog } from "./OfficeHoursDialog";
 import type { SchedulerBooking } from "@/lib/scheduler-utils";
 
 interface SelectionToolbarProps {
@@ -16,6 +17,7 @@ export function SelectionToolbar({ className, bookings = [] }: SelectionToolbarP
   const navigate = useNavigate();
   const { state, clearSelection, getTotalHours } = useSchedulerSelection();
   const [isAbsenceDialogOpen, setIsAbsenceDialogOpen] = useState(false);
+  const [isOfficeHoursDialogOpen, setIsOfficeHoursDialogOpen] = useState(false);
 
   if (state.selections.length === 0) {
     return null;
@@ -64,7 +66,15 @@ export function SelectionToolbar({ className, bookings = [] }: SelectionToolbarP
     setIsAbsenceDialogOpen(true);
   };
 
+  const handleMarkOfficeHours = () => {
+    setIsOfficeHoursDialogOpen(true);
+  };
+
   const handleAbsenceSuccess = () => {
+    // Toolbar will hide automatically when selection is cleared
+  };
+
+  const handleOfficeHoursSuccess = () => {
     // Toolbar will hide automatically when selection is cleared
   };
 
@@ -118,6 +128,15 @@ export function SelectionToolbar({ className, bookings = [] }: SelectionToolbarP
             <Ban className="h-4 w-4 mr-1" />
             Abwesenheit
           </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleMarkOfficeHours}
+            className="border-purple-300 text-purple-700 hover:bg-purple-50 hover:text-purple-800"
+          >
+            <Building className="h-4 w-4 mr-1" />
+            Bürodienst
+          </Button>
           <Button size="sm" onClick={handleBookSelected}>
             Ausgewählte buchen
           </Button>
@@ -130,6 +149,13 @@ export function SelectionToolbar({ className, bookings = [] }: SelectionToolbarP
         onOpenChange={setIsAbsenceDialogOpen}
         conflicts={getConflictingBookings()}
         onSuccess={handleAbsenceSuccess}
+      />
+
+      {/* Office Hours Dialog */}
+      <OfficeHoursDialog
+        open={isOfficeHoursDialogOpen}
+        onOpenChange={setIsOfficeHoursDialogOpen}
+        onSuccess={handleOfficeHoursSuccess}
       />
     </>
   );

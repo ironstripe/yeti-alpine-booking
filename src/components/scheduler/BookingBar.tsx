@@ -11,7 +11,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { BookingDetailDialog } from "./BookingDetailDialog";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Building } from "lucide-react";
 
 interface BookingBarProps {
   booking: SchedulerBooking;
@@ -99,15 +99,18 @@ export function BookingBar({ booking, slotWidth, instructorSpecialization, isPla
             {hasCrossDiscipline && (
               <AlertTriangle className="h-2.5 w-2.5 text-yellow-300 shrink-0" />
             )}
+            {isOfficeShift && (
+              <Building className="h-2.5 w-2.5 shrink-0" />
+            )}
             <span className="truncate">
-              {booking.participantName || (booking.type === "group" ? "Gruppe" : "Privat")}
+              {booking.participantName || (booking.type === "group" ? "Gruppe" : booking.type === "office_shift" ? "Bürodienst" : "Privat")}
             </span>
           </div>
         </TooltipTrigger>
         <TooltipContent side="top" className="max-w-xs">
           <div className="space-y-1">
             <p className="font-medium">
-              {booking.type === "group" ? "Gruppenkurs" : booking.type === "office_shift" ? "Büro-Schicht" : "Privatstunde"}
+              {booking.type === "group" ? "Gruppenkurs" : booking.type === "office_shift" ? "Bürodienst" : "Privatstunde"}
             </p>
             {booking.participantName && (
               <p className="text-sm">{booking.participantName}</p>

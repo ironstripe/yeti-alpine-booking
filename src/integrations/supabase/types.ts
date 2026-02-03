@@ -2324,6 +2324,47 @@ export type Database = {
         }
         Relationships: []
       }
+      office_hour_blocks: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          date: string
+          id: string
+          instructor_id: string
+          note: string | null
+          time_end: string
+          time_start: string
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          date: string
+          id?: string
+          instructor_id: string
+          note?: string | null
+          time_end: string
+          time_start: string
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          date?: string
+          id?: string
+          instructor_id?: string
+          note?: string | null
+          time_end?: string
+          time_start?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "office_hour_blocks_instructor_id_fkey"
+            columns: ["instructor_id"]
+            isOneToOne: false
+            referencedRelation: "instructors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       office_shift_assignments: {
         Row: {
           created_at: string | null

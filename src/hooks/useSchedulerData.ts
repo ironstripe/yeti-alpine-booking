@@ -77,6 +77,22 @@ export function useSchedulerData({ startDate, endDate, instructorId }: UseSchedu
     queryKey: ["scheduler-group-instances", startDateStr, endDateStr],
   });
 
+  // Realtime subscription for office hour blocks
+  useRealtimeSubscription({
+    table: "office_hour_blocks",
+    queryKey: ["scheduler-office-blocks", startDateStr, endDateStr],
+    onInsert: () => {
+      queryClient.invalidateQueries({ queryKey: ["scheduler-office-blocks", startDateStr, endDateStr] });
+      toast.info("Neuer Bürodienst eingetragen");
+    },
+    onUpdate: () => {
+      queryClient.invalidateQueries({ queryKey: ["scheduler-office-blocks", startDateStr, endDateStr] });
+    },
+    onDelete: () => {
+      queryClient.invalidateQueries({ queryKey: ["scheduler-office-blocks", startDateStr, endDateStr] });
+    },
+  });
+
   // Fetch instructors (filter out office staff)
   const instructorsQuery = useQuery({
     queryKey: ["scheduler-instructors"],
@@ -188,6 +204,28 @@ export function useSchedulerData({ startDate, endDate, instructorId }: UseSchedu
 
       if (error) throw error;
       return data;
+    },
+  });
+
+  // Fetch office hour blocks for the date range
+  const officeBlocksQuery = useQuery({
+    queryKey: ["scheduler-office-blocks", startDateStr, endDateStr],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("office_hour_blocks")
+        .select("*")
+        .gte("date", startDateStr)
+        .lte("date", endDateStr);
+
+      if (error) throw error;
+      return data as {
+        id: string;
+        instructor_id: string;
+        date: string;
+        time_start: string;
+        time_end: string;
+        note: string | null;
+      }[];
     },
   });
 
@@ -312,6 +350,22 @@ export function useSchedulerData({ startDate, endDate, instructorId }: UseSchedu
       };
     });
 
+  // Transform office hour blocks as bookings with type "office_shift"
+  const officeBlockBookings: SchedulerBooking[] = (officeBlocksQuery.data || [])
+    .filter((o) => !instructorId || o.instructor_id === instructorId)
+    .map((o) => ({
+      id: `office-block-${o.id}`,
+      instructorId: o.instructor_id,
+      date: o.date,
+      timeStart: o.time_start,
+      timeEnd: o.time_end,
+      type: "office_shift" as const,
+      isPaid: true,
+      ticketId: o.id,
+      participantName: o.note || "Bürodienst",
+      status: "scheduled",
+    }));
+
   // Transform absences
   const oneTimeAbsences: SchedulerAbsence[] = (absencesQuery.data || [])
     .filter((a) => !instructorId || a.instructor_id === instructorId)
@@ -334,26 +388,29 @@ export function useSchedulerData({ startDate, endDate, instructorId }: UseSchedu
 
   return {
     instructors,
-    bookings: [...bookings, ...groupBookings],
+    bookings: [...bookings, ...groupBookings, ...officeBlockBookings],
     absences,
     isLoading: 
       instructorsQuery.isLoading || 
       bookingsQuery.isLoading || 
       groupInstancesQuery.isLoading ||
       absencesQuery.isLoading ||
-      recurringBlocksQuery.isLoading,
+      recurringBlocksQuery.isLoading ||
+      officeBlocksQuery.isLoading,
     error: 
       instructorsQuery.error || 
       bookingsQuery.error || 
       groupInstancesQuery.error ||
       absencesQuery.error ||
-      recurringBlocksQuery.error,
+      recurringBlocksQuery.error ||
+      officeBlocksQuery.error,
     refetch: () => {
       instructorsQuery.refetch();
       bookingsQuery.refetch();
       groupInstancesQuery.refetch();
       absencesQuery.refetch();
       recurringBlocksQuery.refetch();
+      officeBlocksQuery.refetch();
     },
   };
 }
