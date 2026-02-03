@@ -106,6 +106,50 @@ export function useCreateAbsence() {
   });
 }
 
+interface UpdateAbsenceParams {
+  absenceId: string;
+  startDate: string;
+  endDate: string;
+  type: AbsenceType;
+  reason?: string;
+  isFullDay: boolean;
+  timeStart?: string;
+  timeEnd?: string;
+}
+
+export function useUpdateAbsence() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ absenceId, ...updates }: UpdateAbsenceParams) => {
+      const { error } = await supabase
+        .from("instructor_absences")
+        .update({
+          start_date: updates.startDate,
+          end_date: updates.endDate,
+          type: updates.type,
+          reason: updates.reason || null,
+          is_full_day: updates.isFullDay,
+          time_start: updates.isFullDay ? null : updates.timeStart,
+          time_end: updates.isFullDay ? null : updates.timeEnd,
+        })
+        .eq("id", absenceId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["scheduler-absences"] });
+      queryClient.invalidateQueries({ queryKey: ["instructor-absence-history"] });
+      queryClient.invalidateQueries({ queryKey: ["pending-absences"] });
+      toast.success("Abwesenheit aktualisiert");
+    },
+    onError: (error) => {
+      console.error("Failed to update absence:", error);
+      toast.error("Fehler beim Aktualisieren der Abwesenheit");
+    },
+  });
+}
+
 export function useDeleteAbsence() {
   const queryClient = useQueryClient();
 
@@ -121,6 +165,7 @@ export function useDeleteAbsence() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["scheduler-absences"] });
       queryClient.invalidateQueries({ queryKey: ["pending-absences"] });
+      queryClient.invalidateQueries({ queryKey: ["instructor-absence-history"] });
       toast.success("Abwesenheit gelöscht");
     },
     onError: (error) => {
