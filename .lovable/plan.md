@@ -1,93 +1,126 @@
 
-# Fix: Missing Navigation in Scheduler View
 
-## Problem Identified
+# Fix: Show Group Course Instances in Scheduler
 
-The scheduler page shows **no navigation** - neither the desktop sidebar (≥768px) nor the mobile header/bottom nav (<768px) is visible. This indicates a CSS breakpoint issue where the viewport width is causing both to be hidden.
+## Problem
 
-Looking at the code:
-- `AppSidebar`: `hidden md:flex` (shows ≥768px)
-- `MobileHeader`: `md:hidden` (shows <768px)  
-- `BottomNav`: `md:hidden` (shows <768px)
+The scheduler fetches group courses from the **legacy `groups` table** which is empty. Meanwhile, the Wochenplanung system creates instructor assignments in the **`group_course_instances` table** which has all the correct data.
 
-At exactly 768px, there's a visual gap where transitions may cause issues.
-
-## Root Cause
-
-The Tailwind `md` breakpoint (768px) creates a hard cutoff. The Lovable preview panel width may be exactly at this boundary, or the scheduler's viewport-relative height (`h-[calc(100vh-...)]`) may be interfering with the flex layout.
+**Data mismatch:**
+- `groups` table: Empty for Feb 9+
+- `group_course_instances`: Has "Blue Prince/Princess", "Black Academy", etc. with instructors assigned
 
 ## Solution
 
-### 1. Add explicit minimum width to sidebar (ensures it shows at md+)
+Update `useSchedulerData.ts` to fetch from `group_course_instances` joined with `group_courses` instead of the legacy `groups` table.
 
-**File:** `src/components/layout/AppSidebar.tsx`
+## Implementation
 
-Change line 101 to ensure the sidebar is part of the document flow:
+### File: `src/hooks/useSchedulerData.ts`
+
+**Replace the groups query (lines 117-131) with:**
+
 ```typescript
-className={cn(
-  "hidden md:flex flex-col bg-sidebar text-sidebar-foreground border-r border-sidebar-border transition-all duration-300 ease-in-out shrink-0",
-  collapsed ? "w-16" : "w-[250px]"
-)}
-```
-Add `shrink-0` to prevent the sidebar from being compressed to 0 width.
+// Fetch group course instances for the date range
+const groupInstancesQuery = useQuery({
+  queryKey: ["scheduler-group-instances", startDateStr, endDateStr],
+  queryFn: async () => {
+    const { data, error } = await supabase
+      .from("group_course_instances")
+      .select(`
+        id,
+        course_id,
+        date,
+        start_time,
+        end_time,
+        instructor_id,
+        current_participants,
+        status,
+        group_courses!inner (
+          name,
+          color,
+          max_participants,
+          meeting_point
+        )
+      `)
+      .gte("date", startDateStr)
+      .lte("date", endDateStr)
+      .not("instructor_id", "is", null);
 
-### 2. Fix Scheduler page height calculation
-
-**File:** `src/pages/Scheduler.tsx`
-
-The current height uses viewport units which may conflict with the parent flex layout:
-```typescript
-// Current (problematic)
-<div className="flex flex-col h-[calc(100vh-8rem)] md:h-[calc(100vh-5rem)] bg-background">
-
-// Fixed - use flex-1 to fill available space within the layout
-<div className="flex flex-col flex-1 min-h-0 bg-background">
-```
-
-### 3. Ensure AppLayout main content area constrains properly
-
-**File:** `src/components/layout/AppLayout.tsx`
-
-Update the main content wrapper to handle overflow correctly:
-```typescript
-// Line 66-68: Update main wrapper
-<main className="flex-1 overflow-auto min-h-0">
-  <div className="h-full">{children ?? <Outlet />}</div>
-</main>
-```
-
-Remove the fixed padding wrapper that may cause layout issues for full-height pages like the scheduler.
-
-### 4. Add conditional padding for pages that need it
-
-**File:** `src/components/layout/AppLayout.tsx`
-
-Create a route-aware padding system:
-```typescript
-const location = useLocation();
-const isFullHeightPage = ['/scheduler'].includes(location.pathname);
-
-<main className="flex-1 overflow-auto min-h-0">
-  <div className={cn(
-    "h-full",
-    !isFullHeightPage && "p-4 md:p-6 pb-24 md:pb-6"
-  )}>
-    {children ?? <Outlet />}
-  </div>
-</main>
+    if (error) throw error;
+    return data;
+  },
+});
 ```
 
-## Summary of Changes
+**Replace the group bookings transformation (lines 193-249) with:**
 
-| File | Change |
-|------|--------|
-| `src/components/layout/AppSidebar.tsx` | Add `shrink-0` class to prevent compression |
-| `src/pages/Scheduler.tsx` | Replace `h-[calc(100vh-...)]` with `flex-1 min-h-0` |
-| `src/components/layout/AppLayout.tsx` | Add `min-h-0` to main, route-aware padding |
+```typescript
+// Add group course instances as bookings
+const groupBookings: SchedulerBooking[] = (groupInstancesQuery.data || [])
+  .filter((g) => !instructorId || g.instructor_id === instructorId)
+  .map((g) => {
+    const course = g.group_courses as unknown as {
+      name: string;
+      color: string;
+      max_participants: number;
+      meeting_point: string | null;
+    };
+    
+    return {
+      id: `group-instance-${g.id}`,
+      instructorId: g.instructor_id!,
+      date: g.date,
+      timeStart: g.start_time,
+      timeEnd: g.end_time,
+      type: "group" as const,
+      isPaid: true,
+      ticketId: g.course_id,
+      participantName: course.name,
+      status: g.status || "scheduled",
+      currentParticipants: g.current_participants || 0,
+      maxParticipants: course.max_participants || undefined,
+      meetingPoint: course.meeting_point || undefined,
+    };
+  });
+```
+
+**Update hasGroupCourse derivation (lines 152-155):**
+
+```typescript
+const hasGroupCourse = (groupInstancesQuery.data || []).some(
+  (g) => g.instructor_id === instructor.id
+);
+```
+
+**Update realtime subscription (lines 59-63):**
+
+```typescript
+// Realtime subscription for group course instances
+useRealtimeSubscription<Tables<"group_course_instances">>({
+  table: "group_course_instances",
+  queryKey: ["scheduler-group-instances", startDateStr, endDateStr],
+});
+```
+
+**Update loading/error states (lines 272-281):**
+
+Replace `groupsQuery` references with `groupInstancesQuery`.
+
+## Changes Summary
+
+| Change | Description |
+|--------|-------------|
+| Query target | `group_course_instances` instead of `groups` |
+| Data join | Join with `group_courses` for name, color, etc. |
+| Booking ID | Use `group-instance-{id}` format |
+| Time fields | Direct from instance (`start_time`, `end_time`) |
+| Realtime | Subscribe to `group_course_instances` table |
 
 ## Technical Notes
 
-- `shrink-0` prevents flexbox from shrinking the sidebar below its set width
-- `min-h-0` is required for nested flex containers to allow proper overflow scrolling
-- Using `flex-1` instead of viewport units lets the scheduler fill its container without breaking the layout
-- Route-aware padding allows full-height pages (scheduler) to use their entire container while other pages get proper padding
+- Each `group_course_instance` represents a single time slot (morning OR afternoon)
+- No need to expand date ranges - instances are already per-day
+- Color comes from the parent `group_courses` record
+- Legacy `groups` table query can be removed entirely
+
