@@ -49,18 +49,24 @@ function SchedulerGridContent() {
 
   const [selectedDate, setSelectedDate] = useState(initialDate);
   const [viewMode, setViewMode] = useState<ViewMode>("daily"); // Default to daily view
-  const [selectedInstructorId, setSelectedInstructorId] = useState<string | null>(null);
   const [highlightedInstructorId, setHighlightedInstructorId] = useState<string | null>(null);
-  const [capabilityFilter, setCapabilityFilter] = useState<string | null>(null);
-  const [compactMode, setCompactMode] = useState(false);
-  // NEW: Role filter, fullscreen mode, and planning mode
-  const [roleFilter, setRoleFilter] = useState<string | null>(null);
-  const [isFullscreen, setIsFullscreen] = useState(false);
-  const [isPlanningMode, setIsPlanningMode] = useState(false);
-  // NEW: Booking type filter (private/group)
-  const [bookingTypeFilter, setBookingTypeFilter] = useState<string | null>(null);
-  // NEW: Sort by option
-  const [sortBy, setSortBy] = useState<string>("name");
+  
+  // Consolidated filter state for settings menu
+  const [filters, setFilters] = useState({
+    roleFilter: null as string | null,
+    capabilityFilter: null as string | null,
+    bookingTypeFilter: null as string | null,
+    sortBy: "name",
+    showLegend: true,
+    isPlanningMode: false,
+    isFullscreen: false,
+    compactMode: false,
+  });
+
+  // Helper to update partial filters
+  const handleFiltersChange = (updates: Partial<typeof filters>) => {
+    setFilters((prev) => ({ ...prev, ...updates }));
+  };
   
   // Instructor column width with localStorage persistence
   const [instructorColumnWidth, setInstructorColumnWidth] = useState(() => {
@@ -98,13 +104,15 @@ function SchedulerGridContent() {
   const { instructors, bookings, absences, isLoading, error } = useSchedulerData({
     startDate,
     endDate,
-    instructorId: selectedInstructorId,
   });
 
   const updateTicketItem = useUpdateTicketItem();
   const sendChangeNotification = useSendBookingChangeNotification();
   const { clearSelection, state, endDrag, cancelDrag, updateDrag } = useSchedulerSelection();
   const { isAdminOrOffice } = useUserRole();
+
+  // Destructure filter values for easier use
+  const { roleFilter, capabilityFilter, bookingTypeFilter, sortBy, showLegend, isPlanningMode, isFullscreen, compactMode } = filters;
 
   // State for drag & drop confirmation dialog
   const [showDropConfirmDialog, setShowDropConfirmDialog] = useState(false);
@@ -179,7 +187,7 @@ function SchedulerGridContent() {
         // Priority 1: Exit fullscreen (highest priority)
         if (isFullscreen) {
           e.stopPropagation();
-          setIsFullscreen(false);
+          handleFiltersChange({ isFullscreen: false });
           return;
         }
         // Priority 2: Cancel drag
@@ -489,26 +497,11 @@ function SchedulerGridContent() {
             onDateChange={setSelectedDate}
             viewMode={viewMode}
             onViewModeChange={setViewMode}
-            selectedInstructorId={selectedInstructorId}
-            onInstructorFilterChange={setSelectedInstructorId}
             instructorOptions={instructorOptions}
             onInstructorSelect={scrollToInstructor}
-            capabilityFilter={capabilityFilter}
-            onCapabilityFilterChange={setCapabilityFilter}
-            visibleDates={visibleDates}
-            compactMode={compactMode}
-            onCompactModeChange={setCompactMode}
+            filters={filters}
+            onFiltersChange={handleFiltersChange}
             compactStats={compactStats}
-            roleFilter={roleFilter}
-            onRoleFilterChange={setRoleFilter}
-            isFullscreen={isFullscreen}
-            onFullscreenToggle={setIsFullscreen}
-            isPlanningMode={isPlanningMode}
-            onPlanningModeToggle={setIsPlanningMode}
-            bookingTypeFilter={bookingTypeFilter}
-            onBookingTypeFilterChange={setBookingTypeFilter}
-            sortBy={sortBy}
-            onSortChange={setSortBy}
           />
           {/* Admin: Show Pending Absences Button */}
           {isAdminOrOffice && <PendingAbsencesList />}
@@ -544,36 +537,38 @@ function SchedulerGridContent() {
           />
         </div>
 
-        {/* Legend - Compact */}
-        <div className="border-t border-slate-300 px-3 py-2 flex flex-wrap gap-3 text-[10px]">
-          <div className="flex items-center gap-1">
-            <div className="w-2 h-2 rounded-sm bg-emerald-500" />
-            <span>Bezahlt</span>
+        {/* Legend - Compact (conditional) */}
+        {showLegend && (
+          <div className="border-t border-border px-3 py-2 flex flex-wrap gap-3 text-[10px]">
+            <div className="flex items-center gap-1">
+              <div className="w-2 h-2 rounded-sm bg-emerald-500" />
+              <span>Bezahlt</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <div className="w-2 h-2 rounded-sm bg-orange-500" />
+              <span>Offen</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <div className="w-2 h-2 rounded-sm bg-blue-600" />
+              <span>Gruppe</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <div className="w-2 h-2 rounded-sm bg-purple-600" />
+              <span>Büro</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <div className="w-2 h-2 rounded-sm bg-gray-300" />
+              <span>Abwesend</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <div className="w-2 h-2 rounded-sm bg-blue-500/20 border border-blue-500" />
+              <span>Auswahl</span>
+            </div>
+            <div className="ml-auto text-muted-foreground">
+              09:00–16:00
+            </div>
           </div>
-          <div className="flex items-center gap-1">
-            <div className="w-2 h-2 rounded-sm bg-orange-500" />
-            <span>Offen</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <div className="w-2 h-2 rounded-sm bg-blue-600" />
-            <span>Gruppe</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <div className="w-2 h-2 rounded-sm bg-purple-600" />
-            <span>Büro</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <div className="w-2 h-2 rounded-sm bg-gray-300" />
-            <span>Abwesend</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <div className="w-2 h-2 rounded-sm bg-blue-500/20 border border-blue-500" />
-            <span>Auswahl</span>
-          </div>
-          <div className="ml-auto text-muted-foreground">
-            09:00–16:00
-          </div>
-        </div>
+        )}
 
         {/* Selection Toolbar */}
         <SelectionToolbar bookings={bookings} />
