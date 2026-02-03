@@ -1,128 +1,93 @@
 
-# Fix: Auth Listener Being Unsubscribed After Initialization
+# Fix: Missing Navigation in Scheduler View
 
-## Problem
+## Problem Identified
 
-The `onAuthStateChange` listener is being unsubscribed immediately after initialization due to a dependency array issue:
+The scheduler page shows **no navigation** - neither the desktop sidebar (≥768px) nor the mobile header/bottom nav (<768px) is visible. This indicates a CSS breakpoint issue where the viewport width is causing both to be hidden.
 
-```typescript
-useEffect(() => {
-  if (initialized) return;  // Returns early on re-run
-  // ... setup listener ...
-  return () => subscription.unsubscribe();  // But cleanup STILL runs!
-}, [initialized]);  // Re-runs when initialized changes
-```
+Looking at the code:
+- `AppSidebar`: `hidden md:flex` (shows ≥768px)
+- `MobileHeader`: `md:hidden` (shows <768px)  
+- `BottomNav`: `md:hidden` (shows <768px)
 
-**Flow:**
-1. `initialized = false` → listener set up
-2. `setInitialized(true)` → effect re-runs
-3. Early return at `if (initialized)` → **but cleanup runs first, unsubscribing!**
-4. No listener active → `SIGNED_IN` event not received → user stays on login page
+At exactly 768px, there's a visual gap where transitions may cause issues.
+
+## Root Cause
+
+The Tailwind `md` breakpoint (768px) creates a hard cutoff. The Lovable preview panel width may be exactly at this boundary, or the scheduler's viewport-relative height (`h-[calc(100vh-...)]`) may be interfering with the flex layout.
 
 ## Solution
 
-Remove `initialized` from the dependency array and use a ref to track initialization state. The listener should be set up once and never torn down until component unmounts.
+### 1. Add explicit minimum width to sidebar (ensures it shows at md+)
 
-### Code Changes
+**File:** `src/components/layout/AppSidebar.tsx`
 
-**File:** `src/contexts/AuthContext.tsx`
-
+Change line 101 to ensure the sidebar is part of the document flow:
 ```typescript
-import {
-  createContext,
-  useContext,
-  useEffect,
-  useState,
-  useCallback,
-  useMemo,
-  useRef,
-  ReactNode,
-} from "react";
-import { User, Session, AuthChangeEvent } from "@supabase/supabase-js";
-import { supabase } from "@/integrations/supabase/client";
+className={cn(
+  "hidden md:flex flex-col bg-sidebar text-sidebar-foreground border-r border-sidebar-border transition-all duration-300 ease-in-out shrink-0",
+  collapsed ? "w-16" : "w-[250px]"
+)}
+```
+Add `shrink-0` to prevent the sidebar from being compressed to 0 width.
 
-// ... interface unchanged ...
+### 2. Fix Scheduler page height calculation
 
-export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
-  const [loading, setLoading] = useState(true);
-  
-  // Use ref instead of state to avoid effect re-runs
-  const initializedRef = useRef(false);
+**File:** `src/pages/Scheduler.tsx`
 
-  useEffect(() => {
-    // Prevent double initialization in StrictMode
-    if (initializedRef.current) return;
-    initializedRef.current = true;
-    
-    let mounted = true;
+The current height uses viewport units which may conflict with the parent flex layout:
+```typescript
+// Current (problematic)
+<div className="flex flex-col h-[calc(100vh-8rem)] md:h-[calc(100vh-5rem)] bg-background">
 
-    // Set up auth state listener FIRST (before getSession)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event: AuthChangeEvent, newSession: Session | null) => {
-        if (!mounted) return;
-        
-        console.log("Auth event:", event); // Debug logging
-        
-        switch (event) {
-          case "SIGNED_IN":
-          case "TOKEN_REFRESHED":
-            setSession(newSession);
-            setUser(newSession?.user ?? null);
-            setLoading(false);
-            break;
-          case "SIGNED_OUT":
-            setSession(null);
-            setUser(null);
-            setLoading(false);
-            break;
-          case "USER_UPDATED":
-            setUser(newSession?.user ?? null);
-            break;
-          case "INITIAL_SESSION":
-            if (newSession) {
-              setSession(newSession);
-              setUser(newSession.user);
-            }
-            setLoading(false);
-            break;
-        }
-      }
-    );
-
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session: initialSession } }) => {
-      if (mounted && initialSession) {
-        setSession(initialSession);
-        setUser(initialSession.user);
-      }
-      if (mounted) {
-        setLoading(false);
-      }
-    });
-
-    return () => {
-      mounted = false;
-      subscription.unsubscribe();
-    };
-  }, []); // Empty dependency array - run once only
-
-  // ... rest of the file unchanged ...
-}
+// Fixed - use flex-1 to fill available space within the layout
+<div className="flex flex-col flex-1 min-h-0 bg-background">
 ```
 
-## Key Changes
+### 3. Ensure AppLayout main content area constrains properly
 
-| Change | Reason |
-|--------|--------|
-| `useRef` instead of `useState` for `initialized` | Refs don't trigger re-renders, preventing cleanup |
-| Empty dependency array `[]` | Effect runs once, listener stays active |
-| Removed session expiry check | Supabase handles token refresh automatically |
-| Simplified `INITIAL_SESSION` handling | Always set session if present |
+**File:** `src/components/layout/AppLayout.tsx`
+
+Update the main content wrapper to handle overflow correctly:
+```typescript
+// Line 66-68: Update main wrapper
+<main className="flex-1 overflow-auto min-h-0">
+  <div className="h-full">{children ?? <Outlet />}</div>
+</main>
+```
+
+Remove the fixed padding wrapper that may cause layout issues for full-height pages like the scheduler.
+
+### 4. Add conditional padding for pages that need it
+
+**File:** `src/components/layout/AppLayout.tsx`
+
+Create a route-aware padding system:
+```typescript
+const location = useLocation();
+const isFullHeightPage = ['/scheduler'].includes(location.pathname);
+
+<main className="flex-1 overflow-auto min-h-0">
+  <div className={cn(
+    "h-full",
+    !isFullHeightPage && "p-4 md:p-6 pb-24 md:pb-6"
+  )}>
+    {children ?? <Outlet />}
+  </div>
+</main>
+```
+
+## Summary of Changes
+
+| File | Change |
+|------|--------|
+| `src/components/layout/AppSidebar.tsx` | Add `shrink-0` class to prevent compression |
+| `src/pages/Scheduler.tsx` | Replace `h-[calc(100vh-...)]` with `flex-1 min-h-0` |
+| `src/components/layout/AppLayout.tsx` | Add `min-h-0` to main, route-aware padding |
 
 ## Technical Notes
 
-- The ref pattern (`initializedRef`) is the standard way to handle "run once" effects in StrictMode
-- The listener must stay active to receive `SIGNED_IN` events after login
-- Empty dependency array ensures cleanup only runs on unmount, not on state changes
+- `shrink-0` prevents flexbox from shrinking the sidebar below its set width
+- `min-h-0` is required for nested flex containers to allow proper overflow scrolling
+- Using `flex-1` instead of viewport units lets the scheduler fill its container without breaking the layout
+- Route-aware padding allows full-height pages (scheduler) to use their entire container while other pages get proper padding
