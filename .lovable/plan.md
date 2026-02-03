@@ -1,156 +1,176 @@
 
-# Add Edit & Delete Actions for Absence Entries
+# Extend Test Data Generator for Group Course Bookings
 
-## Problem
+## Overview
 
-The absence history entries in the instructor detail view are read-only. Users need the ability to edit or delete existing absences directly from this view.
+Extend the existing test data generator to create group course enrollments with various capacity scenarios for testing the Group Capacity Planning feature.
 
-## Solution
+## Data Model Understanding
 
-Add edit and delete buttons to each absence entry in the history list, with an edit dialog to modify absence details.
+The group course enrollment chain is:
+```
+group_courses (templates)
+    -> training_groups (weekly instances per course)
+    -> group_course_instances (specific day/time slots)
+    -> group_course_enrollments (participant links)
+        -> ticket_items -> tickets -> customers
+        -> customer_participants (children)
+```
+
+Key tables:
+- `group_courses`: Contains `max_participants`, `min_participants` (nullable, default ~4), `price_per_day`
+- `training_groups`: `course_id`, `week_start`, `group_number`, `instructor_id`
+- `group_course_enrollments`: Links `instance_id`, `ticket_item_id`, `participant_id`, `training_group_id`
 
 ## Implementation
 
-### File: `src/hooks/useInstructorAbsences.ts`
+### Part 1: UI Component Changes (`src/components/settings/TestDataGenerator.tsx`)
 
-**Add new `useUpdateAbsence` mutation:**
-
+**Add State Variables:**
 ```typescript
-interface UpdateAbsenceParams {
-  absenceId: string;
-  startDate?: string;
-  endDate?: string;
-  type?: AbsenceType;
-  reason?: string;
-  isFullDay?: boolean;
-  timeStart?: string;
-  timeEnd?: string;
-}
+const [generateGroupCourses, setGenerateGroupCourses] = useState(true);
+const [weeksToGenerate, setWeeksToGenerate] = useState(8);
+const [includeCapacityScenarios, setIncludeCapacityScenarios] = useState(true);
+```
 
-export function useUpdateAbsence() {
-  const queryClient = useQueryClient();
+**Add UI Section (after private lesson settings):**
+- Checkbox: "Gruppenkurs-Buchungen generieren"
+- Number input: "Wochen generieren" (1-12, default 8)
+- Checkbox: "Kapazitäts-Szenarien einschliessen"
+- Info text explaining the distribution
 
-  return useMutation({
-    mutationFn: async ({ absenceId, ...updates }: UpdateAbsenceParams) => {
-      const { error } = await supabase
-        .from("instructor_absences")
-        .update({
-          start_date: updates.startDate,
-          end_date: updates.endDate,
-          type: updates.type,
-          reason: updates.reason,
-          is_full_day: updates.isFullDay,
-          time_start: updates.isFullDay ? null : updates.timeStart,
-          time_end: updates.isFullDay ? null : updates.timeEnd,
-        })
-        .eq("id", absenceId);
-
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["scheduler-absences"] });
-      queryClient.invalidateQueries({ queryKey: ["instructor-absence-history"] });
-      toast.success("Abwesenheit aktualisiert");
-    },
-    onError: (error) => {
-      console.error("Failed to update absence:", error);
-      toast.error("Fehler beim Aktualisieren der Abwesenheit");
-    },
-  });
+**Update Result Interface:**
+```typescript
+interface GenerationResult {
+  success: boolean;
+  created?: {
+    tickets: number;
+    items: number;
+  };
+  dateRange?: { start: string; end: string };
+  error?: string;
+  // NEW
+  groupCourses?: {
+    trainingGroups: number;
+    enrollments: number;
+    customersCreated: number;
+  };
 }
 ```
 
-### File: `src/components/instructors/detail/AbsenceRequestCard.tsx`
+**Update API Call:** Pass new parameters to edge function
 
-**Changes:**
+**Update Result Display:** Show group course generation stats
 
-1. **Import additional components:**
-   - Import `useDeleteAbsence`, `useUpdateAbsence` hooks
-   - Import `Pencil`, `Trash2` icons from lucide-react
-   - Import `Dialog` components for edit modal
-   - Import `AlertDialog` for delete confirmation
+### Part 2: Edge Function Changes (`supabase/functions/generate-test-bookings/index.ts`)
 
-2. **Add state for edit dialog:**
+**Update Request Interface:**
 ```typescript
-const [editingAbsence, setEditingAbsence] = useState<AbsenceHistoryItem | null>(null);
+interface GenerateRequest {
+  startDate: string;
+  bookingCount: number;
+  daysSpread: number;
+  generateGroupCourses?: boolean;
+  weeksToGenerate?: number;
+  includeCapacityScenarios?: boolean;
+}
 ```
 
-3. **Add action buttons to each history entry:**
-```tsx
-{absenceHistory.map((absence) => (
-  <div key={absence.id} className="flex items-center justify-between p-2 rounded-md bg-muted/30">
-    <div className="space-y-1">
-      {/* existing content */}
-    </div>
-    {/* NEW: Action buttons */}
-    <div className="flex items-center gap-1">
-      <Button 
-        variant="ghost" 
-        size="icon" 
-        className="h-8 w-8"
-        onClick={() => setEditingAbsence(absence)}
-      >
-        <Pencil className="h-4 w-4" />
-      </Button>
-      <AlertDialog>
-        <AlertDialogTrigger asChild>
-          <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive">
-            <Trash2 className="h-4 w-4" />
-          </Button>
-        </AlertDialogTrigger>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Abwesenheit löschen?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Diese Aktion kann nicht rückgängig gemacht werden.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Abbrechen</AlertDialogCancel>
-            <AlertDialogAction onClick={() => deleteAbsence.mutate(absence.id)}>
-              Löschen
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </div>
-  </div>
-))}
+**Add Group Course Generation Logic:**
+
+1. **Fetch active group courses** (weekly type only, `course_type = 'weekly'`)
+2. **For each week in range:**
+   - Calculate Monday of that week
+   - Create training_group for each active course
+   - Determine participant count based on scenario:
+     - 50% OK (between min and max)
+     - 20% Overbooked (+4 to +12 over max)
+     - 20% Underbooked (1 to min-1)
+     - 10% Empty (0 participants)
+3. **For each enrollment:**
+   - Create/reuse customer
+   - Create customer_participant (child with Swiss/German name)
+   - Create ticket with group product
+   - Create ticket_item linked to a group course instance
+   - Create enrollment linking everything
+
+**Helper Functions to Add:**
+
+```typescript
+// Scenario selection
+function getRandomScenario(): 'ok' | 'overbooked' | 'underbooked' | 'empty'
+
+// Get Monday of week
+function getMonday(date: Date): string
+
+// Random Swiss/German child names
+function getRandomChildFirstName(): string
+function getRandomSwissLastName(): string
+
+// Random birthdate for children (4-14 years old)
+function getRandomChildBirthDate(): string
+
+// Get or create test customer
+async function getOrCreateTestCustomer(supabase: any): Promise<Customer>
+
+// Main group course generator
+async function generateGroupCourseData(
+  supabase: any,
+  startDate: Date,
+  weeks: number,
+  includeScenarios: boolean
+): Promise<GroupCourseResult>
 ```
 
-4. **Add edit dialog:**
-```tsx
-<Dialog open={!!editingAbsence} onOpenChange={(open) => !open && setEditingAbsence(null)}>
-  <DialogContent>
-    <DialogHeader>
-      <DialogTitle>Abwesenheit bearbeiten</DialogTitle>
-    </DialogHeader>
-    {/* Reuse similar form fields from create form */}
-    {/* Pre-populate with editingAbsence data */}
-  </DialogContent>
-</Dialog>
+**Name Lists (Swiss/German):**
+```typescript
+const CHILD_FIRST_NAMES = [
+  'Emma', 'Mia', 'Sofia', 'Anna', 'Lena', 'Laura', 'Julia', 'Sara',
+  'Noah', 'Liam', 'Leon', 'Lucas', 'Felix', 'Tim', 'Max', 'Paul',
+  'Leonie', 'Nina', 'Lara', 'Elena', 'Emilia', 'Valentina',
+  'David', 'Jan', 'Lukas', 'Nico', 'Julian', 'Finn'
+];
+
+const SWISS_LAST_NAMES = [
+  'Müller', 'Meier', 'Schmid', 'Keller', 'Weber', 'Huber', 'Schneider',
+  'Meyer', 'Steiner', 'Fischer', 'Gerber', 'Brunner', 'Baumann', 'Frei',
+  'Moser', 'Widmer', 'Wyss', 'Graf', 'Roth', 'Bühler'
+];
+```
+
+### Part 3: Full Generation Flow for One Enrollment
+
+```
+1. Select random customer (or create new)
+2. Create customer_participant:
+   - first_name: random from CHILD_FIRST_NAMES
+   - last_name: customer's last name
+   - birth_date: random 4-14 years ago
+3. Find group_course_instance for the course/week
+4. Create ticket:
+   - customer_id, status: 'confirmed'
+   - total_amount: course.price_per_day * 5 (week)
+   - paid_amount: 70% paid, 30% pending
+5. Create ticket_item:
+   - ticket_id, product_id: course.product_id
+   - participant_id, date, time_start, time_end
+6. Create group_course_enrollment:
+   - instance_id, ticket_item_id, participant_id
+   - training_group_id, attendance_status: 'registered'
 ```
 
 ## Changes Summary
 
-| File | Change |
-|------|--------|
-| `useInstructorAbsences.ts` | Add `useUpdateAbsence` mutation hook |
-| `AbsenceRequestCard.tsx` | Add edit/delete buttons, edit dialog, delete confirmation |
-
-## UI Preview
-
-Each absence entry will have:
-- Pencil icon button -> Opens edit dialog
-- Trash icon button -> Shows confirmation dialog before deleting
-
-The edit dialog reuses the same form fields as the create form, pre-populated with the existing absence data.
+| File | Changes |
+|------|---------|
+| `TestDataGenerator.tsx` | Add group course UI options, update result display |
+| `generate-test-bookings/index.ts` | Add group course generation logic, helper functions |
 
 ## Technical Notes
 
-- Delete uses existing `useDeleteAbsence` hook
-- Update invalidates both scheduler and history query caches
-- AlertDialog provides safe delete confirmation
-- Edit dialog closes and resets state on successful update
-- Pending absences can be edited/deleted by the instructor who created them
-- Confirmed absences can only be edited/deleted by admin/office users (RLS handles this)
+- Uses existing `group_course_instances` - requires instances to exist for the weeks being generated
+- Creates `training_groups` records for capacity planning
+- 70% of group bookings marked as paid
+- Names are Swiss/German appropriate
+- Backward compatible - existing private lesson generation unchanged
+- Falls back gracefully if no active weekly courses exist
