@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -65,9 +66,22 @@ const TIME_SLOTS = [
 ];
 
 export function AbsenceRequestCard({ instructorId, isTeacherView = false }: AbsenceRequestCardProps) {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const shouldOpenHistory = searchParams.get("absences") === "open";
+  
   const [isFormOpen, setIsFormOpen] = useState(false);
-  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(shouldOpenHistory);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
+
+  // Auto-expand history when navigated from scheduler absence block
+  useEffect(() => {
+    if (shouldOpenHistory) {
+      setIsHistoryOpen(true);
+      // Clean up URL
+      searchParams.delete("absences");
+      setSearchParams(searchParams, { replace: true });
+    }
+  }, [shouldOpenHistory, searchParams, setSearchParams]);
   
   // Form state
   const [absenceType, setAbsenceType] = useState<AbsenceType>("vacation");

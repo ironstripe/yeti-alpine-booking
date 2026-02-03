@@ -1,3 +1,4 @@
+import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { calculateBarPosition, type SchedulerAbsence } from "@/lib/scheduler-utils";
 import {
@@ -21,6 +22,8 @@ const ABSENCE_LABELS: Record<string, string> = {
 };
 
 export function BlockingBar({ absence, slotWidth }: BlockingBarProps) {
+  const navigate = useNavigate();
+  
   // Calculate position based on full-day or partial-day absence
   const { left, width } = absence.isFullDay
     ? calculateBarPosition("09:00", "16:00", "09:00", slotWidth)
@@ -34,14 +37,20 @@ export function BlockingBar({ absence, slotWidth }: BlockingBarProps) {
   const isPending = absence.status === "pending";
   const isPartialDay = !absence.isFullDay && absence.timeStart && absence.timeEnd;
 
+  const handleClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    navigate(`/instructors/${absence.instructorId}?absences=open`);
+  };
+
   return (
     <Tooltip>
       <TooltipTrigger asChild>
         <div
+          onClick={handleClick}
           className={cn(
             "absolute top-0.5 bottom-0.5 rounded border px-1.5 py-0.5 text-[10px] font-medium",
             "flex items-center gap-0.5",
-            "cursor-not-allowed",
+            "cursor-pointer hover:ring-2 hover:ring-gray-500",
             isPending
               ? "bg-gray-200 text-gray-600 border-dashed border-amber-500"
               : "bg-gray-300 text-gray-700 border-gray-400"
@@ -96,6 +105,9 @@ export function BlockingBar({ absence, slotWidth }: BlockingBarProps) {
               : isPartialDay
                 ? `Blockiert: ${absence.timeStart} - ${absence.timeEnd}`
                 : "Keine Buchungen möglich (ganztägig)"}
+          </p>
+          <p className="text-xs text-muted-foreground italic mt-1">
+            Klicken für Abwesenheitsdetails
           </p>
         </div>
       </TooltipContent>
