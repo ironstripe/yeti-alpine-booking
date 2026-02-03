@@ -1,95 +1,148 @@
 
-# Fix Discipline Label for Office-Only Staff
+# Edit Office Hours Blocks in Scheduler
 
-## Problem
+## Overview
 
-Victoria Müller shows "Ski" as her discipline even though she only has the `office` role and no teaching specialization. This happens because:
-1. Her `roles` array is `['office']` - no teaching roles
-2. Her `specialization` is `null`
-3. The `getSpecializationLabel()` function defaults to "Ski" for null/unknown values
+Add the ability to click on an existing office hour block in the scheduler to view details, edit (date/time/note), or delete it.
 
-## Solution
+## User Flow
 
-Update the display logic to be **roles-aware**. When someone has only the `office` role (no `ski` or `snowboard`), display "Büro" instead of a teaching discipline.
+1. Click on a purple "Bürodienst" block in scheduler
+2. Detail dialog opens showing current date, time, and note
+3. User can:
+   - **Edit**: Adjust date, time range, and note inline
+   - **Delete**: Remove the block with confirmation
+4. Changes save immediately and update scheduler
 
-## Technical Changes
+## Technical Implementation
 
-### File 1: `src/hooks/useInstructors.ts`
+### 1. Hook: Add Update Mutation (`src/hooks/useOfficeHourBlocks.ts`)
 
-Update `getSpecializationLabel` to accept optional `roles` parameter:
+Add `useUpdateOfficeHourBlock` mutation:
 
 ```typescript
-export function getSpecializationLabel(spec: string | null, roles?: string[] | null): string {
-  // If roles provided and only has 'office' role, show "Büro"
-  if (roles && roles.length > 0) {
-    const hasTeachingRole = roles.includes('ski') || roles.includes('snowboard');
-    if (!hasTeachingRole) {
-      return "Büro";
-    }
-  }
+interface UpdateOfficeHourBlockData {
+  id: string;
+  date?: string;
+  timeStart?: string;
+  timeEnd?: string;
+  note?: string | null;
+}
+
+export function useUpdateOfficeHourBlock() {
+  const queryClient = useQueryClient();
   
-  switch (spec) {
-    case "ski":
-      return "Ski";
-    case "snowboard":
-      return "Snowboard";
-    case "both":
-      return "Ski & Snowboard";
-    default:
-      // If no roles info, default to empty or derive from spec
-      return spec ? spec : "Ski";
-  }
+  return useMutation({
+    mutationFn: async (data: UpdateOfficeHourBlockData) => {
+      const { id, ...updates } = data;
+      const { data: result, error } = await supabase
+        .from("office_hour_blocks")
+        .update({
+          date: updates.date,
+          time_start: updates.timeStart,
+          time_end: updates.timeEnd,
+          note: updates.note,
+        })
+        .eq("id", id)
+        .select()
+        .single();
+      if (error) throw error;
+      return result;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["office-hour-blocks"] });
+      queryClient.invalidateQueries({ queryKey: ["scheduler-office-blocks"] });
+      toast.success("Bürodienst aktualisiert");
+    },
+  });
 }
 ```
 
-### File 2: `src/pages/InstructorDetail.tsx`
+### 2. New Component: `OfficeHoursDetailDialog.tsx`
 
-Update line 133 to pass `roles`:
+Create a detail/edit dialog similar to `AbsenceDetailDialog`:
 
-```typescript
-<p className="text-muted-foreground">
-  {getLevelLabel(instructor.level)} · {getSpecializationLabel(instructor.specialization, instructor.roles)}
-</p>
+**Features:**
+- Display current date, time range, and note
+- Toggle into "edit mode" to modify fields
+- Date picker for changing the date
+- Time dropdowns for start/end
+- Note textarea
+- Delete button with confirmation
+
+**Structure:**
+```tsx
+export function OfficeHoursDetailDialog({
+  open,
+  onOpenChange,
+  block, // { id, date, timeStart, timeEnd, note }
+}) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [editDate, setEditDate] = useState(block.date);
+  const [editTimeStart, setEditTimeStart] = useState(block.timeStart);
+  const [editTimeEnd, setEditTimeEnd] = useState(block.timeEnd);
+  const [editNote, setEditNote] = useState(block.note);
+  
+  // View mode: show info + Edit/Delete buttons
+  // Edit mode: show form fields + Save/Cancel buttons
+}
 ```
 
-### File 3: `src/components/instructors/InstructorCard.tsx`
+### 3. Update `BookingBar.tsx`
 
-Update line 56 to pass `roles`:
+Add click handler for `office_shift` type:
 
-```typescript
-<span>{getSpecializationLabel(instructor.specialization, instructor.roles)}</span>
+```tsx
+const [isOfficeDetailOpen, setIsOfficeDetailOpen] = useState(false);
+
+const handleClick = (e: React.MouseEvent) => {
+  if (!isDragging) {
+    e.stopPropagation();
+    
+    if (isGroup) {
+      navigate(`/trainings/capacity?course=${booking.ticketId}`);
+    } else if (isPrivate) {
+      setIsDetailOpen(true);
+    } else if (isOfficeShift) {
+      setIsOfficeDetailOpen(true); // NEW
+    }
+  }
+};
+
+// Add dialog for office shifts
+{isOfficeShift && (
+  <OfficeHoursDetailDialog
+    open={isOfficeDetailOpen}
+    onOpenChange={setIsOfficeDetailOpen}
+    block={{
+      id: booking.id.replace('office-block-', ''),
+      date: booking.date,
+      timeStart: booking.timeStart,
+      timeEnd: booking.timeEnd,
+      note: booking.participantName !== "Bürodienst" ? booking.participantName : null,
+    }}
+  />
+)}
 ```
 
-### File 4: `src/pages/InstructorProfile.tsx`
-
-Update line 265 to pass `roles`:
-
-```typescript
-{getSpecializationLabel(instructor.specialization, instructor.roles)}
+Update tooltip hint:
+```tsx
+isOfficeShift ? "Klicken zum Bearbeiten" : "..."
 ```
 
-### File 5: `src/components/bookings/wizard/InstructorSelection.tsx`
+## Files to Create/Modify
 
-Update line 176 to pass `roles`:
-
-```typescript
-{getSpecializationLabel(instructor.specialization, instructor.roles)}
-```
+| File | Action | Purpose |
+|------|--------|---------|
+| `src/hooks/useOfficeHourBlocks.ts` | Edit | Add `useUpdateOfficeHourBlock` mutation |
+| `src/components/scheduler/OfficeHoursDetailDialog.tsx` | Create | View/edit/delete dialog |
+| `src/components/scheduler/BookingBar.tsx` | Edit | Add click handler + dialog for office shifts |
 
 ## Expected Result
 
-After fix:
-- Victoria Müller shows: `- · Büro` (or just "Büro" if no level)
-- Teaching staff with ski role shows: `Skilehrer · Ski`
-- Staff with both teaching and office roles shows their teaching discipline
-- Staff with snowboard role shows: `Snowboardlehrer · Snowboard`
-
-## Files to Modify
-
-| File | Change |
-|------|--------|
-| `src/hooks/useInstructors.ts` | Add roles parameter to `getSpecializationLabel` |
-| `src/pages/InstructorDetail.tsx` | Pass `instructor.roles` to function |
-| `src/components/instructors/InstructorCard.tsx` | Pass `instructor.roles` to function |
-| `src/pages/InstructorProfile.tsx` | Pass `instructor.roles` to function |
-| `src/components/bookings/wizard/InstructorSelection.tsx` | Pass `instructor.roles` to function |
+After implementation:
+1. Click on purple Bürodienst block → Detail dialog opens
+2. View mode shows date, time, note with Edit/Delete buttons
+3. Edit mode allows changing date (via date picker), time range, and note
+4. Delete with confirmation dialog
+5. Changes reflect immediately in scheduler via query invalidation
