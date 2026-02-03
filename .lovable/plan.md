@@ -1,34 +1,40 @@
 
-# Fix Scrolling in Absence Detail Dialog
+# Fix Escape Key for Absence Detail Dialog
 
 ## Problem
 
-The absence modal cannot be scrolled when content exceeds the viewport height. This happens because the `DialogContent` doesn't have max-height constraints.
+The Escape key doesn't close the `AbsenceDetailDialog`. This is caused by the `ConfirmDialog` being rendered in the DOM even when it's not open (`showDeleteConfirm = false`), which interferes with Radix Dialog's escape key handling.
 
 ## Solution
 
-Add max-height and overflow styling to enable scrolling within the dialog.
+Conditionally render the `ConfirmDialog` only when `showDeleteConfirm` is true. This ensures only one dialog is in the DOM at a time, allowing the Escape key to work correctly.
 
 ## Implementation
 
 ### File: `src/components/scheduler/AbsenceDetailDialog.tsx`
 
-**Change 1:** Add `max-h-[85vh]` to `DialogContent` to constrain height
+**Change:** Wrap `ConfirmDialog` in a conditional render (line 174)
 
 ```tsx
-<DialogContent className="sm:max-w-md max-h-[85vh] flex flex-col">
+// Before (always rendered):
+<ConfirmDialog
+  open={showDeleteConfirm}
+  onOpenChange={setShowDeleteConfirm}
+  ...
+/>
+
+// After (only rendered when needed):
+{showDeleteConfirm && (
+  <ConfirmDialog
+    open={showDeleteConfirm}
+    onOpenChange={setShowDeleteConfirm}
+    ...
+  />
+)}
 ```
-
-**Change 2:** Add `overflow-y-auto` to the content area (line 97)
-
-```tsx
-<div className="space-y-4 py-4 overflow-y-auto flex-1">
-```
-
-This keeps the header and footer fixed while allowing the middle content to scroll.
 
 ## Result
 
-- Dialog will never exceed 85% of viewport height
-- Content area scrolls when needed
-- Header (title) and footer (buttons) remain fixed and visible
+- Escape key will properly close the absence detail dialog
+- When delete confirmation is open, Escape will close the confirmation first
+- No interference between nested dialog escape handlers
