@@ -1,32 +1,104 @@
 
-# Add First-Time Login Hint Text
+# Add Role Management for Users
 
 ## Overview
 
-Add a helpful hint on the login page for invited users (instructors) who haven't set their password yet.
+Add the ability to toggle roles (admin, office, teacher) for users in the Settings > Users page.
 
-## Change
+## Current State
 
-### File: `src/pages/Login.tsx`
+- The `useSettingsUsers.ts` hook already has `useAddUserRole()` and `useRemoveUserRole()` mutations
+- The SettingsUsers page displays roles but has no UI to add/remove them
+- Only users with a `user_id` (i.e., those who've been invited) can have roles assigned
 
-Add a hint text box below the password field (before the submit button) that only shows on the login view (not sign-up):
+## Implementation
+
+### File: `src/pages/SettingsUsers.tsx`
+
+**1. Import the role mutation hooks**
+
+```typescript
+import { useSettingsUsers, useResetUserPassword, useAddUserRole, useRemoveUserRole, UserWithRole } from "@/hooks/useSettingsUsers";
+```
+
+**2. Add the hooks in the component**
+
+```typescript
+const addRole = useAddUserRole();
+const removeRole = useRemoveUserRole();
+```
+
+**3. Add role toggle handler**
+
+```typescript
+const handleToggleRole = async (user: UserWithRole, role: AppRole) => {
+  if (!user.user_id) return; // Can't assign roles to non-invited users
+  
+  const hasRole = user.roles.includes(role);
+  if (hasRole) {
+    await removeRole.mutateAsync({ userId: user.user_id, role });
+  } else {
+    await addRole.mutateAsync({ userId: user.user_id, role });
+  }
+};
+```
+
+**4. Add role management items to the dropdown menu**
+
+After the existing menu items, add a submenu or additional items for role toggling:
 
 ```tsx
-{/* First-time user hint - only show on login */}
-{!isSignUp && (
-  <div className="p-3 rounded-lg bg-blue-50 border border-blue-200 dark:bg-blue-950/30 dark:border-blue-900">
-    <p className="text-xs text-blue-700 dark:text-blue-300">
-      <strong>Neu eingeladen?</strong> Falls du noch kein Passwort gesetzt hast, 
-      nutze "Passwort vergessen?" um ein neues Passwort zu erstellen.
-    </p>
-  </div>
+{/* Role management - only for invited users */}
+{user.user_id && (
+  <>
+    <DropdownMenuSeparator />
+    <DropdownMenuLabel className="text-xs text-muted-foreground">
+      Rollen verwalten
+    </DropdownMenuLabel>
+    {(['admin', 'office', 'teacher'] as const).map((role) => {
+      const config = roleConfig[role];
+      const Icon = config.icon;
+      const hasRole = user.roles.includes(role);
+      
+      return (
+        <DropdownMenuItem
+          key={role}
+          onClick={() => handleToggleRole(user, role)}
+          disabled={addRole.isPending || removeRole.isPending}
+        >
+          <Icon className={`h-4 w-4 mr-2 ${config.color}`} />
+          {config.label}
+          {hasRole && <Check className="h-4 w-4 ml-auto" />}
+        </DropdownMenuItem>
+      );
+    })}
+  </>
 )}
 ```
 
-**Location:** After the password field div (line 211), before the submit button (line 213).
+**5. Add required imports**
 
-## Result
+```typescript
+import { DropdownMenuSeparator, DropdownMenuLabel } from "@/components/ui/dropdown-menu";
+import { AppRole } from "@/hooks/useUserRole";
+```
 
-- New users see clear guidance immediately
-- No confusion about what to do if they lost/missed the invitation email
-- Subtle blue styling to stand out without being alarming
+## User Flow
+
+1. Click the "⋮" menu on a user row
+2. See existing actions (Invite / Reset Password)
+3. See "Rollen verwalten" section with checkmark indicators
+4. Click a role to toggle it on/off
+5. Toast confirms success
+
+## Constraints
+
+- Role toggles only appear for users with a `user_id` (invited users)
+- Non-invited instructors must first be invited before roles can be assigned
+- The current user can modify their own roles (be careful with admin removal!)
+
+## Technical Details
+
+- Uses existing `useAddUserRole` and `useRemoveUserRole` mutations
+- No database changes required (user_roles table already supports all three roles)
+- Mutations handle query invalidation automatically
