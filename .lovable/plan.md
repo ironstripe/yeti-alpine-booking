@@ -1,158 +1,265 @@
 
-
-# Show All Staff in Users with Invitation Status
+# Recurring Time Blocks for Instructors
 
 ## Overview
 
-Update the Users settings page to show all instructors/staff from the database, with clear indication of whether they've been invited (have an auth account) or not.
+Extend the instructor availability system to support recurring time blocks (e.g., daily lunch breaks, morning-only availability) with preset templates, conflict checking, and integration with the existing approval workflow.
 
-## Current Behavior
+## Database Changes
 
-- Only shows users who have an auth account (signed up)
-- Instructors without an auth account don't appear in the list
+### 1. New Table: `instructor_recurring_blocks`
 
-## New Behavior
-
-- Shows all instructors from the database
-- Additionally shows any auth users who aren't linked to instructors
-- Each entry shows invitation status: "Eingeladen" (has auth account) or "Nicht eingeladen" (no auth account)
-
-## Changes
-
-### 1. Update Type Definition
-
-**File: `src/hooks/useSettingsUsers.ts`**
-
-Add invitation status to the interface:
-
-```typescript
-export interface UserWithRole {
-  user_id: string | null;      // null for uninvited instructors
-  email: string;
-  roles: AppRole[];
-  instructor_id: string | null;
-  instructor_name: string | null;
-  created_at: string;
-  last_sign_in: string | null;
-  invitation_status: 'invited' | 'not_invited';  // NEW
-}
-```
-
-### 2. Update Data Fetching Logic
-
-**File: `src/hooks/useSettingsUsers.ts`**
-
-Merge both data sources:
-
-```typescript
-// Create lookup of auth users by email (lowercase)
-const authUserByEmail = new Map<string, AuthUser>();
-for (const authUser of authUsers) {
-  if (authUser.email) {
-    authUserByEmail.set(authUser.email.toLowerCase(), authUser);
-  }
-}
-
-// Build final list: start with all instructors
-const resultList: UserWithRole[] = [];
-
-for (const instructor of instructors || []) {
-  const authUser = authUserByEmail.get(instructor.email.toLowerCase());
+```sql
+CREATE TABLE instructor_recurring_blocks (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  instructor_id UUID NOT NULL REFERENCES instructors(id) ON DELETE CASCADE,
   
-  resultList.push({
-    user_id: authUser?.id || null,
-    email: instructor.email,
-    roles: authUser ? rolesMap.get(authUser.id) || [] : [],
-    instructor_id: instructor.id,
-    instructor_name: `${instructor.first_name} ${instructor.last_name}`,
-    created_at: instructor.created_at,
-    last_sign_in: authUser?.last_sign_in_at || null,
-    invitation_status: authUser ? 'invited' : 'not_invited',
-  });
+  -- Time window
+  start_time TIME NOT NULL,
+  end_time TIME NOT NULL,
   
-  // Mark this auth user as processed
-  if (authUser) {
-    authUserByEmail.delete(instructor.email.toLowerCase());
-  }
-}
+  -- Recurrence pattern (0=Sun, 1=Mon, ..., 6=Sat)
+  weekdays INTEGER[] NOT NULL,
+  
+  -- Validity period
+  valid_from DATE NOT NULL,
+  valid_until DATE,  -- NULL = until season end
+  
+  -- Metadata
+  reason TEXT,
+  preset_type TEXT,  -- 'lunch', 'morning_only', 'afternoon_only', 'custom'
+  
+  -- Approval workflow (matching absences pattern)
+  status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
+  requested_at TIMESTAMPTZ DEFAULT NOW(),
+  approved_by UUID,
+  approved_at TIMESTAMPTZ,
+  rejection_reason TEXT,
+  
+  is_active BOOLEAN DEFAULT true,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
 
-// Add remaining auth users (not linked to instructors)
-for (const [email, authUser] of authUserByEmail) {
-  resultList.push({
-    user_id: authUser.id,
-    email: authUser.email,
-    roles: rolesMap.get(authUser.id) || [],
-    instructor_id: null,
-    instructor_name: null,
-    created_at: authUser.created_at,
-    last_sign_in: authUser.last_sign_in_at,
-    invitation_status: 'invited',
-  });
-}
+-- Indexes
+CREATE INDEX idx_recurring_blocks_instructor ON instructor_recurring_blocks(instructor_id);
+CREATE INDEX idx_recurring_blocks_status ON instructor_recurring_blocks(status);
+CREATE INDEX idx_recurring_blocks_weekdays ON instructor_recurring_blocks USING GIN (weekdays);
 ```
 
-### 3. Update UI to Show Status
+### 2. Conflict Check Function
 
-**File: `src/pages/SettingsUsers.tsx`**
-
-Add status badge and invite action:
-
-```tsx
-// In table header
-<TableHead>Status</TableHead>
-
-// In table row
-<TableCell>
-  {user.invitation_status === 'invited' ? (
-    <Badge variant="secondary" className="text-green-600">
-      <Check className="h-3 w-3 mr-1" />
-      Eingeladen
-    </Badge>
-  ) : (
-    <Badge variant="outline" className="text-muted-foreground">
-      <Clock className="h-3 w-3 mr-1" />
-      Nicht eingeladen
-    </Badge>
-  )}
-</TableCell>
-
-// In dropdown menu - add invite option for uninvited users
-{user.invitation_status === 'not_invited' && user.instructor_id && (
-  <DropdownMenuItem onClick={() => handleInvite(user)}>
-    <Mail className="h-4 w-4 mr-2" />
-    Einladen
-  </DropdownMenuItem>
-)}
+```sql
+CREATE OR REPLACE FUNCTION check_recurring_block_conflicts(
+  p_instructor_id UUID,
+  p_start_time TIME,
+  p_end_time TIME,
+  p_weekdays INTEGER[],
+  p_valid_from DATE,
+  p_valid_until DATE
+)
+RETURNS TABLE (
+  booking_id UUID,
+  booking_date DATE,
+  time_start TIME,
+  time_end TIME,
+  participant_name TEXT
+) AS $$
+BEGIN
+  RETURN QUERY
+  SELECT 
+    ti.id,
+    ti.date,
+    ti.time_start::TIME,
+    ti.time_end::TIME,
+    COALESCE(cp.first_name || ' ' || cp.last_name, 'Unbekannt')
+  FROM ticket_items ti
+  LEFT JOIN customer_participants cp ON cp.id = ti.participant_id
+  WHERE ti.instructor_id = p_instructor_id
+    AND ti.date >= p_valid_from
+    AND (p_valid_until IS NULL OR ti.date <= p_valid_until)
+    AND EXTRACT(DOW FROM ti.date)::INTEGER = ANY(p_weekdays)
+    AND ti.time_start::TIME < p_end_time
+    AND ti.time_end::TIME > p_start_time
+    AND ti.status NOT IN ('cancelled');
+END;
+$$ LANGUAGE plpgsql;
 ```
 
-### 4. Add Invite Handler
+### 3. RLS Policies
 
-**File: `src/pages/SettingsUsers.tsx`**
+```sql
+-- Instructors can view/manage their own blocks
+ALTER TABLE instructor_recurring_blocks ENABLE ROW LEVEL SECURITY;
 
-Add invitation mutation and handler:
+CREATE POLICY "Instructors can view their own blocks" ON instructor_recurring_blocks
+  FOR SELECT USING (
+    instructor_id IN (SELECT id FROM instructors WHERE email = auth.jwt()->>'email')
+  );
+
+CREATE POLICY "Instructors can create their own blocks" ON instructor_recurring_blocks
+  FOR INSERT WITH CHECK (
+    instructor_id IN (SELECT id FROM instructors WHERE email = auth.jwt()->>'email')
+  );
+
+-- Admins can manage all
+CREATE POLICY "Admins can manage all blocks" ON instructor_recurring_blocks
+  FOR ALL USING (
+    EXISTS (SELECT 1 FROM user_roles WHERE user_id = auth.uid() AND role = 'admin')
+  );
+```
+
+## File Changes
+
+### 1. New Components
+
+| File | Purpose |
+|------|---------|
+| `src/components/instructor/RecurringBlocksTab.tsx` | Main tab with preset buttons and blocks list |
+| `src/components/instructor/RecurringBlockDialog.tsx` | Form dialog with conflict checking |
+
+### 2. New Hooks
+
+| File | Purpose |
+|------|---------|
+| `src/hooks/useRecurringBlocks.ts` | CRUD operations for recurring blocks |
+| `src/hooks/useRecurringBlockApproval.ts` | Approval workflow (approve/reject) |
+
+### 3. Modified Files
+
+| File | Change |
+|------|--------|
+| `src/pages/InstructorAvailability.tsx` | Add Tabs component with absences + recurring blocks |
+| `src/lib/scheduler-utils.ts` | Add `SchedulerRecurringBlock` type |
+| `src/hooks/useSchedulerData.ts` | Fetch and expand recurring blocks into daily absences |
+| `src/components/scheduler/PendingAbsencesList.tsx` | Include pending recurring blocks |
+
+## UI Design
+
+### InstructorAvailability Page (Updated)
+
+```
+[Tabs: Abwesenheiten | Wiederkehrend]
+
+=== Wiederkehrend Tab ===
+
+SCHNELLAUSWAHL
+[🍽️ Mittagspause] [🌅 Nur Vormittage] [🌇 Nur Nachmittage] [➕ Benutzerdefiniert]
+
+MEINE WIEDERKEHRENDEN BLÖCKE
+┌─────────────────────────────────────────────────┐
+│ Mittagspause                      [🟡 Beantragt]│
+│ 🕐 12:00 - 13:00                               │
+│ 📅 Mo, Di, Mi, Do, Fr                          │
+│    Bis Saisonende                    [✏️] [🗑️] │
+└─────────────────────────────────────────────────┘
+```
+
+### RecurringBlockDialog
+
+```
+┌─────────────────────────────────────────────────┐
+│ Wiederkehrenden Block erstellen                 │
+├─────────────────────────────────────────────────┤
+│ Bezeichnung: [Mittagspause____________]         │
+│                                                 │
+│ Zeitfenster: [12:00] - [13:00]                  │
+│                                                 │
+│ Wochentage:                                     │
+│ [Mo✓] [Di✓] [Mi✓] [Do✓] [Fr✓] [Sa] [So]        │
+│ [Alle] [Mo-Fr] [Wochenende]                     │
+│                                                 │
+│ Gültigkeitszeitraum:                            │
+│ [2024-12-01] - [________] (leer = Saisonende)   │
+│                                                 │
+│ ⚠️ Konflikt mit 3 bestehenden Buchungen:        │
+│    • 15.12.2024 12:00-13:00: Max Müller        │
+│    • 18.12.2024 12:00-13:00: Lisa Schmidt      │
+│    • ...                                        │
+│                                                 │
+│ [Abbrechen]                    [Antrag senden]  │
+└─────────────────────────────────────────────────┘
+```
+
+## Scheduler Integration
+
+### Data Flow
+
+```text
+1. useSchedulerData fetches recurring_blocks for date range
+2. For each block, expand into daily absences based on weekdays
+3. Merge with one-time absences
+4. BlockingBar renders both types identically
+```
+
+### Example Expansion Logic
 
 ```typescript
-const inviteInstructor = useInviteInstructor();
-
-const handleInvite = async (user: UserWithRole) => {
-  if (user.instructor_id) {
-    await inviteInstructor.mutateAsync(user.instructor_id);
+// In useSchedulerData.ts
+const expandRecurringBlocks = (blocks, startDate, endDate) => {
+  const expanded: SchedulerAbsence[] = [];
+  
+  for (const block of blocks) {
+    // For each day in the range
+    for (let d = startDate; d <= endDate; d = addDays(d, 1)) {
+      const dayOfWeek = d.getDay();
+      
+      if (block.weekdays.includes(dayOfWeek) && 
+          d >= block.valid_from &&
+          (!block.valid_until || d <= block.valid_until)) {
+        expanded.push({
+          id: `recurring-${block.id}-${format(d, 'yyyy-MM-dd')}`,
+          instructorId: block.instructor_id,
+          startDate: format(d, 'yyyy-MM-dd'),
+          endDate: format(d, 'yyyy-MM-dd'),
+          type: 'other',
+          status: block.status,
+          reason: block.reason,
+          isFullDay: false,
+          timeStart: block.start_time,
+          timeEnd: block.end_time,
+        });
+      }
+    }
   }
+  
+  return expanded;
 };
 ```
 
-## Summary
+## Approval Workflow Integration
 
-| Change | File |
-|--------|------|
-| Add `invitation_status` field | `useSettingsUsers.ts` |
-| Merge instructors + auth users | `useSettingsUsers.ts` |
-| Show status badge | `SettingsUsers.tsx` |
-| Add "Einladen" action | `SettingsUsers.tsx` |
+### Pending Items List Update
 
-## Result
+The existing `PendingAbsencesList` will be extended to show both:
+- One-time absences (existing)
+- Recurring blocks (new)
 
-- All staff visible in one place
-- Clear indication who has been invited
-- Quick action to invite uninvited staff directly from the list
+Both share the same approve/reject actions with similar UI.
 
+## Presets
+
+| Preset | Time | Weekdays | Description |
+|--------|------|----------|-------------|
+| `lunch` | 12:00-13:00 | Mo-Fr | Standard lunch break |
+| `morning_only` | 13:00-16:00 | Mo-Fr | Block afternoons (available mornings only) |
+| `afternoon_only` | 09:00-12:00 | Mo-Fr | Block mornings (available afternoons only) |
+| `custom` | User-defined | User-defined | Full customization |
+
+## Implementation Order
+
+1. **Database**: Create table, function, and RLS policies
+2. **Types**: Add `SchedulerRecurringBlock` to `scheduler-utils.ts`
+3. **Hooks**: Create `useRecurringBlocks.ts` and `useRecurringBlockApproval.ts`
+4. **Components**: Build `RecurringBlocksTab` and `RecurringBlockDialog`
+5. **Integration**: Update `InstructorAvailability.tsx` with tabs
+6. **Scheduler**: Expand recurring blocks in `useSchedulerData.ts`
+7. **Approval**: Extend `PendingAbsencesList` for recurring blocks
+
+## Constraints Enforced
+
+- Instructors can only manage their own blocks (RLS)
+- Conflicts must be resolved before saving (blocking validation)
+- End time must be after start time (form validation)
+- At least one weekday must be selected
+- Valid from date is required
