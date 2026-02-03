@@ -97,9 +97,9 @@ export function useGroupCapacityData(weekStart: Date) {
 
       if (groupsError) throw groupsError;
 
-      // If no training groups exist yet, try to get courses with enrollments
+      // If no training groups exist yet, try to get courses with instances this week
       if (!trainingGroups || trainingGroups.length === 0) {
-        // Get courses that have instances this week
+        // Get courses that have instances this week (regardless of enrollments)
         const { data: courses, error: coursesError } = await supabase
           .from('group_courses')
           .select(`
@@ -111,6 +111,7 @@ export function useGroupCapacityData(weekStart: Date) {
             group_course_instances!inner (
               id,
               date,
+              instructor_id,
               group_course_enrollments (
                 id,
                 participant_id,
@@ -130,11 +131,38 @@ export function useGroupCapacityData(weekStart: Date) {
 
         if (coursesError) throw coursesError;
 
+        // Get instructor IDs from instances for name lookup
+        const instructorIds = new Set<string>();
+        (courses || []).forEach(course => {
+          course.group_course_instances?.forEach((inst: any) => {
+            if (inst.instructor_id) instructorIds.add(inst.instructor_id);
+          });
+        });
+
+        // Fetch instructor names if any
+        let instructorMap = new Map<string, string>();
+        if (instructorIds.size > 0) {
+          const { data: instructors } = await supabase
+            .from('instructors')
+            .select('id, first_name, last_name')
+            .in('id', Array.from(instructorIds));
+          
+          instructors?.forEach(i => {
+            instructorMap.set(i.id, `${i.first_name} ${i.last_name}`);
+          });
+        }
+
         // Transform to capacity info without training_groups
         const groups: GroupCapacityInfo[] = (courses || []).map(course => {
           const allEnrollments = course.group_course_instances?.flatMap(
-            inst => inst.group_course_enrollments || []
+            (inst: any) => inst.group_course_enrollments || []
           ) || [];
+          
+          // Find first instance with an instructor assigned
+          const firstInstanceWithInstructor = course.group_course_instances?.find(
+            (inst: any) => inst.instructor_id
+          );
+          const instructorId = firstInstanceWithInstructor?.instructor_id || null;
           
           // Deduplicate by participant_id
           const uniqueParticipants = new Map<string, GroupParticipant>();
@@ -158,10 +186,11 @@ export function useGroupCapacityData(weekStart: Date) {
           const minParticipants = course.min_participants || 4;
           const maxParticipants = course.max_participants;
 
+          // Determine capacity status - empty groups are underbooked
           let capacityStatus: 'ok' | 'overbooked' | 'underbooked' = 'ok';
           if (participantCount > maxParticipants) {
             capacityStatus = 'overbooked';
-          } else if (participantCount < minParticipants && participantCount > 0) {
+          } else if (participantCount < minParticipants) {
             capacityStatus = 'underbooked';
           }
 
@@ -176,15 +205,15 @@ export function useGroupCapacityData(weekStart: Date) {
             participantCount,
             minParticipants,
             maxParticipants,
-            instructorId: null,
-            instructorName: null,
+            instructorId,
+            instructorName: instructorId ? instructorMap.get(instructorId) || null : null,
             assistantId: null,
             assistantName: null,
             status: 'active' as const,
             capacityStatus,
             participants,
           };
-        }).filter(g => g.participantCount > 0);
+        }); // Show all courses with instances, even without enrollments
 
         const stats: CapacityStats = {
           totalGroups: groups.length,
