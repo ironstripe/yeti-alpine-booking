@@ -54,6 +54,12 @@ export interface ParticipantBookingDetails {
   isVegetarian: boolean;
 }
 
+// Per-day time override for period bookings
+export interface DayTimeOverride {
+  startTime: string;
+  endTime: string;
+}
+
 export interface BookingWizardState {
   // Step 1: Customer & Participants
   customerId: string | null;
@@ -85,6 +91,10 @@ export interface BookingWizardState {
   // NEW: Participant-specific booking mode
   useParticipantSpecificBooking: boolean;
   participantBookings: Record<string, ParticipantBookingDetails>;
+  
+  // NEW: Per-day overrides for period bookings
+  dayInstructorOverrides: Record<string, string | null>; // { "2025-02-10": "instructor-uuid" }
+  dayTimeOverrides: Record<string, DayTimeOverride>; // { "2025-02-10": { startTime: "09:00", endTime: "11:00" } }
   
   // Step 3: Instructor & Details
   instructorId: string | null;
@@ -145,6 +155,10 @@ interface BookingWizardContextType {
   setParticipantBooking: (participantId: string, booking: ParticipantBookingDetails) => void;
   initializeParticipantBookings: () => void;
   copyBookingToAllParticipants: (sourceParticipantId: string) => void;
+  // NEW: Per-day override setters for period bookings
+  setDayInstructorOverride: (date: string, instructorId: string | null) => void;
+  setDayTimeOverride: (date: string, startTime: string, endTime: string) => void;
+  clearDayOverrides: () => void;
   // Step 3 setters
   setInstructor: (instructor: Tables<"instructors"> | null) => void;
   setAssignLater: (assignLater: boolean) => void;
@@ -188,6 +202,9 @@ const initialState: BookingWizardState = {
   // NEW: Participant-specific booking defaults
   useParticipantSpecificBooking: false,
   participantBookings: {},
+  // NEW: Per-day override defaults
+  dayInstructorOverrides: {},
+  dayTimeOverrides: {},
   // Step 3
   instructorId: null,
   instructor: null,
@@ -434,6 +451,35 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
       }
       return { ...prev, participantBookings: newBookings };
     });
+  };
+
+  // NEW: Per-day override setters for period bookings
+  const setDayInstructorOverride = (date: string, instructorId: string | null) => {
+    setState((prev) => ({
+      ...prev,
+      dayInstructorOverrides: {
+        ...prev.dayInstructorOverrides,
+        [date]: instructorId,
+      },
+    }));
+  };
+
+  const setDayTimeOverride = (date: string, startTime: string, endTime: string) => {
+    setState((prev) => ({
+      ...prev,
+      dayTimeOverrides: {
+        ...prev.dayTimeOverrides,
+        [date]: { startTime, endTime },
+      },
+    }));
+  };
+
+  const clearDayOverrides = () => {
+    setState((prev) => ({
+      ...prev,
+      dayInstructorOverrides: {},
+      dayTimeOverrides: {},
+    }));
   };
 
   const prefillFromScheduler = async (instructorId: string, appointments: AppointmentSlot[]) => {
@@ -747,6 +793,10 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
         setParticipantBooking,
         initializeParticipantBookings,
         copyBookingToAllParticipants,
+        // NEW: Per-day override setters for period bookings
+        setDayInstructorOverride,
+        setDayTimeOverride,
+        clearDayOverrides,
         // Step 3 setters
         setInstructor,
         setAssignLater,

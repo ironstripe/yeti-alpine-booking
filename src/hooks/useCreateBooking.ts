@@ -328,6 +328,10 @@ export function useCreateBooking() {
         const isPeriodBooking = state.productType === "private" && state.selectedDates.length > 1;
         let periodGroupId: string | null = null;
 
+        // Parse base time slot
+        const baseTimeStart = state.timeSlot?.split(" - ")[0] || "10:00";
+        const baseTimeEnd = state.timeSlot?.split(" - ")[1] || "12:00";
+
         if (isPeriodBooking) {
           // Generate period group ID
           periodGroupId = crypto.randomUUID();
@@ -336,10 +340,6 @@ export function useCreateBooking() {
           const sortedDates = [...state.selectedDates].sort();
           const periodStartDate = sortedDates[0];
           const periodEndDate = sortedDates[sortedDates.length - 1];
-          
-          // Parse time slot
-          const baseTimeStart = state.timeSlot?.split(" - ")[0] || "10:00";
-          const baseTimeEnd = state.timeSlot?.split(" - ")[1] || "12:00";
           
           // Create period metadata
           const { error: metadataError } = await supabase
@@ -368,29 +368,62 @@ export function useCreateBooking() {
           for (const dateStr of state.selectedDates) {
             const hasLunchOnDay = participantLunchDays.includes(dateStr);
             
+            // Apply per-day overrides if this is a period booking
+            const dayInstructorOverride = state.dayInstructorOverrides?.[dateStr];
+            const dayTimeOverride = state.dayTimeOverrides?.[dateStr];
+            
+            const dayInstructorId = dayInstructorOverride !== undefined 
+              ? dayInstructorOverride 
+              : state.instructorId;
+            const dayTimeStart = dayTimeOverride?.startTime || baseTimeStart;
+            const dayTimeEnd = dayTimeOverride?.endTime || baseTimeEnd;
+            
+            // Check if this day differs from base (is an override)
+            const hasInstructorOverride = dayInstructorOverride !== undefined && dayInstructorOverride !== state.instructorId;
+            const hasTimeOverride = dayTimeOverride && (
+              dayTimeOverride.startTime !== baseTimeStart ||
+              dayTimeOverride.endTime !== baseTimeEnd
+            );
+            const isOverrideDay = hasInstructorOverride || hasTimeOverride;
+            
+            // Calculate day-specific price if time differs
+            let dayUnitPrice = unitPrice;
+            if (state.productType === "private" && hasTimeOverride) {
+              const firstDate = new Date(dateStr);
+              const dayPriceResult = calculatePrivateLessonPrice(
+                firstDate,
+                dayTimeStart,
+                dayTimeEnd,
+                state.numberOfPersons || 1,
+                rates,
+                highSeasonPeriods
+              );
+              dayUnitPrice = dayPriceResult.totalPrice;
+            }
+            
             // Create course/lesson item
             ticketItems.push({
               ticket_id: ticket.id,
               product_id: productId,
               date: dateStr,
-              time_start: state.timeSlot?.split(" - ")[0] || "10:00",
-              time_end: state.timeSlot?.split(" - ")[1] || "12:00",
-              unit_price: unitPrice,
+              time_start: dayTimeStart,
+              time_end: dayTimeEnd,
+              unit_price: dayUnitPrice,
               quantity: 1,
               discount_percent: state.discountPercent || 0,
               discount_reason: state.discountReason || null,
-              instructor_id: state.instructorId,
+              instructor_id: dayInstructorId,
               participant_id: participant.id.startsWith("guest-") ? null : participant.id,
               meeting_point: state.meetingPoint,
               instructor_notes: null,
               internal_notes: null,
               status: "booked",
-              instructor_confirmation: state.instructorId ? "pending" : null,
+              instructor_confirmation: dayInstructorId ? "pending" : null,
               is_vegetarian: hasLunchOnDay ? isVegetarian : false,
               item_type: state.productType === "group" ? "group" : "private",
               // Period booking fields
               period_group_id: isPeriodBooking ? periodGroupId : null,
-              is_period_override: false,
+              is_period_override: isOverrideDay,
             });
             
             // Create separate lunch item if participant has lunch on this day
@@ -445,6 +478,65 @@ export function useCreateBooking() {
         .select("id, participant_id, date, item_type, product_id");
 
       if (itemsError) throw itemsError;
+
+      // ============ INSERT TICKET_ITEM_OVERRIDES ============
+      // For period bookings with per-day overrides, create override records
+      if (state.productType === "private" && state.selectedDates.length > 1 && insertedItems) {
+        const baseTimeStart = state.timeSlot?.split(" - ")[0] || "10:00";
+        const baseTimeEnd = state.timeSlot?.split(" - ")[1] || "12:00";
+        
+        const overridesToInsert: Array<{
+          ticket_item_id: string;
+          override_date: string;
+          instructor_id: string | null;
+          start_time: string | null;
+          end_time: string | null;
+          price_adjustment: number | null;
+        }> = [];
+        
+        // Group inserted items by date for override mapping
+        for (const dateStr of state.selectedDates) {
+          const dayInstructorOverride = state.dayInstructorOverrides?.[dateStr];
+          const dayTimeOverride = state.dayTimeOverrides?.[dateStr];
+          
+          const hasInstructorOverride = dayInstructorOverride !== undefined && dayInstructorOverride !== state.instructorId;
+          const hasTimeOverride = dayTimeOverride && (
+            dayTimeOverride.startTime !== baseTimeStart ||
+            dayTimeOverride.endTime !== baseTimeEnd
+          );
+          
+          if (hasInstructorOverride || hasTimeOverride) {
+            // Find all ticket_items for this date (one per participant)
+            const itemsForDate = insertedItems.filter(
+              ti => ti.date === dateStr && ti.item_type === "private"
+            );
+            
+            for (const item of itemsForDate) {
+              overridesToInsert.push({
+                ticket_item_id: item.id,
+                override_date: dateStr,
+                instructor_id: hasInstructorOverride ? dayInstructorOverride : null,
+                start_time: hasTimeOverride ? dayTimeOverride.startTime : null,
+                end_time: hasTimeOverride ? dayTimeOverride.endTime : null,
+                price_adjustment: null, // Could calculate price difference if needed
+              });
+            }
+          }
+        }
+        
+        if (overridesToInsert.length > 0) {
+          const { error: overridesError } = await supabase
+            .from("ticket_item_overrides")
+            .insert(overridesToInsert);
+          
+          if (overridesError) {
+            console.error("Failed to create ticket_item_overrides:", overridesError);
+            // Non-fatal: continue even if override insertion fails
+          } else {
+            console.log("📅 Created", overridesToInsert.length, "ticket_item_overrides");
+          }
+        }
+      }
 
       // ============ GROUP COURSE ENROLLMENT ============
       // Handle participant-specific group enrollments (different groups per participant)

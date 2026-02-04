@@ -9,6 +9,7 @@ import { MeetingPointSelection } from "./MeetingPointSelection";
 import { CustomerPreferences } from "./CustomerPreferences";
 import { BookingNotes } from "./BookingNotes";
 import { AvailabilityStatus } from "./AvailabilityStatus";
+import { PeriodDayPlanner } from "./PeriodDayPlanner";
 import { useInstructorAvailabilityCheck } from "@/hooks/useInstructorAvailabilityCheck";
 
 export function Step3InstructorDetails() {
@@ -22,6 +23,8 @@ export function Step3InstructorDetails() {
     setCustomerNotes,
     setInternalNotes,
     setInstructorNotes,
+    setDayInstructorOverride,
+    setDayTimeOverride,
   } = useBookingWizard();
 
   const isGroupCourse = state.productType === "group";
@@ -86,6 +89,20 @@ export function Step3InstructorDetails() {
               conflicts={conflicts}
               isLoading={isCheckingAvailability}
               instructorName={state.instructor ? `${state.instructor.first_name} ${state.instructor.last_name}` : undefined}
+            />
+          )}
+          
+          {/* Per-day planning for multi-day private lessons */}
+          {isMultiDayPrivate && !state.assignLater && (
+            <PeriodDayPlanner
+              selectedDates={state.selectedDates}
+              baseInstructor={state.instructor}
+              baseTimeSlot={state.timeSlot}
+              dayInstructorOverrides={state.dayInstructorOverrides}
+              dayTimeOverrides={state.dayTimeOverrides}
+              onInstructorChange={setDayInstructorOverride}
+              onTimeChange={setDayTimeOverride}
+              sport={state.sport}
             />
           )}
         </>
