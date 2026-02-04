@@ -368,21 +368,26 @@ export function useCreateBooking() {
           for (const dateStr of state.selectedDates) {
             const hasLunchOnDay = participantLunchDays.includes(dateStr);
             
-            // Apply per-day overrides if this is a period booking
+            // Check if there's a time selection from BookingTimeGrid for this date
+            const timeSelection = state.timeSelections?.find(ts => ts.date === dateStr);
+            
+            // Apply per-day overrides if this is a period booking (fallback hierarchy: timeSelection > dayTimeOverride > base)
             const dayInstructorOverride = state.dayInstructorOverrides?.[dateStr];
             const dayTimeOverride = state.dayTimeOverrides?.[dateStr];
             
             const dayInstructorId = dayInstructorOverride !== undefined 
               ? dayInstructorOverride 
               : state.instructorId;
-            const dayTimeStart = dayTimeOverride?.startTime || baseTimeStart;
-            const dayTimeEnd = dayTimeOverride?.endTime || baseTimeEnd;
+            
+            // Time selection priority: timeSelection (from grid) > dayTimeOverride > base time
+            const dayTimeStart = timeSelection?.startTime || dayTimeOverride?.startTime || baseTimeStart;
+            const dayTimeEnd = timeSelection?.endTime || dayTimeOverride?.endTime || baseTimeEnd;
             
             // Check if this day differs from base (is an override)
             const hasInstructorOverride = dayInstructorOverride !== undefined && dayInstructorOverride !== state.instructorId;
-            const hasTimeOverride = dayTimeOverride && (
-              dayTimeOverride.startTime !== baseTimeStart ||
-              dayTimeOverride.endTime !== baseTimeEnd
+            const hasTimeOverride = (timeSelection || dayTimeOverride) && (
+              dayTimeStart !== baseTimeStart ||
+              dayTimeEnd !== baseTimeEnd
             );
             const isOverrideDay = hasInstructorOverride || hasTimeOverride;
             

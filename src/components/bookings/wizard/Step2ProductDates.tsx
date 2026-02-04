@@ -25,6 +25,7 @@ import {
 import { BookingWarnings, type BookingWarning } from "./BookingWarnings";
 import { LunchSupervisionAddon } from "./LunchSupervisionAddon";
 import { ParticipantBookingCard } from "./ParticipantBookingCard";
+import { BookingTimeGrid } from "./BookingTimeGrid";
 import { usePrivateLessonRates, useHighSeasonPeriods } from "@/hooks/usePrivateLessonRates";
 import {
   calculatePrivateLessonPrice,
@@ -59,6 +60,7 @@ export function Step2ProductDates() {
     setParticipantBooking,
     initializeParticipantBookings,
     copyBookingToAllParticipants,
+    setTimeSelections,
   } = useBookingWizard();
 
   const [selectedMonth, setSelectedMonth] = useState<Date>(new Date());
@@ -687,6 +689,27 @@ export function Step2ProductDates() {
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Unified Time Selection Grid (for multi-day private lessons) */}
+      {state.productType === "private" && state.selectedDates.length > 1 && (
+        <div className="space-y-3">
+          <Label className="text-base font-semibold flex items-center gap-2">
+            <Clock className="h-4 w-4" />
+            Zeitauswahl
+          </Label>
+          <Card>
+            <CardContent className="p-4">
+              <BookingTimeGrid
+                selectedDates={state.selectedDates}
+                timeSelections={state.timeSelections}
+                onSelectionChange={setTimeSelections}
+                minDuration={60}
+                maxDuration={240}
+              />
+            </CardContent>
+          </Card>
         </div>
       )}
 
