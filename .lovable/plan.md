@@ -1,215 +1,242 @@
 
 
-# Phase 5: Period Booking Email Templates and Notification Logic
+# Phase 6: Period Booking Creation in Wizard
 
-## Overview
+## Current State
 
-Implement automated email notifications for period booking changes. The system must notify customers of changes and affected instructors when assignments change.
+The booking flow from the scheduler is already partially implemented:
+1. Users can select multiple time slots in the scheduler (drag/shift+click)
+2. The `SelectionToolbar` passes appointments to the wizard via URL: `/bookings/new?instructor=X&appointments=[...]`
+3. The `BookingWizardContext.prefillFromScheduler()` pre-fills instructor and dates
+4. The `useCreateBooking` hook creates individual `ticket_items` per date
 
-## Current State Analysis
-
-The `usePeriodModification` hook already has:
-- `sendCustomerNotification()` - **but it passes `ticketItemId` instead of `recipientEmail`**
-- `queueInstructorNotifications()` - uses the existing queue system (working correctly)
-
-The existing `useSendBookingChangeNotification` hook shows the correct pattern for fetching customer data and invoking the edge function.
+**Gap**: When creating multi-day private lessons, the system does NOT:
+- Generate a `period_group_id` to link the days together
+- Create `ticket_item_period_metadata` to store the base configuration
+- Check instructor availability across the entire period
 
 ---
 
-## Changes Required
+## Implementation Plan
 
-### 1. Database Migration: Create Email Templates
+### 1. Add Availability Check Hook
 
-**File**: `supabase/migrations/YYYYMMDD_add_period_change_email_templates.sql`
+**New File**: `src/hooks/useInstructorAvailabilityCheck.ts`
 
-Add three new templates to `email_templates` table:
+Create a hook that checks an instructor's availability for a date range at a specific time:
 
-| Trigger | Name | Purpose |
-|---------|------|---------|
-| `private_lesson.single_day_changed` | Einzelner Tag geändert (Kunde) | Customer notification for single-day override |
-| `private_lesson.period_changed` | Periode geändert (Kunde) | Customer notification for entire period change |
-| `instructor.period_assignment_changed` | Zuweisung geändert (Lehrer) | Instructor assignment change notification |
+```typescript
+interface AvailabilityCheckParams {
+  instructorId: string;
+  startDate: string;
+  endDate: string;
+  startTime: string;
+  endTime: string;
+}
 
-**Template Content (German):**
+interface ConflictResult {
+  date: string;
+  conflictType: "private" | "group" | "absence" | "office";
+  description: string;
+}
 
-```sql
-INSERT INTO email_templates (name, trigger, subject, body_html, is_active)
-VALUES
-  (
-    'Einzelner Tag geändert (Periode)',
-    'private_lesson.single_day_changed',
-    'Änderung Ihrer Buchung am {{occurrence_date}}',
-    '<p>Guten Tag {{customer_name}},</p>
-    <p>für Ihre Buchung vom <strong>{{period_start_date}}</strong> bis <strong>{{period_end_date}}</strong> wurde der <strong>{{occurrence_date}}</strong> angepasst:</p>
-    <ul>
-      <li><strong>Neue Uhrzeit:</strong> {{new_time_start}} - {{new_time_end}} Uhr</li>
-      <li><strong>Lehrer:</strong> {{instructor_name}}</li>
-    </ul>
-    <p>Bei Fragen stehen wir Ihnen gerne zur Verfügung.</p>',
-    true
-  ),
-  (
-    'Periode geändert (Kunde)',
-    'private_lesson.period_changed',
-    'Änderung Ihrer Buchung ({{period_start_date}} - {{period_end_date}})',
-    '<p>Guten Tag {{customer_name}},</p>
-    <p>für Ihre gesamte Buchungsperiode vom <strong>{{period_start_date}}</strong> bis <strong>{{period_end_date}}</strong> wurde eine Änderung vorgenommen:</p>
-    <ul>
-      <li><strong>Neue Uhrzeit:</strong> {{new_time_start}} - {{new_time_end}} Uhr</li>
-      <li><strong>Lehrer:</strong> {{instructor_name}}</li>
-    </ul>
-    <p>Bei Fragen stehen wir Ihnen gerne zur Verfügung.</p>',
-    true
-  ),
-  (
-    'Perioden-Zuweisung geändert (Lehrer)',
-    'instructor.period_assignment_changed',
-    '{{action_text}}: Privatstunde am {{booking_date}}',
-    '<p>Hallo {{instructor_name}},</p>
-    <p>{{action_description}}</p>
-    <ul>
-      <li><strong>Datum:</strong> {{booking_date}}</li>
-      <li><strong>Uhrzeit:</strong> {{time_start}} - {{time_end}} Uhr</li>
-      <li><strong>Kunde:</strong> {{customer_name}}</li>
-    </ul>
-    {{#if is_assigned}}<p><a href="{{portal_url}}" class="button">Buchung bestätigen</a></p>{{/if}}',
-    true
-  );
+export function useInstructorAvailabilityCheck() {
+  return useMutation({
+    mutationFn: async (params: AvailabilityCheckParams): Promise<ConflictResult[]> => {
+      // Query ticket_items, group_course_instances, instructor_absences
+      // for the date range and check for time overlaps
+    }
+  });
+}
+```
+
+**Logic**:
+- Generate all dates between startDate and endDate
+- For each date, check for overlapping bookings (ticket_items, group_course_instances)
+- Check for absences (instructor_absences, instructor_recurring_blocks)
+- Return array of conflicts with human-readable descriptions
+
+---
+
+### 2. Update useCreateBooking Hook
+
+**File**: `src/hooks/useCreateBooking.ts`
+
+Modify the private lesson creation logic to:
+
+1. **Detect period bookings**: If `state.selectedDates.length > 1` for private lessons
+2. **Generate period_group_id**: Create a UUID to link all ticket_items
+3. **Create ticket_item_period_metadata**: Store base configuration
+
+```typescript
+// Inside mutationFn, after creating ticket but before creating ticket_items:
+
+// Check if this is a period booking (multi-day private lesson)
+const isPeriodBooking = state.productType === "private" && state.selectedDates.length > 1;
+let periodGroupId: string | null = null;
+
+if (isPeriodBooking) {
+  // Generate period group ID
+  periodGroupId = crypto.randomUUID();
+  
+  // Sort dates to get range
+  const sortedDates = [...state.selectedDates].sort();
+  const periodStartDate = sortedDates[0];
+  const periodEndDate = sortedDates[sortedDates.length - 1];
+  
+  // Create period metadata
+  const { error: metadataError } = await supabase
+    .from("ticket_item_period_metadata")
+    .insert({
+      period_group_id: periodGroupId,
+      base_instructor_id: state.instructorId,
+      base_time_start: state.timeSlot?.split(" - ")[0] || "10:00",
+      base_time_end: state.timeSlot?.split(" - ")[1] || "12:00",
+      start_date: periodStartDate,
+      end_date: periodEndDate,
+    });
+  
+  if (metadataError) throw metadataError;
+}
+
+// Then, when creating ticket_items, add period_group_id:
+ticketItems.push({
+  // ... existing fields ...
+  period_group_id: periodGroupId, // Add this
+  is_period_override: false,       // Add this
+});
 ```
 
 ---
 
-### 2. Update `usePeriodModification.ts`
+### 3. Update Booking Wizard UI
 
-**File**: `src/hooks/usePeriodModification.ts`
+**File**: `src/components/bookings/wizard/Step3InstructorDetails.tsx`
 
-Replace the current `sendCustomerNotification` helper with proper data fetching:
+Add an availability check section when an instructor is selected for multi-day bookings:
 
-```typescript
-async function sendCustomerNotification(params: PeriodModificationParams) {
-  try {
-    // 1. Fetch ticket item with related customer and instructor data
-    const { data: ticketItem, error } = await supabase
-      .from("ticket_items")
-      .select(`
-        id,
-        date,
-        time_start,
-        time_end,
-        instructor:instructors(id, first_name, last_name),
-        ticket:tickets(
-          customer:customers(first_name, last_name, email)
-        )
-      `)
-      .eq("id", params.ticketItemId)
-      .single();
+- Trigger availability check when instructor is selected
+- Display results:
+  - **Green**: "Lehrer ist für den gesamten Zeitraum verfügbar"
+  - **Yellow/Warning**: List conflicting days with details
+- Allow proceeding with conflicts (non-blocking warning)
 
-    if (error || !ticketItem?.ticket?.customer?.email) {
-      console.warn("No customer email found for notification");
-      return;
-    }
+```tsx
+// Add to Step3InstructorDetails.tsx
+const { mutate: checkAvailability, data: conflicts, isPending } = useInstructorAvailabilityCheck();
 
-    const customer = ticketItem.ticket.customer;
-    const customerName = `${customer.first_name || ''} ${customer.last_name || ''}`.trim();
-
-    // 2. Get new instructor name if changed
-    let instructorName = "Nicht zugewiesen";
-    if (params.newInstructorId) {
-      const { data: newInstructor } = await supabase
-        .from("instructors")
-        .select("first_name, last_name")
-        .eq("id", params.newInstructorId)
-        .single();
-      if (newInstructor) {
-        instructorName = `${newInstructor.first_name} ${newInstructor.last_name}`;
-      }
-    } else if (ticketItem.instructor) {
-      instructorName = `${ticketItem.instructor.first_name} ${ticketItem.instructor.last_name}`;
-    }
-
-    // 3. Format dates for German locale
-    const formatDate = (dateStr?: string) => {
-      if (!dateStr) return "";
-      return new Date(dateStr).toLocaleDateString("de-DE", {
-        day: "2-digit", month: "2-digit", year: "numeric"
-      });
-    };
-
-    const formatTime = (time?: string) => time?.slice(0, 5) || "";
-
-    // 4. Determine template and build data
-    const templateTrigger = params.scope === "single_day"
-      ? "private_lesson.single_day_changed"
-      : "private_lesson.period_changed";
-
-    const templateData = {
-      customer_name: customerName,
-      occurrence_date: formatDate(params.occurrenceDate),
-      period_start_date: formatDate(params.periodStartDate),
-      period_end_date: formatDate(params.periodEndDate),
-      new_time_start: formatTime(params.newTimeStart),
-      new_time_end: formatTime(params.newTimeEnd),
-      instructor_name: instructorName,
-    };
-
-    // 5. Invoke edge function with correct parameters
-    await supabase.functions.invoke("send-notification", {
-      body: {
-        type: templateTrigger,
-        recipientEmail: customer.email,
-        recipientName: customerName,
-        data: templateData,
-      },
+// Trigger when instructor changes
+useEffect(() => {
+  if (state.instructorId && state.selectedDates.length > 1) {
+    checkAvailability({
+      instructorId: state.instructorId,
+      startDate: state.selectedDates[0],
+      endDate: state.selectedDates[state.selectedDates.length - 1],
+      startTime: state.timeSlot?.split(" - ")[0] || "10:00",
+      endTime: state.timeSlot?.split(" - ")[1] || "12:00",
     });
-
-  } catch (error) {
-    console.error("Failed to send customer notification:", error);
-    toast.warning("Änderung gespeichert, aber Benachrichtigung fehlgeschlagen");
   }
+}, [state.instructorId, state.selectedDates, state.timeSlot]);
+
+// Render availability status
+{state.selectedDates.length > 1 && state.instructorId && (
+  <AvailabilityStatus conflicts={conflicts} isLoading={isPending} />
+)}
+```
+
+---
+
+### 4. Create Availability Status Component
+
+**New File**: `src/components/bookings/wizard/AvailabilityStatus.tsx`
+
+```tsx
+interface AvailabilityStatusProps {
+  conflicts: ConflictResult[] | undefined;
+  isLoading: boolean;
+}
+
+export function AvailabilityStatus({ conflicts, isLoading }: AvailabilityStatusProps) {
+  if (isLoading) {
+    return <Skeleton className="h-12 w-full" />;
+  }
+
+  if (!conflicts || conflicts.length === 0) {
+    return (
+      <Alert className="border-green-200 bg-green-50">
+        <CheckCircle className="h-4 w-4 text-green-600" />
+        <AlertDescription>
+          Lehrer ist für den gesamten Zeitraum verfügbar.
+        </AlertDescription>
+      </Alert>
+    );
+  }
+
+  return (
+    <Alert className="border-amber-200 bg-amber-50">
+      <AlertTriangle className="h-4 w-4 text-amber-600" />
+      <AlertTitle>Konflikte gefunden</AlertTitle>
+      <AlertDescription>
+        <ul className="mt-2 space-y-1">
+          {conflicts.map((c, i) => (
+            <li key={i} className="text-sm">
+              {formatDate(c.date)} - {c.description}
+            </li>
+          ))}
+        </ul>
+        <p className="mt-2 text-xs text-muted-foreground">
+          Die Buchung kann trotzdem erstellt werden. Konflikte müssen später aufgelöst werden.
+        </p>
+      </AlertDescription>
+    </Alert>
+  );
 }
 ```
 
 ---
 
-### 3. Update Instructor Notification Queue Types
-
-The `queueInstructorNotifications` function already uses `instructor_notification_queue`. Verify the existing `send-instructor-notification` edge function handles these notification types:
-- `cancelled` - Instructor removed from booking
-- `assigned` - Instructor assigned to booking
-
-If not already supported, add handling for period-specific context in the instructor notification edge function.
-
----
-
-## Files to Modify
+## Files to Create/Modify
 
 | File | Action | Purpose |
 |------|--------|---------|
-| `supabase/migrations/YYYYMMDD_add_period_change_email_templates.sql` | Create | Add 3 new email templates |
-| `src/hooks/usePeriodModification.ts` | Edit | Fix `sendCustomerNotification` to fetch data and pass correct params |
+| `src/hooks/useInstructorAvailabilityCheck.ts` | Create | Check instructor availability for date range |
+| `src/hooks/useCreateBooking.ts` | Modify | Add period_group_id and metadata creation |
+| `src/components/bookings/wizard/AvailabilityStatus.tsx` | Create | Display availability check results |
+| `src/components/bookings/wizard/Step3InstructorDetails.tsx` | Modify | Integrate availability check UI |
 
 ---
 
-## Template Variables Summary
+## Key Implementation Details
 
-**Customer Templates:**
-- `{{customer_name}}` - Customer full name
-- `{{occurrence_date}}` - The specific day changed (single_day only)
-- `{{period_start_date}}` - Period start (DD.MM.YYYY)
-- `{{period_end_date}}` - Period end (DD.MM.YYYY)
-- `{{new_time_start}}` / `{{new_time_end}}` - New times (HH:MM)
-- `{{instructor_name}}` - Assigned instructor name
+### Period Detection Logic
 
-**Instructor Templates (existing queue):**
-- Uses existing `instructor.lesson.assigned` and `instructor.lesson.cancelled` templates
+A booking is considered a "period booking" when:
+- `productType === "private"`
+- `selectedDates.length > 1`
+- All dates share the same time slot and instructor
+
+### UUID Generation
+
+Use `crypto.randomUUID()` which is available in modern browsers and Deno runtime.
+
+### Non-Blocking Warnings
+
+Conflicts should be warnings, not blockers. Users may intentionally create overlapping bookings that will be resolved later by:
+- Assigning a different instructor for specific days (using the override system)
+- Canceling conflicting bookings
 
 ---
 
 ## Test Scenarios
 
-1. **Single day, time change only** - Customer email with single_day template
-2. **Single day, instructor change** - Customer email + instructor queue entries
-3. **Entire period, time change** - Customer email with period template
-4. **Entire period, instructor change** - Customer email + instructor queue entries
-5. **User opts out** - No emails sent, database update still occurs
+1. **Single-day booking**: No period_group_id created, behaves as before
+2. **Multi-day booking (no conflicts)**: 
+   - period_group_id generated
+   - metadata created with base configuration
+   - Green availability status shown
+3. **Multi-day booking (with conflicts)**:
+   - Same as above
+   - Yellow warning with conflict list
+   - Booking can still be created
+4. **Edit existing period booking**: Not part of this phase (handled by Phase 4 modification logic)
 
