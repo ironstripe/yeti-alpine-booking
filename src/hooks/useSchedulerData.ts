@@ -124,6 +124,8 @@ export function useSchedulerData({ startDate, endDate, instructorId }: UseSchedu
           status,
           product_id,
           participant_id,
+          period_group_id,
+          is_period_override,
           tickets!inner (
             status,
             paid_amount,
@@ -142,6 +144,30 @@ export function useSchedulerData({ startDate, endDate, instructorId }: UseSchedu
       if (error) throw error;
       return data;
     },
+  });
+
+  // Fetch period metadata for any period bookings in the date range
+  const periodMetadataQuery = useQuery({
+    queryKey: ["period-metadata", startDateStr, endDateStr],
+    queryFn: async () => {
+      // Get unique period_group_ids from bookings
+      const periodGroupIds = (bookingsQuery.data || [])
+        .map(b => b.period_group_id)
+        .filter((id): id is string => !!id);
+
+      if (periodGroupIds.length === 0) return [];
+
+      const uniqueIds = [...new Set(periodGroupIds)];
+      
+      const { data, error } = await supabase
+        .from("ticket_item_period_metadata")
+        .select("*")
+        .in("period_group_id", uniqueIds);
+
+      if (error) throw error;
+      return data;
+    },
+    enabled: bookingsQuery.isSuccess,
   });
 
   // Fetch group course instances for the date range
@@ -298,13 +324,35 @@ export function useSchedulerData({ startDate, endDate, instructorId }: UseSchedu
       };
     });
 
-  // Transform bookings
+  // Transform bookings with period metadata
   const bookings: SchedulerBooking[] = (bookingsQuery.data || [])
     .filter((b) => !instructorId || b.instructor_id === instructorId)
     .map((b) => {
       const ticket = b.tickets as unknown as { status: string; paid_amount: number; total_amount: number };
       const participant = b.customer_participants as unknown as { first_name: string; last_name: string; sport: string | null } | null;
       
+      // Find period metadata if this booking is part of a period
+      const periodMeta = b.period_group_id 
+        ? (periodMetadataQuery.data || []).find(pm => pm.period_group_id === b.period_group_id)
+        : null;
+      
+      // Calculate period total days if we have metadata
+      let periodTotalDays: number | undefined;
+      if (periodMeta) {
+        const startDate = new Date(periodMeta.start_date);
+        const endDate = new Date(periodMeta.end_date);
+        periodTotalDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+      }
+
+      // Determine if this is an override (differs from base)
+      const isOverride = b.is_period_override || (
+        periodMeta && (
+          b.instructor_id !== periodMeta.base_instructor_id ||
+          b.time_start !== periodMeta.base_time_start ||
+          b.time_end !== periodMeta.base_time_end
+        )
+      );
+
       return {
         id: b.id,
         instructorId: b.instructor_id!,
@@ -319,6 +367,16 @@ export function useSchedulerData({ startDate, endDate, instructorId }: UseSchedu
           : undefined,
         status: b.status || "booked",
         participantSport: participant?.sport || null,
+        // Period-related fields
+        isPartOfPeriod: !!b.period_group_id,
+        periodGroupId: b.period_group_id || undefined,
+        periodStartDate: periodMeta?.start_date || undefined,
+        periodEndDate: periodMeta?.end_date || undefined,
+        periodTotalDays,
+        isOverride: isOverride || undefined,
+        baseInstructorId: periodMeta?.base_instructor_id || undefined,
+        baseTimeStart: periodMeta?.base_time_start || undefined,
+        baseTimeEnd: periodMeta?.base_time_end || undefined,
       };
     });
 
@@ -396,14 +454,16 @@ export function useSchedulerData({ startDate, endDate, instructorId }: UseSchedu
       groupInstancesQuery.isLoading ||
       absencesQuery.isLoading ||
       recurringBlocksQuery.isLoading ||
-      officeBlocksQuery.isLoading,
+      officeBlocksQuery.isLoading ||
+      periodMetadataQuery.isLoading,
     error: 
       instructorsQuery.error || 
       bookingsQuery.error || 
       groupInstancesQuery.error ||
       absencesQuery.error ||
       recurringBlocksQuery.error ||
-      officeBlocksQuery.error,
+      officeBlocksQuery.error ||
+      periodMetadataQuery.error,
     refetch: () => {
       instructorsQuery.refetch();
       bookingsQuery.refetch();
@@ -411,6 +471,7 @@ export function useSchedulerData({ startDate, endDate, instructorId }: UseSchedu
       absencesQuery.refetch();
       recurringBlocksQuery.refetch();
       officeBlocksQuery.refetch();
+      periodMetadataQuery.refetch();
     },
   };
 }

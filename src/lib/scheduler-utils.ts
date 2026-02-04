@@ -24,6 +24,16 @@ export interface SchedulerBooking {
   currentParticipants?: number;
   maxParticipants?: number;
   meetingPoint?: string;
+  // Period-related fields for multi-day bookings
+  isPartOfPeriod?: boolean;
+  periodGroupId?: string;
+  periodStartDate?: string;
+  periodEndDate?: string;
+  periodTotalDays?: number;
+  isOverride?: boolean; // This day differs from base configuration
+  baseInstructorId?: string;
+  baseTimeStart?: string;
+  baseTimeEnd?: string;
 }
 
 export interface SchedulerAbsence {

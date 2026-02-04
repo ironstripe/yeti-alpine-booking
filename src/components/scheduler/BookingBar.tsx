@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/tooltip";
 import { BookingDetailDialog } from "./BookingDetailDialog";
 import { OfficeHoursDetailDialog } from "./OfficeHoursDetailDialog";
-import { AlertTriangle, Building } from "lucide-react";
+import { AlertTriangle, Building, Link2 } from "lucide-react";
 
 interface BookingBarProps {
   booking: SchedulerBooking;
@@ -96,10 +96,15 @@ export function BookingBar({ booking, slotWidth, instructorSpecialization, isPla
               isDragging && "invisible opacity-0",
               !isPrivate && "cursor-pointer",
               // Planning mode: dim existing bookings
-              isPlanningMode && "opacity-50"
+              isPlanningMode && "opacity-50",
+              // Period bookings: subtle left border indicator
+              booking.isPartOfPeriod && "border-l-2 border-l-primary"
             )}
             style={style}
           >
+            {booking.isPartOfPeriod && (
+              <Link2 className="h-2.5 w-2.5 text-primary shrink-0" />
+            )}
             {hasCrossDiscipline && (
               <AlertTriangle className="h-2.5 w-2.5 text-yellow-300 shrink-0" />
             )}
@@ -115,6 +120,7 @@ export function BookingBar({ booking, slotWidth, instructorSpecialization, isPla
           <div className="space-y-1">
             <p className="font-medium">
               {booking.type === "group" ? "Gruppenkurs" : booking.type === "office_shift" ? "Bürodienst" : "Privatstunde"}
+              {booking.isPartOfPeriod && " (Periode)"}
             </p>
             {booking.participantName && (
               <p className="text-sm">{booking.participantName}</p>
@@ -122,6 +128,13 @@ export function BookingBar({ booking, slotWidth, instructorSpecialization, isPla
             <p className="text-sm text-muted-foreground">
               {booking.timeStart} - {booking.timeEnd}
             </p>
+            {booking.isPartOfPeriod && (
+              <p className="text-sm text-primary flex items-center gap-1">
+                <Link2 className="h-3 w-3" />
+                {booking.periodStartDate} – {booking.periodEndDate} ({booking.periodTotalDays} Tage)
+                {booking.isOverride && " • Ausnahme"}
+              </p>
+            )}
             {booking.type === "group" && (
               <p className="text-sm text-muted-foreground">
                 Kapazität: ({booking.currentParticipants ?? 0}/{booking.maxParticipants ?? "?"})
@@ -145,7 +158,9 @@ export function BookingBar({ booking, slotWidth, instructorSpecialization, isPla
             )}
             <p className="text-xs text-muted-foreground italic mt-1">
               {isPrivate 
-                ? "Ziehen zum Verschieben, klicken für Details" 
+                ? booking.isPartOfPeriod 
+                  ? "Ziehen zum Verschieben (Periode), klicken für Details"
+                  : "Ziehen zum Verschieben, klicken für Details" 
                 : isGroup 
                   ? "Klicken für Kursdetails" 
                   : isOfficeShift
