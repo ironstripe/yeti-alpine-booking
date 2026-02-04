@@ -68,6 +68,12 @@ interface SchedulerSelectionContextType {
     bookings: SchedulerBooking[],
     absences: SchedulerAbsence[]
   ) => void;
+  // Multi-select toggle for Ctrl+Click
+  toggleSlotSelection: (
+    slot: Omit<SlotSelection, "id">,
+    bookings: SchedulerBooking[],
+    absences: SchedulerAbsence[]
+  ) => { added: boolean; removed: boolean; error?: string };
 }
 
 const SchedulerSelectionContext = createContext<SchedulerSelectionContextType | null>(null);
@@ -547,6 +553,54 @@ export function SchedulerSelectionProvider({ children }: { children: ReactNode }
     []
   );
 
+  // Toggle slot selection for Ctrl+Click multi-select
+  const toggleSlotSelection = useCallback(
+    (
+      slot: Omit<SlotSelection, "id">,
+      bookings: SchedulerBooking[],
+      absences: SchedulerAbsence[]
+    ): { added: boolean; removed: boolean; error?: string } => {
+      // Check if this exact slot is already selected
+      const existingSelection = state.selections.find(
+        (s) =>
+          s.instructorId === slot.instructorId &&
+          s.date === slot.date &&
+          s.startTime === slot.startTime &&
+          s.endTime === slot.endTime
+      );
+
+      if (existingSelection) {
+        // Remove the selection (toggle off)
+        removeSelection(existingSelection.id);
+        return { added: false, removed: true };
+      }
+
+      // Check if trying to select for a different teacher
+      if (state.teacherId && state.teacherId !== slot.instructorId) {
+        return { added: false, removed: false, error: "Nur ein Lehrer pro Buchung" };
+      }
+
+      // Validate the slot
+      const validation = canSelectSlot(
+        slot.instructorId,
+        slot.date,
+        slot.startTime,
+        slot.endTime,
+        bookings,
+        absences
+      );
+
+      if (!validation.valid) {
+        return { added: false, removed: false, error: validation.reason };
+      }
+
+      // Add the selection
+      addSelection(slot);
+      return { added: true, removed: false };
+    },
+    [state.selections, state.teacherId, canSelectSlot, addSelection, removeSelection]
+  );
+
   return (
     <SchedulerSelectionContext.Provider
       value={{
@@ -565,6 +619,7 @@ export function SchedulerSelectionProvider({ children }: { children: ReactNode }
         endDrag,
         cancelDrag,
         shiftClickSelect,
+        toggleSlotSelection,
       }}
     >
       {children}

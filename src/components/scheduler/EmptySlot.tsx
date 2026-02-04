@@ -1,10 +1,12 @@
 import { useCallback, useMemo } from "react";
 import { useDroppable } from "@dnd-kit/core";
+import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
-import { Plus, Ban } from "lucide-react";
+import { Plus, Ban, Check } from "lucide-react";
 import { useSchedulerSelection } from "@/contexts/SchedulerSelectionContext";
 import { useDndKitDrag } from "@/contexts/DndKitDragContext";
 import type { SchedulerBooking, SchedulerAbsence } from "@/lib/scheduler-utils";
+import { toast } from "sonner";
 
 interface EmptySlotProps {
   instructorId: string;
@@ -35,6 +37,7 @@ export function EmptySlot({
   absences,
   isPlanningMode = false,
 }: EmptySlotProps) {
+  const navigate = useNavigate();
   const { 
     state, 
     isSlotSelected, 
@@ -43,6 +46,8 @@ export function EmptySlot({
     startDrag,
     endDrag,
     shiftClickSelect,
+    toggleSlotSelection,
+    clearSelection,
   } = useSchedulerSelection();
 
   const { activeDragBookingId } = useDndKitDrag();
@@ -126,10 +131,46 @@ export function EmptySlot({
     return hasAbsenceConflict;
   }, [instructorId, date, timeSlot, bookings, absences]);
 
+  // Calculate end time for a 1-hour slot
+  const getSlotEndTime = useCallback(() => {
+    const startMinutes = timeToMinutes(timeSlot);
+    const endMinutes = startMinutes + 60;
+    const endHour = Math.floor(endMinutes / 60);
+    const endMinute = endMinutes % 60;
+    return `${endHour.toString().padStart(2, "0")}:${endMinute.toString().padStart(2, "0")}`;
+  }, [timeSlot]);
+
   const handleMouseDown = (e: React.MouseEvent) => {
     if (isBlocked || state.isResizing) return;
     e.preventDefault();
     e.stopPropagation(); // Prevent DndKit interference
+
+    const endTime = getSlotEndTime();
+
+    // Ctrl+Click (or Cmd+Click on Mac) for multi-select toggle
+    if (e.ctrlKey || e.metaKey) {
+      const result = toggleSlotSelection(
+        {
+          instructorId,
+          date,
+          startTime: timeSlot,
+          endTime,
+          durationMinutes: 60,
+        },
+        bookings,
+        absences
+      );
+      
+      if (result.error) {
+        toast.error(result.error);
+      }
+      return;
+    }
+
+    // Normal click: Clear any existing multi-selection and open booking wizard
+    if (state.selections.length > 0) {
+      clearSelection();
+    }
 
     // If clicking on existing selection, toggle it off
     if (isSelected && selection) {
@@ -144,13 +185,6 @@ export function EmptySlot({
 
     // Shift+click for multi-day selection
     if (e.shiftKey && state.anchorSlot) {
-      // Calculate end time (1 hour from start by default)
-      const startMinutes = timeToMinutes(timeSlot);
-      const endMinutes = startMinutes + 60;
-      const endHour = Math.floor(endMinutes / 60);
-      const endMinute = endMinutes % 60;
-      const endTime = `${endHour.toString().padStart(2, "0")}:${endMinute.toString().padStart(2, "0")}`;
-      
       shiftClickSelect(
         instructorId,
         date,
@@ -181,32 +215,41 @@ export function EmptySlot({
       onMouseDown={handleMouseDown}
       onMouseUp={handleMouseUp}
       className={cn(
-        "absolute top-0 bottom-0 border-r border-slate-300",
+        "absolute top-0 bottom-0 border-r border-border",
         "transition-colors duration-100 select-none touch-none",
-        !isInvalidDropZone && !state.drag.isDragging && "cursor-pointer hover:bg-slate-100 hover:border-slate-400 group",
+        !isInvalidDropZone && !state.drag.isDragging && "cursor-pointer hover:bg-accent hover:border-border group",
         state.drag.isDragging && "cursor-crosshair",
         isInvalidDropZone && "cursor-not-allowed",
         isBlocked && "bg-muted/30", // Only show muted background for absences
+        // Multi-select visual feedback: blue border + highlight
+        isSelected && "border-[3px] border-primary bg-primary/10 z-10",
         // DnD drop zone feedback - subtle for valid, red for invalid
         !isInvalidDropZone && activeDragBookingId && "transition-all duration-150",
         isOver && !isInvalidDropZone && "bg-primary/10 ring-2 ring-primary/40 ring-inset",
         isOver && isInvalidDropZone && "bg-destructive/10 ring-2 ring-destructive/40 ring-inset cursor-not-allowed",
         // Drag selection preview styling
-        isDragPreview && !isDragBlocked && "bg-[rgba(59,130,246,0.15)] border-l-2 border-l-blue-500",
+        isDragPreview && !isDragBlocked && "bg-primary/15 border-l-2 border-l-primary",
         isDragPreview && isDragBlocked && "bg-destructive/15",
         // Planning mode: enhanced hover for available slots
-        isPlanningMode && !isInvalidDropZone && !isDragPreview && "hover:bg-green-50 hover:border-2 hover:border-green-400"
+        isPlanningMode && !isInvalidDropZone && !isDragPreview && !isSelected && "hover:bg-accent hover:ring-2 hover:ring-primary/30 hover:ring-inset"
       )}
       style={{
         left: `${slotIndex * slotWidth}px`,
         width: `${slotWidth}px`,
       }}
     >
+      {/* Checkmark indicator for multi-selected slots */}
+      {isSelected && (
+        <div className="absolute top-1 left-1 w-4 h-4 rounded-full bg-primary flex items-center justify-center z-20">
+          <Check className="h-3 w-3 text-primary-foreground" strokeWidth={3} />
+        </div>
+      )}
+
       {/* Hover indicator for empty non-dragging slots */}
       {!isInvalidDropZone && !isSelected && !isDragPreview && !state.drag.isDragging && (
         <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-          <div className="w-5 h-5 rounded-full bg-blue-500/20 flex items-center justify-center">
-            <Plus className="h-3 w-3 text-blue-600" />
+          <div className="w-5 h-5 rounded-full bg-primary/20 flex items-center justify-center">
+            <Plus className="h-3 w-3 text-primary" />
           </div>
         </div>
       )}
