@@ -1,5 +1,5 @@
-import { useMemo } from "react";
-import { Users, Info } from "lucide-react";
+import { useMemo, useEffect } from "react";
+import { Users } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 
@@ -8,6 +8,8 @@ import { InstructorSelection } from "./InstructorSelection";
 import { MeetingPointSelection } from "./MeetingPointSelection";
 import { CustomerPreferences } from "./CustomerPreferences";
 import { BookingNotes } from "./BookingNotes";
+import { AvailabilityStatus } from "./AvailabilityStatus";
+import { useInstructorAvailabilityCheck } from "@/hooks/useInstructorAvailabilityCheck";
 
 export function Step3InstructorDetails() {
   const {
@@ -23,6 +25,29 @@ export function Step3InstructorDetails() {
   } = useBookingWizard();
 
   const isGroupCourse = state.productType === "group";
+  const isMultiDayPrivate = state.productType === "private" && state.selectedDates.length > 1;
+
+  // Availability check for multi-day private lessons
+  const { mutate: checkAvailability, data: conflicts, isPending: isCheckingAvailability, reset: resetConflicts } = useInstructorAvailabilityCheck();
+
+  // Trigger availability check when instructor or dates change
+  useEffect(() => {
+    if (isMultiDayPrivate && state.instructorId && state.selectedDates.length > 1) {
+      const sortedDates = [...state.selectedDates].sort();
+      const startTime = state.timeSlot?.split(" - ")[0] || "10:00";
+      const endTime = state.timeSlot?.split(" - ")[1] || "12:00";
+      
+      checkAvailability({
+        instructorId: state.instructorId,
+        startDate: sortedDates[0],
+        endDate: sortedDates[sortedDates.length - 1],
+        startTime,
+        endTime,
+      });
+    } else {
+      resetConflicts();
+    }
+  }, [state.instructorId, state.selectedDates, state.timeSlot, isMultiDayPrivate]);
 
   // Extract participant levels for meeting point logic
   const participantLevels = useMemo(() => {
@@ -45,14 +70,25 @@ export function Step3InstructorDetails() {
           </CardContent>
         </Card>
       ) : (
-        <InstructorSelection
-          selectedInstructor={state.instructor}
-          assignLater={state.assignLater}
-          onSelect={setInstructor}
-          onAssignLaterChange={setAssignLater}
-          selectedDates={state.selectedDates}
-          sport={state.sport}
-        />
+        <>
+          <InstructorSelection
+            selectedInstructor={state.instructor}
+            assignLater={state.assignLater}
+            onSelect={setInstructor}
+            onAssignLaterChange={setAssignLater}
+            selectedDates={state.selectedDates}
+            sport={state.sport}
+          />
+          
+          {/* Availability check for multi-day period bookings */}
+          {isMultiDayPrivate && state.instructorId && !state.assignLater && (
+            <AvailabilityStatus
+              conflicts={conflicts}
+              isLoading={isCheckingAvailability}
+              instructorName={state.instructor ? `${state.instructor.first_name} ${state.instructor.last_name}` : undefined}
+            />
+          )}
+        </>
       )}
 
       <Separator />
