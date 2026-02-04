@@ -13,7 +13,7 @@ import { SchedulerHeader, type ViewMode } from "./SchedulerHeader";
 import { StickyTimeHeader } from "./StickyTimeHeader";
 import { InstructorFocusView } from "./InstructorFocusView";
 import { SelectionToolbar } from "./SelectionToolbar";
-import { PendingAbsencesList } from "./PendingAbsencesList";
+
 import { SchedulerSelectionProvider, useSchedulerSelection } from "@/contexts/SchedulerSelectionContext";
 import { useUserRole } from "@/hooks/useUserRole";
 import { hasOverlap, getDaysForViewMode, generateDateRange, isWithinOperationalHours, type SchedulerBooking } from "@/lib/scheduler-utils";
@@ -503,8 +503,6 @@ function SchedulerGridContent() {
             onFiltersChange={handleFiltersChange}
             compactStats={compactStats}
           />
-          {/* Admin: Show Pending Absences Button */}
-          {isAdminOrOffice && <PendingAbsencesList />}
         </div>
 
         {/* Vertical Stacking Grid with Instructor Focus */}
