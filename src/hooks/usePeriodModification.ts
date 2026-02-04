@@ -173,25 +173,97 @@ async function queueInstructorNotifications(
 // Helper to send customer notification
 async function sendCustomerNotification(params: PeriodModificationParams) {
   try {
-    const templateType = params.scope === "single_day" 
-      ? "private_lesson.single_day_changed" 
+    // 1. Fetch ticket item with related customer and instructor data
+    const { data: ticketItem, error } = await supabase
+      .from("ticket_items")
+      .select(`
+        id,
+        date,
+        time_start,
+        time_end,
+        instructor_id,
+        ticket_id,
+        tickets!inner (
+          id,
+          customer_id,
+          customers!inner (
+            first_name,
+            last_name,
+            email
+          )
+        )
+      `)
+      .eq("id", params.ticketItemId)
+      .single();
+
+    if (error) {
+      console.error("Failed to fetch ticket item for notification:", error);
+      return;
+    }
+
+    const customer = (ticketItem?.tickets as any)?.customers;
+    if (!customer?.email) {
+      console.warn("No customer email found for notification");
+      return;
+    }
+
+    const customerName = `${customer.first_name || ''} ${customer.last_name || ''}`.trim() || 'Kunde';
+
+    // 2. Get instructor name (new instructor if changed, otherwise current)
+    let instructorName = "Nicht zugewiesen";
+    const instructorIdToFetch = params.newInstructorId || ticketItem?.instructor_id;
+    
+    if (instructorIdToFetch) {
+      const { data: instructor } = await supabase
+        .from("instructors")
+        .select("first_name, last_name")
+        .eq("id", instructorIdToFetch)
+        .single();
+      
+      if (instructor) {
+        instructorName = `${instructor.first_name} ${instructor.last_name}`;
+      }
+    }
+
+    // 3. Format dates for German locale
+    const formatDate = (dateStr?: string) => {
+      if (!dateStr) return "";
+      return new Date(dateStr).toLocaleDateString("de-DE", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric"
+      });
+    };
+
+    const formatTime = (time?: string) => time?.slice(0, 5) || "";
+
+    // 4. Determine template trigger
+    const templateTrigger = params.scope === "single_day"
+      ? "private_lesson.single_day_changed"
       : "private_lesson.period_changed";
 
+    // 5. Build template data
+    const templateData = {
+      customer_name: customerName,
+      occurrence_date: formatDate(params.occurrenceDate),
+      period_start_date: formatDate(params.periodStartDate),
+      period_end_date: formatDate(params.periodEndDate),
+      new_time_start: formatTime(params.newTimeStart || ticketItem?.time_start),
+      new_time_end: formatTime(params.newTimeEnd || ticketItem?.time_end),
+      instructor_name: instructorName,
+    };
+
+    // 6. Invoke edge function with correct parameters
     await supabase.functions.invoke("send-notification", {
       body: {
-        type: templateType,
-        ticketItemId: params.ticketItemId,
-        data: {
-          scope: params.scope,
-          occurrence_date: params.occurrenceDate,
-          period_start_date: params.periodStartDate,
-          period_end_date: params.periodEndDate,
-          new_time_start: params.newTimeStart,
-          new_time_end: params.newTimeEnd,
-          new_instructor_id: params.newInstructorId,
-        },
+        type: templateTrigger,
+        recipientEmail: customer.email,
+        recipientName: customerName,
+        data: templateData,
       },
     });
+
+    console.log("Customer notification sent successfully");
   } catch (error) {
     console.error("Failed to send customer notification:", error);
     // Don't throw - notification failure shouldn't block the main operation
