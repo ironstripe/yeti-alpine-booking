@@ -115,7 +115,7 @@ export default function CustomerDetail() {
           {isSchool && (
             <ContactPersonsCard customerId={customer.id} contacts={contacts} />
           )}
-          <BookingHistoryCard tickets={tickets} isLoading={isLoadingTickets} />
+          <BookingHistoryCard tickets={tickets} isLoading={isLoadingTickets} customerId={customer.id} />
         </div>
 
         {/* Right Column - Family Hub (only for private customers) */}

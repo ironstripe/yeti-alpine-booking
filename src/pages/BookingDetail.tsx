@@ -50,9 +50,11 @@ const BookingDetail = () => {
   const [searchParams] = useSearchParams();
   const invoicePrintRef = useRef<HTMLDivElement>(null);
   
-  // Check if coming from scheduler
+  // Check navigation context
   const fromScheduler = searchParams.get("from") === "scheduler";
   const schedulerDate = searchParams.get("date");
+  const fromCustomer = searchParams.get("from") === "customer";
+  const customerId = searchParams.get("customerId");
   
   const [showInvoicePreview, setShowInvoicePreview] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<string | null>(null);
@@ -249,7 +251,16 @@ const BookingDetail = () => {
                 Zurück zum Scheduler
               </Button>
             )}
-            <Button variant="outline" onClick={() => navigate("/bookings")}>
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                if (fromCustomer && customerId) {
+                  navigate(`/customers/${customerId}`);
+                } else {
+                  navigate("/bookings");
+                }
+              }}
+            >
               <ArrowLeft className="h-4 w-4 mr-2" />
               Zurück
             </Button>
