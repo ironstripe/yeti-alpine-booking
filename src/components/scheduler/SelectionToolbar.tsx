@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { X, Calendar, Clock, Ban, Building } from "lucide-react";
+import { X, Clock, Ban, Building } from "lucide-react";
 import { useSchedulerSelection } from "@/contexts/SchedulerSelectionContext";
 import { AbsenceTypeDialog } from "./AbsenceTypeDialog";
 import { OfficeHoursDialog } from "./OfficeHoursDialog";
@@ -91,10 +91,9 @@ export function SelectionToolbar({ className, bookings = [] }: SelectionToolbarP
       >
         {/* Selection Info */}
         <div className="flex items-center gap-4 text-sm">
-          <div className="flex items-center gap-1.5 text-muted-foreground">
-            <Calendar className="h-4 w-4" />
-            <span>{state.selections.length} {state.selections.length === 1 ? "Slot" : "Slots"}</span>
-          </div>
+          <span className="font-medium text-foreground">
+            {state.selections.length} {state.selections.length === 1 ? "Slot" : "Slots"} ausgewählt
+          </span>
           <div className="flex items-center gap-1.5 text-muted-foreground">
             <Clock className="h-4 w-4" />
             <span>{totalHours}h</span>
@@ -118,7 +117,7 @@ export function SelectionToolbar({ className, bookings = [] }: SelectionToolbarP
             className="text-muted-foreground hover:text-foreground"
           >
             <X className="h-4 w-4 mr-1" />
-            Löschen
+            Abbrechen
           </Button>
           <Button
             variant="outline"
@@ -138,7 +137,7 @@ export function SelectionToolbar({ className, bookings = [] }: SelectionToolbarP
             Bürodienst
           </Button>
           <Button size="sm" onClick={handleBookSelected}>
-            Ausgewählte buchen
+            Buchung erstellen
           </Button>
         </div>
       </div>
