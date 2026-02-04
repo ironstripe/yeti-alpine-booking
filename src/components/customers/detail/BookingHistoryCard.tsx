@@ -10,6 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 interface BookingHistoryCardProps {
   tickets: Ticket[];
   isLoading?: boolean;
+  customerId: string;
 }
 
 const STATUS_CONFIG: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
@@ -20,7 +21,7 @@ const STATUS_CONFIG: Record<string, { label: string; variant: "default" | "secon
   cancelled: { label: "Storniert", variant: "destructive" },
 };
 
-export function BookingHistoryCard({ tickets, isLoading }: BookingHistoryCardProps) {
+export function BookingHistoryCard({ tickets, isLoading, customerId }: BookingHistoryCardProps) {
   const navigate = useNavigate();
 
   if (isLoading) {
@@ -63,7 +64,7 @@ export function BookingHistoryCard({ tickets, isLoading }: BookingHistoryCardPro
               return (
                 <div
                   key={ticket.id}
-                  onClick={() => navigate(`/bookings/${ticket.id}`)}
+                  onClick={() => navigate(`/bookings/${ticket.id}?from=customer&customerId=${customerId}`)}
                   className="flex items-center justify-between p-3 rounded-lg border hover:bg-muted/50 cursor-pointer transition-colors"
                 >
                   <div className="flex-1 min-w-0">
