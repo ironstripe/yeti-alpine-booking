@@ -158,6 +158,8 @@ interface BookingWizardContextType {
   // NEW: Per-day override setters for period bookings
   setDayInstructorOverride: (date: string, instructorId: string | null) => void;
   setDayTimeOverride: (date: string, startTime: string, endTime: string) => void;
+  removeDayInstructorOverride: (date: string) => void;
+  removeDayTimeOverride: (date: string) => void;
   clearDayOverrides: () => void;
   // Step 3 setters
   setInstructor: (instructor: Tables<"instructors"> | null) => void;
@@ -472,6 +474,20 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
         [date]: { startTime, endTime },
       },
     }));
+  };
+
+  const removeDayInstructorOverride = (date: string) => {
+    setState((prev) => {
+      const { [date]: removed, ...remaining } = prev.dayInstructorOverrides;
+      return { ...prev, dayInstructorOverrides: remaining };
+    });
+  };
+
+  const removeDayTimeOverride = (date: string) => {
+    setState((prev) => {
+      const { [date]: removed, ...remaining } = prev.dayTimeOverrides;
+      return { ...prev, dayTimeOverrides: remaining };
+    });
   };
 
   const clearDayOverrides = () => {
@@ -796,6 +812,8 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
         // NEW: Per-day override setters for period bookings
         setDayInstructorOverride,
         setDayTimeOverride,
+        removeDayInstructorOverride,
+        removeDayTimeOverride,
         clearDayOverrides,
         // Step 3 setters
         setInstructor,

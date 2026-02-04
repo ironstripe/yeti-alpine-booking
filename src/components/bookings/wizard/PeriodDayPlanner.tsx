@@ -33,6 +33,8 @@ interface PeriodDayPlannerProps {
   dayTimeOverrides: Record<string, DayTimeOverride>;
   onInstructorChange: (date: string, instructorId: string | null) => void;
   onTimeChange: (date: string, startTime: string, endTime: string) => void;
+  onRemoveInstructorOverride: (date: string) => void;
+  onRemoveTimeOverride: (date: string) => void;
   sport: "ski" | "snowboard" | null;
 }
 
@@ -44,6 +46,8 @@ export function PeriodDayPlanner({
   dayTimeOverrides,
   onInstructorChange,
   onTimeChange,
+  onRemoveInstructorOverride,
+  onRemoveTimeOverride,
   sport,
 }: PeriodDayPlannerProps) {
   const { data: instructors, isLoading } = useInstructors();
@@ -242,7 +246,13 @@ export function PeriodDayPlanner({
                     <Select
                       value={dayInstructor?.id || "none"}
                       onValueChange={(value) => {
-                        onInstructorChange(date, value === "none" ? null : value);
+                        if (value === "none") {
+                          onInstructorChange(date, null); // Explicit "no instructor"
+                        } else if (value === baseInstructor?.id) {
+                          onRemoveInstructorOverride(date); // Same as base, remove override
+                        } else {
+                          onInstructorChange(date, value); // Different instructor
+                        }
                       }}
                     >
                       <SelectTrigger className="h-8 text-xs">
@@ -329,13 +339,13 @@ export function PeriodDayPlanner({
                 size="sm"
                 className="w-full text-xs"
                 onClick={() => {
-                  // Reset all overrides for displayed dates
+                  // Reset all overrides by REMOVING the keys (not setting to null)
                   sortedDates.forEach((date) => {
                     if (dayInstructorOverrides[date] !== undefined) {
-                      onInstructorChange(date, null);
+                      onRemoveInstructorOverride(date);
                     }
                     if (dayTimeOverrides[date]) {
-                      onTimeChange(date, baseStartTime, baseEndTime);
+                      onRemoveTimeOverride(date);
                     }
                   });
                 }}

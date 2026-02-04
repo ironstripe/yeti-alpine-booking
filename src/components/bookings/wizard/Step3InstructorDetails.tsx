@@ -25,6 +25,8 @@ export function Step3InstructorDetails() {
     setInstructorNotes,
     setDayInstructorOverride,
     setDayTimeOverride,
+    removeDayInstructorOverride,
+    removeDayTimeOverride,
   } = useBookingWizard();
 
   const isGroupCourse = state.productType === "group";
@@ -102,6 +104,8 @@ export function Step3InstructorDetails() {
               dayTimeOverrides={state.dayTimeOverrides}
               onInstructorChange={setDayInstructorOverride}
               onTimeChange={setDayTimeOverride}
+              onRemoveInstructorOverride={removeDayInstructorOverride}
+              onRemoveTimeOverride={removeDayTimeOverride}
               sport={state.sport}
             />
           )}
