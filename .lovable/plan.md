@@ -1,97 +1,32 @@
 
-# Final Scheduler Header Optimization
+# Remove "Anträge" Button from Scheduler Header
 
-## Overview
+## Change
 
-Remove the quick-add button and add a high-frequency booking type filter toggle directly in the header for better accessibility.
+Remove the `PendingAbsencesList` component (the "Anträge" button) that currently appears next to the header.
 
-**Current State:**
-```
-[<][Date][>][🎯]  [Tag][3T][Woche]  [🔍]  [⚙️]  [+]
-```
+## File to Modify
 
-**Target State:**
-```
-[<][Date][>][🎯]  [Tag][3T][Woche]  [🔍]  [⚙️]  [Alle|Gruppen|Privat]
-```
+**`src/components/scheduler/SchedulerGrid.tsx`**
 
----
-
-## Changes
-
-### 1. Update SchedulerHeader.tsx
-
-**Remove:**
-- The `[+]` (New Booking) button (lines 156-165)
-- The `Plus` icon import
-
-**Add:**
-- A new `ToggleGroup` for booking type filter with three options: `Alle`, `Gruppen`, `Privat`
-- This toggle controls the `bookingTypeFilter` in the filters state
-
+Remove lines 506-507:
 ```tsx
-{/* Booking Type Quick Filter */}
-<ToggleGroup 
-  type="single" 
-  value={filters.bookingTypeFilter || "all"}
-  onValueChange={(v) => v && onFiltersChange({ 
-    bookingTypeFilter: v === "all" ? null : v 
-  })}
-  className="bg-muted rounded-md p-0.5"
->
-  <ToggleGroupItem value="all" className="px-2 h-7 text-xs data-[state=on]:bg-background">
-    Alle
-  </ToggleGroupItem>
-  <ToggleGroupItem value="group" className="px-2 h-7 text-xs data-[state=on]:bg-background">
-    Gruppen
-  </ToggleGroupItem>
-  <ToggleGroupItem value="private" className="px-2 h-7 text-xs data-[state=on]:bg-background">
-    Privat
-  </ToggleGroupItem>
-</ToggleGroup>
+// DELETE THESE LINES:
+{/* Admin: Show Pending Absences Button */}
+{isAdminOrOffice && <PendingAbsencesList />}
 ```
 
-### 2. Update SchedulerSettingsMenu.tsx
-
-**Remove:**
-- The "Buchungstypen" submenu (lines 180-203) since it's now directly accessible in the header
-- The `ListFilter` icon import (no longer needed)
-
-**Update:**
-- The `activeFilterCount` calculation to exclude `bookingTypeFilter` (it's now visible in header, not a "hidden" filter)
-
+Also remove the unused import at line 16:
 ```tsx
-// Updated activeFilterCount - remove bookingTypeFilter check
-const activeFilterCount = [
-  filters.roleFilter !== null,
-  filters.capabilityFilter !== null,
-  // bookingTypeFilter removed - now in header
-  filters.sortBy !== "name",
-  filters.compactMode,
-].filter(Boolean).length;
+// DELETE THIS IMPORT:
+import { PendingAbsencesList } from "./PendingAbsencesList";
 ```
 
----
+## Result
 
-## Files to Modify
-
-| File | Changes |
-|------|---------|
-| `src/components/scheduler/SchedulerHeader.tsx` | Remove `[+]` button, add booking type `ToggleGroup` |
-| `src/components/scheduler/SchedulerSettingsMenu.tsx` | Remove "Buchungstypen" submenu, update filter count |
-
----
-
-## Final Header Layout
-
+The header will only contain:
 ```
-[<] [Mi., 04.02.] [>] [🎯]  |  [Tag][3T][Woche]  |  [🔍]  [⚙️]  [Alle|Gruppen|Privat]
+[<][Date][>][🎯] [Tag][3T][Woche] [🔍] [⚙️] [Alle|Gruppen|Privat]
 ```
 
-1. **Date Navigation**: `[<]` `[Date picker]` `[>]` `[🎯 Today]`
-2. **View Switcher**: `[Tag]` `[3T]` `[Woche]`
-3. **Search**: `[🔍 Suchen...]`
-4. **Settings**: `[⚙️]` (without booking type filter)
-5. **Booking Type Filter**: `[Alle]` `[Gruppen]` `[Privat]`
-
-This provides quick access to the most frequently used filter while keeping advanced options in the settings menu.
+The "Anträge" button will be removed. The `PendingAbsencesList` component file itself remains in case it's needed elsewhere.
