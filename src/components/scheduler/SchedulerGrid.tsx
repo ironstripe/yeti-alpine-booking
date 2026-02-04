@@ -24,6 +24,8 @@ import {
   detectChangeType,
   type ChangeType 
 } from "@/components/bookings/BookingChangeConfirmDialog";
+import { PeriodModificationDialog, type PeriodModificationScope } from "./PeriodModificationDialog";
+import { usePeriodModification } from "@/hooks/usePeriodModification";
 
 const SLOT_WIDTH = 100; // px per hour
 
@@ -108,6 +110,7 @@ function SchedulerGridContent() {
 
   const updateTicketItem = useUpdateTicketItem();
   const sendChangeNotification = useSendBookingChangeNotification();
+  const periodModification = usePeriodModification();
   const { clearSelection, state, endDrag, cancelDrag, updateDrag } = useSchedulerSelection();
   const { isAdminOrOffice } = useUserRole();
 
@@ -125,6 +128,18 @@ function SchedulerGridContent() {
     changeType: ChangeType;
     oldValues: { date?: string; time?: string; instructor?: string };
     newValues: { date?: string; time?: string; instructor?: string };
+  } | null>(null);
+
+  // State for period modification dialog
+  const [showPeriodDialog, setShowPeriodDialog] = useState(false);
+  const [pendingPeriodData, setPendingPeriodData] = useState<{
+    booking: SchedulerBooking;
+    newSlot: {
+      date: string;
+      timeStart: string;
+      timeEnd: string;
+      instructorId: string;
+    };
   } | null>(null);
 
   // Helper to check conflicts at a slot position
@@ -369,6 +384,21 @@ function SchedulerGridContent() {
       return;
     }
 
+    // Check if this is a period booking - show period dialog
+    if (booking.isPartOfPeriod && booking.periodGroupId) {
+      setPendingPeriodData({
+        booking,
+        newSlot: {
+          date: newDate,
+          timeStart: newTimeSlot,
+          timeEnd: newEndTime,
+          instructorId: newInstructorId,
+        },
+      });
+      setShowPeriodDialog(true);
+      return;
+    }
+
     // Detect what changed
     const originalTime = `${booking.timeStart} - ${booking.timeEnd}`;
     const newTime = `${newTimeSlot} - ${newEndTime}`;
@@ -467,6 +497,32 @@ function SchedulerGridContent() {
     setPendingDropData(null);
   };
 
+  // Handle confirmation of period modification
+  const handlePeriodConfirm = (scope: PeriodModificationScope, notifyCustomer: boolean) => {
+    if (!pendingPeriodData) return;
+
+    const { booking, newSlot } = pendingPeriodData;
+
+    periodModification.mutate({
+      bookingId: booking.id,
+      periodGroupId: booking.periodGroupId!,
+      scope,
+      newDate: scope === "single_day" ? newSlot.date : undefined,
+      newTimeStart: newSlot.timeStart,
+      newTimeEnd: newSlot.timeEnd,
+      newInstructorId: newSlot.instructorId,
+      notifyCustomer,
+      ticketItemId: booking.id,
+      oldInstructorId: booking.instructorId,
+      occurrenceDate: booking.date,
+      periodStartDate: booking.periodStartDate,
+      periodEndDate: booking.periodEndDate,
+    });
+
+    setShowPeriodDialog(false);
+    setPendingPeriodData(null);
+  };
+
   const instructorOptions = instructors.map((i) => ({
     id: i.id,
     name: `${i.first_name} ${i.last_name}`,
@@ -559,6 +615,10 @@ function SchedulerGridContent() {
               <span>Abwesend</span>
             </div>
             <div className="flex items-center gap-1">
+              <div className="w-2 h-2 rounded-sm bg-primary/20 border-l-2 border-l-primary" />
+              <span>Periode</span>
+            </div>
+            <div className="flex items-center gap-1">
               <div className="w-2 h-2 rounded-sm bg-blue-500/20 border border-blue-500" />
               <span>Auswahl</span>
             </div>
@@ -584,6 +644,22 @@ function SchedulerGridContent() {
           newValues={pendingDropData?.newValues || {}}
           isLoading={updateTicketItem.isPending || sendChangeNotification.isPending}
         />
+
+        {/* Period Modification Dialog for multi-day bookings */}
+        {pendingPeriodData && (
+          <PeriodModificationDialog
+            open={showPeriodDialog}
+            onOpenChange={(open) => {
+              setShowPeriodDialog(open);
+              if (!open) setPendingPeriodData(null);
+            }}
+            booking={pendingPeriodData.booking}
+            newSlot={pendingPeriodData.newSlot}
+            instructors={instructors}
+            onConfirm={handlePeriodConfirm}
+            isLoading={periodModification.isPending}
+          />
+        )}
       </div>
     </DndKitProvider>
   );

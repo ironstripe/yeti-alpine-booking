@@ -3302,9 +3302,55 @@ export type Database = {
           },
         ]
       }
+      ticket_item_period_metadata: {
+        Row: {
+          base_instructor_id: string | null
+          base_time_end: string
+          base_time_start: string
+          created_at: string | null
+          end_date: string
+          id: string
+          period_group_id: string
+          start_date: string
+          updated_at: string | null
+        }
+        Insert: {
+          base_instructor_id?: string | null
+          base_time_end: string
+          base_time_start: string
+          created_at?: string | null
+          end_date: string
+          id?: string
+          period_group_id: string
+          start_date: string
+          updated_at?: string | null
+        }
+        Update: {
+          base_instructor_id?: string | null
+          base_time_end?: string
+          base_time_start?: string
+          created_at?: string | null
+          end_date?: string
+          id?: string
+          period_group_id?: string
+          start_date?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ticket_item_period_metadata_base_instructor_id_fkey"
+            columns: ["base_instructor_id"]
+            isOneToOne: false
+            referencedRelation: "instructors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ticket_items: {
         Row: {
           actual_duration_minutes: number | null
+          confirmation_reset_at: string | null
+          confirmation_reset_reason: string | null
           created_at: string
           custom_end_time: string | null
           custom_start_time: string | null
@@ -3321,11 +3367,13 @@ export type Database = {
           instructor_id: string | null
           instructor_notes: string | null
           internal_notes: string | null
+          is_period_override: boolean | null
           is_vegetarian: boolean | null
           item_type: string | null
           line_total: number | null
           meeting_point: string | null
           participant_id: string | null
+          period_group_id: string | null
           product_id: string
           quantity: number | null
           skill_level: string | null
@@ -3337,6 +3385,8 @@ export type Database = {
         }
         Insert: {
           actual_duration_minutes?: number | null
+          confirmation_reset_at?: string | null
+          confirmation_reset_reason?: string | null
           created_at?: string
           custom_end_time?: string | null
           custom_start_time?: string | null
@@ -3353,11 +3403,13 @@ export type Database = {
           instructor_id?: string | null
           instructor_notes?: string | null
           internal_notes?: string | null
+          is_period_override?: boolean | null
           is_vegetarian?: boolean | null
           item_type?: string | null
           line_total?: number | null
           meeting_point?: string | null
           participant_id?: string | null
+          period_group_id?: string | null
           product_id: string
           quantity?: number | null
           skill_level?: string | null
@@ -3369,6 +3421,8 @@ export type Database = {
         }
         Update: {
           actual_duration_minutes?: number | null
+          confirmation_reset_at?: string | null
+          confirmation_reset_reason?: string | null
           created_at?: string
           custom_end_time?: string | null
           custom_start_time?: string | null
@@ -3385,11 +3439,13 @@ export type Database = {
           instructor_id?: string | null
           instructor_notes?: string | null
           internal_notes?: string | null
+          is_period_override?: boolean | null
           is_vegetarian?: boolean | null
           item_type?: string | null
           line_total?: number | null
           meeting_point?: string | null
           participant_id?: string | null
+          period_group_id?: string | null
           product_id?: string
           quantity?: number | null
           skill_level?: string | null
