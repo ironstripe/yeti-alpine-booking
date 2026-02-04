@@ -1,283 +1,215 @@
 
 
-# Period Bookings with Overrides and Automatic Notifications
+# Phase 5: Period Booking Email Templates and Notification Logic
 
-## Current Architecture vs. Proposed
+## Overview
 
-**Current State**: Each day of a multi-day booking is a separate `ticket_item` row with its own `date`, `time_start`, `time_end`, and `instructor_id`.
+Implement automated email notifications for period booking changes. The system must notify customers of changes and affected instructors when assignments change.
 
-**Challenge**: The request assumes period-based storage (single row with `start_date`/`end_date`), but the current schema is day-based.
+## Current State Analysis
 
-**Recommended Approach**: Add a **period grouping mechanism** to link related daily bookings, rather than fundamentally changing the storage model.
+The `usePeriodModification` hook already has:
+- `sendCustomerNotification()` - **but it passes `ticketItemId` instead of `recipientEmail`**
+- `queueInstructorNotifications()` - uses the existing queue system (working correctly)
 
----
-
-## Phase 1: Database Schema Changes
-
-### 1.1 Add Period Grouping Column to `ticket_items`
-
-```sql
--- Add period_group_id to link related days of a multi-day booking
-ALTER TABLE ticket_items
-ADD COLUMN period_group_id UUID,
-ADD COLUMN is_period_override BOOLEAN DEFAULT FALSE;
-
--- Index for efficient period lookups
-CREATE INDEX idx_ticket_items_period_group ON ticket_items(period_group_id) WHERE period_group_id IS NOT NULL;
-```
-
-**Purpose**: When booking Mon-Fri, all 5 `ticket_item` rows share the same `period_group_id`. An override row has `is_period_override = true`.
-
-### 1.2 Create `ticket_item_period_metadata` Table
-
-```sql
-CREATE TABLE ticket_item_period_metadata (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  period_group_id UUID NOT NULL UNIQUE,
-  base_instructor_id UUID REFERENCES instructors(id),
-  base_time_start TIME NOT NULL,
-  base_time_end TIME NOT NULL,
-  start_date DATE NOT NULL,
-  end_date DATE NOT NULL,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE INDEX idx_period_metadata_dates ON ticket_item_period_metadata(start_date, end_date);
-```
-
-**Purpose**: Stores the "base" configuration for a period (original instructor, times, date range).
-
-### 1.3 Add Confirmation Tracking
-
-```sql
--- Add confirmation tracking to ticket_items (already has instructor_confirmed_at)
-ALTER TABLE ticket_items
-ADD COLUMN IF NOT EXISTS confirmation_reset_at TIMESTAMPTZ,
-ADD COLUMN IF NOT EXISTS confirmation_reset_reason TEXT;
-```
+The existing `useSendBookingChangeNotification` hook shows the correct pattern for fetching customer data and invoking the edge function.
 
 ---
 
-## Phase 2: Scheduler Rendering Updates
+## Changes Required
 
-### 2.1 Update `useSchedulerData` Hook
+### 1. Database Migration: Create Email Templates
 
-Modify `src/hooks/useSchedulerData.ts` to:
+**File**: `supabase/migrations/YYYYMMDD_add_period_change_email_templates.sql`
 
-1. Fetch period metadata alongside bookings
-2. Mark bookings that are part of a period
-3. Identify which days have overrides (different instructor/time than base)
-
-```typescript
-// Enhanced SchedulerBooking type
-export interface SchedulerBooking {
-  // ... existing fields ...
-  
-  // Period-related fields
-  isPartOfPeriod: boolean;
-  periodGroupId?: string;
-  periodStartDate?: string;
-  periodEndDate?: string;
-  periodTotalDays?: number;
-  isOverride?: boolean; // This day differs from base
-  baseInstructorId?: string;
-  baseTimeStart?: string;
-  baseTimeEnd?: string;
-}
-```
-
-### 2.2 Visual Indicator for Period Blocks
-
-Add a subtle visual indicator (e.g., small chain icon or connected border) on blocks that are part of a multi-day period.
-
----
-
-## Phase 3: Period Modification Dialog
-
-### 3.1 Create `PeriodModificationDialog` Component
-
-**New File**: `src/components/scheduler/PeriodModificationDialog.tsx`
-
-```tsx
-interface PeriodModificationDialogProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  booking: SchedulerBooking;
-  newSlot: {
-    date: string;
-    timeStart: string;
-    timeEnd: string;
-    instructorId: string;
-  };
-  onConfirm: (
-    scope: "single_day" | "entire_period",
-    notifyCustomer: boolean
-  ) => void;
-}
-```
-
-**Features**:
-- Shows period info (start-end dates, total days)
-- Radio selection: "Only this day" vs "Entire period"
-- Lists affected instructors (old removed, new assigned)
-- Checkbox to notify customer (default: checked)
-
-### 3.2 Integrate into Drag-and-Drop Flow
-
-Update `SchedulerGrid.tsx` `handleBookingDrop`:
-
-```typescript
-const handleBookingDrop = (booking, newInstructorId, newDate, newTimeSlot) => {
-  // ... existing validation ...
-
-  // Check if part of a period
-  if (booking.isPartOfPeriod) {
-    // Show PeriodModificationDialog instead of BookingChangeConfirmDialog
-    setPendingPeriodChange({ booking, newInstructorId, newDate, newTimeSlot });
-    setShowPeriodDialog(true);
-    return;
-  }
-
-  // ... existing single-day flow ...
-};
-```
-
----
-
-## Phase 4: Backend Logic
-
-### 4.1 Create `usePeriodModification` Hook
-
-**New File**: `src/hooks/usePeriodModification.ts`
-
-```typescript
-interface PeriodModificationParams {
-  bookingId: string;
-  periodGroupId: string;
-  scope: "single_day" | "entire_period";
-  newDate?: string;
-  newTimeStart?: string;
-  newTimeEnd?: string;
-  newInstructorId?: string;
-  notifyCustomer: boolean;
-}
-
-export function usePeriodModification() {
-  return useMutation({
-    mutationFn: async (params: PeriodModificationParams) => {
-      if (params.scope === "single_day") {
-        // Update only this ticket_item
-        // Mark it as an override if instructor/time changed
-        await supabase.from("ticket_items").update({
-          instructor_id: params.newInstructorId,
-          time_start: params.newTimeStart,
-          time_end: params.newTimeEnd,
-          is_period_override: true,
-          // Reset confirmation if instructor changed
-          instructor_confirmed_at: null,
-          confirmation_reset_at: new Date().toISOString(),
-          confirmation_reset_reason: "single_day_change",
-        }).eq("id", params.bookingId);
-      } else {
-        // Update ALL ticket_items in the period
-        await supabase.from("ticket_items").update({
-          instructor_id: params.newInstructorId,
-          time_start: params.newTimeStart,
-          time_end: params.newTimeEnd,
-          instructor_confirmed_at: null,
-          confirmation_reset_at: new Date().toISOString(),
-          confirmation_reset_reason: "period_change",
-        }).eq("period_group_id", params.periodGroupId);
-
-        // Update period metadata
-        await supabase.from("ticket_item_period_metadata").update({
-          base_instructor_id: params.newInstructorId,
-          base_time_start: params.newTimeStart,
-          base_time_end: params.newTimeEnd,
-        }).eq("period_group_id", params.periodGroupId);
-      }
-
-      // Send notifications
-      if (params.notifyCustomer) {
-        await supabase.functions.invoke("send-period-change-notification", {
-          body: params,
-        });
-      }
-    },
-  });
-}
-```
-
----
-
-## Phase 5: Notifications
-
-### 5.1 New Email Templates
-
-Add to `email_templates` table:
+Add three new templates to `email_templates` table:
 
 | Trigger | Name | Purpose |
 |---------|------|---------|
-| `private_lesson.single_day_changed` | Einzelner Tag geändert | Customer notification for single-day override |
-| `private_lesson.period_changed` | Periode geändert | Customer notification for entire period change |
-| `instructor.assignment_removed` | Zuweisung entfernt | Instructor removed from booking |
-| `instructor.assignment_added` | Zuweisung hinzugefügt | Instructor assigned to booking |
+| `private_lesson.single_day_changed` | Einzelner Tag geändert (Kunde) | Customer notification for single-day override |
+| `private_lesson.period_changed` | Periode geändert (Kunde) | Customer notification for entire period change |
+| `instructor.period_assignment_changed` | Zuweisung geändert (Lehrer) | Instructor assignment change notification |
 
-### 5.2 Create/Update Edge Function
+**Template Content (German):**
 
-Update `supabase/functions/send-notification/index.ts` to handle period-related triggers.
+```sql
+INSERT INTO email_templates (name, trigger, subject, body_html, is_active)
+VALUES
+  (
+    'Einzelner Tag geändert (Periode)',
+    'private_lesson.single_day_changed',
+    'Änderung Ihrer Buchung am {{occurrence_date}}',
+    '<p>Guten Tag {{customer_name}},</p>
+    <p>für Ihre Buchung vom <strong>{{period_start_date}}</strong> bis <strong>{{period_end_date}}</strong> wurde der <strong>{{occurrence_date}}</strong> angepasst:</p>
+    <ul>
+      <li><strong>Neue Uhrzeit:</strong> {{new_time_start}} - {{new_time_end}} Uhr</li>
+      <li><strong>Lehrer:</strong> {{instructor_name}}</li>
+    </ul>
+    <p>Bei Fragen stehen wir Ihnen gerne zur Verfügung.</p>',
+    true
+  ),
+  (
+    'Periode geändert (Kunde)',
+    'private_lesson.period_changed',
+    'Änderung Ihrer Buchung ({{period_start_date}} - {{period_end_date}})',
+    '<p>Guten Tag {{customer_name}},</p>
+    <p>für Ihre gesamte Buchungsperiode vom <strong>{{period_start_date}}</strong> bis <strong>{{period_end_date}}</strong> wurde eine Änderung vorgenommen:</p>
+    <ul>
+      <li><strong>Neue Uhrzeit:</strong> {{new_time_start}} - {{new_time_end}} Uhr</li>
+      <li><strong>Lehrer:</strong> {{instructor_name}}</li>
+    </ul>
+    <p>Bei Fragen stehen wir Ihnen gerne zur Verfügung.</p>',
+    true
+  ),
+  (
+    'Perioden-Zuweisung geändert (Lehrer)',
+    'instructor.period_assignment_changed',
+    '{{action_text}}: Privatstunde am {{booking_date}}',
+    '<p>Hallo {{instructor_name}},</p>
+    <p>{{action_description}}</p>
+    <ul>
+      <li><strong>Datum:</strong> {{booking_date}}</li>
+      <li><strong>Uhrzeit:</strong> {{time_start}} - {{time_end}} Uhr</li>
+      <li><strong>Kunde:</strong> {{customer_name}}</li>
+    </ul>
+    {{#if is_assigned}}<p><a href="{{portal_url}}" class="button">Buchung bestätigen</a></p>{{/if}}',
+    true
+  );
+```
 
 ---
 
-## Phase 6: Booking Wizard Integration
+### 2. Update `usePeriodModification.ts`
 
-When creating a multi-day booking:
+**File**: `src/hooks/usePeriodModification.ts`
 
-1. Generate a `period_group_id` (UUID)
-2. Create one `ticket_item` per day, all sharing the same `period_group_id`
-3. Create one `ticket_item_period_metadata` row with base configuration
+Replace the current `sendCustomerNotification` helper with proper data fetching:
+
+```typescript
+async function sendCustomerNotification(params: PeriodModificationParams) {
+  try {
+    // 1. Fetch ticket item with related customer and instructor data
+    const { data: ticketItem, error } = await supabase
+      .from("ticket_items")
+      .select(`
+        id,
+        date,
+        time_start,
+        time_end,
+        instructor:instructors(id, first_name, last_name),
+        ticket:tickets(
+          customer:customers(first_name, last_name, email)
+        )
+      `)
+      .eq("id", params.ticketItemId)
+      .single();
+
+    if (error || !ticketItem?.ticket?.customer?.email) {
+      console.warn("No customer email found for notification");
+      return;
+    }
+
+    const customer = ticketItem.ticket.customer;
+    const customerName = `${customer.first_name || ''} ${customer.last_name || ''}`.trim();
+
+    // 2. Get new instructor name if changed
+    let instructorName = "Nicht zugewiesen";
+    if (params.newInstructorId) {
+      const { data: newInstructor } = await supabase
+        .from("instructors")
+        .select("first_name, last_name")
+        .eq("id", params.newInstructorId)
+        .single();
+      if (newInstructor) {
+        instructorName = `${newInstructor.first_name} ${newInstructor.last_name}`;
+      }
+    } else if (ticketItem.instructor) {
+      instructorName = `${ticketItem.instructor.first_name} ${ticketItem.instructor.last_name}`;
+    }
+
+    // 3. Format dates for German locale
+    const formatDate = (dateStr?: string) => {
+      if (!dateStr) return "";
+      return new Date(dateStr).toLocaleDateString("de-DE", {
+        day: "2-digit", month: "2-digit", year: "numeric"
+      });
+    };
+
+    const formatTime = (time?: string) => time?.slice(0, 5) || "";
+
+    // 4. Determine template and build data
+    const templateTrigger = params.scope === "single_day"
+      ? "private_lesson.single_day_changed"
+      : "private_lesson.period_changed";
+
+    const templateData = {
+      customer_name: customerName,
+      occurrence_date: formatDate(params.occurrenceDate),
+      period_start_date: formatDate(params.periodStartDate),
+      period_end_date: formatDate(params.periodEndDate),
+      new_time_start: formatTime(params.newTimeStart),
+      new_time_end: formatTime(params.newTimeEnd),
+      instructor_name: instructorName,
+    };
+
+    // 5. Invoke edge function with correct parameters
+    await supabase.functions.invoke("send-notification", {
+      body: {
+        type: templateTrigger,
+        recipientEmail: customer.email,
+        recipientName: customerName,
+        data: templateData,
+      },
+    });
+
+  } catch (error) {
+    console.error("Failed to send customer notification:", error);
+    toast.warning("Änderung gespeichert, aber Benachrichtigung fehlgeschlagen");
+  }
+}
+```
 
 ---
 
-## Files to Create/Modify
+### 3. Update Instructor Notification Queue Types
+
+The `queueInstructorNotifications` function already uses `instructor_notification_queue`. Verify the existing `send-instructor-notification` edge function handles these notification types:
+- `cancelled` - Instructor removed from booking
+- `assigned` - Instructor assigned to booking
+
+If not already supported, add handling for period-specific context in the instructor notification edge function.
+
+---
+
+## Files to Modify
 
 | File | Action | Purpose |
 |------|--------|---------|
-| Database migration | Create | Add `period_group_id`, `is_period_override`, create metadata table |
-| `src/lib/scheduler-utils.ts` | Edit | Add period-related fields to `SchedulerBooking` |
-| `src/hooks/useSchedulerData.ts` | Edit | Fetch and join period metadata |
-| `src/components/scheduler/PeriodModificationDialog.tsx` | Create | Scope selection dialog |
-| `src/components/scheduler/SchedulerGrid.tsx` | Edit | Integrate period dialog |
-| `src/hooks/usePeriodModification.ts` | Create | Backend mutation logic |
-| `src/components/scheduler/BookingBar.tsx` | Edit | Add visual indicator for period blocks |
-| `supabase/functions/send-notification/index.ts` | Edit | Handle new triggers |
+| `supabase/migrations/YYYYMMDD_add_period_change_email_templates.sql` | Create | Add 3 new email templates |
+| `src/hooks/usePeriodModification.ts` | Edit | Fix `sendCustomerNotification` to fetch data and pass correct params |
 
 ---
 
-## Implementation Order
+## Template Variables Summary
 
-1. **Database migration** - Add columns and create metadata table
-2. **Type updates** - Add period fields to `SchedulerBooking`
-3. **Data loading** - Update `useSchedulerData` to fetch period info
-4. **Visual indicator** - Show which blocks are part of a period
-5. **Period dialog** - Create `PeriodModificationDialog`
-6. **Backend hook** - Create `usePeriodModification`
-7. **Integration** - Wire up drag-and-drop to use period dialog
-8. **Notifications** - Add email templates and edge function updates
-9. **Booking wizard** - Generate `period_group_id` for multi-day bookings
+**Customer Templates:**
+- `{{customer_name}}` - Customer full name
+- `{{occurrence_date}}` - The specific day changed (single_day only)
+- `{{period_start_date}}` - Period start (DD.MM.YYYY)
+- `{{period_end_date}}` - Period end (DD.MM.YYYY)
+- `{{new_time_start}}` / `{{new_time_end}}` - New times (HH:MM)
+- `{{instructor_name}}` - Assigned instructor name
+
+**Instructor Templates (existing queue):**
+- Uses existing `instructor.lesson.assigned` and `instructor.lesson.cancelled` templates
 
 ---
 
-## Key Design Decisions
+## Test Scenarios
 
-1. **Grouping over Period Storage**: Keep existing per-day rows but link them via `period_group_id`. This preserves backwards compatibility and allows granular per-day handling.
-
-2. **Override Flag**: `is_period_override = true` marks days that differ from the base configuration, making it easy to identify exceptions.
-
-3. **Metadata Table**: Stores the "original" period configuration, enabling comparisons and bulk resets.
-
-4. **Confirmation Reset**: Any change to a confirmed booking clears `instructor_confirmed_at` and logs the reason.
-
-5. **Opt-Out Notifications**: Customer notification defaults to ON but can be unchecked.
+1. **Single day, time change only** - Customer email with single_day template
+2. **Single day, instructor change** - Customer email + instructor queue entries
+3. **Entire period, time change** - Customer email with period template
+4. **Entire period, instructor change** - Customer email + instructor queue entries
+5. **User opts out** - No emails sent, database update still occurs
 
