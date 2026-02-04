@@ -1,52 +1,112 @@
-# Period Bookings Implementation Plan
 
-## Completed Phases
 
-### ✅ Phase 1-4: Period Modification Logic (Complete)
-- Database schema: `period_group_id`, `is_period_override` on `ticket_items`
-- `ticket_item_period_metadata` table for base configuration
-- `usePeriodModification` hook for single-day and entire-period updates
-- `PeriodModificationDialog` UI component
-- Scheduler visual indicators (link icon, primary border)
+# Fix: Context-Aware Back Navigation from Booking Detail
 
-### ✅ Phase 5: Email Templates & Notifications (Complete)
-- Email templates: `private_lesson.single_day_changed`, `private_lesson.period_changed`
-- Refactored `sendCustomerNotification` in `usePeriodModification.ts`
-- Proper data fetching for customer/instructor names
-- German locale date formatting
+## Problem
 
-### ✅ Phase 6: Period Booking Creation in Wizard (Complete)
-- **Created**: `src/hooks/useInstructorAvailabilityCheck.ts`
-  - Checks instructor availability across date range
-  - Queries: ticket_items, group_course_instances, instructor_absences
-  - Returns conflicts with human-readable descriptions
-  
-- **Created**: `src/components/bookings/wizard/AvailabilityStatus.tsx`
-  - Displays green success message when available
-  - Displays amber warning with conflict list when conflicts exist
-  - Non-blocking: allows booking creation with conflicts
+When a user navigates from a **Customer Detail page** to a **Booking Detail page** and clicks "Zurück" (Back), they are taken to the Booking List (`/bookings`) instead of returning to the Customer Detail page where they started.
 
-- **Modified**: `src/hooks/useCreateBooking.ts`
-  - Detects period bookings: `productType === "private" && selectedDates.length > 1`
-  - Generates `period_group_id` via `crypto.randomUUID()`
-  - Creates `ticket_item_period_metadata` with base configuration
-  - Links all `ticket_items` via `period_group_id`
+## Solution
 
-- **Modified**: `src/components/bookings/wizard/Step3InstructorDetails.tsx`
-  - Integrated availability check on instructor selection
-  - Shows AvailabilityStatus for multi-day private lessons
+Implement the same pattern already used for scheduler navigation: pass a `from` parameter in the URL to track the navigation origin and use it to determine the correct back destination.
+
+## Technical Changes
+
+### 1. Update BookingHistoryCard.tsx
+
+**File**: `src/components/customers/detail/BookingHistoryCard.tsx`
+
+Pass the customer ID as a query parameter when navigating to a booking:
+
+```typescript
+// Line 66: Change from
+navigate(`/bookings/${ticket.id}`)
+
+// To
+navigate(`/bookings/${ticket.id}?from=customer&customerId=${customerId}`)
+```
+
+This requires adding `customerId` as a prop to the component.
 
 ---
 
-## Test Scenarios
+### 2. Update BookingDetail.tsx
 
-1. **Single-day booking**: No `period_group_id` created, behaves as before
-2. **Multi-day booking (no conflicts)**: 
-   - `period_group_id` generated
-   - metadata created with base configuration
-   - Green availability status shown
-3. **Multi-day booking (with conflicts)**:
-   - Same as above
-   - Yellow warning with conflict list
-   - Booking can still be created
-4. **Edit existing period booking**: Handled by Phase 4 modification logic
+**File**: `src/pages/BookingDetail.tsx`
+
+Extract the `from=customer` and `customerId` parameters and adjust the back button behavior:
+
+```typescript
+// Around line 54: Add customer context
+const fromCustomer = searchParams.get("from") === "customer";
+const customerId = searchParams.get("customerId");
+
+// Around line 252: Update the back button
+<Button 
+  variant="outline" 
+  onClick={() => {
+    if (fromCustomer && customerId) {
+      navigate(`/customers/${customerId}`);
+    } else {
+      navigate("/bookings");
+    }
+  }}
+>
+  <ArrowLeft className="h-4 w-4 mr-2" />
+  Zurück
+</Button>
+```
+
+---
+
+### 3. Update BookingHistoryCard Props
+
+**File**: `src/components/customers/detail/BookingHistoryCard.tsx`
+
+Add `customerId` to the component's props interface:
+
+```typescript
+interface BookingHistoryCardProps {
+  tickets: Ticket[];
+  isLoading?: boolean;
+  customerId: string;  // Add this
+}
+```
+
+---
+
+### 4. Update CustomerDetail.tsx
+
+**File**: `src/pages/CustomerDetail.tsx`
+
+Pass the `customerId` prop to `BookingHistoryCard`:
+
+```typescript
+// Line 118
+<BookingHistoryCard 
+  tickets={tickets} 
+  isLoading={isLoadingTickets} 
+  customerId={customer.id}  // Add this
+/>
+```
+
+---
+
+## Files to Modify
+
+| File | Change |
+|------|--------|
+| `src/components/customers/detail/BookingHistoryCard.tsx` | Add `customerId` prop, pass it in navigation URL |
+| `src/pages/BookingDetail.tsx` | Read `from=customer` param, navigate back to customer if present |
+| `src/pages/CustomerDetail.tsx` | Pass `customerId` prop to `BookingHistoryCard` |
+
+---
+
+## Expected Behavior After Fix
+
+| Journey Start | Navigate To | Click "Zurück" | Result |
+|---------------|-------------|----------------|--------|
+| Customer Detail | Booking Detail | Yes | Returns to Customer Detail |
+| Booking List | Booking Detail | Yes | Returns to Booking List |
+| Scheduler | Booking Detail | Yes | Returns to Scheduler (existing) |
+
