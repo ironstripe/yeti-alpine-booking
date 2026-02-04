@@ -223,6 +223,9 @@ export function useCreateBooking() {
         instructor_confirmation: string | null;
         is_vegetarian: boolean;
         item_type: string;
+        // Period booking fields
+        period_group_id: string | null;
+        is_period_override: boolean;
       }> = [];
 
       // ============ PARTICIPANT-SPECIFIC BOOKING MODE ============
@@ -286,6 +289,9 @@ export function useCreateBooking() {
               instructor_confirmation: state.instructorId ? "pending" : null,
               is_vegetarian: hasLunchOnDay ? pBooking.isVegetarian : false,
               item_type: pBooking.productType === "group" ? "group" : "private",
+              // Participant-specific mode doesn't support period bookings currently
+              period_group_id: null,
+              is_period_override: false,
             });
 
             // Create lunch item if applicable
@@ -309,12 +315,52 @@ export function useCreateBooking() {
                 instructor_confirmation: null,
                 is_vegetarian: pBooking.isVegetarian,
                 item_type: "lunch",
+                period_group_id: null,
+                is_period_override: false,
               });
             }
           }
         }
       } else {
         // ============ SHARED BOOKING MODE (Original Logic) ============
+        
+        // Check if this is a period booking (multi-day private lesson)
+        const isPeriodBooking = state.productType === "private" && state.selectedDates.length > 1;
+        let periodGroupId: string | null = null;
+
+        if (isPeriodBooking) {
+          // Generate period group ID
+          periodGroupId = crypto.randomUUID();
+          
+          // Sort dates to get range
+          const sortedDates = [...state.selectedDates].sort();
+          const periodStartDate = sortedDates[0];
+          const periodEndDate = sortedDates[sortedDates.length - 1];
+          
+          // Parse time slot
+          const baseTimeStart = state.timeSlot?.split(" - ")[0] || "10:00";
+          const baseTimeEnd = state.timeSlot?.split(" - ")[1] || "12:00";
+          
+          // Create period metadata
+          const { error: metadataError } = await supabase
+            .from("ticket_item_period_metadata")
+            .insert({
+              period_group_id: periodGroupId,
+              base_instructor_id: state.instructorId,
+              base_time_start: baseTimeStart,
+              base_time_end: baseTimeEnd,
+              start_date: periodStartDate,
+              end_date: periodEndDate,
+            });
+          
+          if (metadataError) {
+            console.error("Failed to create period metadata:", metadataError);
+            throw metadataError;
+          }
+          
+          console.log("📅 Created period booking metadata:", { periodGroupId, periodStartDate, periodEndDate });
+        }
+        
         for (const participant of state.selectedParticipants) {
           const participantLunchDays = state.lunchSelections[participant.id] || [];
           const isVegetarian = state.vegetarianSelections[participant.id] || false;
@@ -342,6 +388,9 @@ export function useCreateBooking() {
               instructor_confirmation: state.instructorId ? "pending" : null,
               is_vegetarian: hasLunchOnDay ? isVegetarian : false,
               item_type: state.productType === "group" ? "group" : "private",
+              // Period booking fields
+              period_group_id: isPeriodBooking ? periodGroupId : null,
+              is_period_override: false,
             });
             
             // Create separate lunch item if participant has lunch on this day
@@ -365,6 +414,8 @@ export function useCreateBooking() {
                 instructor_confirmation: null,
                 is_vegetarian: isVegetarian,
                 item_type: "lunch",
+                period_group_id: null,
+                is_period_override: false,
               });
             }
           }
