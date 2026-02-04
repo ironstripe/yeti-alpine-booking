@@ -60,6 +60,13 @@ export interface DayTimeOverride {
   endTime: string;
 }
 
+// NEW: Time selection for unified day×time grid
+export interface TimeSelection {
+  date: string;
+  startTime: string;
+  endTime: string;
+}
+
 export interface BookingWizardState {
   // Step 1: Customer & Participants
   customerId: string | null;
@@ -95,6 +102,9 @@ export interface BookingWizardState {
   // NEW: Per-day overrides for period bookings
   dayInstructorOverrides: Record<string, string | null>; // { "2025-02-10": "instructor-uuid" }
   dayTimeOverrides: Record<string, DayTimeOverride>; // { "2025-02-10": { startTime: "09:00", endTime: "11:00" } }
+  
+  // NEW: Unified time selections from BookingTimeGrid
+  timeSelections: TimeSelection[];
   
   // Step 3: Instructor & Details
   instructorId: string | null;
@@ -161,6 +171,8 @@ interface BookingWizardContextType {
   removeDayInstructorOverride: (date: string) => void;
   removeDayTimeOverride: (date: string) => void;
   clearDayOverrides: () => void;
+  // NEW: Time selections for unified day×time grid
+  setTimeSelections: (selections: TimeSelection[]) => void;
   // Step 3 setters
   setInstructor: (instructor: Tables<"instructors"> | null) => void;
   setAssignLater: (assignLater: boolean) => void;
@@ -207,6 +219,8 @@ const initialState: BookingWizardState = {
   // NEW: Per-day override defaults
   dayInstructorOverrides: {},
   dayTimeOverrides: {},
+  // NEW: Time selections default
+  timeSelections: [],
   // Step 3
   instructorId: null,
   instructor: null,
@@ -496,6 +510,25 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
       dayInstructorOverrides: {},
       dayTimeOverrides: {},
     }));
+  };
+
+  // NEW: Set time selections from BookingTimeGrid
+  const setTimeSelections = (selections: TimeSelection[]) => {
+    setState((prev) => {
+      // Also sync timeSlot from first selection for compatibility with existing logic
+      let timeSlot = prev.timeSlot;
+      let duration = prev.duration;
+      
+      if (selections.length > 0) {
+        const first = selections[0];
+        timeSlot = `${first.startTime} - ${first.endTime}`;
+        const startHour = parseInt(first.startTime.split(":")[0]);
+        const endHour = parseInt(first.endTime.split(":")[0]);
+        duration = endHour - startHour;
+      }
+      
+      return { ...prev, timeSelections: selections, timeSlot, duration };
+    });
   };
 
   const prefillFromScheduler = async (instructorId: string, appointments: AppointmentSlot[]) => {
@@ -815,6 +848,8 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
         removeDayInstructorOverride,
         removeDayTimeOverride,
         clearDayOverrides,
+        // NEW: Time selections for unified day×time grid
+        setTimeSelections,
         // Step 3 setters
         setInstructor,
         setAssignLater,
