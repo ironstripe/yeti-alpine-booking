@@ -3302,6 +3302,57 @@ export type Database = {
           },
         ]
       }
+      ticket_item_overrides: {
+        Row: {
+          created_at: string
+          end_time: string | null
+          id: string
+          instructor_id: string | null
+          override_date: string
+          price_adjustment: number | null
+          start_time: string | null
+          ticket_item_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          end_time?: string | null
+          id?: string
+          instructor_id?: string | null
+          override_date: string
+          price_adjustment?: number | null
+          start_time?: string | null
+          ticket_item_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          end_time?: string | null
+          id?: string
+          instructor_id?: string | null
+          override_date?: string
+          price_adjustment?: number | null
+          start_time?: string | null
+          ticket_item_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ticket_item_overrides_instructor_id_fkey"
+            columns: ["instructor_id"]
+            isOneToOne: false
+            referencedRelation: "instructors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ticket_item_overrides_ticket_item_id_fkey"
+            columns: ["ticket_item_id"]
+            isOneToOne: false
+            referencedRelation: "ticket_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ticket_item_period_metadata: {
         Row: {
           base_instructor_id: string | null
@@ -3357,6 +3408,7 @@ export type Database = {
           date: string
           discount_percent: number | null
           discount_reason: string | null
+          end_date: string | null
           group_name: string | null
           group_participant_count: number | null
           id: string
@@ -3393,6 +3445,7 @@ export type Database = {
           date: string
           discount_percent?: number | null
           discount_reason?: string | null
+          end_date?: string | null
           group_name?: string | null
           group_participant_count?: number | null
           id?: string
@@ -3429,6 +3482,7 @@ export type Database = {
           date?: string
           discount_percent?: number | null
           discount_reason?: string | null
+          end_date?: string | null
           group_name?: string | null
           group_participant_count?: number | null
           id?: string

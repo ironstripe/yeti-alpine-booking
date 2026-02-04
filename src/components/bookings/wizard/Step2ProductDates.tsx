@@ -102,6 +102,16 @@ export function Step2ProductDates() {
     }
   }, [startTime, endTime, calculatedDuration, setTimeSlot, setDuration]);
 
+  // Auto-sync numberOfPersons with selected participants for private lessons
+  useEffect(() => {
+    if (state.productType === "private") {
+      const count = Math.min(Math.max(state.selectedParticipants.length, 1), MAX_PERSONS);
+      if (count !== state.numberOfPersons) {
+        setNumberOfPersons(count);
+      }
+    }
+  }, [state.productType, state.selectedParticipants.length, state.numberOfPersons, setNumberOfPersons]);
+
   // Filter end times to be after start time
   const availableEndTimes = useMemo(() => {
     if (!startTime) return END_TIMES;
@@ -613,7 +623,7 @@ export function Step2ProductDates() {
         </div>
       )}
 
-      {/* Number of Persons (for private lessons) */}
+      {/* Number of Persons (for private lessons) - Auto-synced with selected participants */}
       {state.productType === "private" && (
         <div className="space-y-3">
           <Label className="text-base font-semibold">
@@ -622,33 +632,16 @@ export function Step2ProductDates() {
           </Label>
           
           <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2 bg-muted rounded-lg p-1">
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8"
-                onClick={() => setNumberOfPersons(state.numberOfPersons - 1)}
-                disabled={state.numberOfPersons <= 1}
-              >
-                <Minus className="h-4 w-4" />
-              </Button>
-              <span className="w-8 text-center font-semibold text-lg">
+            <div className="flex items-center gap-2 bg-muted rounded-lg px-4 py-2">
+              <span className="font-semibold text-lg">
                 {state.numberOfPersons}
               </span>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8"
-                onClick={() => setNumberOfPersons(state.numberOfPersons + 1)}
-                disabled={state.numberOfPersons >= MAX_PERSONS}
-              >
-                <Plus className="h-4 w-4" />
-              </Button>
+              <span className="text-sm text-muted-foreground">
+                {state.numberOfPersons === 1 ? "Person" : "Personen"}
+              </span>
             </div>
             <span className="text-sm text-muted-foreground">
-              (max. {MAX_PERSONS} Personen)
+              (basierend auf {state.selectedParticipants.length} ausgewählten Teilnehmern, max. {MAX_PERSONS})
             </span>
           </div>
 
