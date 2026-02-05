@@ -10,6 +10,7 @@ import { useBookingWizard, WizardStep } from "@/contexts/BookingWizardContext";
 import { calculateAge, getAgeDisplay, getLevelLabel } from "@/lib/participant-utils";
 import { getLevelLabel as getInstructorLevel } from "@/lib/instructor-utils";
 import { getSpecializationLabel } from "@/hooks/useInstructors";
+import { InlineTimeBlockEditor } from "./InlineTimeBlockEditor";
 
 // Helper to format dates as short day names
 const formatDayNames = (dates: string[]): string => {
@@ -126,14 +127,35 @@ export function BookingSummaryCards({ onEditStep }: BookingSummaryCardsProps) {
             {state.duration && ` · ${state.duration} Stunden`}
             {state.sport && ` · ${state.sport === "snowboard" ? "Snowboard" : "Ski"}`}
           </p>
-          <div className="space-y-1">
-            {state.selectedDates.map((dateStr) => {
+          <div className="space-y-3">
+            {state.selectedDates.sort().map((dateStr) => {
               const date = new Date(dateStr);
+              // Parse base time from state.timeSlot (e.g., "10:00 - 12:00")
+              const [baseStart, baseEnd] = state.timeSlot?.split(" - ") || ["10:00", "12:00"];
+              
               return (
-                <div key={dateStr} className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Calendar className="h-4 w-4" />
-                  <span>{format(date, "EEE, dd.MM.yyyy", { locale: de })}</span>
-                  {state.timeSlot && <span>{state.timeSlot}</span>}
+                <div key={dateStr} className="space-y-1">
+                  <div className="flex items-center gap-2 text-sm font-medium">
+                    <Calendar className="h-4 w-4 text-muted-foreground" />
+                    <span>{format(date, "EEE, dd.MM.yyyy", { locale: de })}</span>
+                  </div>
+                  
+                  {/* For private lessons, show inline time block editor */}
+                  {state.productType === "private" ? (
+                    <InlineTimeBlockEditor
+                      dateStr={dateStr}
+                      baseStartTime={baseStart}
+                      baseEndTime={baseEnd}
+                      duration={state.duration}
+                    />
+                  ) : (
+                    /* For group courses, show simple time display */
+                    state.timeSlot && (
+                      <div className="ml-6 text-sm text-muted-foreground">
+                        {state.timeSlot}
+                      </div>
+                    )
+                  )}
                 </div>
               );
             })}
