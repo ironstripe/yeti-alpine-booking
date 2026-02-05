@@ -106,7 +106,7 @@ export function Step3InstructorDetails() {
               dayInstructorOverrides={state.dayInstructorOverrides}
               dayTimeOverrides={state.dayTimeOverrides}
               onInstructorChange={setDayInstructorOverride}
-              onTimeChange={setDayTimeOverride}
+              onTimeChange={(date, startTime, endTime, instructorId) => setDayTimeOverride(date, startTime, endTime)}
               onAddTimeBlock={addTimeBlock}
               onUpdateTimeBlock={updateTimeBlock}
               onRemoveTimeBlock={removeTimeBlock}
