@@ -97,7 +97,12 @@ export function Step3InstructorDetails() {
             />
           )}
           
-          {/* Per-day planning for multi-day private lessons */}
+          {/* Per-day planning for multi-day private lessons - collapsed as review option */}
+          {isMultiDayPrivate && !state.assignLater && (
+            <div className="text-xs text-muted-foreground mb-2">
+              Die Tagesübersicht wurde in Schritt 2 konfiguriert. Änderungen können hier weiterhin vorgenommen werden.
+            </div>
+          )}
           {isMultiDayPrivate && !state.assignLater && (
             <PeriodDayPlanner
               selectedDates={state.selectedDates}
