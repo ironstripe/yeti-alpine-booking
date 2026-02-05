@@ -39,6 +39,7 @@ import {
 import { BookingWarnings, type BookingWarning } from "./BookingWarnings";
 import { MiniSchedulerGrid } from "./MiniSchedulerGrid";
 import { GroupSelector } from "./GroupSelector";
+import { PeriodDayPlanner } from "./PeriodDayPlanner";
 import { LunchSupervisionAddon } from "./LunchSupervisionAddon";
 import { ParticipantBookingCard } from "./ParticipantBookingCard";
 import {
@@ -93,6 +94,14 @@ export function Step2ProductAllocation() {
     toggleMiniSchedulerSlot,
     clearMiniSchedulerSelection,
     applyMiniSchedulerSelection,
+    // Period day planner functions
+    setDayInstructorOverride,
+    setDayTimeOverride,
+    addTimeBlock,
+    updateTimeBlock,
+    removeTimeBlock,
+    removeDayInstructorOverride,
+    removeDayTimeOverride,
   } = useBookingWizard();
 
   const [selectedMonth, setSelectedMonth] = useState<Date>(new Date());
@@ -535,6 +544,27 @@ export function Step2ProductAllocation() {
                 )}
               </div>
             )}
+
+            {/* Period Day Planner - Show immediately for multi-day private lessons */}
+            {state.productType === "private" && state.selectedDates.length > 1 && (
+              <div className="mt-3">
+                <PeriodDayPlanner
+                  selectedDates={state.selectedDates}
+                  baseInstructor={state.instructor}
+                  baseTimeSlot={state.timeSlot}
+                  dayInstructorOverrides={state.dayInstructorOverrides}
+                  dayTimeOverrides={state.dayTimeOverrides}
+                  onInstructorChange={setDayInstructorOverride}
+                  onTimeChange={(date, startTime, endTime) => setDayTimeOverride(date, startTime, endTime)}
+                  onAddTimeBlock={addTimeBlock}
+                  onUpdateTimeBlock={updateTimeBlock}
+                  onRemoveTimeBlock={removeTimeBlock}
+                  onRemoveInstructorOverride={removeDayInstructorOverride}
+                  onRemoveTimeOverride={removeDayTimeOverride}
+                  sport={state.sport}
+                />
+              </div>
+            )}
           </div>
         )}
 
@@ -864,6 +894,15 @@ export function Step2ProductAllocation() {
             "transition-opacity",
             state.assignLater && "opacity-50 pointer-events-none"
           )}>
+            {/* Multi-select instruction hint */}
+            {state.selectedDates.length > 1 && (
+              <div className="flex items-center gap-2 mb-3 px-2.5 py-2 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded text-xs text-blue-700 dark:text-blue-300">
+                <Info className="h-3.5 w-3.5 flex-shrink-0" />
+                <span>
+                  <strong>Tipp:</strong> Halte <kbd className="px-1 py-0.5 bg-blue-100 dark:bg-blue-900 rounded text-[10px] font-mono">Ctrl</kbd> gedrückt, um mehrere Zeitslots auszuwählen.
+                </span>
+              </div>
+            )}
             <MiniSchedulerGrid
               selectedDates={state.selectedDates}
               sport={state.sport}
