@@ -1,7 +1,7 @@
 import { useMemo, useState, useEffect, useCallback } from "react";
 import { format, parseISO } from "date-fns";
 import { de } from "date-fns/locale";
-import { Star, Check, AlertTriangle, Users, MapPin, RefreshCw } from "lucide-react";
+import { Star, Check, AlertTriangle, Users, MapPin, RefreshCw, CheckCircle2 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import type { Tables } from "@/integrations/supabase/types";
 import { isCrossDiscipline } from "@/lib/level-utils";
 import { getMeetingPointById } from "@/lib/meeting-point-utils";
+import type { MiniSchedulerSlot } from "@/contexts/BookingWizardContext";
 
 interface MiniSchedulerGridProps {
   selectedDates: string[];
@@ -24,6 +25,9 @@ interface MiniSchedulerGridProps {
   selectedDuration?: number | null;
   selectedStartTime?: string | null;
   participantIds?: string[];
+  // Multi-select support
+  multiSelectSlots?: MiniSchedulerSlot[];
+  onMultiSelectToggle?: (slot: Omit<MiniSchedulerSlot, "id">) => void;
 }
 
 // Grid hours: 09:00 - 16:00
@@ -40,6 +44,8 @@ export function MiniSchedulerGrid({
   selectedDuration,
   selectedStartTime,
   participantIds = [],
+  multiSelectSlots = [],
+  onMultiSelectToggle,
 }: MiniSchedulerGridProps) {
   // Hover state for preview
   const [hoveredSlot, setHoveredSlot] = useState<{
@@ -56,6 +62,20 @@ export function MiniSchedulerGrid({
     currentHour: number;
     isActive: boolean;
   } | null>(null);
+
+  // Check if a slot is in the multi-select state
+  const isSlotMultiSelected = useCallback(
+    (instructorId: string, date: string, startTime: string, endTime: string) => {
+      return multiSelectSlots.some(
+        (s) =>
+          s.instructorId === instructorId &&
+          s.date === date &&
+          s.startTime === startTime &&
+          s.endTime === endTime
+      );
+    },
+    [multiSelectSlots]
+  );
 
   // Global mouseup handler to clear drag state when releasing outside grid
   const handleGlobalMouseUp = useCallback(() => {
@@ -577,6 +597,15 @@ export function MiniSchedulerGrid({
                           const inDragRange = isInDragRange(instructor.id, dateStr, hour);
                           const dragRangeValid = isDragRangeAvailable();
                           const isPendingAbsence = absent && absenceStatus === "pending";
+                          
+                          // Check if this slot is part of a multi-selection
+                          const isMultiSelected = multiSelectSlots.some(
+                            (s) =>
+                              s.instructorId === instructor.id &&
+                              s.date === dateStr &&
+                              parseInt(s.startTime.split(":")[0]) <= hour &&
+                              parseInt(s.endTime.split(":")[0]) > hour
+                          );
 
                           return (
                             <Tooltip key={hour}>
@@ -621,7 +650,19 @@ export function MiniSchedulerGrid({
                                       
                                       // Check if the entire range is available
                                       if (isDragRangeAvailable()) {
-                                        onSlotSelect(instructor, dateStr, dragTimeStart, dragTimeEnd);
+                                        // Check if Ctrl/Cmd is held for multi-select
+                                        if ((e.ctrlKey || e.metaKey) && onMultiSelectToggle) {
+                                          onMultiSelectToggle({
+                                            instructorId: instructor.id,
+                                            instructorName: `${instructor.first_name} ${instructor.last_name}`,
+                                            date: dateStr,
+                                            startTime: dragTimeStart,
+                                            endTime: dragTimeEnd,
+                                          });
+                                        } else {
+                                          // Normal click - clear multi-select and do single select
+                                          onSlotSelect(instructor, dateStr, dragTimeStart, dragTimeEnd);
+                                        }
                                       }
                                       setDragState(null);
                                     }
@@ -637,21 +678,27 @@ export function MiniSchedulerGrid({
                                       : absent
                                       ? "cursor-not-allowed bg-slate-800"
                                       : "cursor-not-allowed bg-slate-200",
+                                    // Multi-select highlight (highest priority)
+                                    isMultiSelected && "ring-[3px] ring-inset ring-primary bg-primary/30",
                                     // Drag selection highlight
-                                    inDragRange && dragRangeValid && "bg-blue-200 ring-2 ring-inset ring-primary",
-                                    inDragRange && !dragRangeValid && "bg-rose-200 ring-2 ring-inset ring-rose-500",
+                                    !isMultiSelected && inDragRange && dragRangeValid && "bg-blue-200 ring-2 ring-inset ring-primary",
+                                    !isMultiSelected && inDragRange && !dragRangeValid && "bg-rose-200 ring-2 ring-inset ring-rose-500",
                                     // Duration highlight ONLY for the selected instructor's time window
-                                    isSelectedInstructorDuration && "ring-2 ring-inset ring-primary bg-primary/20",
+                                    !isMultiSelected && isSelectedInstructorDuration && "ring-2 ring-inset ring-primary bg-primary/20",
                                     // Hover preview for booking block
-                                    isHoverPreview && canBookDuration && !inDragRange && "bg-blue-100",
-                                    isHoverPreview && !canBookDuration && !inDragRange && "bg-rose-200",
+                                    !isMultiSelected && isHoverPreview && canBookDuration && !inDragRange && "bg-blue-100",
+                                    !isMultiSelected && isHoverPreview && !canBookDuration && !inDragRange && "bg-rose-200",
                                     // Selected instructor slot highlight
-                                    isSelected && available && !inDragRange && "bg-primary/10 hover:bg-primary/20",
+                                    !isMultiSelected && isSelected && available && !inDragRange && "bg-primary/10 hover:bg-primary/20",
                                     // Material conflict warning
                                     materialConflict && available && "ring-1 ring-amber-500"
                                   )}
                                 >
-                                {materialConflict && available && (
+                                  {/* Multi-select checkmark indicator */}
+                                  {isMultiSelected && (
+                                    <CheckCircle2 className="h-3 w-3 absolute inset-0 m-auto text-primary" />
+                                  )}
+                                  {materialConflict && available && !isMultiSelected && (
                                     <RefreshCw className="h-2 w-2 absolute top-0.5 right-0.5 text-amber-600" />
                                   )}
                                 </button>

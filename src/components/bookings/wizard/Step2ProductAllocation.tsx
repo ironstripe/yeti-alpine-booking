@@ -24,6 +24,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Calendar } from "@/components/ui/calendar";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -88,6 +89,10 @@ export function Step2ProductAllocation() {
     setParticipantBooking,
     initializeParticipantBookings,
     copyBookingToAllParticipants,
+    // Multi-select functions
+    toggleMiniSchedulerSlot,
+    clearMiniSchedulerSelection,
+    applyMiniSchedulerSelection,
   } = useBookingWizard();
 
   const [selectedMonth, setSelectedMonth] = useState<Date>(new Date());
@@ -394,10 +399,19 @@ export function Step2ProductAllocation() {
         setStartTime(timeStart);
         setEndTime(timeEnd);
       }
+      // Clear any multi-select when doing a normal slot selection
+      if (state.miniSchedulerSelections.length > 0) {
+        clearMiniSchedulerSelection();
+      }
       // No auto-navigation - user must click "Weiter" to proceed
     } catch (error) {
       console.error("Error selecting slot:", error);
     }
+  };
+
+  // Handle applying the multi-selection to the wizard state
+  const handleApplyMultiSelection = () => {
+    applyMiniSchedulerSelection();
   };
 
   const isGroupCourse = state.productType === "group";
@@ -861,7 +875,41 @@ export function Step2ProductAllocation() {
               selectedDuration={calculatedDuration}
               selectedStartTime={startTime}
               participantIds={state.selectedParticipants.map(p => p.id)}
+              multiSelectSlots={state.miniSchedulerSelections}
+              onMultiSelectToggle={toggleMiniSchedulerSlot}
             />
+            
+            {/* Multi-select action bar */}
+            {state.miniSchedulerSelections.length > 0 && (
+              <div className="mt-3 flex items-center justify-between gap-2 rounded-lg border border-primary bg-primary/5 p-3">
+                <div className="flex items-center gap-2">
+                  <Badge variant="secondary" className="bg-primary/20 text-primary">
+                    {state.miniSchedulerSelections.length} Slots ausgewählt
+                  </Badge>
+                  <span className="text-xs text-muted-foreground">
+                    (Ctrl+Klick für weitere)
+                  </span>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={clearMiniSchedulerSelection}
+                    className="h-7 text-xs"
+                  >
+                    Abbrechen
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={handleApplyMultiSelection}
+                    className="h-7 text-xs"
+                  >
+                    <Check className="h-3 w-3 mr-1" />
+                    Auswahl übernehmen
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground rounded-lg border border-dashed">
