@@ -93,6 +93,82 @@ function minutesToTime(minutes: number): string {
   return `${hours.toString().padStart(2, "0")}:${mins.toString().padStart(2, "0")}`;
 }
 
+// Pure validation function that takes state as parameter to avoid stale closures
+function validateSlotInternal(
+  state: SelectionState,
+  slot: Omit<SlotSelection, "id">,
+  bookings: SchedulerBooking[],
+  absences: SchedulerAbsence[]
+): { valid: boolean; reason?: string } {
+  const { instructorId, date, startTime, endTime } = slot;
+
+  // Check if date is in the past
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const slotDate = new Date(date);
+  slotDate.setHours(0, 0, 0, 0);
+  if (slotDate < today) {
+    return { valid: false, reason: "Vergangene Daten können nicht gebucht werden" };
+  }
+
+  const startMinutes = timeToMinutes(startTime);
+  const endMinutes = timeToMinutes(endTime);
+  const duration = endMinutes - startMinutes;
+
+  // Check operational hours (09:00 - 16:00)
+  if (startMinutes < OPERATIONAL_START_MINUTES) {
+    return { valid: false, reason: "Frühester Start: 09:00" };
+  }
+  if (endMinutes > OPERATIONAL_END_MINUTES) {
+    return { valid: false, reason: "Spätestes Ende: 16:00 (Liftschluss)" };
+  }
+
+  // Check minimum duration (60 minutes)
+  if (duration < 60) {
+    return { valid: false, reason: "Mindestdauer: 60 Minuten" };
+  }
+
+  // Check maximum duration (4 hours = 240 minutes)
+  if (duration > 240) {
+    return { valid: false, reason: "Maximaldauer: 4 Stunden" };
+  }
+
+  // Check if instructor is absent
+  const isAbsent = absences.some(
+    (a) =>
+      a.instructorId === instructorId &&
+      date >= a.startDate &&
+      date <= a.endDate
+  );
+  if (isAbsent) {
+    return { valid: false, reason: "Lehrer abwesend" };
+  }
+
+  // Check for booking overlaps
+  const hasBookingOverlap = bookings.some((b) => {
+    if (b.instructorId !== instructorId || b.date !== date) return false;
+    const bookingStart = timeToMinutes(b.timeStart);
+    const bookingEnd = timeToMinutes(b.timeEnd);
+    return startMinutes < bookingEnd && endMinutes > bookingStart;
+  });
+  if (hasBookingOverlap) {
+    return { valid: false, reason: "Zeitraum bereits belegt" };
+  }
+
+  // Check for selection overlaps using passed state
+  const hasSelectionOverlap = state.selections.some((s) => {
+    if (s.instructorId !== instructorId || s.date !== date) return false;
+    const selStart = timeToMinutes(s.startTime);
+    const selEnd = timeToMinutes(s.endTime);
+    return startMinutes < selEnd && endMinutes > selStart;
+  });
+  if (hasSelectionOverlap) {
+    return { valid: false, reason: "Überschneidung mit anderer Auswahl" };
+  }
+
+  return { valid: true };
+}
+
 const initialDragState: DragState = {
   isDragging: false,
   instructorId: null,
@@ -554,51 +630,76 @@ export function SchedulerSelectionProvider({ children }: { children: ReactNode }
   );
 
   // Toggle slot selection for Ctrl+Click multi-select
+  // Uses functional state update to avoid stale closure issues with rapid clicks
   const toggleSlotSelection = useCallback(
     (
       slot: Omit<SlotSelection, "id">,
       bookings: SchedulerBooking[],
       absences: SchedulerAbsence[]
     ): { added: boolean; removed: boolean; error?: string } => {
-      // Check if this exact slot is already selected
-      const existingSelection = state.selections.find(
-        (s) =>
-          s.instructorId === slot.instructorId &&
-          s.date === slot.date &&
-          s.startTime === slot.startTime &&
-          s.endTime === slot.endTime
-      );
+      let result: { added: boolean; removed: boolean; error?: string } = {
+        added: false,
+        removed: false,
+      };
 
-      if (existingSelection) {
-        // Remove the selection (toggle off)
-        removeSelection(existingSelection.id);
-        return { added: false, removed: true };
-      }
+      setState((prev) => {
+        // Check if this exact slot is already selected using PREV state
+        const existingSelection = prev.selections.find(
+          (s) =>
+            s.instructorId === slot.instructorId &&
+            s.date === slot.date &&
+            s.startTime === slot.startTime &&
+            s.endTime === slot.endTime
+        );
 
-      // Check if trying to select for a different teacher
-      if (state.teacherId && state.teacherId !== slot.instructorId) {
-        return { added: false, removed: false, error: "Nur ein Lehrer pro Buchung" };
-      }
+        if (existingSelection) {
+          // Remove the selection (toggle off)
+          result = { added: false, removed: true };
+          const newSelections = prev.selections.filter((s) => s.id !== existingSelection.id);
+          return {
+            ...prev,
+            selections: newSelections,
+            teacherId: newSelections.length === 0 ? null : prev.teacherId,
+          };
+        }
 
-      // Validate the slot
-      const validation = canSelectSlot(
-        slot.instructorId,
-        slot.date,
-        slot.startTime,
-        slot.endTime,
-        bookings,
-        absences
-      );
+        // Check if trying to select for a different teacher
+        if (prev.teacherId && prev.teacherId !== slot.instructorId) {
+          result = { added: false, removed: false, error: "Nur ein Lehrer pro Buchung" };
+          return prev; // No change
+        }
 
-      if (!validation.valid) {
-        return { added: false, removed: false, error: validation.reason };
-      }
+        // Validate the slot inline using passed state to avoid stale closures
+        const validation = validateSlotInternal(prev, slot, bookings, absences);
+        if (!validation.valid) {
+          result = { added: false, removed: false, error: validation.reason };
+          return prev; // No change
+        }
 
-      // Add the selection
-      addSelection(slot);
-      return { added: true, removed: false };
+        // Add the selection
+        const newSelection: SlotSelection = {
+          ...slot,
+          id: generateSlotId(),
+        };
+        result = { added: true, removed: false };
+
+        return {
+          ...prev,
+          teacherId: slot.instructorId,
+          selections: [...prev.selections, newSelection],
+          anchorSlot: {
+            instructorId: slot.instructorId,
+            date: slot.date,
+            startTime: slot.startTime,
+            endTime: slot.endTime,
+            durationMinutes: slot.durationMinutes,
+          },
+        };
+      });
+
+      return result;
     },
-    [state.selections, state.teacherId, canSelectSlot, addSelection, removeSelection]
+    [] // No dependencies needed - all state access is via prev
   );
 
   return (
