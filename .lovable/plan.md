@@ -1,208 +1,129 @@
 
 
-# Unified Day×Time Selection Grid for Booking Wizard
+# Fix: Preserve Per-Day Times from Scheduler Multi-Select
 
 ## Problem Summary
 
-The current booking wizard separates date selection (calendar) from time selection (dropdowns), making it impossible to visually select time blocks that span multiple days. Users expect a scheduler-like experience where they can drag across days to select time slots.
+When selecting multiple time slots with different times in the scheduler (e.g., Mon 10:00-12:00, Tue 14:00-16:00), the booking wizard only uses the first slot's time for all days. The individual times are stored in `state.appointments` but never converted to the formats used by the UI and creation logic.
 
-## Solution Architecture
+## Root Cause
 
-Create a new **BookingTimeGrid** component that combines date and time selection into a single unified grid, similar to the main scheduler but optimized for booking creation.
-
----
-
-## Technical Changes
-
-### 1. New Component: BookingTimeGrid
-
-**New File**: `src/components/bookings/wizard/BookingTimeGrid.tsx`
-
-A visual grid where:
-- **X-axis (columns)**: Days (the selected dates from the RangeDatePicker)
-- **Y-axis (rows)**: Hours (09:00 - 16:00)
-- **Cells**: Clickable/draggable to select time blocks
-
-Features:
-- **Click a cell**: Start selection at that day/hour
-- **Drag horizontally**: Select same hours across multiple days (e.g., 10:00-12:00 on Mon, Tue, Wed)
-- **Drag vertically**: Extend duration on a single day
-- **Drag diagonally**: Different durations per day (advanced)
-- **Shift+Click**: Copy first day's selection to clicked day
-- **Visual feedback**: Blue highlight for selection, green for available, red for conflicts
-
-```text
-Grid Layout:
-         │ Mo 10. │ Di 11. │ Mi 12. │ Do 13. │ Fr 14. │
-─────────┼────────┼────────┼────────┼────────┼────────┤
-09:00    │   ○    │   ○    │   ○    │   ○    │   ○    │
-10:00    │  [▓▓]  │  [▓▓]  │  [▓▓]  │   ○    │   ○    │ ← Dragged selection
-11:00    │  [▓▓]  │  [▓▓]  │  [▓▓]  │   ○    │   ○    │
-12:00    │   ○    │   ○    │   ○    │   ○    │   ○    │
-13:00    │   ○    │   ○    │   ○    │   ○    │   ○    │
-14:00    │   ○    │   ○    │   ○    │   ○    │   ○    │
-15:00    │   ○    │   ○    │   ○    │   ○    │   ○    │
-
-Legend: ○ = Available, ▓ = Selected, ● = Blocked
-```
-
-### 2. State Management for Multi-Day Time Selection
-
-**File**: `src/contexts/BookingWizardContext.tsx`
-
-Add new selection state that tracks per-day time selections:
+In `src/contexts/BookingWizardContext.tsx`, the `prefillFromScheduler` function (lines 534-578):
 
 ```typescript
-interface TimeSelection {
-  date: string;
-  startTime: string;
-  endTime: string;
-}
-
-interface BookingWizardState {
-  // ... existing fields ...
+const prefillFromScheduler = async (instructorId: string, appointments: AppointmentSlot[]) => {
+  // ...
+  // PROBLEM: Only uses first appointment for timeSlot
+  if (appointments.length > 0) {
+    const firstAppt = appointments[0];
+    timeSlot = `${firstAppt.startTime} - ${endTime}`;  // <-- Only first!
+    duration = firstAppt.durationMinutes / 60;
+  }
   
-  // NEW: Per-day time selections (replaces simple timeSlot for periods)
-  timeSelections: TimeSelection[];
-}
+  setState((prev) => ({
+    // ...
+    appointments,         // Stored but not converted
+    timeSlot,             // Only first appointment's time
+    // MISSING: timeSelections - not populated
+    // MISSING: dayTimeOverrides - not populated
+  }));
+};
 ```
 
-Add actions:
+The booking creation logic (`useCreateBooking.ts` lines 372-384) already supports per-day times via `timeSelections` and `dayTimeOverrides`, but these are never populated.
+
+## Technical Fix
+
+**File:** `src/contexts/BookingWizardContext.tsx`
+
+Modify `prefillFromScheduler` to:
+1. Convert all appointments to `TimeSelection[]` format
+2. Calculate `dayTimeOverrides` for appointments differing from the base
+
 ```typescript
-setTimeSelections: (selections: TimeSelection[]) => void;
-addTimeSelection: (selection: TimeSelection) => void;
-removeTimeSelection: (date: string) => void;
+const prefillFromScheduler = async (instructorId: string, appointments: AppointmentSlot[]) => {
+  const dates = [...new Set(appointments.map((a) => a.date))].sort();
+  
+  // Fetch instructor...
+  
+  // Convert appointments to TimeSelection format
+  const timeSelections: TimeSelection[] = appointments.map(appt => {
+    const startMinutes = parseInt(appt.startTime.split(":")[0]) * 60 + 
+                         parseInt(appt.startTime.split(":")[1] || "0");
+    const endMinutes = startMinutes + appt.durationMinutes;
+    const endHour = Math.floor(endMinutes / 60);
+    const endMin = endMinutes % 60;
+    const endTime = `${endHour.toString().padStart(2, "0")}:${endMin.toString().padStart(2, "0")}`;
+    
+    return {
+      date: appt.date,
+      startTime: appt.startTime,
+      endTime,
+    };
+  });
+  
+  // Use first appointment as base
+  const baseAppt = appointments[0];
+  const baseStartTime = baseAppt?.startTime || "10:00";
+  const baseDuration = baseAppt?.durationMinutes || 120;
+  const baseEndMinutes = (parseInt(baseStartTime.split(":")[0]) * 60 + 
+                          parseInt(baseStartTime.split(":")[1] || "0")) + baseDuration;
+  const baseEndHour = Math.floor(baseEndMinutes / 60);
+  const baseEndMin = baseEndMinutes % 60;
+  const baseEndTime = `${baseEndHour.toString().padStart(2, "0")}:${baseEndMin.toString().padStart(2, "0")}`;
+  
+  // Calculate dayTimeOverrides for appointments that differ from base
+  const dayTimeOverrides: Record<string, DayTimeOverride> = {};
+  for (const ts of timeSelections) {
+    if (ts.startTime !== baseStartTime || ts.endTime !== baseEndTime) {
+      dayTimeOverrides[ts.date] = {
+        startTime: ts.startTime,
+        endTime: ts.endTime,
+      };
+    }
+  }
+  
+  const timeSlot = baseAppt ? `${baseStartTime} - ${baseEndTime}` : null;
+  const duration = baseDuration / 60;
+  
+  setState((prev) => ({
+    ...prev,
+    instructorId,
+    instructor,
+    appointments,
+    selectedDates: dates,
+    productType: "private",
+    timeSlot,
+    duration,
+    // NEW: Populate these fields for per-day times
+    timeSelections,
+    dayTimeOverrides,
+    assignLater: false,
+  }));
+};
 ```
 
-### 3. Drag Selection Logic
+## What This Fixes
 
-Implement drag handling similar to `SchedulerSelectionContext`:
+| Scenario | Before | After |
+|----------|--------|-------|
+| Select Mon 10-12, Tue 14-16 | Both days get 10:00-12:00 | Mon 10:00-12:00, Tue 14:00-16:00 |
+| BookingTimeGrid display | Shows only first time | Shows correct per-day times |
+| PeriodDayPlanner display | Shows base time for all | Shows overrides marked |
+| Booking creation | Wrong times saved | Correct times saved |
 
-```typescript
-interface DragState {
-  isActive: boolean;
-  startDate: string | null;
-  startHour: number | null;
-  currentDate: string | null;
-  currentHour: number | null;
-  mode: 'horizontal' | 'vertical' | 'diagonal';
-}
+## Files to Modify
 
-// On drag end, calculate selections:
-// - Horizontal drag: Same time range across selected days
-// - Vertical drag: Different time range on single day
-// - Diagonal: Per-day time variations
-```
+| File | Change |
+|------|--------|
+| `src/contexts/BookingWizardContext.tsx` | Update `prefillFromScheduler` to populate `timeSelections` and `dayTimeOverrides` |
 
-### 4. Integration into Step 2
+## Testing Checklist
 
-**File**: `src/components/bookings/wizard/Step2ProductDates.tsx`
-
-After date selection, show the BookingTimeGrid:
-
-```tsx
-{state.productType === "private" && state.selectedDates.length > 0 && (
-  <>
-    <Separator className="my-4" />
-    <div className="space-y-3">
-      <Label className="text-base font-semibold flex items-center gap-2">
-        <Clock className="h-4 w-4" />
-        Zeitauswahl
-      </Label>
-      <p className="text-sm text-muted-foreground">
-        Klicken oder ziehen Sie, um Zeitblöcke auszuwählen. 
-        Shift+Klick kopiert die Auswahl auf andere Tage.
-      </p>
-      <BookingTimeGrid
-        selectedDates={state.selectedDates}
-        timeSelections={state.timeSelections}
-        onSelectionChange={setTimeSelections}
-        minDuration={60} // 1 hour minimum
-        maxDuration={240} // 4 hours maximum
-      />
-    </div>
-  </>
-)}
-```
-
-### 5. Visual Design
-
-The grid will follow the scheduler's visual language:
-
-| State | Color | Border |
-|-------|-------|--------|
-| Available | `bg-emerald-50` | Light |
-| Selected | `bg-primary/30` | `ring-primary` |
-| Dragging Preview | `bg-blue-100` | Dashed |
-| Blocked (conflict) | `bg-rose-100` | None |
-| Hover | `bg-slate-100` | None |
-
-Selection summary shown below grid:
-```
-Ausgewählt: Mo-Mi 10:00-12:00 (2h × 3 Tage = 6h total)
-```
-
-### 6. Interaction Patterns
-
-**Pattern A: Uniform Time (Most Common)**
-1. Click first cell (Mon 10:00)
-2. Drag right to Wed 10:00
-3. Drag down to extend to 12:00
-4. Result: Mon-Wed, 10:00-12:00 (same time each day)
-
-**Pattern B: Shift+Click Extension**
-1. Select Mon 10:00-12:00
-2. Shift+Click on Fri 10:00
-3. Result: Mon 10:00-12:00 copied to Fri
-
-**Pattern C: Per-Day Variation**
-1. Select Mon 10:00-12:00
-2. Select Wed 14:00-16:00 (new selection, not extending)
-3. Result: Two different time slots on different days
-
----
-
-## Files to Create/Modify
-
-| File | Action | Purpose |
-|------|--------|---------|
-| `src/components/bookings/wizard/BookingTimeGrid.tsx` | Create | New unified day×time selection grid |
-| `src/contexts/BookingWizardContext.tsx` | Modify | Add `timeSelections` state and actions |
-| `src/components/bookings/wizard/Step2ProductDates.tsx` | Modify | Integrate BookingTimeGrid after date selection |
-| `src/hooks/useCreateBooking.ts` | Modify | Use `timeSelections` instead of single `timeSlot` |
-
----
-
-## Implementation Order
-
-1. **Phase A**: Add `timeSelections` state to BookingWizardContext
-2. **Phase B**: Create `BookingTimeGrid` component with basic click selection
-3. **Phase C**: Implement drag selection (horizontal first)
-4. **Phase D**: Add vertical and diagonal drag support
-5. **Phase E**: Implement Shift+Click for day copying
-6. **Phase F**: Integrate into Step2ProductDates
-7. **Phase G**: Update creation logic to use new selections
-8. **Phase H**: Remove/hide old dropdown time selectors when grid is active
-
----
-
-## Expected Behavior
-
-| Action | Result |
-|--------|--------|
-| Click single cell | Select 1-hour block on that day |
-| Drag horizontally | Select same hour range across days |
-| Drag vertically | Extend duration on single day |
-| Shift+Click | Copy first day's selection to clicked day |
-| Click selected cell | Deselect that day |
-| Visual feedback | Blue preview while dragging, green when committed |
-
----
-
-## Compatibility
-
-- Works alongside existing `PeriodDayPlanner` (Step 3) for instructor overrides
-- `timeSelections` can populate `dayTimeOverrides` automatically
-- Single-day bookings still work (grid shows one column)
-- Existing dropdown time selection remains as fallback/simple mode
+- Select 3 slots for same instructor with SAME time across all days
+- Verify booking wizard shows uniform time, no overrides
+- Select 3 slots for same instructor with DIFFERENT times
+- Verify BookingTimeGrid shows correct time blocks per day
+- Verify PeriodDayPlanner shows days with different times as "Angepasst"
+- Complete booking and verify database has correct per-day times
 
