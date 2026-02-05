@@ -373,19 +373,20 @@ export function useCreateBooking() {
             
             // Apply per-day overrides if this is a period booking (fallback hierarchy: timeSelection > dayTimeOverride > base)
             const dayInstructorOverride = state.dayInstructorOverrides?.[dateStr];
-            const dayTimeOverride = state.dayTimeOverrides?.[dateStr];
+            const dayTimeBlocks = state.dayTimeOverrides?.[dateStr] || [];
             
             const dayInstructorId = dayInstructorOverride !== undefined 
               ? dayInstructorOverride 
               : state.instructorId;
             
-            // Time selection priority: timeSelection (from grid) > dayTimeOverride > base time
-            const dayTimeStart = timeSelection?.startTime || dayTimeOverride?.startTime || baseTimeStart;
-            const dayTimeEnd = timeSelection?.endTime || dayTimeOverride?.endTime || baseTimeEnd;
+            // Time selection priority: timeSelection (from grid) > first dayTimeBlock > base time
+            const firstTimeBlock = dayTimeBlocks[0];
+            const dayTimeStart = timeSelection?.startTime || firstTimeBlock?.startTime || baseTimeStart;
+            const dayTimeEnd = timeSelection?.endTime || firstTimeBlock?.endTime || baseTimeEnd;
             
             // Check if this day differs from base (is an override)
             const hasInstructorOverride = dayInstructorOverride !== undefined && dayInstructorOverride !== state.instructorId;
-            const hasTimeOverride = (timeSelection || dayTimeOverride) && (
+            const hasTimeOverride = (timeSelection || firstTimeBlock) && (
               dayTimeStart !== baseTimeStart ||
               dayTimeEnd !== baseTimeEnd
             );
@@ -502,12 +503,13 @@ export function useCreateBooking() {
         // Group inserted items by date for override mapping
         for (const dateStr of state.selectedDates) {
           const dayInstructorOverride = state.dayInstructorOverrides?.[dateStr];
-          const dayTimeOverride = state.dayTimeOverrides?.[dateStr];
+          const dayTimeBlocks = state.dayTimeOverrides?.[dateStr] || [];
+          const firstTimeBlock = dayTimeBlocks[0];
           
           const hasInstructorOverride = dayInstructorOverride !== undefined && dayInstructorOverride !== state.instructorId;
-          const hasTimeOverride = dayTimeOverride && (
-            dayTimeOverride.startTime !== baseTimeStart ||
-            dayTimeOverride.endTime !== baseTimeEnd
+          const hasTimeOverride = firstTimeBlock && (
+            firstTimeBlock.startTime !== baseTimeStart ||
+            firstTimeBlock.endTime !== baseTimeEnd
           );
           
           if (hasInstructorOverride || hasTimeOverride) {
@@ -521,8 +523,8 @@ export function useCreateBooking() {
                 ticket_item_id: item.id,
                 override_date: dateStr,
                 instructor_id: hasInstructorOverride ? dayInstructorOverride : null,
-                start_time: hasTimeOverride ? dayTimeOverride.startTime : null,
-                end_time: hasTimeOverride ? dayTimeOverride.endTime : null,
+                start_time: hasTimeOverride ? firstTimeBlock.startTime : null,
+                end_time: hasTimeOverride ? firstTimeBlock.endTime : null,
                 price_adjustment: null, // Could calculate price difference if needed
               });
             }

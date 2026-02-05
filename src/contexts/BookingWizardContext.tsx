@@ -54,7 +54,14 @@ export interface ParticipantBookingDetails {
   isVegetarian: boolean;
 }
 
-// Per-day time override for period bookings
+// Per-day time override for period bookings (supports multiple time blocks per day)
+export interface TimeBlock {
+  id: string;
+  startTime: string;
+  endTime: string;
+}
+
+// Legacy single-block format (for backwards compatibility during migration)
 export interface DayTimeOverride {
   startTime: string;
   endTime: string;
@@ -111,7 +118,7 @@ export interface BookingWizardState {
   
   // NEW: Per-day overrides for period bookings
   dayInstructorOverrides: Record<string, string | null>; // { "2025-02-10": "instructor-uuid" }
-  dayTimeOverrides: Record<string, DayTimeOverride>; // { "2025-02-10": { startTime: "09:00", endTime: "11:00" } }
+  dayTimeOverrides: Record<string, TimeBlock[]>; // { "2025-02-10": [{ id, startTime, endTime }, ...] }
   
   // NEW: Unified time selections from BookingTimeGrid
   timeSelections: TimeSelection[];
@@ -181,6 +188,9 @@ interface BookingWizardContextType {
   // NEW: Per-day override setters for period bookings
   setDayInstructorOverride: (date: string, instructorId: string | null) => void;
   setDayTimeOverride: (date: string, startTime: string, endTime: string) => void;
+  addTimeBlock: (date: string, startTime: string, endTime: string) => void;
+  updateTimeBlock: (date: string, blockId: string, startTime: string, endTime: string) => void;
+  removeTimeBlock: (date: string, blockId: string) => void;
   removeDayInstructorOverride: (date: string) => void;
   removeDayTimeOverride: (date: string) => void;
   clearDayOverrides: () => void;
@@ -499,14 +509,71 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
     }));
   };
 
+  // Generate unique ID for time blocks
+  const generateTimeBlockId = () => `tb-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+
+  // Sets ALL time blocks for a day (replaces existing) - primary block
   const setDayTimeOverride = (date: string, startTime: string, endTime: string) => {
     setState((prev) => ({
       ...prev,
       dayTimeOverrides: {
         ...prev.dayTimeOverrides,
-        [date]: { startTime, endTime },
+        [date]: [{ id: generateTimeBlockId(), startTime, endTime }],
       },
     }));
+  };
+
+  // Adds an additional time block to a day
+  const addTimeBlock = (date: string, startTime: string, endTime: string) => {
+    setState((prev) => {
+      const existing = prev.dayTimeOverrides[date] || [];
+      return {
+        ...prev,
+        dayTimeOverrides: {
+          ...prev.dayTimeOverrides,
+          [date]: [...existing, { id: generateTimeBlockId(), startTime, endTime }],
+        },
+      };
+    });
+  };
+
+  // Updates a specific time block by ID
+  const updateTimeBlock = (date: string, blockId: string, startTime: string, endTime: string) => {
+    setState((prev) => {
+      const existing = prev.dayTimeOverrides[date] || [];
+      const updated = existing.map((block) =>
+        block.id === blockId ? { ...block, startTime, endTime } : block
+      );
+      return {
+        ...prev,
+        dayTimeOverrides: {
+          ...prev.dayTimeOverrides,
+          [date]: updated,
+        },
+      };
+    });
+  };
+
+  // Removes a specific time block by ID
+  const removeTimeBlock = (date: string, blockId: string) => {
+    setState((prev) => {
+      const existing = prev.dayTimeOverrides[date] || [];
+      const filtered = existing.filter((block) => block.id !== blockId);
+      
+      // If no blocks left, remove the day entry entirely
+      if (filtered.length === 0) {
+        const { [date]: removed, ...remaining } = prev.dayTimeOverrides;
+        return { ...prev, dayTimeOverrides: remaining };
+      }
+      
+      return {
+        ...prev,
+        dayTimeOverrides: {
+          ...prev.dayTimeOverrides,
+          [date]: filtered,
+        },
+      };
+    });
   };
 
   const removeDayInstructorOverride = (date: string) => {
@@ -667,20 +734,43 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
         endTime: s.endTime,
       }));
 
-      const dayTimeOverrides: Record<string, DayTimeOverride> = {};
+      // Group time blocks by date (supports multiple blocks per day)
+      const dayTimeOverrides: Record<string, TimeBlock[]> = {};
       const dayInstructorOverrides: Record<string, string | null> = {};
 
+      // Group slots by date
+      const slotsByDate = new Map<string, typeof sortedSlots>();
       for (const slot of sortedSlots) {
-        // Check for time override
-        if (slot.startTime !== baseStartTime || slot.endTime !== baseEndTime) {
-          dayTimeOverrides[slot.date] = {
-            startTime: slot.startTime,
-            endTime: slot.endTime,
-          };
+        const existing = slotsByDate.get(slot.date) || [];
+        slotsByDate.set(slot.date, [...existing, slot]);
+      }
+
+      // Process each date
+      for (const [date, slotsOnDate] of slotsByDate) {
+        // Check for instructor override (use first slot's instructor for the day)
+        if (slotsOnDate[0].instructorId !== baseInstructorId) {
+          dayInstructorOverrides[date] = slotsOnDate[0].instructorId;
         }
-        // Check for instructor override
-        if (slot.instructorId !== baseInstructorId) {
-          dayInstructorOverrides[slot.date] = slot.instructorId;
+        
+        // Build time blocks for this date
+        const blocks: TimeBlock[] = [];
+        for (const slot of slotsOnDate) {
+          // Only add if different from base time OR if multiple blocks on same day
+          if (
+            slotsOnDate.length > 1 ||
+            slot.startTime !== baseStartTime ||
+            slot.endTime !== baseEndTime
+          ) {
+            blocks.push({
+              id: `tb-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+              startTime: slot.startTime,
+              endTime: slot.endTime,
+            });
+          }
+        }
+        
+        if (blocks.length > 0) {
+          dayTimeOverrides[date] = blocks;
         }
       }
 
@@ -745,14 +835,35 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
     const baseEndMin = baseEndMinutes % 60;
     const baseEndTime = `${baseEndHour.toString().padStart(2, "0")}:${baseEndMin.toString().padStart(2, "0")}`;
     
-    // Calculate dayTimeOverrides for appointments that differ from base
-    const dayTimeOverrides: Record<string, DayTimeOverride> = {};
+    // Calculate dayTimeOverrides for appointments that differ from base (as TimeBlock arrays)
+    const dayTimeOverrides: Record<string, TimeBlock[]> = {};
+    
+    // Group time selections by date
+    const selectionsByDate = new Map<string, TimeSelection[]>();
     for (const ts of timeSelections) {
-      if (ts.startTime !== baseStartTime || ts.endTime !== baseEndTime) {
-        dayTimeOverrides[ts.date] = {
-          startTime: ts.startTime,
-          endTime: ts.endTime,
-        };
+      const existing = selectionsByDate.get(ts.date) || [];
+      selectionsByDate.set(ts.date, [...existing, ts]);
+    }
+    
+    // Build time blocks for each date
+    for (const [date, selectionsOnDate] of selectionsByDate) {
+      const blocks: TimeBlock[] = [];
+      for (const ts of selectionsOnDate) {
+        // Only add if different from base time OR if multiple blocks on same day
+        if (
+          selectionsOnDate.length > 1 ||
+          ts.startTime !== baseStartTime ||
+          ts.endTime !== baseEndTime
+        ) {
+          blocks.push({
+            id: `tb-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+            startTime: ts.startTime,
+            endTime: ts.endTime,
+          });
+        }
+      }
+      if (blocks.length > 0) {
+        dayTimeOverrides[date] = blocks;
       }
     }
     
@@ -1042,6 +1153,9 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
         // NEW: Per-day override setters for period bookings
         setDayInstructorOverride,
         setDayTimeOverride,
+        addTimeBlock,
+        updateTimeBlock,
+        removeTimeBlock,
         removeDayInstructorOverride,
         removeDayTimeOverride,
         clearDayOverrides,

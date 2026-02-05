@@ -25,6 +25,9 @@ export function Step3InstructorDetails() {
     setInstructorNotes,
     setDayInstructorOverride,
     setDayTimeOverride,
+    addTimeBlock,
+    updateTimeBlock,
+    removeTimeBlock,
     removeDayInstructorOverride,
     removeDayTimeOverride,
   } = useBookingWizard();
@@ -104,6 +107,9 @@ export function Step3InstructorDetails() {
               dayTimeOverrides={state.dayTimeOverrides}
               onInstructorChange={setDayInstructorOverride}
               onTimeChange={setDayTimeOverride}
+              onAddTimeBlock={addTimeBlock}
+              onUpdateTimeBlock={updateTimeBlock}
+              onRemoveTimeBlock={removeTimeBlock}
               onRemoveInstructorOverride={removeDayInstructorOverride}
               onRemoveTimeOverride={removeDayTimeOverride}
               sport={state.sport}
