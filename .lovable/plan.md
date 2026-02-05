@@ -1,215 +1,193 @@
 
+# Enhanced PeriodDayPlanner Implementation
 
-# Fix: Stale Closure in Scheduler Multi-Select
+## Current State Analysis
 
-## Problem Summary
+The existing `PeriodDayPlanner` component already supports:
+- Multiple time blocks per day via `dayTimeOverrides: Record<string, TimeBlock[]>`
+- Add/remove time block functionality
+- Instructor selection (but only at DAY level, not per block)
+- Override detection and visual feedback
 
-When using Ctrl+Click to select multiple time slots in the scheduler, selecting different time slots fails because `toggleSlotSelection` and `canSelectSlot` read `state.selections` from a stale closure. The state isn't updated between rapid clicks.
+**Key Gap**: The wireframe requires **instructor assignment per TIME BLOCK**, not per day. This is a fundamental data model change.
 
-## Root Cause
+---
 
-In `src/contexts/SchedulerSelectionContext.tsx`:
+## Implementation Plan
 
-```typescript
-const toggleSlotSelection = useCallback(
-  (slot, bookings, absences) => {
-    // PROBLEM: Reads from closure - may be stale!
-    const existingSelection = state.selections.find(...);
-    
-    // PROBLEM: canSelectSlot also reads stale state.selections
-    const validation = canSelectSlot(...);
-    
-    // addSelection does use setState, but validation already failed
-    addSelection(slot);
-  },
-  [state.selections, state.teacherId, ...]  // Dependencies don't help mid-render
-);
-```
+### Phase 1: Extend Data Model (TimeBlock with Instructor)
 
-When user:
-1. Ctrl+Clicks slot A at 10:00 → `state.selections` is `[]` → adds slot A
-2. Immediately Ctrl+Clicks slot B at 14:00 → `state.selections` is STILL `[]` (stale!) → tries to add, but validation may fail or behave incorrectly
+**File: `src/contexts/BookingWizardContext.tsx`**
 
-## Technical Fix
-
-Refactor `toggleSlotSelection` to use a functional state update pattern where all logic happens inside `setState((prev) => ...)`, accessing `prev.selections` instead of `state.selections`.
-
-**File:** `src/contexts/SchedulerSelectionContext.tsx`
-
-### New Implementation
+Update the `TimeBlock` interface to include an optional instructor:
 
 ```typescript
-const toggleSlotSelection = useCallback(
-  (
-    slot: Omit<SlotSelection, "id">,
-    bookings: SchedulerBooking[],
-    absences: SchedulerAbsence[]
-  ): { added: boolean; removed: boolean; error?: string } => {
-    let result: { added: boolean; removed: boolean; error?: string } = {
-      added: false,
-      removed: false,
-    };
-
-    setState((prev) => {
-      // Check if this exact slot is already selected using PREV state
-      const existingSelection = prev.selections.find(
-        (s) =>
-          s.instructorId === slot.instructorId &&
-          s.date === slot.date &&
-          s.startTime === slot.startTime &&
-          s.endTime === slot.endTime
-      );
-
-      if (existingSelection) {
-        // Remove the selection (toggle off)
-        result = { added: false, removed: true };
-        const newSelections = prev.selections.filter((s) => s.id !== existingSelection.id);
-        return {
-          ...prev,
-          selections: newSelections,
-          teacherId: newSelections.length === 0 ? null : prev.teacherId,
-        };
-      }
-
-      // Check if trying to select for a different teacher
-      if (prev.teacherId && prev.teacherId !== slot.instructorId) {
-        result = { added: false, removed: false, error: "Nur ein Lehrer pro Buchung" };
-        return prev; // No change
-      }
-
-      // Validate the slot inline (can't use canSelectSlot due to closure)
-      const validation = validateSlotInternal(prev, slot, bookings, absences);
-      if (!validation.valid) {
-        result = { added: false, removed: false, error: validation.reason };
-        return prev; // No change
-      }
-
-      // Add the selection
-      const newSelection: SlotSelection = {
-        ...slot,
-        id: generateSlotId(),
-      };
-      result = { added: true, removed: false };
-      
-      return {
-        ...prev,
-        teacherId: slot.instructorId,
-        selections: [...prev.selections, newSelection],
-        anchorSlot: {
-          instructorId: slot.instructorId,
-          date: slot.date,
-          startTime: slot.startTime,
-          endTime: slot.endTime,
-          durationMinutes: slot.durationMinutes,
-        },
-      };
-    });
-
-    return result;
-  },
-  [] // No dependencies needed - all state access is via prev
-);
-```
-
-### Helper Function for Validation
-
-Extract validation logic into a pure function that takes state as a parameter:
-
-```typescript
-function validateSlotInternal(
-  state: SelectionState,
-  slot: Omit<SlotSelection, "id">,
-  bookings: SchedulerBooking[],
-  absences: SchedulerAbsence[]
-): { valid: boolean; reason?: string } {
-  const { instructorId, date, startTime, endTime } = slot;
-  
-  // Check if date is in the past
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const slotDate = new Date(date);
-  slotDate.setHours(0, 0, 0, 0);
-  if (slotDate < today) {
-    return { valid: false, reason: "Vergangene Daten können nicht gebucht werden" };
-  }
-
-  const startMinutes = timeToMinutes(startTime);
-  const endMinutes = timeToMinutes(endTime);
-  const duration = endMinutes - startMinutes;
-
-  // Operational hours, duration checks...
-  if (startMinutes < OPERATIONAL_START_MINUTES) {
-    return { valid: false, reason: "Frühester Start: 09:00" };
-  }
-  if (endMinutes > OPERATIONAL_END_MINUTES) {
-    return { valid: false, reason: "Spätestes Ende: 16:00 (Liftschluss)" };
-  }
-  if (duration < 60) {
-    return { valid: false, reason: "Mindestdauer: 60 Minuten" };
-  }
-  if (duration > 240) {
-    return { valid: false, reason: "Maximaldauer: 4 Stunden" };
-  }
-
-  // Check absences
-  const isAbsent = absences.some(
-    (a) => a.instructorId === instructorId && date >= a.startDate && date <= a.endDate
-  );
-  if (isAbsent) {
-    return { valid: false, reason: "Lehrer abwesend" };
-  }
-
-  // Check booking overlaps
-  const hasBookingOverlap = bookings.some((b) => {
-    if (b.instructorId !== instructorId || b.date !== date) return false;
-    const bookingStart = timeToMinutes(b.timeStart);
-    const bookingEnd = timeToMinutes(b.timeEnd);
-    return startMinutes < bookingEnd && endMinutes > bookingStart;
-  });
-  if (hasBookingOverlap) {
-    return { valid: false, reason: "Zeitraum bereits belegt" };
-  }
-
-  // Check selection overlaps using passed state
-  const hasSelectionOverlap = state.selections.some((s) => {
-    if (s.instructorId !== instructorId || s.date !== date) return false;
-    const selStart = timeToMinutes(s.startTime);
-    const selEnd = timeToMinutes(s.endTime);
-    return startMinutes < selEnd && endMinutes > selStart;
-  });
-  if (hasSelectionOverlap) {
-    return { valid: false, reason: "Überschneidung mit anderer Auswahl" };
-  }
-
-  return { valid: true };
+export interface TimeBlock {
+  id: string;
+  startTime: string;
+  endTime: string;
+  instructorId?: string | null;  // NEW: Per-block instructor
 }
 ```
+
+Update related functions:
+- `addTimeBlock(date, startTime, endTime, instructorId?)` - Accept optional instructor
+- `updateTimeBlock(date, blockId, startTime, endTime, instructorId?)` - Include instructor updates
+- `applyMiniSchedulerSelection()` - Populate block-level instructors
+
+---
+
+### Phase 2: Redesign PeriodDayPlanner UI
+
+**File: `src/components/bookings/wizard/PeriodDayPlanner.tsx`**
+
+Implement the wireframe layout with these sections:
+
+**A. Day Card Structure**
+```
++-----------------------------------------------+
+| [Date Header] Mo, 9. Feb                      |
++-----------------------------------------------+
+| Zeitblock 1:                                  |
+|   [10:00 v] bis [12:00 v]                     |
+|   [Max Mustermann v]                          |
+|   [Trash Icon]                                |
++-----------------------------------------------+
+| Zeitblock 2:                     [Warning]    |
+|   [14:00 v] bis [16:00 v]  "Zusaetzlicher..." |
+|   [Anna Schmidt v]         "Abweichend"       |
+|   [Trash Icon]                                |
++-----------------------------------------------+
+| [+ Weiterer Zeitblock hinzufuegen]            |
++-----------------------------------------------+
+```
+
+**B. Warning Indicator Logic**
+- Show "Abweichend" badge when:
+  - Time differs from base time
+  - Instructor differs from base instructor
+- Show "Zusaetzlicher Block" for 2nd+ blocks on same day
+
+**C. Per-Block Instructor Dropdown**
+- Each time block gets its own instructor selector
+- Default to base instructor when adding new blocks
+- Track override status per block
+
+---
+
+### Phase 3: Update Booking Creation Logic
+
+**File: `src/hooks/useCreateBooking.ts`**
+
+Currently, the code only processes the FIRST time block per day. Update to handle multiple blocks:
+
+```typescript
+// For each date, iterate ALL time blocks (not just first)
+const dayTimeBlocks = state.dayTimeOverrides?.[dateStr] || [];
+const blocksToProcess = dayTimeBlocks.length > 0 
+  ? dayTimeBlocks 
+  : [{ id: 'base', startTime: baseTimeStart, endTime: baseTimeEnd }];
+
+for (const block of blocksToProcess) {
+  const blockInstructorId = block.instructorId ?? state.instructorId;
+  
+  ticketItems.push({
+    // ... other fields
+    time_start: block.startTime,
+    time_end: block.endTime,
+    instructor_id: blockInstructorId,
+  });
+}
+```
+
+This creates separate `ticket_items` for each time block on days with multiple blocks.
+
+---
+
+### Phase 4: Visual Design Updates
+
+**Colors and Styling:**
+- Default state: `bg-muted/30 border-muted`
+- Override state: `bg-amber-50/50 border-amber-300`
+- Warning badges: Orange text with AlertTriangle icon
+
+**Block Labels:**
+- "Zeitblock 1", "Zeitblock 2", etc.
+- Clear visual separation between blocks
+
+**Responsive Behavior:**
+- Stack time/instructor dropdowns vertically on mobile
+- Full-width buttons on small screens
 
 ---
 
 ## Files to Modify
 
-| File | Change |
-|------|--------|
-| `src/contexts/SchedulerSelectionContext.tsx` | Refactor `toggleSlotSelection` to use functional state update; add `validateSlotInternal` helper |
+| File | Changes |
+|------|---------|
+| `src/contexts/BookingWizardContext.tsx` | Add `instructorId` to `TimeBlock`, update functions |
+| `src/components/bookings/wizard/PeriodDayPlanner.tsx` | Complete UI redesign per wireframe |
+| `src/hooks/useCreateBooking.ts` | Handle multiple blocks per day |
+| `src/components/bookings/wizard/Step3InstructorDetails.tsx` | Pass new props to PeriodDayPlanner |
 
 ---
 
-## What This Fixes
+## Data Structure Example
 
-| Scenario | Before | After |
-|----------|--------|-------|
-| Ctrl+Click 10:00, then 14:00 | Second click may fail/behave incorrectly | Both slots selected correctly |
-| Rapid multi-selection | Stale state causes missed selections | All selections captured |
-| Toggle off existing selection | May not find selection due to stale state | Correctly removes selection |
+After implementation, selecting Mon 10-12, Tue 14-16, Wed 10-12 + 14-16 (with different instructor):
+
+```json
+{
+  "baseInstructorId": "instructor-max-mustermann",
+  "baseStartTime": "10:00",
+  "baseEndTime": "12:00",
+  "dayTimeOverrides": {
+    "2025-02-10": [
+      { 
+        "id": "tb-1", 
+        "startTime": "14:00", 
+        "endTime": "16:00",
+        "instructorId": null 
+      }
+    ],
+    "2025-02-11": [
+      { 
+        "id": "tb-2", 
+        "startTime": "10:00", 
+        "endTime": "12:00",
+        "instructorId": null 
+      },
+      { 
+        "id": "tb-3", 
+        "startTime": "14:00", 
+        "endTime": "16:00",
+        "instructorId": "instructor-anna-schmidt" 
+      }
+    ]
+  }
+}
+```
 
 ---
 
 ## Testing Checklist
 
-- [ ] Ctrl+Click first slot at 10:00 - verify selection appears
-- [ ] Immediately Ctrl+Click second slot at 14:00 (same day) - verify both selected
-- [ ] Ctrl+Click third slot on different day - verify all three selected
-- [ ] Ctrl+Click an already-selected slot - verify it deselects
-- [ ] Click "Buchung erstellen" - verify wizard receives all slots with correct times
+- [ ] Add a second time block to a day - verify it appears with defaults
+- [ ] Change instructor on one block - verify "Abweichend" indicator appears
+- [ ] Change time on one block - verify "Abweichend" indicator appears
+- [ ] Remove a time block - verify it disappears (cannot remove last block)
+- [ ] Multi-select in mini-scheduler with different times - verify correct blocks created
+- [ ] Complete booking with multiple blocks - verify all ticket_items created correctly
+- [ ] Verify mobile responsive layout
 
+---
+
+## Estimated Effort
+
+| Phase | Effort |
+|-------|--------|
+| Phase 1: Data Model | 0.5 days |
+| Phase 2: UI Redesign | 1.5 days |
+| Phase 3: Booking Logic | 0.5 days |
+| Phase 4: Visual Polish | 0.5 days |
+| **Total** | **3 days** |
