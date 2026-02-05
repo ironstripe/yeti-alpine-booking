@@ -1,129 +1,215 @@
 
 
-# Fix: Preserve Per-Day Times from Scheduler Multi-Select
+# Fix: Stale Closure in Scheduler Multi-Select
 
 ## Problem Summary
 
-When selecting multiple time slots with different times in the scheduler (e.g., Mon 10:00-12:00, Tue 14:00-16:00), the booking wizard only uses the first slot's time for all days. The individual times are stored in `state.appointments` but never converted to the formats used by the UI and creation logic.
+When using Ctrl+Click to select multiple time slots in the scheduler, selecting different time slots fails because `toggleSlotSelection` and `canSelectSlot` read `state.selections` from a stale closure. The state isn't updated between rapid clicks.
 
 ## Root Cause
 
-In `src/contexts/BookingWizardContext.tsx`, the `prefillFromScheduler` function (lines 534-578):
+In `src/contexts/SchedulerSelectionContext.tsx`:
 
 ```typescript
-const prefillFromScheduler = async (instructorId: string, appointments: AppointmentSlot[]) => {
-  // ...
-  // PROBLEM: Only uses first appointment for timeSlot
-  if (appointments.length > 0) {
-    const firstAppt = appointments[0];
-    timeSlot = `${firstAppt.startTime} - ${endTime}`;  // <-- Only first!
-    duration = firstAppt.durationMinutes / 60;
-  }
-  
-  setState((prev) => ({
-    // ...
-    appointments,         // Stored but not converted
-    timeSlot,             // Only first appointment's time
-    // MISSING: timeSelections - not populated
-    // MISSING: dayTimeOverrides - not populated
-  }));
-};
+const toggleSlotSelection = useCallback(
+  (slot, bookings, absences) => {
+    // PROBLEM: Reads from closure - may be stale!
+    const existingSelection = state.selections.find(...);
+    
+    // PROBLEM: canSelectSlot also reads stale state.selections
+    const validation = canSelectSlot(...);
+    
+    // addSelection does use setState, but validation already failed
+    addSelection(slot);
+  },
+  [state.selections, state.teacherId, ...]  // Dependencies don't help mid-render
+);
 ```
 
-The booking creation logic (`useCreateBooking.ts` lines 372-384) already supports per-day times via `timeSelections` and `dayTimeOverrides`, but these are never populated.
+When user:
+1. Ctrl+Clicks slot A at 10:00 → `state.selections` is `[]` → adds slot A
+2. Immediately Ctrl+Clicks slot B at 14:00 → `state.selections` is STILL `[]` (stale!) → tries to add, but validation may fail or behave incorrectly
 
 ## Technical Fix
 
-**File:** `src/contexts/BookingWizardContext.tsx`
+Refactor `toggleSlotSelection` to use a functional state update pattern where all logic happens inside `setState((prev) => ...)`, accessing `prev.selections` instead of `state.selections`.
 
-Modify `prefillFromScheduler` to:
-1. Convert all appointments to `TimeSelection[]` format
-2. Calculate `dayTimeOverrides` for appointments differing from the base
+**File:** `src/contexts/SchedulerSelectionContext.tsx`
+
+### New Implementation
 
 ```typescript
-const prefillFromScheduler = async (instructorId: string, appointments: AppointmentSlot[]) => {
-  const dates = [...new Set(appointments.map((a) => a.date))].sort();
-  
-  // Fetch instructor...
-  
-  // Convert appointments to TimeSelection format
-  const timeSelections: TimeSelection[] = appointments.map(appt => {
-    const startMinutes = parseInt(appt.startTime.split(":")[0]) * 60 + 
-                         parseInt(appt.startTime.split(":")[1] || "0");
-    const endMinutes = startMinutes + appt.durationMinutes;
-    const endHour = Math.floor(endMinutes / 60);
-    const endMin = endMinutes % 60;
-    const endTime = `${endHour.toString().padStart(2, "0")}:${endMin.toString().padStart(2, "0")}`;
-    
-    return {
-      date: appt.date,
-      startTime: appt.startTime,
-      endTime,
+const toggleSlotSelection = useCallback(
+  (
+    slot: Omit<SlotSelection, "id">,
+    bookings: SchedulerBooking[],
+    absences: SchedulerAbsence[]
+  ): { added: boolean; removed: boolean; error?: string } => {
+    let result: { added: boolean; removed: boolean; error?: string } = {
+      added: false,
+      removed: false,
     };
-  });
-  
-  // Use first appointment as base
-  const baseAppt = appointments[0];
-  const baseStartTime = baseAppt?.startTime || "10:00";
-  const baseDuration = baseAppt?.durationMinutes || 120;
-  const baseEndMinutes = (parseInt(baseStartTime.split(":")[0]) * 60 + 
-                          parseInt(baseStartTime.split(":")[1] || "0")) + baseDuration;
-  const baseEndHour = Math.floor(baseEndMinutes / 60);
-  const baseEndMin = baseEndMinutes % 60;
-  const baseEndTime = `${baseEndHour.toString().padStart(2, "0")}:${baseEndMin.toString().padStart(2, "0")}`;
-  
-  // Calculate dayTimeOverrides for appointments that differ from base
-  const dayTimeOverrides: Record<string, DayTimeOverride> = {};
-  for (const ts of timeSelections) {
-    if (ts.startTime !== baseStartTime || ts.endTime !== baseEndTime) {
-      dayTimeOverrides[ts.date] = {
-        startTime: ts.startTime,
-        endTime: ts.endTime,
+
+    setState((prev) => {
+      // Check if this exact slot is already selected using PREV state
+      const existingSelection = prev.selections.find(
+        (s) =>
+          s.instructorId === slot.instructorId &&
+          s.date === slot.date &&
+          s.startTime === slot.startTime &&
+          s.endTime === slot.endTime
+      );
+
+      if (existingSelection) {
+        // Remove the selection (toggle off)
+        result = { added: false, removed: true };
+        const newSelections = prev.selections.filter((s) => s.id !== existingSelection.id);
+        return {
+          ...prev,
+          selections: newSelections,
+          teacherId: newSelections.length === 0 ? null : prev.teacherId,
+        };
+      }
+
+      // Check if trying to select for a different teacher
+      if (prev.teacherId && prev.teacherId !== slot.instructorId) {
+        result = { added: false, removed: false, error: "Nur ein Lehrer pro Buchung" };
+        return prev; // No change
+      }
+
+      // Validate the slot inline (can't use canSelectSlot due to closure)
+      const validation = validateSlotInternal(prev, slot, bookings, absences);
+      if (!validation.valid) {
+        result = { added: false, removed: false, error: validation.reason };
+        return prev; // No change
+      }
+
+      // Add the selection
+      const newSelection: SlotSelection = {
+        ...slot,
+        id: generateSlotId(),
       };
-    }
-  }
-  
-  const timeSlot = baseAppt ? `${baseStartTime} - ${baseEndTime}` : null;
-  const duration = baseDuration / 60;
-  
-  setState((prev) => ({
-    ...prev,
-    instructorId,
-    instructor,
-    appointments,
-    selectedDates: dates,
-    productType: "private",
-    timeSlot,
-    duration,
-    // NEW: Populate these fields for per-day times
-    timeSelections,
-    dayTimeOverrides,
-    assignLater: false,
-  }));
-};
+      result = { added: true, removed: false };
+      
+      return {
+        ...prev,
+        teacherId: slot.instructorId,
+        selections: [...prev.selections, newSelection],
+        anchorSlot: {
+          instructorId: slot.instructorId,
+          date: slot.date,
+          startTime: slot.startTime,
+          endTime: slot.endTime,
+          durationMinutes: slot.durationMinutes,
+        },
+      };
+    });
+
+    return result;
+  },
+  [] // No dependencies needed - all state access is via prev
+);
 ```
 
-## What This Fixes
+### Helper Function for Validation
 
-| Scenario | Before | After |
-|----------|--------|-------|
-| Select Mon 10-12, Tue 14-16 | Both days get 10:00-12:00 | Mon 10:00-12:00, Tue 14:00-16:00 |
-| BookingTimeGrid display | Shows only first time | Shows correct per-day times |
-| PeriodDayPlanner display | Shows base time for all | Shows overrides marked |
-| Booking creation | Wrong times saved | Correct times saved |
+Extract validation logic into a pure function that takes state as a parameter:
+
+```typescript
+function validateSlotInternal(
+  state: SelectionState,
+  slot: Omit<SlotSelection, "id">,
+  bookings: SchedulerBooking[],
+  absences: SchedulerAbsence[]
+): { valid: boolean; reason?: string } {
+  const { instructorId, date, startTime, endTime } = slot;
+  
+  // Check if date is in the past
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const slotDate = new Date(date);
+  slotDate.setHours(0, 0, 0, 0);
+  if (slotDate < today) {
+    return { valid: false, reason: "Vergangene Daten können nicht gebucht werden" };
+  }
+
+  const startMinutes = timeToMinutes(startTime);
+  const endMinutes = timeToMinutes(endTime);
+  const duration = endMinutes - startMinutes;
+
+  // Operational hours, duration checks...
+  if (startMinutes < OPERATIONAL_START_MINUTES) {
+    return { valid: false, reason: "Frühester Start: 09:00" };
+  }
+  if (endMinutes > OPERATIONAL_END_MINUTES) {
+    return { valid: false, reason: "Spätestes Ende: 16:00 (Liftschluss)" };
+  }
+  if (duration < 60) {
+    return { valid: false, reason: "Mindestdauer: 60 Minuten" };
+  }
+  if (duration > 240) {
+    return { valid: false, reason: "Maximaldauer: 4 Stunden" };
+  }
+
+  // Check absences
+  const isAbsent = absences.some(
+    (a) => a.instructorId === instructorId && date >= a.startDate && date <= a.endDate
+  );
+  if (isAbsent) {
+    return { valid: false, reason: "Lehrer abwesend" };
+  }
+
+  // Check booking overlaps
+  const hasBookingOverlap = bookings.some((b) => {
+    if (b.instructorId !== instructorId || b.date !== date) return false;
+    const bookingStart = timeToMinutes(b.timeStart);
+    const bookingEnd = timeToMinutes(b.timeEnd);
+    return startMinutes < bookingEnd && endMinutes > bookingStart;
+  });
+  if (hasBookingOverlap) {
+    return { valid: false, reason: "Zeitraum bereits belegt" };
+  }
+
+  // Check selection overlaps using passed state
+  const hasSelectionOverlap = state.selections.some((s) => {
+    if (s.instructorId !== instructorId || s.date !== date) return false;
+    const selStart = timeToMinutes(s.startTime);
+    const selEnd = timeToMinutes(s.endTime);
+    return startMinutes < selEnd && endMinutes > selStart;
+  });
+  if (hasSelectionOverlap) {
+    return { valid: false, reason: "Überschneidung mit anderer Auswahl" };
+  }
+
+  return { valid: true };
+}
+```
+
+---
 
 ## Files to Modify
 
 | File | Change |
 |------|--------|
-| `src/contexts/BookingWizardContext.tsx` | Update `prefillFromScheduler` to populate `timeSelections` and `dayTimeOverrides` |
+| `src/contexts/SchedulerSelectionContext.tsx` | Refactor `toggleSlotSelection` to use functional state update; add `validateSlotInternal` helper |
+
+---
+
+## What This Fixes
+
+| Scenario | Before | After |
+|----------|--------|-------|
+| Ctrl+Click 10:00, then 14:00 | Second click may fail/behave incorrectly | Both slots selected correctly |
+| Rapid multi-selection | Stale state causes missed selections | All selections captured |
+| Toggle off existing selection | May not find selection due to stale state | Correctly removes selection |
+
+---
 
 ## Testing Checklist
 
-- Select 3 slots for same instructor with SAME time across all days
-- Verify booking wizard shows uniform time, no overrides
-- Select 3 slots for same instructor with DIFFERENT times
-- Verify BookingTimeGrid shows correct time blocks per day
-- Verify PeriodDayPlanner shows days with different times as "Angepasst"
-- Complete booking and verify database has correct per-day times
+- [ ] Ctrl+Click first slot at 10:00 - verify selection appears
+- [ ] Immediately Ctrl+Click second slot at 14:00 (same day) - verify both selected
+- [ ] Ctrl+Click third slot on different day - verify all three selected
+- [ ] Ctrl+Click an already-selected slot - verify it deselects
+- [ ] Click "Buchung erstellen" - verify wizard receives all slots with correct times
 
