@@ -1,7 +1,7 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { format, parseISO } from "date-fns";
 import { de } from "date-fns/locale";
-import { Calendar, Check, AlertTriangle, User, Clock } from "lucide-react";
+import { Calendar, Check, AlertTriangle, Plus, Trash2 } from "lucide-react";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -18,7 +18,7 @@ import { Button } from "@/components/ui/button";
 
 import { useInstructors, getStatusConfig } from "@/hooks/useInstructors";
 import type { Tables } from "@/integrations/supabase/types";
-import type { DayTimeOverride } from "@/contexts/BookingWizardContext";
+import type { TimeBlock } from "@/contexts/BookingWizardContext";
 
 // Available time slots
 const TIME_OPTIONS = [
@@ -30,9 +30,12 @@ interface PeriodDayPlannerProps {
   baseInstructor: Tables<"instructors"> | null;
   baseTimeSlot: string | null; // "10:00 - 12:00"
   dayInstructorOverrides: Record<string, string | null>;
-  dayTimeOverrides: Record<string, DayTimeOverride>;
+  dayTimeOverrides: Record<string, TimeBlock[]>;
   onInstructorChange: (date: string, instructorId: string | null) => void;
   onTimeChange: (date: string, startTime: string, endTime: string) => void;
+  onAddTimeBlock: (date: string, startTime: string, endTime: string) => void;
+  onUpdateTimeBlock: (date: string, blockId: string, startTime: string, endTime: string) => void;
+  onRemoveTimeBlock: (date: string, blockId: string) => void;
   onRemoveInstructorOverride: (date: string) => void;
   onRemoveTimeOverride: (date: string) => void;
   sport: "ski" | "snowboard" | null;
@@ -46,6 +49,9 @@ export function PeriodDayPlanner({
   dayTimeOverrides,
   onInstructorChange,
   onTimeChange,
+  onAddTimeBlock,
+  onUpdateTimeBlock,
+  onRemoveTimeBlock,
   onRemoveInstructorOverride,
   onRemoveTimeOverride,
   sport,
@@ -78,9 +84,11 @@ export function PeriodDayPlanner({
     return sortedDates.filter((date) => {
       const hasInstructorOverride = dayInstructorOverrides[date] && 
         dayInstructorOverrides[date] !== baseInstructor?.id;
-      const hasTimeOverride = dayTimeOverrides[date] && (
-        dayTimeOverrides[date].startTime !== baseStartTime ||
-        dayTimeOverrides[date].endTime !== baseEndTime
+      const timeBlocks = dayTimeOverrides[date] || [];
+      const hasTimeOverride = timeBlocks.length > 0 && (
+        timeBlocks.length > 1 ||
+        timeBlocks[0]?.startTime !== baseStartTime ||
+        timeBlocks[0]?.endTime !== baseEndTime
       );
       return hasInstructorOverride || hasTimeOverride;
     }).length;
@@ -103,22 +111,27 @@ export function PeriodDayPlanner({
     return baseInstructor;
   };
 
-  const getDayTime = (date: string) => {
-    const override = dayTimeOverrides[date];
-    if (override) {
-      return { startTime: override.startTime, endTime: override.endTime };
+  // Get all time blocks for a day (with fallback to base time if no overrides)
+  const getDayTimeBlocks = (date: string): TimeBlock[] => {
+    const blocks = dayTimeOverrides[date];
+    if (blocks && blocks.length > 0) {
+      return blocks;
     }
-    return { startTime: baseStartTime, endTime: baseEndTime };
+    // Return base time as single block
+    return [{ id: "base", startTime: baseStartTime, endTime: baseEndTime }];
   };
 
+  // Check if day has any overrides from base
   const isDayOverridden = (date: string) => {
     const dayInstructor = getDayInstructor(date);
-    const dayTime = getDayTime(date);
+    const blocks = dayTimeOverrides[date] || [];
     
     const hasInstructorOverride = dayInstructor?.id !== baseInstructor?.id;
-    const hasTimeOverride = 
-      dayTime.startTime !== baseStartTime || 
-      dayTime.endTime !== baseEndTime;
+    const hasTimeOverride = blocks.length > 0 && (
+      blocks.length > 1 ||
+      blocks[0]?.startTime !== baseStartTime ||
+      blocks[0]?.endTime !== baseEndTime
+    );
     
     return hasInstructorOverride || hasTimeOverride;
   };
@@ -176,157 +189,214 @@ export function PeriodDayPlanner({
             
             {sortedDates.map((date) => {
               const dayInstructor = getDayInstructor(date);
-              const dayTime = getDayTime(date);
+              const timeBlocks = getDayTimeBlocks(date);
               const isOverridden = isDayOverridden(date);
               const statusConfig = dayInstructor ? getStatusConfig(dayInstructor.real_time_status) : null;
 
               return (
                 <div
                   key={date}
-                  className={`flex items-center gap-3 p-3 rounded-lg border transition-colors ${
+                  className={`p-3 rounded-lg border transition-colors space-y-2 ${
                     isOverridden 
                       ? "border-amber-300 bg-amber-50/50" 
                       : "border-muted bg-muted/30"
                   }`}
                 >
-                  {/* Date */}
-                  <div className="w-24 shrink-0">
-                    <p className="text-sm font-medium">
-                      {format(parseISO(date), "EEE, d.", { locale: de })}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {format(parseISO(date), "MMM", { locale: de })}
-                    </p>
-                  </div>
+                  {/* Header row with Date, Instructor, and Status */}
+                  <div className="flex items-center gap-3">
+                    {/* Date */}
+                    <div className="w-24 shrink-0">
+                      <p className="text-sm font-medium">
+                        {format(parseISO(date), "EEE, d.", { locale: de })}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {format(parseISO(date), "MMM", { locale: de })}
+                      </p>
+                    </div>
 
-                  {/* Time Selection */}
-                  <div className="flex items-center gap-1 shrink-0">
-                    <Select
-                      value={dayTime.startTime}
-                      onValueChange={(value) => {
-                        const currentEnd = dayTime.endTime;
-                        const newEndHour = parseInt(value.split(":")[0]) + 2;
-                        const newEnd = newEndHour <= 16 
-                          ? `${newEndHour.toString().padStart(2, "0")}:00`
-                          : currentEnd;
-                        onTimeChange(date, value, newEnd);
-                      }}
-                    >
-                      <SelectTrigger className="w-20 h-8 text-xs">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {TIME_OPTIONS.filter(t => parseInt(t.split(":")[0]) < 16).map((time) => (
-                          <SelectItem key={time} value={time} className="text-xs">
-                            {time}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <span className="text-xs text-muted-foreground">-</span>
-                    <Select
-                      value={dayTime.endTime}
-                      onValueChange={(value) => onTimeChange(date, dayTime.startTime, value)}
-                    >
-                      <SelectTrigger className="w-20 h-8 text-xs">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {getAvailableEndTimes(dayTime.startTime).map((time) => (
-                          <SelectItem key={time} value={time} className="text-xs">
-                            {time}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  {/* Instructor Selection */}
-                  <div className="flex-1 min-w-0">
-                    <Select
-                      value={dayInstructor?.id || "none"}
-                      onValueChange={(value) => {
-                        if (value === "none") {
-                          onInstructorChange(date, null); // Explicit "no instructor"
-                        } else if (value === baseInstructor?.id) {
-                          onRemoveInstructorOverride(date); // Same as base, remove override
-                        } else {
-                          onInstructorChange(date, value); // Different instructor
-                        }
-                      }}
-                    >
-                      <SelectTrigger className="h-8 text-xs">
-                        <SelectValue>
-                          {dayInstructor ? (
-                            <div className="flex items-center gap-2">
-                              <div className="relative">
-                                <Avatar className="h-5 w-5">
-                                  <AvatarFallback className="text-[10px]">
-                                    {getInitials(dayInstructor.first_name, dayInstructor.last_name)}
-                                  </AvatarFallback>
-                                </Avatar>
-                                {statusConfig && (
-                                  <div
-                                    className={`absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full border border-background ${statusConfig.color}`}
-                                  />
-                                )}
-                              </div>
-                              <span className="truncate">
-                                {dayInstructor.first_name} {dayInstructor.last_name}
-                              </span>
-                            </div>
-                          ) : (
-                            <span className="text-muted-foreground">Nicht zugewiesen</span>
-                          )}
-                        </SelectValue>
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none" className="text-xs">
-                          <span className="text-muted-foreground">Nicht zugewiesen</span>
-                        </SelectItem>
-                        {availableInstructors.map((instructor) => {
-                          const instStatusConfig = getStatusConfig(instructor.real_time_status);
-                          return (
-                            <SelectItem 
-                              key={instructor.id} 
-                              value={instructor.id}
-                              className="text-xs"
-                            >
+                    {/* Instructor Selection */}
+                    <div className="flex-1 min-w-0">
+                      <Select
+                        value={dayInstructor?.id || "none"}
+                        onValueChange={(value) => {
+                          if (value === "none") {
+                            onInstructorChange(date, null);
+                          } else if (value === baseInstructor?.id) {
+                            onRemoveInstructorOverride(date);
+                          } else {
+                            onInstructorChange(date, value);
+                          }
+                        }}
+                      >
+                        <SelectTrigger className="h-8 text-xs">
+                          <SelectValue>
+                            {dayInstructor ? (
                               <div className="flex items-center gap-2">
                                 <div className="relative">
                                   <Avatar className="h-5 w-5">
                                     <AvatarFallback className="text-[10px]">
-                                      {getInitials(instructor.first_name, instructor.last_name)}
+                                      {getInitials(dayInstructor.first_name, dayInstructor.last_name)}
                                     </AvatarFallback>
                                   </Avatar>
-                                  <div
-                                    className={`absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full border border-background ${instStatusConfig.color}`}
-                                  />
+                                  {statusConfig && (
+                                    <div
+                                      className={`absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full border border-background ${statusConfig.color}`}
+                                    />
+                                  )}
                                 </div>
-                                <span>
-                                  {instructor.first_name} {instructor.last_name}
+                                <span className="truncate">
+                                  {dayInstructor.first_name} {dayInstructor.last_name}
                                 </span>
                               </div>
-                            </SelectItem>
-                          );
-                        })}
-                      </SelectContent>
-                    </Select>
+                            ) : (
+                              <span className="text-muted-foreground">Nicht zugewiesen</span>
+                            )}
+                          </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none" className="text-xs">
+                            <span className="text-muted-foreground">Nicht zugewiesen</span>
+                          </SelectItem>
+                          {availableInstructors.map((instructor) => {
+                            const instStatusConfig = getStatusConfig(instructor.real_time_status);
+                            return (
+                              <SelectItem 
+                                key={instructor.id} 
+                                value={instructor.id}
+                                className="text-xs"
+                              >
+                                <div className="flex items-center gap-2">
+                                  <div className="relative">
+                                    <Avatar className="h-5 w-5">
+                                      <AvatarFallback className="text-[10px]">
+                                        {getInitials(instructor.first_name, instructor.last_name)}
+                                      </AvatarFallback>
+                                    </Avatar>
+                                    <div
+                                      className={`absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full border border-background ${instStatusConfig.color}`}
+                                    />
+                                  </div>
+                                  <span>
+                                    {instructor.first_name} {instructor.last_name}
+                                  </span>
+                                </div>
+                              </SelectItem>
+                            );
+                          })}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Status Badge */}
+                    <div className="shrink-0">
+                      {isOverridden ? (
+                        <Badge variant="outline" className="bg-amber-100 text-amber-700 border-amber-300 text-xs gap-1">
+                          <AlertTriangle className="h-3 w-3" />
+                          Angepasst
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="bg-green-100 text-green-700 border-green-300 text-xs gap-1">
+                          <Check className="h-3 w-3" />
+                          Standard
+                        </Badge>
+                      )}
+                    </div>
                   </div>
 
-                  {/* Status Badge */}
-                  <div className="shrink-0">
-                    {isOverridden ? (
-                      <Badge variant="outline" className="bg-amber-100 text-amber-700 border-amber-300 text-xs gap-1">
-                        <AlertTriangle className="h-3 w-3" />
-                        Angepasst
-                      </Badge>
-                    ) : (
-                      <Badge variant="outline" className="bg-green-100 text-green-700 border-green-300 text-xs gap-1">
-                        <Check className="h-3 w-3" />
-                        Standard
-                      </Badge>
-                    )}
+                  {/* Time Blocks */}
+                  <div className="pl-24 space-y-2">
+                    {timeBlocks.map((block, blockIndex) => (
+                      <div key={block.id} className="flex items-center gap-2">
+                        <div className="flex items-center gap-1 shrink-0">
+                          <Select
+                            value={block.startTime}
+                            onValueChange={(value) => {
+                              const newEndHour = parseInt(value.split(":")[0]) + 2;
+                              const newEnd = newEndHour <= 16 
+                                ? `${newEndHour.toString().padStart(2, "0")}:00`
+                                : block.endTime;
+                              
+                              if (block.id === "base") {
+                                // First block or base, use onTimeChange
+                                onTimeChange(date, value, newEnd);
+                              } else {
+                                onUpdateTimeBlock(date, block.id, value, newEnd);
+                              }
+                            }}
+                          >
+                            <SelectTrigger className="w-20 h-8 text-xs">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {TIME_OPTIONS.filter(t => parseInt(t.split(":")[0]) < 16).map((time) => (
+                                <SelectItem key={time} value={time} className="text-xs">
+                                  {time}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <span className="text-xs text-muted-foreground">-</span>
+                          <Select
+                            value={block.endTime}
+                            onValueChange={(value) => {
+                              if (block.id === "base") {
+                                onTimeChange(date, block.startTime, value);
+                              } else {
+                                onUpdateTimeBlock(date, block.id, block.startTime, value);
+                              }
+                            }}
+                          >
+                            <SelectTrigger className="w-20 h-8 text-xs">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {getAvailableEndTimes(block.startTime).map((time) => (
+                                <SelectItem key={time} value={time} className="text-xs">
+                                  {time}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        
+                        {/* Remove button (only show if more than one block or if it's an override) */}
+                        {(timeBlocks.length > 1 || block.id !== "base") && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                            onClick={() => {
+                              if (block.id === "base") {
+                                // Removing the base/first block resets to default
+                                onRemoveTimeOverride(date);
+                              } else {
+                                onRemoveTimeBlock(date, block.id);
+                              }
+                            }}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                      </div>
+                    ))}
+                    
+                    {/* Add Time Block Button */}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 text-xs text-muted-foreground hover:text-foreground"
+                      onClick={() => {
+                        // Calculate default new block time (after last block)
+                        const lastBlock = timeBlocks[timeBlocks.length - 1];
+                        const lastEndHour = parseInt(lastBlock.endTime.split(":")[0]);
+                        const newStart = lastEndHour < 14 ? `${(lastEndHour + 1).toString().padStart(2, "0")}:00` : "14:00";
+                        const newEnd = Math.min(parseInt(newStart.split(":")[0]) + 2, 16).toString().padStart(2, "0") + ":00";
+                        onAddTimeBlock(date, newStart, newEnd);
+                      }}
+                    >
+                      <Plus className="h-3.5 w-3.5 mr-1" />
+                      Weiterer Zeitblock
+                    </Button>
                   </div>
                 </div>
               );
