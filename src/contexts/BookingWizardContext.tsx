@@ -59,6 +59,7 @@ export interface TimeBlock {
   id: string;
   startTime: string;
   endTime: string;
+  instructorId?: string | null; // Per-block instructor override
 }
 
 // Legacy single-block format (for backwards compatibility during migration)
@@ -188,8 +189,8 @@ interface BookingWizardContextType {
   // NEW: Per-day override setters for period bookings
   setDayInstructorOverride: (date: string, instructorId: string | null) => void;
   setDayTimeOverride: (date: string, startTime: string, endTime: string) => void;
-  addTimeBlock: (date: string, startTime: string, endTime: string) => void;
-  updateTimeBlock: (date: string, blockId: string, startTime: string, endTime: string) => void;
+  addTimeBlock: (date: string, startTime: string, endTime: string, instructorId?: string | null) => void;
+  updateTimeBlock: (date: string, blockId: string, startTime: string, endTime: string, instructorId?: string | null) => void;
   removeTimeBlock: (date: string, blockId: string) => void;
   removeDayInstructorOverride: (date: string) => void;
   removeDayTimeOverride: (date: string) => void;
@@ -513,36 +514,36 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
   const generateTimeBlockId = () => `tb-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
 
   // Sets ALL time blocks for a day (replaces existing) - primary block
-  const setDayTimeOverride = (date: string, startTime: string, endTime: string) => {
+  const setDayTimeOverride = (date: string, startTime: string, endTime: string, instructorId?: string | null) => {
     setState((prev) => ({
       ...prev,
       dayTimeOverrides: {
         ...prev.dayTimeOverrides,
-        [date]: [{ id: generateTimeBlockId(), startTime, endTime }],
+        [date]: [{ id: generateTimeBlockId(), startTime, endTime, instructorId }],
       },
     }));
   };
 
   // Adds an additional time block to a day
-  const addTimeBlock = (date: string, startTime: string, endTime: string) => {
+  const addTimeBlock = (date: string, startTime: string, endTime: string, instructorId?: string | null) => {
     setState((prev) => {
       const existing = prev.dayTimeOverrides[date] || [];
       return {
         ...prev,
         dayTimeOverrides: {
           ...prev.dayTimeOverrides,
-          [date]: [...existing, { id: generateTimeBlockId(), startTime, endTime }],
+          [date]: [...existing, { id: generateTimeBlockId(), startTime, endTime, instructorId }],
         },
       };
     });
   };
 
-  // Updates a specific time block by ID
-  const updateTimeBlock = (date: string, blockId: string, startTime: string, endTime: string) => {
+  // Updates a specific time block by ID (including instructor)
+  const updateTimeBlock = (date: string, blockId: string, startTime: string, endTime: string, instructorId?: string | null) => {
     setState((prev) => {
       const existing = prev.dayTimeOverrides[date] || [];
       const updated = existing.map((block) =>
-        block.id === blockId ? { ...block, startTime, endTime } : block
+        block.id === blockId ? { ...block, startTime, endTime, instructorId } : block
       );
       return {
         ...prev,
@@ -747,30 +748,37 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
 
       // Process each date
       for (const [date, slotsOnDate] of slotsByDate) {
-        // Check for instructor override (use first slot's instructor for the day)
-        if (slotsOnDate[0].instructorId !== baseInstructorId) {
-          dayInstructorOverrides[date] = slotsOnDate[0].instructorId;
-        }
-        
-        // Build time blocks for this date
+        // Build time blocks for this date with per-block instructor
         const blocks: TimeBlock[] = [];
         for (const slot of slotsOnDate) {
-          // Only add if different from base time OR if multiple blocks on same day
+          // Determine if this block has an instructor override
+          const blockInstructorId = slot.instructorId !== baseInstructorId ? slot.instructorId : undefined;
+          
+          // Only add override blocks if different from base OR multiple blocks
           if (
             slotsOnDate.length > 1 ||
             slot.startTime !== baseStartTime ||
-            slot.endTime !== baseEndTime
+            slot.endTime !== baseEndTime ||
+            blockInstructorId
           ) {
             blocks.push({
               id: `tb-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
               startTime: slot.startTime,
               endTime: slot.endTime,
+              instructorId: blockInstructorId,
             });
           }
         }
         
         if (blocks.length > 0) {
           dayTimeOverrides[date] = blocks;
+        }
+        
+        // Day-level instructor override (for backwards compatibility with single-block days)
+        // Only set if ALL blocks on this day have the same non-base instructor
+        const allSameInstructor = slotsOnDate.every(s => s.instructorId === slotsOnDate[0].instructorId);
+        if (allSameInstructor && slotsOnDate[0].instructorId !== baseInstructorId) {
+          dayInstructorOverrides[date] = slotsOnDate[0].instructorId;
         }
       }
 

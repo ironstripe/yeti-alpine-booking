@@ -371,66 +371,70 @@ export function useCreateBooking() {
             // Check if there's a time selection from BookingTimeGrid for this date
             const timeSelection = state.timeSelections?.find(ts => ts.date === dateStr);
             
-            // Apply per-day overrides if this is a period booking (fallback hierarchy: timeSelection > dayTimeOverride > base)
+            // Get per-day overrides (supports multiple blocks per day)
             const dayInstructorOverride = state.dayInstructorOverrides?.[dateStr];
             const dayTimeBlocks = state.dayTimeOverrides?.[dateStr] || [];
             
-            const dayInstructorId = dayInstructorOverride !== undefined 
-              ? dayInstructorOverride 
-              : state.instructorId;
+            // Build blocks to process (use overrides if present, else base time as single block)
+            const blocksToProcess = dayTimeBlocks.length > 0 
+              ? dayTimeBlocks 
+              : [{ id: "base", startTime: timeSelection?.startTime || baseTimeStart, endTime: timeSelection?.endTime || baseTimeEnd, instructorId: undefined }];
             
-            // Time selection priority: timeSelection (from grid) > first dayTimeBlock > base time
-            const firstTimeBlock = dayTimeBlocks[0];
-            const dayTimeStart = timeSelection?.startTime || firstTimeBlock?.startTime || baseTimeStart;
-            const dayTimeEnd = timeSelection?.endTime || firstTimeBlock?.endTime || baseTimeEnd;
-            
-            // Check if this day differs from base (is an override)
-            const hasInstructorOverride = dayInstructorOverride !== undefined && dayInstructorOverride !== state.instructorId;
-            const hasTimeOverride = (timeSelection || firstTimeBlock) && (
-              dayTimeStart !== baseTimeStart ||
-              dayTimeEnd !== baseTimeEnd
-            );
-            const isOverrideDay = hasInstructorOverride || hasTimeOverride;
-            
-            // Calculate day-specific price if time differs
-            let dayUnitPrice = unitPrice;
-            if (state.productType === "private" && hasTimeOverride) {
-              const firstDate = new Date(dateStr);
-              const dayPriceResult = calculatePrivateLessonPrice(
-                firstDate,
-                dayTimeStart,
-                dayTimeEnd,
-                state.numberOfPersons || 1,
-                rates,
-                highSeasonPeriods
-              );
-              dayUnitPrice = dayPriceResult.totalPrice;
+            // Process each time block for this day
+            for (const block of blocksToProcess) {
+              // Instructor priority: block-level > day-level > base
+              const blockInstructorId = block.instructorId !== undefined 
+                ? block.instructorId 
+                : (dayInstructorOverride !== undefined ? dayInstructorOverride : state.instructorId);
+              
+              const blockTimeStart = block.startTime;
+              const blockTimeEnd = block.endTime;
+              
+              // Check if this block differs from base (is an override)
+              const hasInstructorOverride = blockInstructorId !== state.instructorId;
+              const hasTimeOverride = blockTimeStart !== baseTimeStart || blockTimeEnd !== baseTimeEnd;
+              const isOverrideBlock = hasInstructorOverride || hasTimeOverride || dayTimeBlocks.length > 1;
+              
+              // Calculate block-specific price if time differs
+              let blockUnitPrice = unitPrice;
+              if (state.productType === "private" && hasTimeOverride) {
+                const blockDate = new Date(dateStr);
+                const blockPriceResult = calculatePrivateLessonPrice(
+                  blockDate,
+                  blockTimeStart,
+                  blockTimeEnd,
+                  state.numberOfPersons || 1,
+                  rates,
+                  highSeasonPeriods
+                );
+                blockUnitPrice = blockPriceResult.totalPrice;
+              }
+              
+              // Create course/lesson item for this block
+              ticketItems.push({
+                ticket_id: ticket.id,
+                product_id: productId,
+                date: dateStr,
+                time_start: blockTimeStart,
+                time_end: blockTimeEnd,
+                unit_price: blockUnitPrice,
+                quantity: 1,
+                discount_percent: state.discountPercent || 0,
+                discount_reason: state.discountReason || null,
+                instructor_id: blockInstructorId,
+                participant_id: participant.id.startsWith("guest-") ? null : participant.id,
+                meeting_point: state.meetingPoint,
+                instructor_notes: null,
+                internal_notes: null,
+                status: "booked",
+                instructor_confirmation: blockInstructorId ? "pending" : null,
+                is_vegetarian: hasLunchOnDay ? isVegetarian : false,
+                item_type: state.productType === "group" ? "group" : "private",
+                // Period booking fields
+                period_group_id: isPeriodBooking ? periodGroupId : null,
+                is_period_override: isOverrideBlock,
+              });
             }
-            
-            // Create course/lesson item
-            ticketItems.push({
-              ticket_id: ticket.id,
-              product_id: productId,
-              date: dateStr,
-              time_start: dayTimeStart,
-              time_end: dayTimeEnd,
-              unit_price: dayUnitPrice,
-              quantity: 1,
-              discount_percent: state.discountPercent || 0,
-              discount_reason: state.discountReason || null,
-              instructor_id: dayInstructorId,
-              participant_id: participant.id.startsWith("guest-") ? null : participant.id,
-              meeting_point: state.meetingPoint,
-              instructor_notes: null,
-              internal_notes: null,
-              status: "booked",
-              instructor_confirmation: dayInstructorId ? "pending" : null,
-              is_vegetarian: hasLunchOnDay ? isVegetarian : false,
-              item_type: state.productType === "group" ? "group" : "private",
-              // Period booking fields
-              period_group_id: isPeriodBooking ? periodGroupId : null,
-              is_period_override: isOverrideDay,
-            });
             
             // Create separate lunch item if participant has lunch on this day
             if (hasLunchOnDay && lunchProduct) {
