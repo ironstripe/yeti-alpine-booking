@@ -1,193 +1,208 @@
 
-# Enhanced PeriodDayPlanner Implementation
 
-## Current State Analysis
+# UX Enhancement: Inline Time Block Editing on Confirmation Page
 
-The existing `PeriodDayPlanner` component already supports:
-- Multiple time blocks per day via `dayTimeOverrides: Record<string, TimeBlock[]>`
-- Add/remove time block functionality
-- Instructor selection (but only at DAY level, not per block)
-- Override detection and visual feedback
+## Problem Summary
 
-**Key Gap**: The wireframe requires **instructor assignment per TIME BLOCK**, not per day. This is a fundamental data model change.
+When users multi-select time slots with different times in the mini-scheduler, the confirmation page ("KURS" card) doesn't reflect these differences. It shows the same base time for all dates, making it impossible to verify or adjust selections without navigating back through multiple steps.
+
+## The User Journey Today (Broken)
+
+```
+1. Mini-Scheduler → Select Fri 12-13, Sat 11-12, Sun 13-14
+2. Click "Auswahl übernehmen"
+3. Proceed to Step 3, then Step 4 (Confirmation)
+4. KURS card shows:
+   - Fr., 06.02.2026  12:00 - 13:00
+   - Sa., 07.02.2026  12:00 - 13:00  ← WRONG! Should be 11:00-12:00
+   - So., 08.02.2026  12:00 - 13:00  ← WRONG! Should be 13:00-14:00
+5. To fix: Click "Ändern" → Step 2 → Navigate to Step 3 → Open PeriodDayPlanner
+```
+
+## The Ideal User Journey (Proposed)
+
+```
+1. Mini-Scheduler → Select Fri 12-13, Sat 11-12, Sun 13-14
+2. Click "Auswahl übernehmen"
+3. Proceed to Confirmation
+4. KURS card shows actual times with inline editing:
+   +------------------------------------------+
+   | KURS                            [Ändern] |
+   +------------------------------------------+
+   | Privatstunde · 1 Stunde · Ski            |
+   |                                          |
+   | ⏱ Fr., 06.02.2026  12:00 - 13:00        |
+   |   [+ Zeitblock]                          |
+   |                                          |
+   | ⏱ Sa., 07.02.2026  11:00 - 12:00  ⚠️    |
+   |   [+ Zeitblock]                          |
+   |                                          |
+   | ⏱ So., 08.02.2026  13:00 - 14:00  ⚠️    |
+   |   [+ Zeitblock]                          |
+   +------------------------------------------+
+```
 
 ---
 
 ## Implementation Plan
 
-### Phase 1: Extend Data Model (TimeBlock with Instructor)
+### Phase 1: Fix Display in BookingSummaryCards
 
-**File: `src/contexts/BookingWizardContext.tsx`**
+**File:** `src/components/bookings/wizard/BookingSummaryCards.tsx`
 
-Update the `TimeBlock` interface to include an optional instructor:
+Update the "KURS" card to:
+- Read `state.dayTimeOverrides` for each date
+- Display the actual time per day (not just `state.timeSlot`)
+- Show a warning badge if time differs from base
 
-```typescript
-export interface TimeBlock {
-  id: string;
-  startTime: string;
-  endTime: string;
-  instructorId?: string | null;  // NEW: Per-block instructor
-}
+**Current Code (Lines 129-141):**
+```jsx
+<div className="space-y-1">
+  {state.selectedDates.map((dateStr) => (
+    <div key={dateStr} className="...">
+      <Calendar className="h-4 w-4" />
+      <span>{format(date, "EEE, dd.MM.yyyy")}</span>
+      {state.timeSlot && <span>{state.timeSlot}</span>}  // ← Always shows base time
+    </div>
+  ))}
+</div>
 ```
 
-Update related functions:
-- `addTimeBlock(date, startTime, endTime, instructorId?)` - Accept optional instructor
-- `updateTimeBlock(date, blockId, startTime, endTime, instructorId?)` - Include instructor updates
-- `applyMiniSchedulerSelection()` - Populate block-level instructors
+**New Code:**
+```jsx
+<div className="space-y-2">
+  {state.selectedDates.map((dateStr) => {
+    const dayBlocks = state.dayTimeOverrides[dateStr] || [];
+    const hasOverrides = dayBlocks.length > 0;
+    const blocksToShow = hasOverrides 
+      ? dayBlocks 
+      : [{ id: 'base', startTime: baseStart, endTime: baseEnd }];
+    
+    return (
+      <div key={dateStr}>
+        <div className="flex items-center gap-2 text-sm">
+          <Calendar className="h-4 w-4" />
+          <span className="font-medium">
+            {format(new Date(dateStr), "EEE, dd.MM.yyyy")}
+          </span>
+        </div>
+        {blocksToShow.map((block, i) => (
+          <div key={block.id} className="ml-6 flex items-center gap-2 text-sm text-muted-foreground">
+            <span>{block.startTime} - {block.endTime}</span>
+            {hasOverrides && <Badge variant="outline">Angepasst</Badge>}
+          </div>
+        ))}
+      </div>
+    );
+  })}
+</div>
+```
 
 ---
 
-### Phase 2: Redesign PeriodDayPlanner UI
+### Phase 2: Add Inline "+ Zeitblock" Functionality
 
-**File: `src/components/bookings/wizard/PeriodDayPlanner.tsx`**
+**Option A: Minimal (Recommended)**
+Add a simple "+ Zeitblock" link under each day that expands a compact time picker inline:
 
-Implement the wireframe layout with these sections:
-
-**A. Day Card Structure**
 ```
-+-----------------------------------------------+
-| [Date Header] Mo, 9. Feb                      |
-+-----------------------------------------------+
-| Zeitblock 1:                                  |
-|   [10:00 v] bis [12:00 v]                     |
-|   [Max Mustermann v]                          |
-|   [Trash Icon]                                |
-+-----------------------------------------------+
-| Zeitblock 2:                     [Warning]    |
-|   [14:00 v] bis [16:00 v]  "Zusaetzlicher..." |
-|   [Anna Schmidt v]         "Abweichend"       |
-|   [Trash Icon]                                |
-+-----------------------------------------------+
-| [+ Weiterer Zeitblock hinzufuegen]            |
-+-----------------------------------------------+
+| ⏱ Fr., 06.02.2026  12:00 - 13:00        |
+|   [+ Zeitblock hinzufügen]               |
+|                                          |
+| ⏱ Sa., 07.02.2026  11:00 - 12:00        |
+|   ⏱ 14:00 - 16:00  [🗑️]                 | ← Additional block
+|   [+ Zeitblock hinzufügen]               |
 ```
 
-**B. Warning Indicator Logic**
-- Show "Abweichend" badge when:
-  - Time differs from base time
-  - Instructor differs from base instructor
-- Show "Zusaetzlicher Block" for 2nd+ blocks on same day
+Clicking "+ Zeitblock" shows a mini-form:
+```
+| [10:00 ▼] bis [12:00 ▼] [Hinzufügen] [×] |
+```
 
-**C. Per-Block Instructor Dropdown**
-- Each time block gets its own instructor selector
-- Default to base instructor when adding new blocks
-- Track override status per block
+**Option B: Full Inline PeriodDayPlanner**
+Embed a simplified version of PeriodDayPlanner directly in the KURS card. More powerful but adds complexity to the confirmation page.
 
 ---
 
-### Phase 3: Update Booking Creation Logic
+### Phase 3: Connect to Context Functions
 
-**File: `src/hooks/useCreateBooking.ts`**
+The `BookingWizardContext` already has all required functions:
+- `addTimeBlock(date, startTime, endTime, instructorId?)`
+- `updateTimeBlock(date, blockId, startTime, endTime, instructorId?)`
+- `removeTimeBlock(date, blockId)`
+- `setDayTimeOverride(date, startTime, endTime)`
 
-Currently, the code only processes the FIRST time block per day. Update to handle multiple blocks:
-
-```typescript
-// For each date, iterate ALL time blocks (not just first)
-const dayTimeBlocks = state.dayTimeOverrides?.[dateStr] || [];
-const blocksToProcess = dayTimeBlocks.length > 0 
-  ? dayTimeBlocks 
-  : [{ id: 'base', startTime: baseTimeStart, endTime: baseTimeEnd }];
-
-for (const block of blocksToProcess) {
-  const blockInstructorId = block.instructorId ?? state.instructorId;
-  
-  ticketItems.push({
-    // ... other fields
-    time_start: block.startTime,
-    time_end: block.endTime,
-    instructor_id: blockInstructorId,
-  });
-}
-```
-
-This creates separate `ticket_items` for each time block on days with multiple blocks.
-
----
-
-### Phase 4: Visual Design Updates
-
-**Colors and Styling:**
-- Default state: `bg-muted/30 border-muted`
-- Override state: `bg-amber-50/50 border-amber-300`
-- Warning badges: Orange text with AlertTriangle icon
-
-**Block Labels:**
-- "Zeitblock 1", "Zeitblock 2", etc.
-- Clear visual separation between blocks
-
-**Responsive Behavior:**
-- Stack time/instructor dropdowns vertically on mobile
-- Full-width buttons on small screens
+Wire these to the inline UI components.
 
 ---
 
 ## Files to Modify
 
-| File | Changes |
-|------|---------|
-| `src/contexts/BookingWizardContext.tsx` | Add `instructorId` to `TimeBlock`, update functions |
-| `src/components/bookings/wizard/PeriodDayPlanner.tsx` | Complete UI redesign per wireframe |
-| `src/hooks/useCreateBooking.ts` | Handle multiple blocks per day |
-| `src/components/bookings/wizard/Step3InstructorDetails.tsx` | Pass new props to PeriodDayPlanner |
+| File | Change |
+|------|--------|
+| `src/components/bookings/wizard/BookingSummaryCards.tsx` | Display actual per-day times, add inline "+ Zeitblock" |
+| `src/contexts/BookingWizardContext.tsx` | No changes needed (functions already exist) |
 
 ---
 
-## Data Structure Example
+## Visual Design
 
-After implementation, selecting Mon 10-12, Tue 14-16, Wed 10-12 + 14-16 (with different instructor):
-
-```json
-{
-  "baseInstructorId": "instructor-max-mustermann",
-  "baseStartTime": "10:00",
-  "baseEndTime": "12:00",
-  "dayTimeOverrides": {
-    "2025-02-10": [
-      { 
-        "id": "tb-1", 
-        "startTime": "14:00", 
-        "endTime": "16:00",
-        "instructorId": null 
-      }
-    ],
-    "2025-02-11": [
-      { 
-        "id": "tb-2", 
-        "startTime": "10:00", 
-        "endTime": "12:00",
-        "instructorId": null 
-      },
-      { 
-        "id": "tb-3", 
-        "startTime": "14:00", 
-        "endTime": "16:00",
-        "instructorId": "instructor-anna-schmidt" 
-      }
-    ]
-  }
-}
+**Default State (Single Block Per Day):**
 ```
+┌─────────────────────────────────────────┐
+│ 📅 Fr., 06.02.2026   12:00 - 13:00      │
+│    [+ Zeitblock]                        │
+└─────────────────────────────────────────┘
+```
+
+**Expanded State (Adding Block):**
+```
+┌─────────────────────────────────────────┐
+│ 📅 Fr., 06.02.2026   12:00 - 13:00      │
+│    ┌────────────────────────────────┐   │
+│    │ [14:00 ▼] bis [16:00 ▼]        │   │
+│    │        [Hinzufügen] [Abbrechen]│   │
+│    └────────────────────────────────┘   │
+└─────────────────────────────────────────┘
+```
+
+**Multiple Blocks:**
+```
+┌─────────────────────────────────────────┐
+│ 📅 Fr., 06.02.2026                      │
+│    ⏱ 10:00 - 12:00                      │
+│    ⏱ 14:00 - 16:00  [🗑️]               │
+│    [+ Zeitblock]                        │
+└─────────────────────────────────────────┘
+```
+
+---
+
+## UX Benefits
+
+1. **Transparency**: Users see exactly what they selected
+2. **Direct Manipulation**: Add/remove blocks without leaving the page
+3. **Reduced Friction**: No need to navigate back 2 steps to make small adjustments
+4. **Error Prevention**: Visual confirmation before final booking
 
 ---
 
 ## Testing Checklist
 
-- [ ] Add a second time block to a day - verify it appears with defaults
-- [ ] Change instructor on one block - verify "Abweichend" indicator appears
-- [ ] Change time on one block - verify "Abweichend" indicator appears
-- [ ] Remove a time block - verify it disappears (cannot remove last block)
-- [ ] Multi-select in mini-scheduler with different times - verify correct blocks created
-- [ ] Complete booking with multiple blocks - verify all ticket_items created correctly
-- [ ] Verify mobile responsive layout
+- [ ] Multi-select different times in mini-scheduler → confirm actual times shown in KURS card
+- [ ] Click "+ Zeitblock" → verify inline form appears
+- [ ] Add a second block → verify it appears in list
+- [ ] Remove a block → verify it disappears
+- [ ] Complete booking → verify ticket_items created correctly with all blocks
 
 ---
 
 ## Estimated Effort
 
-| Phase | Effort |
-|-------|--------|
-| Phase 1: Data Model | 0.5 days |
-| Phase 2: UI Redesign | 1.5 days |
-| Phase 3: Booking Logic | 0.5 days |
-| Phase 4: Visual Polish | 0.5 days |
-| **Total** | **3 days** |
+| Task | Time |
+|------|------|
+| Phase 1: Fix display | 0.5 days |
+| Phase 2: Add inline editing | 1 day |
+| Phase 3: Testing | 0.5 days |
+| **Total** | **2 days** |
+
