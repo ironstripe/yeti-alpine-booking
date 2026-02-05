@@ -532,7 +532,7 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
   };
 
   const prefillFromScheduler = async (instructorId: string, appointments: AppointmentSlot[]) => {
-    const dates = [...new Set(appointments.map((a) => a.date))];
+    const dates = [...new Set(appointments.map((a) => a.date))].sort();
     
     // Fetch full instructor record for Step 3
     let instructor: Tables<"instructors"> | null = null;
@@ -550,20 +550,46 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
       console.error("Failed to fetch instructor for scheduler prefill:", e);
     }
     
-    // Derive timeSlot and duration from first appointment
-    let timeSlot: string | null = null;
-    let duration: number | null = null;
-    if (appointments.length > 0) {
-      const firstAppt = appointments[0];
-      const startHour = parseInt(firstAppt.startTime.split(":")[0]);
-      const startMinutes = parseInt(firstAppt.startTime.split(":")[1] || "0");
-      const totalEndMinutes = startHour * 60 + startMinutes + firstAppt.durationMinutes;
+    // Convert all appointments to TimeSelection format for the BookingTimeGrid
+    const timeSelections: TimeSelection[] = appointments.map(appt => {
+      const startHour = parseInt(appt.startTime.split(":")[0]);
+      const startMinutes = parseInt(appt.startTime.split(":")[1] || "0");
+      const totalEndMinutes = startHour * 60 + startMinutes + appt.durationMinutes;
       const endHour = Math.floor(totalEndMinutes / 60);
-      const endMinutes = totalEndMinutes % 60;
-      const endTime = `${endHour.toString().padStart(2, "0")}:${endMinutes.toString().padStart(2, "0")}`;
-      timeSlot = `${firstAppt.startTime} - ${endTime}`;
-      duration = firstAppt.durationMinutes / 60;
+      const endMin = totalEndMinutes % 60;
+      const endTime = `${endHour.toString().padStart(2, "0")}:${endMin.toString().padStart(2, "0")}`;
+      
+      return {
+        date: appt.date,
+        startTime: appt.startTime,
+        endTime,
+      };
+    });
+    
+    // Use first appointment as base for timeSlot and duration
+    const baseAppt = appointments[0];
+    const baseStartTime = baseAppt?.startTime || "10:00";
+    const baseDuration = baseAppt?.durationMinutes || 120;
+    const baseStartHour = parseInt(baseStartTime.split(":")[0]);
+    const baseStartMin = parseInt(baseStartTime.split(":")[1] || "0");
+    const baseEndMinutes = baseStartHour * 60 + baseStartMin + baseDuration;
+    const baseEndHour = Math.floor(baseEndMinutes / 60);
+    const baseEndMin = baseEndMinutes % 60;
+    const baseEndTime = `${baseEndHour.toString().padStart(2, "0")}:${baseEndMin.toString().padStart(2, "0")}`;
+    
+    // Calculate dayTimeOverrides for appointments that differ from base
+    const dayTimeOverrides: Record<string, DayTimeOverride> = {};
+    for (const ts of timeSelections) {
+      if (ts.startTime !== baseStartTime || ts.endTime !== baseEndTime) {
+        dayTimeOverrides[ts.date] = {
+          startTime: ts.startTime,
+          endTime: ts.endTime,
+        };
+      }
     }
+    
+    const timeSlot = baseAppt ? `${baseStartTime} - ${baseEndTime}` : null;
+    const duration = baseDuration / 60;
     
     setState((prev) => ({
       ...prev,
@@ -574,6 +600,9 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
       productType: "private",
       timeSlot,
       duration,
+      // Populate per-day time fields for BookingTimeGrid and PeriodDayPlanner
+      timeSelections,
+      dayTimeOverrides,
       assignLater: false, // Instructor is already assigned from scheduler
     }));
   };
