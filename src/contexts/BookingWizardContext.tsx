@@ -67,6 +67,16 @@ export interface TimeSelection {
   endTime: string;
 }
 
+// NEW: Mini-scheduler slot selection for multi-select in booking wizard
+export interface MiniSchedulerSlot {
+  id: string;
+  instructorId: string;
+  instructorName: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+}
+
 export interface BookingWizardState {
   // Step 1: Customer & Participants
   customerId: string | null;
@@ -105,6 +115,9 @@ export interface BookingWizardState {
   
   // NEW: Unified time selections from BookingTimeGrid
   timeSelections: TimeSelection[];
+  
+  // NEW: Mini-scheduler multi-select slots
+  miniSchedulerSelections: MiniSchedulerSlot[];
   
   // Step 3: Instructor & Details
   instructorId: string | null;
@@ -173,6 +186,10 @@ interface BookingWizardContextType {
   clearDayOverrides: () => void;
   // NEW: Time selections for unified day×time grid
   setTimeSelections: (selections: TimeSelection[]) => void;
+  // NEW: Mini-scheduler multi-select
+  toggleMiniSchedulerSlot: (slot: Omit<MiniSchedulerSlot, "id">) => void;
+  clearMiniSchedulerSelection: () => void;
+  applyMiniSchedulerSelection: () => void;
   // Step 3 setters
   setInstructor: (instructor: Tables<"instructors"> | null) => void;
   setAssignLater: (assignLater: boolean) => void;
@@ -221,6 +238,8 @@ const initialState: BookingWizardState = {
   dayTimeOverrides: {},
   // NEW: Time selections default
   timeSelections: [],
+  // NEW: Mini-scheduler multi-select default
+  miniSchedulerSelections: [],
   // Step 3
   instructorId: null,
   instructor: null,
@@ -528,6 +547,155 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
       }
       
       return { ...prev, timeSelections: selections, timeSlot, duration };
+    });
+  };
+
+  // Generate unique ID for mini-scheduler slots
+  const generateMiniSlotId = () => `mini-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+
+  // Toggle slot selection in mini-scheduler (for Ctrl+Click)
+  const toggleMiniSchedulerSlot = (slot: Omit<MiniSchedulerSlot, "id">) => {
+    setState((prev) => {
+      // Check if slot already exists
+      const existingIndex = prev.miniSchedulerSelections.findIndex(
+        (s) =>
+          s.instructorId === slot.instructorId &&
+          s.date === slot.date &&
+          s.startTime === slot.startTime &&
+          s.endTime === slot.endTime
+      );
+
+      if (existingIndex >= 0) {
+        // Remove the slot (toggle off)
+        const newSelections = [...prev.miniSchedulerSelections];
+        newSelections.splice(existingIndex, 1);
+        return { ...prev, miniSchedulerSelections: newSelections };
+      }
+
+      // Check if selecting for a different instructor
+      if (prev.miniSchedulerSelections.length > 0) {
+        const firstInstructorId = prev.miniSchedulerSelections[0].instructorId;
+        if (firstInstructorId !== slot.instructorId) {
+          // Different instructor - start new selection
+          return {
+            ...prev,
+            miniSchedulerSelections: [{
+              ...slot,
+              id: generateMiniSlotId(),
+            }],
+          };
+        }
+      }
+
+      // Add the slot
+      return {
+        ...prev,
+        miniSchedulerSelections: [
+          ...prev.miniSchedulerSelections,
+          { ...slot, id: generateMiniSlotId() },
+        ],
+      };
+    });
+  };
+
+  // Clear all mini-scheduler selections
+  const clearMiniSchedulerSelection = () => {
+    setState((prev) => ({ ...prev, miniSchedulerSelections: [] }));
+  };
+
+  // Apply mini-scheduler selection to populate dates, time, instructor, and overrides
+  const applyMiniSchedulerSelection = () => {
+    setState((prev) => {
+      if (prev.miniSchedulerSelections.length === 0) return prev;
+
+      // Sort slots by date
+      const sortedSlots = [...prev.miniSchedulerSelections].sort((a, b) =>
+        a.date.localeCompare(b.date)
+      );
+
+      // Extract unique dates
+      const dates = [...new Set(sortedSlots.map((s) => s.date))].sort();
+
+      // Find base instructor and time (most frequent)
+      const instructorCounts = new Map<string, { count: number; name: string }>();
+      const timeCounts = new Map<string, number>();
+
+      for (const slot of sortedSlots) {
+        // Count instructors
+        const ic = instructorCounts.get(slot.instructorId);
+        if (ic) {
+          ic.count++;
+        } else {
+          instructorCounts.set(slot.instructorId, { count: 1, name: slot.instructorName });
+        }
+        
+        // Count times
+        const timeKey = `${slot.startTime}-${slot.endTime}`;
+        timeCounts.set(timeKey, (timeCounts.get(timeKey) || 0) + 1);
+      }
+
+      // Find most frequent instructor
+      let baseInstructorId = sortedSlots[0].instructorId;
+      let maxInstructorCount = 0;
+      for (const [id, { count }] of instructorCounts) {
+        if (count > maxInstructorCount) {
+          maxInstructorCount = count;
+          baseInstructorId = id;
+        }
+      }
+
+      // Find most frequent time
+      let baseTimeKey = `${sortedSlots[0].startTime}-${sortedSlots[0].endTime}`;
+      let maxTimeCount = 0;
+      for (const [key, count] of timeCounts) {
+        if (count > maxTimeCount) {
+          maxTimeCount = count;
+          baseTimeKey = key;
+        }
+      }
+      const [baseStartTime, baseEndTime] = baseTimeKey.split("-");
+
+      // Calculate duration
+      const startHour = parseInt(baseStartTime.split(":")[0]);
+      const endHour = parseInt(baseEndTime.split(":")[0]);
+      const duration = endHour - startHour;
+
+      // Build time selections and overrides
+      const timeSelections: TimeSelection[] = sortedSlots.map((s) => ({
+        date: s.date,
+        startTime: s.startTime,
+        endTime: s.endTime,
+      }));
+
+      const dayTimeOverrides: Record<string, DayTimeOverride> = {};
+      const dayInstructorOverrides: Record<string, string | null> = {};
+
+      for (const slot of sortedSlots) {
+        // Check for time override
+        if (slot.startTime !== baseStartTime || slot.endTime !== baseEndTime) {
+          dayTimeOverrides[slot.date] = {
+            startTime: slot.startTime,
+            endTime: slot.endTime,
+          };
+        }
+        // Check for instructor override
+        if (slot.instructorId !== baseInstructorId) {
+          dayInstructorOverrides[slot.date] = slot.instructorId;
+        }
+      }
+
+      return {
+        ...prev,
+        selectedDates: dates,
+        instructorId: baseInstructorId,
+        // Note: instructor object will be fetched by the component
+        timeSlot: `${baseStartTime} - ${baseEndTime}`,
+        duration,
+        timeSelections,
+        dayTimeOverrides,
+        dayInstructorOverrides,
+        miniSchedulerSelections: [], // Clear after applying
+      };
     });
   };
 
@@ -879,6 +1047,10 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
         clearDayOverrides,
         // NEW: Time selections for unified day×time grid
         setTimeSelections,
+        // NEW: Mini-scheduler multi-select
+        toggleMiniSchedulerSlot,
+        clearMiniSchedulerSelection,
+        applyMiniSchedulerSelection,
         // Step 3 setters
         setInstructor,
         setAssignLater,
