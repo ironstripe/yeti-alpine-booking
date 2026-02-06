@@ -501,7 +501,7 @@ export function MiniSchedulerGrid({
             </div>
 
             {/* Instructor rows */}
-            {sortedInstructors.slice(0, 14).map((instructor, idx) => {
+            {sortedInstructors.map((instructor, idx) => {
               const isRecommended = idx === 0;
               const isContinuity = hasContinuityMatch(instructor.id);
               const locationConflict = getLocationConflict(instructor.id);
@@ -738,11 +738,6 @@ export function MiniSchedulerGrid({
           <ScrollBar orientation="horizontal" />
         </ScrollArea>
 
-        {sortedInstructors.length > 14 && (
-          <p className="text-[9px] text-muted-foreground text-center">
-            +{sortedInstructors.length - 14} weitere Skilehrer
-          </p>
-        )}
         
         {/* Admin override hint */}
         <p className="text-[9px] text-muted-foreground text-center italic">
