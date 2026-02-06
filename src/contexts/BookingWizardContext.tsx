@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, ReactNode } from "react";
+import { createContext, useContext, useState, useCallback, ReactNode } from "react";
 import type { Tables } from "@/integrations/supabase/types";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -392,13 +392,13 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
     });
   };
 
-  const setTimeSlot = (slot: string | null) => {
+  const setTimeSlot = useCallback((slot: string | null) => {
     setState((prev) => ({ ...prev, timeSlot: slot }));
-  };
+  }, []);
 
-  const setDuration = (duration: number | null) => {
+  const setDuration = useCallback((duration: number | null) => {
     setState((prev) => ({ ...prev, duration }));
-  };
+  }, []);
 
   const setIncludeLunch = (include: boolean) => {
     setState((prev) => ({ ...prev, includeLunch: include }));
