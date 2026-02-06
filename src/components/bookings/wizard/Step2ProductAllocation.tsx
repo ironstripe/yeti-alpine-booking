@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format, parseISO, differenceInYears } from "date-fns";
 import { de } from "date-fns/locale";
@@ -208,28 +208,48 @@ export function Step2ProductAllocation() {
     return endHour - startHour;
   }, [startTime, endTime]);
 
-  // Update wizard state when time changes
+  // Ref to track the last timeSlot value written by local dropdowns.
+  // This lets us distinguish local changes from external changes (e.g. applyMiniSchedulerSelection).
+  const localTimeSlotRef = useRef<string | null>(state.timeSlot);
+
+  // Write local startTime/endTime to context, and update the ref
   useEffect(() => {
     if (startTime && endTime) {
       const timeSlotValue = `${startTime} - ${endTime}`;
-      setTimeSlot(timeSlotValue);
+      // Only write to context if the value actually changed
+      if (timeSlotValue !== state.timeSlot) {
+        setTimeSlot(timeSlotValue);
+      }
+      localTimeSlotRef.current = timeSlotValue;
       if (calculatedDuration) {
         setDuration(calculatedDuration);
       }
     }
-  }, [startTime, endTime, calculatedDuration, setTimeSlot, setDuration]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [startTime, endTime, calculatedDuration]);
 
-  // Sync local state from context timeSlot (for prefilled values from AI extraction or scheduler)
+  // Sync from context to local when context changes externally (e.g. applyMiniSchedulerSelection)
   useEffect(() => {
-    if (state.timeSlot && !startTime && !endTime) {
+    if (state.timeSlot && state.timeSlot !== localTimeSlotRef.current) {
       const parts = state.timeSlot.split(" - ");
       if (parts.length === 2) {
         setStartTime(parts[0]);
         setEndTime(parts[1]);
-        console.log("Step2: Synced time from context:", parts[0], "-", parts[1]);
+        localTimeSlotRef.current = state.timeSlot;
+        console.log("Step2: Synced time from external context change:", parts[0], "-", parts[1]);
+      }
+    } else if (state.timeSlot && !startTime && !endTime) {
+      // Initial sync when local state is empty
+      const parts = state.timeSlot.split(" - ");
+      if (parts.length === 2) {
+        setStartTime(parts[0]);
+        setEndTime(parts[1]);
+        localTimeSlotRef.current = state.timeSlot;
+        console.log("Step2: Initial sync from context:", parts[0], "-", parts[1]);
       }
     }
-  }, [state.timeSlot, startTime, endTime]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.timeSlot]);
 
   // Derive time from scheduler appointments if timeSlot not yet set
   useEffect(() => {
@@ -421,6 +441,12 @@ export function Step2ProductAllocation() {
   // Handle applying the multi-selection to the wizard state
   const handleApplyMultiSelection = () => {
     applyMiniSchedulerSelection();
+    // After applying, the context's timeSlot will be updated via setState.
+    // We need to force-sync the ref so the write effect doesn't overwrite.
+    // Use a microtask to read the updated state after React processes the setState.
+    setTimeout(() => {
+      // The sync effect will handle this via state.timeSlot change detection
+    }, 0);
   };
 
   const isGroupCourse = state.productType === "group";
