@@ -48,7 +48,9 @@ export function GroupCapacityCard({
                 )}
               </div>
               <p className="text-sm text-muted-foreground">
-                {group.instructorName || 'Kein Lehrer zugewiesen'}
+                {group.allInstructorNames.length > 0
+                  ? group.allInstructorNames.join(', ')
+                  : 'Kein Lehrer zugewiesen'}
                 {group.assistantName && (
                   <span className="text-primary"> + {group.assistantName}</span>
                 )}
