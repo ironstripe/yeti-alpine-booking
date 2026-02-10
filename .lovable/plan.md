@@ -1,66 +1,56 @@
 
-# Fix: Show Adult Color-Based Levels for Participants Over 16
+
+# Normalize Phone Numbers Everywhere
 
 ## Problem
 
-The level selection dropdowns in the booking wizard (ParticipantSelection, ParticipantListCard, ParticipantEditDialog) always show the **children's training-based levels** (Blauer Prinz, Roter Konig, etc.) regardless of participant age. Adults (>16) should see a simple 4-tier color system: Green (Anfanger), Blue (Blaue Piste), Red (Rote Piste), Black (Experte).
-
-The root cause: `LEVEL_OPTIONS` in `src/lib/level-utils.ts` is a single static array with only child levels. No age-based branching exists in the forms.
+Phone numbers appear in many different formats across the app (see screenshot): `+4237929530`, `0786530102`, `076 426 47 15`, `+41797354063`, etc. The `normalizePhoneNumber` and `formatPhoneDisplay` utilities exist but are only used in a few places.
 
 ## Solution
 
-Add adult-specific level options to `level-utils.ts` and make the level dropdowns in the booking wizard age-aware -- showing child levels for participants <=16 and adult color levels for participants >16, based on the birth date entered in the form.
+Two changes:
 
-## Changes
+### 1. Fix all display locations to use `formatPhoneDisplay()`
 
-### File 1: `src/lib/level-utils.ts`
-- Add a new `ADULT_LEVEL_OPTIONS` constant with 4 color-based levels:
-  - `green` = Anfanger (Beginner)
-  - `blue` = Blaue Piste (Blue slopes)
-  - `red` = Rote Piste (Red slopes)
-  - `black` = Experte (Expert / Black slopes)
-- Add a helper function `getLevelOptionsForAge(birthDate: string | null)` that returns `ADULT_LEVEL_OPTIONS` if age > 16, otherwise returns the existing `LEVEL_OPTIONS`
-- Update `getLevelLabel` and `getLevelBadgeColor` to handle the new adult level values (`green`, `blue`, `red`, `black`)
-- Update `getNextLevel` to support adult level progression (green -> blue -> red -> black)
+Replace raw phone output with `formatPhoneDisplay(phone)` in every component that shows a phone number. Also remove the local no-op `formatPhoneNumber()` functions.
 
-### File 2: `src/components/bookings/wizard/ParticipantSelection.tsx`
-- Import `getLevelOptionsForAge` from level-utils
-- Watch the `birth_date` form field value
-- Replace the static `LEVEL_OPTIONS` in both level dropdowns with `getLevelOptionsForAge(birthDate)` so the options change dynamically when a birth date is entered
-- Reset the level fields when birth date changes and the participant crosses the child/adult threshold
+**Files to update:**
 
-### File 3: `src/components/bookings/wizard/ParticipantEditDialog.tsx`
-- Same pattern: use `getLevelOptionsForAge(participant.birth_date)` to show age-appropriate level options
+| File | What to change |
+|------|---------------|
+| `CustomerTable.tsx` | Remove local `formatPhoneNumber`, use `formatPhoneDisplay` from phone-utils |
+| `CustomerCards.tsx` | Remove local `formatPhoneNumber`, use `formatPhoneDisplay` from phone-utils |
+| `CustomerInfoCard.tsx` | Use `formatPhoneDisplay(customer.phone)` in the display section |
+| `BookingDetailDialog.tsx` | Use `formatPhoneDisplay(booking.customer.phone)` |
+| `InstructorCard.tsx` | Use `formatPhoneDisplay(instructor.phone)` |
+| `ProfileInfoCard.tsx` (instructors) | Use `formatPhoneDisplay(instructor.phone)` |
+| `CommandBar.tsx` | Use `formatPhoneDisplay()` for phone display |
+| `ConfirmationOptions.tsx` | Use `formatPhoneDisplay(state.customer.phone)` |
 
-### File 4: `src/components/bookings/wizard/ParticipantListCard.tsx`
-- Same pattern: use participant birth date to determine which level options to show in the inline form
+### 2. Clean up existing database data (one-time SQL migration)
 
-## Technical Details
+Run a migration that normalizes all existing phone numbers in the `customers` and `instructors` tables. This strips spaces, converts `079...` to `+4179...`, and converts `0041...` to `+41...`.
 
-New constants in `level-utils.ts`:
-
-```typescript
-export const ADULT_LEVEL_OPTIONS = [
-  { value: "green", label: "Anfanger (Grune Piste)" },
-  { value: "blue", label: "Blaue Piste" },
-  { value: "red", label: "Rote Piste" },
-  { value: "black", label: "Experte (Schwarze Piste)" },
-] as const;
-
-export function getLevelOptionsForAge(birthDate: string | null) {
-  if (!birthDate) return LEVEL_OPTIONS; // Default to child
-  const age = differenceInYears(new Date(), new Date(birthDate));
-  return age > 16 ? ADULT_LEVEL_OPTIONS : LEVEL_OPTIONS;
-}
+```text
+Database tables to clean:
+- customers.phone
+- instructors.phone
+- customer_contacts.phone
 ```
 
-The threshold is age > 16 (matching the existing `isChild` function logic where < 16 = child).
+The migration will use a PL/pgSQL function to apply the same normalization logic as the TypeScript utility:
+- Remove all non-digit characters except `+`
+- `00xx...` becomes `+xx...`
+- `0xx...` (local) becomes `+41xx...`
+- No prefix becomes `+41` prefix
 
-## Files to Modify
+### 3. Add normalization on save in remaining forms
 
-| File | Change |
-|------|--------|
-| `src/lib/level-utils.ts` | Add `ADULT_LEVEL_OPTIONS`, `getLevelOptionsForAge()`, update label/badge/progression functions |
-| `src/components/bookings/wizard/ParticipantSelection.tsx` | Use age-aware level options based on birth date |
-| `src/components/bookings/wizard/ParticipantEditDialog.tsx` | Use age-aware level options based on participant birth date |
-| `src/components/bookings/wizard/ParticipantListCard.tsx` | Use age-aware level options based on birth date |
+Ensure `normalizePhoneNumber()` is called before saving in any form that currently misses it (instructor forms already do this, but double-check all paths).
+
+## Result
+
+- All stored phone numbers will be in compact international format: `+41797354063`
+- All displayed phone numbers will be formatted with spaces: `+41 79 735 40 63`
+- New entries will be normalized on input blur (already works in most forms)
+
