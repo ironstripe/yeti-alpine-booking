@@ -8,6 +8,7 @@ import {
   mapLegacyLevelToSkillLevelId,
   getSkillLevelLabel
 } from "./skill-levels";
+import { differenceInYears } from "date-fns";
 import type { Discipline } from "@/types/skill-levels";
 
 // =============================================
@@ -41,14 +42,52 @@ export const LEVEL_OPTIONS = [
 ] as const;
 
 // =============================================
+// ADULT LEVEL CONSTANTS (color-based, age > 16)
+// =============================================
+
+export const ADULT_LEVEL_HIERARCHY = [
+  "green",
+  "blue",
+  "red",
+  "black",
+] as const;
+
+export type AdultLevelValue = (typeof ADULT_LEVEL_HIERARCHY)[number];
+
+export const ADULT_LEVEL_OPTIONS = [
+  { value: "green", label: "Anfänger (Grüne Piste)" },
+  { value: "blue", label: "Blaue Piste" },
+  { value: "red", label: "Rote Piste" },
+  { value: "black", label: "Experte (Schwarze Piste)" },
+] as const;
+
+/**
+ * Get appropriate level options based on participant age
+ * Adults (>16) get color-based levels, children get training-based levels
+ */
+export function getLevelOptionsForAge(birthDate: string | Date | null): readonly { value: string; label: string }[] {
+  if (!birthDate) return LEVEL_OPTIONS;
+  const age = differenceInYears(new Date(), new Date(birthDate));
+  return age > 16 ? ADULT_LEVEL_OPTIONS : LEVEL_OPTIONS;
+}
+
+// =============================================
 // LEVEL UTILITY FUNCTIONS
 // =============================================
 
 /**
- * Get next level in progression
+ * Get next level in progression (supports both child and adult hierarchies)
  */
 export function getNextLevel(currentLevel: string | null): string | null {
   if (!currentLevel) return null;
+  
+  // Check adult hierarchy first
+  const adultIndex = ADULT_LEVEL_HIERARCHY.indexOf(currentLevel as AdultLevelValue);
+  if (adultIndex !== -1) {
+    return adultIndex < ADULT_LEVEL_HIERARCHY.length - 1 ? ADULT_LEVEL_HIERARCHY[adultIndex + 1] : null;
+  }
+  
+  // Fall back to child hierarchy
   const currentIndex = LEVEL_HIERARCHY.indexOf(currentLevel as LevelValue);
   if (currentIndex === -1 || currentIndex === LEVEL_HIERARCHY.length - 1) {
     return null;
@@ -68,6 +107,10 @@ export function getLevelLabel(levelValue: string | null): string {
     return getSkillLevelLabel(levelValue);
   }
   
+  // Check adult level options
+  const adultFound = ADULT_LEVEL_OPTIONS.find((l) => l.value === levelValue);
+  if (adultFound) return adultFound.label;
+  
   // Legacy level lookup
   const found = LEVEL_OPTIONS.find((l) => l.value === levelValue);
   return found?.label ?? levelValue;
@@ -78,6 +121,12 @@ export function getLevelLabel(levelValue: string | null): string {
  */
 export function getLevelBadgeColor(levelValue: string | null): string {
   if (!levelValue) return "bg-muted text-muted-foreground";
+  
+  // Direct adult color level matches
+  if (levelValue === "green") return "bg-green-100 text-green-800";
+  if (levelValue === "blue") return "bg-blue-100 text-blue-800";
+  if (levelValue === "red") return "bg-red-100 text-red-800";
+  if (levelValue === "black") return "bg-gray-800 text-gray-100";
   
   // Handle new skill_level IDs
   if (levelValue.includes('_green') || levelValue === 'ski_adult_green' || levelValue === 'sb_adult_green') {
