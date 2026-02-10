@@ -1,23 +1,90 @@
 
-# Show All Instructors in Mini-Scheduler Grid
 
-## Problem
-The `MiniSchedulerGrid` currently limits the displayed instructors to 14 via `.slice(0, 14)` on line 504. Any additional instructors are hidden behind a "+N weitere Skilehrer" text note. This prevents users from selecting instructors beyond the top 14.
+# Fix: Show Correct Per-Day Instructor Assignments in Capacity View
+
+## Root Cause
+
+The capacity view (`useGroupCapacityData.ts`, line 162-165) picks the **first instance** with an assigned instructor to display as the course's instructor for the whole week:
+
+```typescript
+const firstInstanceWithInstructor = course.group_course_instances?.find(
+  (inst: any) => inst.instructor_id
+);
+const instructorId = firstInstanceWithInstructor?.instructor_id || null;
+```
+
+Since each day of the week can have a **different instructor** (assigned in Wochenplanung), this produces misleading results. The scheduler correctly shows Ivan for a specific day, but clicking through to the capacity view shows Gordon because Gordon happens to be on the first instance found.
 
 ## Solution
-Remove the `.slice(0, 14)` limit so all filtered/sorted instructors are rendered. The existing `ScrollArea` (with `h-[420px]`) already handles vertical scrolling, so all instructors will be accessible by scrolling. Also remove the "+N weitere" overflow message since it will no longer be needed.
+
+Replace the single `instructorName` display with a list of **all unique instructors** assigned across the week's instances. This gives an accurate overview without requiring a full per-day breakdown.
+
+---
 
 ## Changes
 
-**File:** `src/components/bookings/wizard/MiniSchedulerGrid.tsx`
+### File 1: `src/hooks/useGroupCapacityData.ts`
 
-1. **Line 504** -- Remove `.slice(0, 14)` from the instructor map:
-   - Before: `{sortedInstructors.slice(0, 14).map((instructor, idx) => {`
-   - After: `{sortedInstructors.map((instructor, idx) => {`
+**In the no-training-groups branch (line 155-215):**
 
-2. **Lines 741-745** -- Remove the "+N weitere Skilehrer" overflow message entirely, since all instructors are now visible.
+- Instead of finding the first instance with an instructor, collect **all unique instructor IDs** from the week's instances
+- Set `instructorId` to the most frequently assigned instructor (primary)
+- Add a new field `allInstructorNames` (array of strings) with all unique instructor names for the week
+
+**In the `GroupCapacityInfo` interface (line 15-37):**
+- Add `allInstructorNames: string[]` field
+
+**In the training-groups branch (~line 280-310):**
+- Also populate `allInstructorNames` from the instances for that course
+
+### File 2: `src/components/group-capacity/GroupCapacityCard.tsx`
+
+**Line 50-55 -- Update instructor display:**
+
+- Instead of showing a single `group.instructorName`, show all unique instructors:
+  - If 1 instructor: show name as before
+  - If 2+ instructors: show comma-separated names (e.g., "Ivan Wachter, Graeme Gordon")
+  - If none: show "Kein Lehrer zugewiesen"
+
+---
 
 ## Technical Details
-- The `ScrollArea` component already has a fixed height of 420px, which provides smooth vertical scrolling when the instructor list exceeds the visible area.
-- The 4-tier ranking algorithm still sorts the most relevant instructors to the top, so users see the best matches first.
-- No changes needed to filtering, sorting, or selection logic -- only the rendering limit is removed.
+
+The key change in the data hook:
+
+```typescript
+// Collect all unique instructor IDs from this week's instances
+const weekInstructorIds = new Set<string>();
+course.group_course_instances?.forEach((inst: any) => {
+  if (inst.instructor_id) weekInstructorIds.add(inst.instructor_id);
+});
+
+// Pick most frequent as primary
+const instructorFrequency: Record<string, number> = {};
+course.group_course_instances?.forEach((inst: any) => {
+  if (inst.instructor_id) {
+    instructorFrequency[inst.instructor_id] = (instructorFrequency[inst.instructor_id] || 0) + 1;
+  }
+});
+const primaryInstructorId = Object.entries(instructorFrequency)
+  .sort(([,a], [,b]) => b - a)[0]?.[0] || null;
+
+// Build all instructor names
+const allInstructorNames = Array.from(weekInstructorIds)
+  .map(id => instructorMap.get(id))
+  .filter(Boolean) as string[];
+```
+
+## Files to Modify
+
+| File | Changes |
+|------|---------|
+| `src/hooks/useGroupCapacityData.ts` | Add `allInstructorNames` to interface; collect all unique instructors from instances |
+| `src/components/group-capacity/GroupCapacityCard.tsx` | Display all instructor names instead of single name |
+
+## Testing
+
+- Assign different instructors to different days of the same course in Wochenplanung
+- Open the Capacity tab -- verify both instructor names appear
+- Click a group course block in the Scheduler -- verify the capacity card shows the correct instructor(s)
+- Verify single-instructor courses still display correctly
