@@ -20,6 +20,7 @@ import { ConfidenceIndicator } from "./ConfidenceIndicator";
 import { DateConflictWarning, type DateConflict } from "./DateConflictWarning";
 import { format, parseISO } from "date-fns";
 import { de } from "date-fns/locale";
+import { formatPhoneDisplay } from "@/lib/phone-utils";
 
 interface ParticipantBooking {
   product_type?: string;
@@ -229,7 +230,7 @@ export function ExtractionPanel({ data, onEdit, showHeader = true }: ExtractionP
               {data.customer?.phone && (
                 <p className="flex items-center gap-2 text-muted-foreground">
                   <Phone className="h-3 w-3" />
-                  {data.customer.phone}
+                  {formatPhoneDisplay(data.customer.phone)}
                 </p>
               )}
               {/* Address display - handle both string and object formats */}
@@ -237,7 +238,7 @@ export function ExtractionPanel({ data, onEdit, showHeader = true }: ExtractionP
                 <p className="flex items-center gap-2 text-muted-foreground">
                   <MapPin className="h-3 w-3" />
                   {typeof data.customer.address === 'string' 
-                    ? data.customer.address 
+                    ? data.customer.address
                     : [
                         data.customer.address.street,
                         [data.customer.address.zip, data.customer.address.city].filter(Boolean).join(' '),
@@ -499,7 +500,7 @@ export function ExtractionPanel({ data, onEdit, showHeader = true }: ExtractionP
               {data.customer?.phone && (
                 <p className="flex items-center gap-2 text-muted-foreground">
                   <Phone className="h-3 w-3" />
-                  {data.customer.phone}
+                  {formatPhoneDisplay(data.customer.phone)}
                 </p>
               )}
               {/* Address display - handle both string and object formats */}
@@ -507,7 +508,7 @@ export function ExtractionPanel({ data, onEdit, showHeader = true }: ExtractionP
                 <p className="flex items-center gap-2 text-muted-foreground">
                   <MapPin className="h-3 w-3" />
                   {typeof data.customer.address === 'string' 
-                    ? data.customer.address 
+                    ? data.customer.address
                     : [
                         data.customer.address.street,
                         [data.customer.address.zip, data.customer.address.city].filter(Boolean).join(' '),

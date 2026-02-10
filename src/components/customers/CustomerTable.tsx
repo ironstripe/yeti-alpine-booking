@@ -11,15 +11,10 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import type { CustomerWithCount } from "@/hooks/useCustomers";
+import { formatPhoneDisplay } from "@/lib/phone-utils";
 
 interface CustomerTableProps {
   customers: CustomerWithCount[];
-}
-
-function formatPhoneNumber(phone: string | null): string {
-  if (!phone) return "—";
-  // Simple formatting: keep as-is if already formatted, otherwise just return
-  return phone;
 }
 
 export function CustomerTable({ customers }: CustomerTableProps) {
@@ -63,7 +58,7 @@ export function CustomerTable({ customers }: CustomerTableProps) {
                     className="text-foreground hover:underline"
                     onClick={(e) => e.stopPropagation()}
                   >
-                    {formatPhoneNumber(customer.phone)}
+                    {formatPhoneDisplay(customer.phone)}
                   </a>
                 ) : (
                   <span className="text-muted-foreground">—</span>

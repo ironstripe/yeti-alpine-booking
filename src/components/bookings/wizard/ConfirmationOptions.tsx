@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 
 import { useBookingWizard } from "@/contexts/BookingWizardContext";
+import { formatPhoneDisplay } from "@/lib/phone-utils";
 
 interface ConfirmationOptionsProps {
   sendCustomerEmail: boolean;
@@ -63,7 +64,7 @@ export function ConfirmationOptions({
               <label htmlFor="send-whatsapp" className="cursor-pointer text-sm">
                 <span className="flex items-center gap-1">
                   <MessageCircle className="h-3 w-3" />
-                  Auch per WhatsApp ({state.customer.phone})
+                  Auch per WhatsApp ({formatPhoneDisplay(state.customer.phone)})
                 </span>
               </label>
             </div>

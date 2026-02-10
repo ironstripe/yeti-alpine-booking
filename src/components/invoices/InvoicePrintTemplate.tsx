@@ -3,6 +3,7 @@ import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import { QRPaymentSlip } from "./QRPaymentSlip";
 import { formatCurrency } from "@/lib/swiss-qr-utils";
+import { formatPhoneDisplay } from "@/lib/phone-utils";
 
 interface InvoiceLineItem {
   description: string;
@@ -64,7 +65,7 @@ export const InvoicePrintTemplate = forwardRef<HTMLDivElement, InvoicePrintTempl
             <div className="text-sm text-gray-600">
               {school.street && <p>{school.street}</p>}
               {school.zip && school.city && <p>{school.zip} {school.city}</p>}
-              {school.phone && <p>Tel: {school.phone}</p>}
+              {school.phone && <p>Tel: {formatPhoneDisplay(school.phone)}</p>}
               {school.email && <p>{school.email}</p>}
             </div>
           </div>

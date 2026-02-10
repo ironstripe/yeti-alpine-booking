@@ -2,14 +2,10 @@ import { useNavigate } from "react-router-dom";
 import { ChevronRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import type { CustomerWithCount } from "@/hooks/useCustomers";
+import { formatPhoneDisplay } from "@/lib/phone-utils";
 
 interface CustomerCardsProps {
   customers: CustomerWithCount[];
-}
-
-function formatPhoneNumber(phone: string | null): string {
-  if (!phone) return "";
-  return phone;
 }
 
 export function CustomerCards({ customers }: CustomerCardsProps) {
@@ -38,7 +34,7 @@ export function CustomerCards({ customers }: CustomerCardsProps) {
               </p>
               {customer.phone && (
                 <p className="text-sm text-muted-foreground mt-0.5">
-                  {formatPhoneNumber(customer.phone)}
+                  {formatPhoneDisplay(customer.phone)}
                 </p>
               )}
             </div>
