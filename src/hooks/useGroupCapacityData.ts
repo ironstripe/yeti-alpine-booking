@@ -27,6 +27,7 @@ export interface GroupCapacityInfo {
   
   instructorId: string | null;
   instructorName: string | null;
+  allInstructorNames: string[];
   assistantId: string | null;
   assistantName: string | null;
   
@@ -158,11 +159,21 @@ export function useGroupCapacityData(weekStart: Date) {
             (inst: any) => inst.group_course_enrollments || []
           ) || [];
           
-          // Find first instance with an instructor assigned
-          const firstInstanceWithInstructor = course.group_course_instances?.find(
-            (inst: any) => inst.instructor_id
-          );
-          const instructorId = firstInstanceWithInstructor?.instructor_id || null;
+          // Collect all unique instructor IDs from this week's instances
+          const weekInstructorIds = new Set<string>();
+          const instructorFrequency: Record<string, number> = {};
+          course.group_course_instances?.forEach((inst: any) => {
+            if (inst.instructor_id) {
+              weekInstructorIds.add(inst.instructor_id);
+              instructorFrequency[inst.instructor_id] = (instructorFrequency[inst.instructor_id] || 0) + 1;
+            }
+          });
+          const primaryInstructorId = Object.entries(instructorFrequency)
+            .sort(([,a], [,b]) => b - a)[0]?.[0] || null;
+          
+          const allInstructorNames = Array.from(weekInstructorIds)
+            .map(id => instructorMap.get(id))
+            .filter(Boolean) as string[];
           
           // Deduplicate by participant_id
           const uniqueParticipants = new Map<string, GroupParticipant>();
@@ -205,8 +216,9 @@ export function useGroupCapacityData(weekStart: Date) {
             participantCount,
             minParticipants,
             maxParticipants,
-            instructorId,
-            instructorName: instructorId ? instructorMap.get(instructorId) || null : null,
+            instructorId: primaryInstructorId,
+            instructorName: primaryInstructorId ? instructorMap.get(primaryInstructorId) || null : null,
+            allInstructorNames,
             assistantId: null,
             assistantName: null,
             status: 'active' as const,
@@ -299,6 +311,7 @@ export function useGroupCapacityData(weekStart: Date) {
           maxParticipants,
           instructorId: tg.instructor_id,
           instructorName: instructor ? `${instructor.first_name} ${instructor.last_name}` : null,
+          allInstructorNames: instructor ? [`${instructor.first_name} ${instructor.last_name}`] : [],
           assistantId: tg.assistant_instructor_id,
           assistantName: assistant ? `${assistant.first_name} ${assistant.last_name}` : null,
           status: tg.status as 'active' | 'merged' | 'cancelled',
