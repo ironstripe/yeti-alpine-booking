@@ -55,10 +55,10 @@ export const ADULT_LEVEL_HIERARCHY = [
 export type AdultLevelValue = (typeof ADULT_LEVEL_HIERARCHY)[number];
 
 export const ADULT_LEVEL_OPTIONS = [
-  { value: "green", label: "Anfänger (Grüne Piste)" },
-  { value: "blue", label: "Blaue Piste" },
-  { value: "red", label: "Rote Piste" },
-  { value: "black", label: "Experte (Schwarze Piste)" },
+  { value: "green", label: "🟢 Anfänger (Grüne Piste)" },
+  { value: "blue", label: "🔵 Blaue Piste" },
+  { value: "red", label: "🔴 Rote Piste" },
+  { value: "black", label: "⚫ Experte (Schwarze Piste)" },
 ] as const;
 
 /**
