@@ -19,25 +19,25 @@ export function TrainingsEmptyState({ onCreateClick, hasFilters }: TrainingsEmpt
           {hasFilters ? (
             <>
               <h3 className="text-lg font-semibold font-display mb-2">
-                Keine Trainings gefunden
+                Keine Kurse gefunden
               </h3>
               <p className="text-muted-foreground text-sm max-w-md mx-auto">
-                Mit den aktuellen Filtern wurden keine Trainings gefunden.
+                Mit den aktuellen Filtern wurden keine Kurse gefunden.
                 Versuche die Filter anzupassen.
               </p>
             </>
           ) : (
             <>
               <h3 className="text-lg font-semibold font-display mb-2">
-                Noch keine Trainings
+                Noch keine Kurse
               </h3>
               <p className="text-muted-foreground text-sm max-w-md mx-auto mb-4">
-                Erstelle dein erstes wiederkehrendes Training wie "Blauer Prinz" 
+                Erstelle deinen ersten wiederkehrenden Kurs wie "Blauer Prinz" 
                 oder "Kinderskikurs Anfänger".
               </p>
               <Button onClick={onCreateClick}>
                 <Plus className="h-4 w-4 mr-2" />
-                Erstes Training erstellen
+                Ersten Kurs erstellen
               </Button>
             </>
           )}

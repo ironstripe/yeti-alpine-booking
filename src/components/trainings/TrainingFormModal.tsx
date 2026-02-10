@@ -246,19 +246,19 @@ export function TrainingFormModal({ open, onOpenChange, course, mode }: Training
         <DialogHeader>
           <DialogTitle>
             {actualMode === 'edit' 
-              ? isOfficeMode ? 'Schicht bearbeiten' : 'Training bearbeiten'
+              ? isOfficeMode ? 'Schicht bearbeiten' : 'Kurs bearbeiten'
               : actualMode === 'copy' 
-                ? isOfficeMode ? 'Schicht duplizieren' : 'Training duplizieren'
-                : isOfficeMode ? 'Neue interne Schicht erstellen' : 'Neues Training erstellen'}
+                ? isOfficeMode ? 'Schicht duplizieren' : 'Kurs duplizieren'
+                : isOfficeMode ? 'Neue interne Schicht erstellen' : 'Neuen Kurs erstellen'}
           </DialogTitle>
           <DialogDescription>
             {isOfficeMode
               ? 'Definiere eine interne Schicht für Büro oder Personalplanung.'
               : actualMode === 'edit' 
-                ? 'Bearbeite die Details dieses Trainings.' 
+                ? 'Bearbeite die Details dieses Kurses.' 
                 : actualMode === 'copy' 
-                  ? 'Erstelle eine Kopie dieses Trainings mit angepassten Details.' 
-                  : 'Erstelle ein neues Training für Gruppenkurse. Das Training selbst definiert das Niveau.'}
+                  ? 'Erstelle eine Kopie dieses Kurses mit angepassten Details.' 
+                  : 'Erstelle einen neuen Kurs für Gruppenkurse. Der Kurs selbst definiert das Niveau.'}
           </DialogDescription>
         </DialogHeader>
 
@@ -744,8 +744,8 @@ export function TrainingFormModal({ open, onOpenChange, course, mode }: Training
                     <div className="mt-3 flex items-start gap-2 text-sm text-amber-600">
                       <Info className="h-4 w-4 mt-0.5 shrink-0" />
                       <span>
-                        Keine Produkte für Trainings verfügbar. Bitte erstelle zuerst ein Gruppenkurs-Produkt 
-                        unter Einstellungen → Produkte und aktiviere "Für Trainings verfügbar".
+                        Keine Produkte für Kurse verfügbar. Bitte erstelle zuerst ein Gruppenkurs-Produkt 
+                        unter Einstellungen → Produkte und aktiviere "Für Kurse verfügbar".
                       </span>
                     </div>
                   )}
@@ -850,7 +850,7 @@ export function TrainingFormModal({ open, onOpenChange, course, mode }: Training
                       onCheckedChange={field.onChange}
                     />
                   </FormControl>
-                  <FormLabel className="!mt-0 cursor-pointer">Training ist aktiv</FormLabel>
+                  <FormLabel className="!mt-0 cursor-pointer">Kurs ist aktiv</FormLabel>
                 </FormItem>
               )}
             />
@@ -865,7 +865,7 @@ export function TrainingFormModal({ open, onOpenChange, course, mode }: Training
                 Abbrechen
               </Button>
               <Button type="submit" disabled={isPending}>
-                {isPending ? 'Speichern...' : isEditing ? 'Aktualisieren' : 'Training erstellen'}
+                {isPending ? 'Speichern...' : isEditing ? 'Aktualisieren' : 'Kurs erstellen'}
               </Button>
             </div>
           </form>

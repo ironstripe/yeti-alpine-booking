@@ -90,7 +90,7 @@ const Trainings = () => {
 
   const handleDeleteClick = async (course: GroupCourseWithSchedules) => {
     const confirmed = await confirm({
-      title: 'Training löschen',
+      title: 'Kurs löschen',
       description: `Bist du sicher, dass du "${course.name}" löschen möchtest? Diese Aktion kann nicht rückgängig gemacht werden.`,
       confirmLabel: 'Löschen',
       cancelLabel: 'Abbrechen',
@@ -101,14 +101,14 @@ const Trainings = () => {
       deleteCourse.mutate(course.id, {
         onSuccess: () => {
           toast({
-            title: 'Training gelöscht',
+            title: 'Kurs gelöscht',
             description: `"${course.name}" wurde erfolgreich gelöscht.`,
           });
         },
         onError: () => {
           toast({
             title: 'Fehler',
-            description: 'Das Training konnte nicht gelöscht werden.',
+            description: 'Der Kurs konnte nicht gelöscht werden.',
             variant: 'destructive',
           });
         },
@@ -121,7 +121,7 @@ const Trainings = () => {
       actions={
         <Button size="sm" onClick={handleCreateClick}>
           <Plus className="h-4 w-4 mr-2" />
-          {category === 'internal' ? 'Neue Schicht' : 'Neues Training'}
+          {category === 'internal' ? 'Neue Schicht' : 'Neuer Kurs'}
         </Button>
       }
     >

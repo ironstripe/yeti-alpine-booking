@@ -37,7 +37,7 @@ const CHECKLIST_ITEMS: ChecklistItem[] = [
   {
     id: 'trainings',
     label: 'Gruppenkurse erstellt',
-    description: 'Mindestens ein Training definiert',
+    description: 'Mindestens ein Kurs definiert',
     check: async () => {
       const { count } = await supabase.from('group_courses').select('*', { count: 'exact', head: true }).eq('is_active', true);
       return (count || 0) > 0;

@@ -39,7 +39,7 @@ const navItems = [
   { title: "Gutscheine", url: "/vouchers", icon: Gift },
   { title: "Berichte", url: "/reports", icon: BarChart3 },
   { title: "Tagesabschluss", url: "/reconciliation", icon: Calculator },
-  { title: "Trainings", url: "/trainings", icon: GraduationCap },
+  { title: "Kurse", url: "/trainings", icon: GraduationCap },
   { title: "Events", url: "/events", icon: Trophy },
   { title: "Einstellungen", url: "/settings", icon: Settings },
 ];
