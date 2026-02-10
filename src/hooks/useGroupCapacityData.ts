@@ -401,16 +401,16 @@ export function useMergeGroups() {
       sourceGroupIds: string[];
       targetGroupId: string;
       newGroupName?: string;
-      instructorId?: string;
-      assistantInstructorId?: string;
+      instructorId?: string | null;
+      assistantInstructorId?: string | null;
     }) => {
       const { data, error } = await supabase
         .rpc('merge_training_groups', {
           p_source_group_ids: params.sourceGroupIds,
           p_target_group_id: params.targetGroupId,
           p_new_group_name: params.newGroupName || null,
-          p_instructor_id: params.instructorId || null,
-          p_assistant_instructor_id: params.assistantInstructorId || null,
+          p_instructor_id: params.instructorId ?? null,
+          p_assistant_instructor_id: params.assistantInstructorId ?? null,
         });
 
       if (error) throw error;
