@@ -85,6 +85,19 @@ export interface MiniSchedulerSlot {
   endTime: string;
 }
 
+// Multi-group private lesson proposal
+export interface PrivateGroupProposal {
+  groups: Array<{
+    id: string;
+    participantIds: string[];
+    instructorId: string | null;
+    instructor: Tables<"instructors"> | null;
+    startTime: string | null;
+    endTime: string | null;
+  }>;
+  warnings: string[];
+}
+
 export interface BookingWizardState {
   // Step 1: Customer & Participants
   customerId: string | null;
@@ -126,6 +139,9 @@ export interface BookingWizardState {
   
   // NEW: Mini-scheduler multi-select slots
   miniSchedulerSelections: MiniSchedulerSlot[];
+  
+  // Multi-group private lesson proposal
+  privateGroupProposal: PrivateGroupProposal | null;
   
   // Step 3: Instructor & Details
   instructorId: string | null;
@@ -199,6 +215,10 @@ interface BookingWizardContextType {
   setTimeSelections: (selections: TimeSelection[]) => void;
   // NEW: Mini-scheduler multi-select
   toggleMiniSchedulerSlot: (slot: Omit<MiniSchedulerSlot, "id">) => void;
+  // Multi-group private lesson
+  setPrivateGroupProposal: (proposal: PrivateGroupProposal | null) => void;
+  setGroupInstructor: (groupId: string, instructor: Tables<"instructors"> | null) => void;
+  setGroupTime: (groupId: string, startTime: string, endTime: string) => void;
   clearMiniSchedulerSelection: () => void;
   applyMiniSchedulerSelection: () => void;
   // Step 3 setters
@@ -251,6 +271,8 @@ const initialState: BookingWizardState = {
   timeSelections: [],
   // NEW: Mini-scheduler multi-select default
   miniSchedulerSelections: [],
+  // Multi-group private lesson
+  privateGroupProposal: null,
   // Step 3
   instructorId: null,
   instructor: null,
@@ -669,6 +691,37 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
   // Clear all mini-scheduler selections
   const clearMiniSchedulerSelection = () => {
     setState((prev) => ({ ...prev, miniSchedulerSelections: [] }));
+  };
+
+  // Multi-group private lesson setters
+  const setPrivateGroupProposal = (proposal: PrivateGroupProposal | null) => {
+    setState((prev) => ({ ...prev, privateGroupProposal: proposal }));
+  };
+
+  const setGroupInstructor = (groupId: string, instructor: Tables<"instructors"> | null) => {
+    setState((prev) => {
+      if (!prev.privateGroupProposal) return prev;
+      const updatedGroups = prev.privateGroupProposal.groups.map((g) =>
+        g.id === groupId ? { ...g, instructor, instructorId: instructor?.id ?? null } : g
+      );
+      return {
+        ...prev,
+        privateGroupProposal: { ...prev.privateGroupProposal, groups: updatedGroups },
+      };
+    });
+  };
+
+  const setGroupTime = (groupId: string, startTime: string, endTime: string) => {
+    setState((prev) => {
+      if (!prev.privateGroupProposal) return prev;
+      const updatedGroups = prev.privateGroupProposal.groups.map((g) =>
+        g.id === groupId ? { ...g, startTime, endTime } : g
+      );
+      return {
+        ...prev,
+        privateGroupProposal: { ...prev.privateGroupProposal, groups: updatedGroups },
+      };
+    });
   };
 
   // Apply mini-scheduler selection to populate dates, time, instructor, and overrides
@@ -1173,6 +1226,10 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
         toggleMiniSchedulerSlot,
         clearMiniSchedulerSelection,
         applyMiniSchedulerSelection,
+        // Multi-group private lesson
+        setPrivateGroupProposal,
+        setGroupInstructor,
+        setGroupTime,
         // Step 3 setters
         setInstructor,
         setAssignLater,

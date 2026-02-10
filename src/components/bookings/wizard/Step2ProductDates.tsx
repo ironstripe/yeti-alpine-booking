@@ -6,6 +6,7 @@ import { Snowflake, Sun, AlertTriangle, Clock, CalendarDays, Info, ArrowRight, U
 
 import { supabase } from "@/integrations/supabase/client";
 import { useBookingWizard, type ParticipantBookingDetails } from "@/contexts/BookingWizardContext";
+import { groupParticipants, type ParticipantGroup } from "@/lib/private-lesson-grouping";
 import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -26,6 +27,7 @@ import { BookingWarnings, type BookingWarning } from "./BookingWarnings";
 import { LunchSupervisionAddon } from "./LunchSupervisionAddon";
 import { ParticipantBookingCard } from "./ParticipantBookingCard";
 import { BookingTimeGrid } from "./BookingTimeGrid";
+import { PrivateGroupProposal } from "./PrivateGroupProposal";
 import { usePrivateLessonRates, useHighSeasonPeriods } from "@/hooks/usePrivateLessonRates";
 import {
   calculatePrivateLessonPrice,
@@ -61,6 +63,7 @@ export function Step2ProductDates() {
     initializeParticipantBookings,
     copyBookingToAllParticipants,
     setTimeSelections,
+    setPrivateGroupProposal,
   } = useBookingWizard();
 
   const [selectedMonth, setSelectedMonth] = useState<Date>(new Date());
@@ -113,6 +116,44 @@ export function Step2ProductDates() {
       }
     }
   }, [state.productType, state.selectedParticipants.length, state.numberOfPersons, setNumberOfPersons]);
+
+  // Auto-run grouping algorithm for multi-participant private lessons
+  const groupingResult = useMemo(() => {
+    if (
+      state.productType !== "private" ||
+      state.selectedParticipants.length <= 1
+    ) {
+      return null;
+    }
+    return groupParticipants(state.selectedParticipants);
+  }, [state.productType, state.selectedParticipants]);
+
+  // Sync grouping result to context whenever it changes
+  useEffect(() => {
+    if (!groupingResult || !groupingResult.needsMultipleGroups) {
+      // Clear proposal if not needed
+      if (state.privateGroupProposal) {
+        setPrivateGroupProposal(null);
+      }
+      return;
+    }
+
+    // Build proposal from algorithm result
+    const baseStartTime = startTime || state.timeSlot?.split(" - ")[0] || null;
+    const baseEndTime = endTime || state.timeSlot?.split(" - ")[1] || null;
+
+    setPrivateGroupProposal({
+      groups: groupingResult.groups.map((g) => ({
+        id: g.id,
+        participantIds: g.members.map((m) => m.participant.id),
+        instructorId: null,
+        instructor: null,
+        startTime: baseStartTime,
+        endTime: baseEndTime,
+      })),
+      warnings: groupingResult.warnings,
+    });
+  }, [groupingResult?.needsMultipleGroups, groupingResult?.groups.length, state.selectedParticipants.length]);
 
   // Filter end times to be after start time
   const availableEndTimes = useMemo(() => {
@@ -800,6 +841,16 @@ export function Step2ProductDates() {
             )}
           </CardContent>
         </Card>
+      )}
+
+      {/* Multi-Group Proposal for private lessons with incompatible participants */}
+      {groupingResult?.needsMultipleGroups && state.privateGroupProposal && (
+        <PrivateGroupProposal
+          algorithmGroups={groupingResult.groups}
+          algorithmWarnings={groupingResult.warnings}
+          rates={rates}
+          highSeasonPeriods={highSeasonPeriods}
+        />
       )}
 
       {/* Price Preview - Group Courses (unchanged) */}

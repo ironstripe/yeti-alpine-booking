@@ -62,6 +62,9 @@ export function Step3InstructorDetails() {
     return state.selectedParticipants.map((p) => p.level_current_season);
   }, [state.selectedParticipants]);
 
+  // Check if multi-group proposal is active (instructor already assigned per group in Step 2)
+  const hasMultiGroupProposal = !!state.privateGroupProposal && state.privateGroupProposal.groups.length > 1;
+
   return (
     <div className="space-y-8 py-6">
       {/* Instructor Selection - only for private lessons */}
@@ -73,6 +76,18 @@ export function Step3InstructorDetails() {
               <p className="font-medium">Gruppenkurse werden vom Büro zugeteilt</p>
               <p className="text-sm text-muted-foreground">
                 Die Zuweisung erfolgt nach Verfügbarkeit und Erfahrung der Skilehrer.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      ) : hasMultiGroupProposal ? (
+        <Card className="bg-muted/50">
+          <CardContent className="flex items-start gap-3 p-4">
+            <Users className="h-5 w-5 flex-shrink-0 text-muted-foreground" />
+            <div>
+              <p className="font-medium">Skilehrer wurden pro Gruppe in Schritt 2 zugewiesen</p>
+              <p className="text-sm text-muted-foreground">
+                {state.privateGroupProposal!.groups.length} Gruppen mit separaten Skilehrern konfiguriert.
               </p>
             </div>
           </CardContent>

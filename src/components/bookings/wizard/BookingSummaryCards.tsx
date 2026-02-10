@@ -246,28 +246,53 @@ export function BookingSummaryCards({ onEditStep }: BookingSummaryCardsProps) {
           </Button>
         </CardHeader>
         <CardContent className="space-y-3 pt-0">
-          {/* Instructor */}
-          {state.productType === "private" && (
-            <div className="flex items-start gap-2">
-              <GraduationCap className="mt-0.5 h-4 w-4 text-muted-foreground" />
-              <div>
-                {state.instructor ? (
-                  <>
-                    <p className="font-medium">
-                      {state.instructor.first_name} {state.instructor.last_name}
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      {getInstructorLevel(state.instructor.level)} ·{" "}
-                      {state.instructor.languages?.map((l) => LANGUAGE_LABELS[l] || l).join(", ")}
-                    </p>
-                  </>
-                ) : state.assignLater ? (
-                  <p className="text-muted-foreground">Wird später zugewiesen</p>
-                ) : (
-                  <p className="text-muted-foreground">Kein Skilehrer ausgewählt</p>
-                )}
-              </div>
+          {/* Multi-group instructor summary */}
+          {state.privateGroupProposal && state.privateGroupProposal.groups.length > 1 ? (
+            <div className="space-y-2">
+              {state.privateGroupProposal.groups.map((group, idx) => {
+                const groupParticipants = state.selectedParticipants.filter(p => group.participantIds.includes(p.id));
+                return (
+                  <div key={group.id} className="flex items-start gap-2">
+                    <GraduationCap className="mt-0.5 h-4 w-4 text-muted-foreground" />
+                    <div>
+                      <p className="font-medium text-sm">
+                        Gruppe {idx + 1}: {group.instructor
+                          ? `${group.instructor.first_name} ${group.instructor.last_name}`
+                          : "Wird später zugewiesen"}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {groupParticipants.map(p => p.first_name).join(", ")}
+                        {group.startTime && group.endTime && ` · ${group.startTime} - ${group.endTime}`}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
+          ) : (
+            /* Single instructor */
+            state.productType === "private" && (
+              <div className="flex items-start gap-2">
+                <GraduationCap className="mt-0.5 h-4 w-4 text-muted-foreground" />
+                <div>
+                  {state.instructor ? (
+                    <>
+                      <p className="font-medium">
+                        {state.instructor.first_name} {state.instructor.last_name}
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        {getInstructorLevel(state.instructor.level)} ·{" "}
+                        {state.instructor.languages?.map((l) => LANGUAGE_LABELS[l] || l).join(", ")}
+                      </p>
+                    </>
+                  ) : state.assignLater ? (
+                    <p className="text-muted-foreground">Wird später zugewiesen</p>
+                  ) : (
+                    <p className="text-muted-foreground">Kein Skilehrer ausgewählt</p>
+                  )}
+                </div>
+              </div>
+            )
           )}
 
           {/* Meeting Point */}
