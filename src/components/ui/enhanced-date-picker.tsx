@@ -141,7 +141,7 @@ export function EnhancedDatePicker({
         onChange={handleInputChange}
         onBlur={handleInputBlur}
         placeholder="TT.MM.JJJJ"
-        className="w-[120px]"
+        className="w-[140px]"
         maxLength={10}
       />
       <Popover open={isOpen} onOpenChange={setIsOpen}>
