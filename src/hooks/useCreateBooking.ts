@@ -324,6 +324,91 @@ export function useCreateBooking() {
             }
           }
         }
+      } else if (state.privateGroupProposal && state.privateGroupProposal.groups.length > 1) {
+        // ============ MULTI-GROUP PRIVATE LESSON MODE ============
+        // Each group has its own instructor, time slot, and per-group pricing
+        
+        for (const group of state.privateGroupProposal.groups) {
+          const groupStartTime = group.startTime || state.timeSlot?.split(" - ")[0] || "10:00";
+          const groupEndTime = group.endTime || state.timeSlot?.split(" - ")[1] || "12:00";
+          const groupInstructorId = group.instructorId || state.instructorId;
+          const groupParticipantCount = group.participantIds.length;
+          
+          // Calculate per-group price using time-based pricing
+          const firstDate = state.selectedDates[0] ? new Date(state.selectedDates[0]) : new Date();
+          const groupPriceResult = calculatePrivateLessonPrice(
+            firstDate,
+            groupStartTime,
+            groupEndTime,
+            groupParticipantCount,
+            rates,
+            highSeasonPeriods
+          );
+          const groupUnitPrice = groupPriceResult.totalPrice;
+          
+          // Handle period metadata per group if multi-day
+          const isGroupPeriod = state.selectedDates.length > 1;
+          let groupPeriodId: string | null = null;
+          
+          if (isGroupPeriod) {
+            groupPeriodId = crypto.randomUUID();
+            const sortedDates = [...state.selectedDates].sort();
+            
+            await supabase
+              .from("ticket_item_period_metadata")
+              .insert({
+                period_group_id: groupPeriodId,
+                base_instructor_id: groupInstructorId,
+                base_time_start: groupStartTime,
+                base_time_end: groupEndTime,
+                start_date: sortedDates[0],
+                end_date: sortedDates[sortedDates.length - 1],
+              });
+          }
+          
+          // Create ticket_items for each participant in this group
+          for (const participantId of group.participantIds) {
+            const participant = state.selectedParticipants.find(p => p.id === participantId);
+            if (!participant) continue;
+            
+            for (const dateStr of state.selectedDates) {
+              ticketItems.push({
+                ticket_id: ticket.id,
+                product_id: productId,
+                date: dateStr,
+                time_start: groupStartTime,
+                time_end: groupEndTime,
+                unit_price: groupUnitPrice,
+                quantity: 1,
+                discount_percent: state.discountPercent || 0,
+                discount_reason: state.discountReason || null,
+                instructor_id: groupInstructorId,
+                participant_id: participant.id.startsWith("guest-") ? null : participant.id,
+                meeting_point: state.meetingPoint,
+                instructor_notes: null,
+                internal_notes: null,
+                status: "booked",
+                instructor_confirmation: groupInstructorId ? "pending" : null,
+                is_vegetarian: false,
+                item_type: "private",
+                period_group_id: isGroupPeriod ? groupPeriodId : null,
+                is_period_override: false,
+              });
+            }
+          }
+        }
+        
+        // Recalculate and update ticket total for multi-group
+        const multiGroupCourseTotal = ticketItems
+          .filter(item => item.item_type === "private")
+          .reduce((sum, item) => sum + (item.unit_price || 0), 0);
+        const multiGroupFinalTotal = (multiGroupCourseTotal + lunchTotal) - (multiGroupCourseTotal + lunchTotal) * (state.discountPercent / 100);
+        
+        await supabase
+          .from("tickets")
+          .update({ total_amount: multiGroupFinalTotal })
+          .eq("id", ticket.id);
+          
       } else {
         // ============ SHARED BOOKING MODE (Original Logic) ============
         

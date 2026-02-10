@@ -180,11 +180,50 @@ export function PriceBreakdown({
     };
   }, [productType, state.useParticipantSpecificBooking, state.participantBookings, state.selectedParticipants, groupCourses, products, daysCount]);
 
+  // Multi-group pricing calculation
+  const isMultiGroup = state.privateGroupProposal && state.privateGroupProposal.groups.length > 1;
+  
+  const multiGroupPricing = useMemo(() => {
+    if (!isMultiGroup || !state.privateGroupProposal) return null;
+    
+    const firstDate = state.selectedDates[0] ? new Date(state.selectedDates[0]) : null;
+    const groupPrices: Array<{
+      groupIndex: number;
+      participantCount: number;
+      startTime: string;
+      endTime: string;
+      pricePerDay: number;
+      totalForAllDays: number;
+      breakdown: ReturnType<typeof calculatePrivateLessonPrice>;
+    }> = [];
+    
+    for (let i = 0; i < state.privateGroupProposal.groups.length; i++) {
+      const group = state.privateGroupProposal.groups[i];
+      const gStart = group.startTime || state.timeSlot?.split(" - ")[0] || "10:00";
+      const gEnd = group.endTime || state.timeSlot?.split(" - ")[1] || "12:00";
+      const pCount = group.participantIds.length;
+      
+      const result = calculatePrivateLessonPrice(firstDate, gStart, gEnd, pCount, rates, highSeasonPeriods);
+      
+      groupPrices.push({
+        groupIndex: i + 1,
+        participantCount: pCount,
+        startTime: gStart,
+        endTime: gEnd,
+        pricePerDay: result.totalPrice,
+        totalForAllDays: result.totalPrice * daysCount,
+        breakdown: result,
+      });
+    }
+    
+    return groupPrices;
+  }, [isMultiGroup, state.privateGroupProposal, state.selectedDates, state.timeSlot, rates, highSeasonPeriods, daysCount]);
+
   // Private lesson pricing
   let unitPrice = 0;
   let productName = "";
 
-  if (productType === "private" && privateLessonPrice) {
+  if (productType === "private" && privateLessonPrice && !isMultiGroup) {
     unitPrice = privateLessonPrice.totalPrice;
     const duration = privateLessonPrice.durationHours;
     productName = `Privatstunde ${state.sport === "ski" ? "Ski" : state.sport === "snowboard" ? "Snowboard" : ""} ${duration}h`;
@@ -250,7 +289,9 @@ export function PriceBreakdown({
   // Calculate totals based on product type
   const courseTotal = productType === "group" 
     ? groupCourseCalculation.totalCoursePrice 
-    : (productType === "private" ? unitPrice * daysCount : 0);
+    : (productType === "private" && multiGroupPricing 
+      ? multiGroupPricing.reduce((sum, g) => sum + g.totalForAllDays, 0)
+      : (productType === "private" ? unitPrice * daysCount : 0));
 
   const subtotal = courseTotal + lunchTotal;
   const discountAmount = subtotal * (totalDiscountPercent / 100);
@@ -322,8 +363,46 @@ export function PriceBreakdown({
             </div>
           )}
 
-          {/* Private lesson */}
-          {productType === "private" && (
+          {/* Private lesson - Multi-group */}
+          {productType === "private" && isMultiGroup && multiGroupPricing && (
+            <>
+              {multiGroupPricing.map((group) => (
+                <div key={group.groupIndex} className="flex justify-between">
+                  <div>
+                    <p className="font-medium">
+                      Gruppe {group.groupIndex} ({group.participantCount} {group.participantCount === 1 ? "Person" : "Personen"})
+                    </p>
+                    <div className="text-sm text-muted-foreground space-y-0.5">
+                      <p className="flex items-center gap-1">
+                        <Clock className="h-3 w-3" />
+                        {group.startTime} - {group.endTime}
+                      </p>
+                      {group.breakdown.breakdown.map((item, idx) => (
+                        <p key={idx} className="text-xs">
+                          {item.timeSlot}: {formatCHF(item.rate)} ({item.isPeak ? "Hauptzeit" : "Randzeit"})
+                        </p>
+                      ))}
+                      {group.participantCount > 1 && (
+                        <p className="flex items-center gap-1 text-xs">
+                          <Users className="h-3 w-3" />
+                          +{group.participantCount - 1} Person(en) × {group.breakdown.durationHours}h × {formatCHF(ADDITIONAL_PERSON_RATE)}
+                        </p>
+                      )}
+                      {daysCount > 1 && (
+                        <p className="text-xs">
+                          {daysCount} Tag{daysCount > 1 ? "e" : ""} × {formatCurrency(group.pricePerDay)}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <span className="font-medium">{formatCurrency(group.totalForAllDays)}</span>
+                </div>
+              ))}
+            </>
+          )}
+
+          {/* Private lesson - Single group */}
+          {productType === "private" && !isMultiGroup && (
             <div className="flex justify-between">
               <div>
                 <p className="font-medium">{productName}</p>
@@ -333,7 +412,6 @@ export function PriceBreakdown({
                       <Clock className="h-3 w-3" />
                       {state.timeSlot}
                     </p>
-                    {/* Time slot breakdown */}
                     {privateLessonPrice.breakdown.map((item, idx) => (
                       <p key={idx} className="text-xs">
                         {item.timeSlot}: {formatCHF(item.rate)} ({item.isPeak ? "Hauptzeit" : "Randzeit"})
@@ -360,7 +438,12 @@ export function PriceBreakdown({
           )}
 
           {/* High season badge for private lessons */}
-          {productType === "private" && privateLessonPrice?.isHighSeason && (
+          {productType === "private" && !isMultiGroup && privateLessonPrice?.isHighSeason && (
+            <Badge variant="secondary" className="bg-blue-100 text-blue-800">
+              Hochsaison
+            </Badge>
+          )}
+          {productType === "private" && isMultiGroup && multiGroupPricing?.[0]?.breakdown.isHighSeason && (
             <Badge variant="secondary" className="bg-blue-100 text-blue-800">
               Hochsaison
             </Badge>
