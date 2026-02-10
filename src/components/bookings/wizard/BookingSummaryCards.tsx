@@ -128,39 +128,66 @@ export function BookingSummaryCards({ onEditStep }: BookingSummaryCardsProps) {
             {state.duration && ` · ${state.duration} Stunden`}
             {state.sport && ` · ${state.sport === "snowboard" ? "Snowboard" : "Ski"}`}
           </p>
-          <div className="space-y-3">
-            {state.selectedDates.sort().map((dateStr) => {
-              const date = new Date(dateStr);
-              // Parse base time from state.timeSlot (e.g., "10:00 - 12:00")
-              const [baseStart, baseEnd] = state.timeSlot?.split(" - ") || ["10:00", "12:00"];
-              
-              return (
-                <div key={dateStr} className="space-y-1">
-                  <div className="flex items-center gap-2 text-sm font-medium">
-                    <Calendar className="h-4 w-4 text-muted-foreground" />
-                    <span>{format(date, "EEE, dd.MM.yyyy", { locale: de })}</span>
+          
+          {/* Multi-group: show per-group time info */}
+          {state.productType === "private" && state.privateGroupProposal && state.privateGroupProposal.groups.length > 1 ? (
+            <div className="space-y-3">
+              {state.privateGroupProposal.groups.map((group, idx) => {
+                const groupParticipants = state.selectedParticipants.filter(p => group.participantIds.includes(p.id));
+                const gStart = group.startTime || state.timeSlot?.split(" - ")[0] || "10:00";
+                const gEnd = group.endTime || state.timeSlot?.split(" - ")[1] || "12:00";
+                return (
+                  <div key={group.id} className="rounded-lg border p-2 space-y-1">
+                    <p className="text-sm font-medium">
+                      Gruppe {idx + 1}: {gStart} - {gEnd}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {groupParticipants.map(p => p.first_name).join(", ")}
+                    </p>
                   </div>
-                  
-                  {/* For private lessons, show inline time block editor */}
-                  {state.productType === "private" ? (
-                    <InlineTimeBlockEditor
-                      dateStr={dateStr}
-                      baseStartTime={baseStart}
-                      baseEndTime={baseEnd}
-                      duration={state.duration}
-                    />
-                  ) : (
-                    /* For group courses, show simple time display */
-                    state.timeSlot && (
-                      <div className="ml-6 text-sm text-muted-foreground">
-                        {state.timeSlot}
-                      </div>
-                    )
-                  )}
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+              <div className="space-y-1">
+                {state.selectedDates.sort().map((dateStr) => (
+                  <div key={dateStr} className="flex items-center gap-2 text-sm">
+                    <Calendar className="h-4 w-4 text-muted-foreground" />
+                    <span>{format(new Date(dateStr), "EEE, dd.MM.yyyy", { locale: de })}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {state.selectedDates.sort().map((dateStr) => {
+                const date = new Date(dateStr);
+                const [baseStart, baseEnd] = state.timeSlot?.split(" - ") || ["10:00", "12:00"];
+                
+                return (
+                  <div key={dateStr} className="space-y-1">
+                    <div className="flex items-center gap-2 text-sm font-medium">
+                      <Calendar className="h-4 w-4 text-muted-foreground" />
+                      <span>{format(date, "EEE, dd.MM.yyyy", { locale: de })}</span>
+                    </div>
+                    
+                    {state.productType === "private" ? (
+                      <InlineTimeBlockEditor
+                        dateStr={dateStr}
+                        baseStartTime={baseStart}
+                        baseEndTime={baseEnd}
+                        duration={state.duration}
+                      />
+                    ) : (
+                      state.timeSlot && (
+                        <div className="ml-6 text-sm text-muted-foreground">
+                          {state.timeSlot}
+                        </div>
+                      )
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </CardContent>
       </Card>
 
