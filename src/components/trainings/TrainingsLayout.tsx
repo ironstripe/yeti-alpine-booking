@@ -38,7 +38,7 @@ export function TrainingsLayout({ children, actions }: TrainingsLayoutProps) {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Trainings"
+        title="Kurse"
         description="Verwalte Kursvorlagen, Lehrerzuweisungen und Kapazität"
         actions={actions}
       />

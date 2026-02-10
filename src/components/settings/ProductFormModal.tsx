@@ -534,10 +534,10 @@ export function ProductFormModal({ open, onOpenChange, product }: ProductFormMod
                   <FormItem className="flex items-center justify-between rounded-lg border p-3">
                     <div className="space-y-0.5">
                       <FormLabel className="text-base flex items-center gap-2">
-                        🔗 Für Trainings verfügbar
+                        🔗 Für Kurse verfügbar
                       </FormLabel>
                       <FormDescription>
-                        Dieses Produkt kann mit Trainings verknüpft werden
+                        Dieses Produkt kann mit Kursen verknüpft werden
                       </FormDescription>
                     </div>
                     <FormControl>
@@ -551,8 +551,8 @@ export function ProductFormModal({ open, onOpenChange, product }: ProductFormMod
                 <div className="flex items-start gap-2 text-sm text-muted-foreground bg-muted/50 p-3 rounded-lg">
                   <Info className="h-4 w-4 mt-0.5 shrink-0" />
                   <span>
-                    Wenn dieses Produkt mit Trainings verknüpft ist, wird der hier definierte Preis 
-                    automatisch für alle verknüpften Trainings verwendet.
+                    Wenn dieses Produkt mit Kursen verknüpft ist, wird der hier definierte Preis 
+                    automatisch für alle verknüpften Kurse verwendet.
                   </span>
                 </div>
               )}

@@ -83,8 +83,8 @@ export const EMPTY_STATES = {
   },
   trainings: {
     icon: Calendar,
-    title: 'Keine Trainings',
-    description: 'Es wurden noch keine Gruppenkurse definiert. Erstellen Sie Ihr erstes Training.',
+    title: 'Keine Kurse',
+    description: 'Es wurden noch keine Gruppenkurse definiert. Erstellen Sie Ihren ersten Kurs.',
   },
   invoices: {
     icon: FileText,

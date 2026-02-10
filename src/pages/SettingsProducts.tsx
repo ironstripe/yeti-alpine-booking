@@ -133,7 +133,7 @@ export default function SettingsProducts() {
                     <TableHead>Name</TableHead>
                     <TableHead>Preismodell</TableHead>
                     <TableHead>Preis</TableHead>
-                    <TableHead>Training</TableHead>
+                    <TableHead>Kurs</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="w-12"></TableHead>
                   </TableRow>
@@ -208,7 +208,7 @@ export default function SettingsProducts() {
                                   </div>
                                 </TooltipTrigger>
                                 <TooltipContent>
-                                  Kann mit Trainings verknüpft werden
+                                  Kann mit Kursen verknüpft werden
                                 </TooltipContent>
                               </Tooltip>
                             </TooltipProvider>

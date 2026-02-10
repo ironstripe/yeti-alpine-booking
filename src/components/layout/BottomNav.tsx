@@ -32,7 +32,7 @@ const primaryNavItems = [
 const secondaryNavItems = [
   { title: "Posteingang", url: "/inbox", icon: Inbox, badge: 3 },
   { title: "Skilehrer", url: "/instructors", icon: UserCheck },
-  { title: "Trainings", url: "/trainings", icon: GraduationCap },
+  { title: "Kurse", url: "/trainings", icon: GraduationCap },
   { title: "Events", url: "/events", icon: Trophy },
   { title: "Shop", url: "/shop", icon: ShoppingCart },
   { title: "Gutscheine", url: "/vouchers", icon: Gift },
