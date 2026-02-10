@@ -128,8 +128,8 @@ export function MergeGroupsDialog({
         sourceGroupIds: [sourceId, targetGroupId],
         targetGroupId: sourceId, // Use source as the base target
         newGroupName: newGroupName || undefined,
-        instructorId: instructorId || undefined,
-        assistantInstructorId: assistantId || undefined,
+        instructorId: instructorId || null,
+        assistantInstructorId: assistantId || null,
       });
       toast.success('Gruppen erfolgreich zusammengelegt');
       onOpenChange(false);
