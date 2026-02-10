@@ -105,23 +105,26 @@ export function useCreateBooking() {
           productId = privateProduct.id;
         }
         
-        // Parse time slot
-        const startTime = state.timeSlot?.split(" - ")[0] || "10:00";
-        const endTime = state.timeSlot?.split(" - ")[1] || "12:00";
-        const firstDate = state.selectedDates[0] ? new Date(state.selectedDates[0]) : new Date();
-        
-        // Calculate price using time-based pricing
-        const priceResult = calculatePrivateLessonPrice(
-          firstDate,
-          startTime,
-          endTime,
-          state.numberOfPersons || 1,
-          rates,
-          highSeasonPeriods
-        );
-        
-        // Price per day
-        unitPrice = priceResult.totalPrice;
+        // If multi-group proposal is active, pricing is handled per-group below
+        if (!state.privateGroupProposal || state.privateGroupProposal.groups.length <= 1) {
+          // Parse time slot
+          const startTime = state.timeSlot?.split(" - ")[0] || "10:00";
+          const endTime = state.timeSlot?.split(" - ")[1] || "12:00";
+          const firstDate = state.selectedDates[0] ? new Date(state.selectedDates[0]) : new Date();
+          
+          // Calculate price using time-based pricing
+          const priceResult = calculatePrivateLessonPrice(
+            firstDate,
+            startTime,
+            endTime,
+            state.numberOfPersons || 1,
+            rates,
+            highSeasonPeriods
+          );
+          
+          // Price per day
+          unitPrice = priceResult.totalPrice;
+        }
         
       // ============ GROUP COURSE PRICING ============
       } else if (state.productType === "group") {

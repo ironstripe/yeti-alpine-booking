@@ -232,6 +232,64 @@ export function formatPriceBreakdown(result: PrivateLessonPriceResult, numberOfP
 }
 
 /**
+ * Calculate price for multiple groups (multi-instructor private lesson).
+ * Each group pays basePrice + (participantCount - 1) * additionalPersonRate per hour.
+ */
+export interface MultiGroupPriceResult {
+  perGroupPrices: Array<{
+    groupId: string;
+    participantCount: number;
+    basePrice: number;
+    additionalPersonsPrice: number;
+    totalPrice: number;
+    totalForAllDays: number;
+  }>;
+  grandTotal: number;
+  grandTotalForAllDays: number;
+}
+
+export function calculateMultiGroupPrice(
+  groups: Array<{ id: string; participantCount: number }>,
+  date: Date | null,
+  startTime: string,
+  endTime: string,
+  daysCount: number,
+  rates: TimeSlotRate[] = DEFAULT_RATES,
+  highSeasonPeriods: HighSeasonPeriod[] = []
+): MultiGroupPriceResult {
+  const perGroupPrices: MultiGroupPriceResult["perGroupPrices"] = [];
+  let grandTotal = 0;
+
+  for (const group of groups) {
+    const result = calculatePrivateLessonPrice(
+      date,
+      startTime,
+      endTime,
+      group.participantCount,
+      rates,
+      highSeasonPeriods
+    );
+
+    const totalForAllDays = result.totalPrice * daysCount;
+    perGroupPrices.push({
+      groupId: group.id,
+      participantCount: group.participantCount,
+      basePrice: result.basePrice,
+      additionalPersonsPrice: result.additionalPersonsPrice,
+      totalPrice: result.totalPrice,
+      totalForAllDays,
+    });
+    grandTotal += result.totalPrice;
+  }
+
+  return {
+    perGroupPrices,
+    grandTotal,
+    grandTotalForAllDays: grandTotal * daysCount,
+  };
+}
+
+/**
  * Format currency for display (Swiss format)
  */
 export function formatCHF(amount: number): string {
