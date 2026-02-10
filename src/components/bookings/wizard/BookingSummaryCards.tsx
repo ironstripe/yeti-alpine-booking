@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 
 import { useBookingWizard, WizardStep } from "@/contexts/BookingWizardContext";
 import { calculateAge, getAgeDisplay, getLevelLabel } from "@/lib/participant-utils";
+import { formatPhoneDisplay } from "@/lib/phone-utils";
 import { getLevelLabel as getInstructorLevel } from "@/lib/instructor-utils";
 import { getSpecializationLabel } from "@/hooks/useInstructors";
 import { InlineTimeBlockEditor } from "./InlineTimeBlockEditor";
@@ -63,7 +64,7 @@ export function BookingSummaryCards({ onEditStep }: BookingSummaryCardsProps) {
               </p>
               <p className="text-sm text-muted-foreground">
                 {state.customer.email}
-                {state.customer.phone && ` · ${state.customer.phone}`}
+                {state.customer.phone && ` · ${formatPhoneDisplay(state.customer.phone)}`}
               </p>
               {(state.customer.street || state.customer.city) && (
                 <p className="text-sm text-muted-foreground">

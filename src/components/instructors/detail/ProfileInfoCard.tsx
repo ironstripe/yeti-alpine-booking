@@ -10,6 +10,7 @@ import {
 import { Mail, Phone, MapPin, ChevronDown, Eye, EyeOff, Edit } from "lucide-react";
 import type { Tables } from "@/integrations/supabase/types";
 import { getLevelLabel } from "@/lib/instructor-utils";
+import { formatPhoneDisplay } from "@/lib/phone-utils";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 
@@ -87,7 +88,7 @@ export function ProfileInfoCard({ instructor, onEdit }: ProfileInfoCardProps) {
               className="flex items-center gap-2 text-sm hover:text-primary transition-colors"
             >
               <Phone className="h-4 w-4 text-muted-foreground" />
-              {instructor.phone}
+              {formatPhoneDisplay(instructor.phone)}
             </a>
             {formatAddress() && (
               <div className="flex items-start gap-2 text-sm">

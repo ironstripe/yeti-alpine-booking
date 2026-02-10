@@ -27,6 +27,7 @@ import {
 } from "@/lib/search";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
+import { formatPhoneDisplay } from "@/lib/phone-utils";
 
 interface CommandBarProps {
   open: boolean;
@@ -121,7 +122,7 @@ function CustomerResults({
               {customer.first_name} {customer.last_name}
             </span>
             <span className="text-xs text-muted-foreground">
-              {customer.phone || customer.email}
+              {customer.phone ? formatPhoneDisplay(customer.phone) : customer.email}
             </span>
           </div>
         </CommandItem>
@@ -197,7 +198,7 @@ function InstructorResults({
               {instructor.first_name} {instructor.last_name}
             </span>
             <span className="text-xs text-muted-foreground">
-              {instructor.phone || instructor.email}
+              {instructor.phone ? formatPhoneDisplay(instructor.phone) : instructor.email}
             </span>
           </div>
         </CommandItem>

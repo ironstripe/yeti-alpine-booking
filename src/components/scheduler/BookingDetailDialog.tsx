@@ -72,6 +72,7 @@ import {
 } from "@/lib/booking-utils";
 import { MEETING_POINTS, getMeetingPointById } from "@/lib/meeting-point-utils";
 import { hasOverlap, type SchedulerBooking } from "@/lib/scheduler-utils";
+import { formatPhoneDisplay } from "@/lib/phone-utils";
 import { supabase } from "@/integrations/supabase/client";
 import { 
   BookingChangeConfirmDialog, 
@@ -662,7 +663,7 @@ export function BookingDetailDialog({
                           href={`tel:${booking.customer.phone}`}
                           className="text-primary hover:underline"
                         >
-                          {booking.customer.phone}
+                         {formatPhoneDisplay(booking.customer.phone)}
                         </a>
                       </div>
                     )}

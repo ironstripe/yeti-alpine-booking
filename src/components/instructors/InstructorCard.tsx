@@ -3,6 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Phone, Snowflake, MountainSnow } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { formatPhoneDisplay } from "@/lib/phone-utils";
 import type { InstructorWithBookings } from "@/hooks/useInstructors";
 import { getStatusConfig, getSpecializationLabel } from "@/hooks/useInstructors";
 import { getInitials, getAvatarColor } from "@/lib/participant-utils";
@@ -67,7 +68,7 @@ export function InstructorCard({ instructor, isPulsing, onClick }: InstructorCar
               onClick={(e) => e.stopPropagation()}
             >
               <Phone className="h-3.5 w-3.5" />
-              <span className="truncate">{instructor.phone}</span>
+              <span className="truncate">{formatPhoneDisplay(instructor.phone)}</span>
             </a>
           )}
 
