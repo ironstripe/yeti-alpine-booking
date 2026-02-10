@@ -172,17 +172,18 @@ export function SplitGroupDialog({
   const distributeByAge = () => {
     if (!group) return;
     
+    // Sort oldest first (earliest birthDate = oldest)
     const sorted = [...group.participants].sort(
       (a, b) => new Date(a.birthDate).getTime() - new Date(b.birthDate).getTime()
     );
 
     setSplitGroups(prev => {
-      const newGroups = prev.map(g => ({ ...g, participants: [] as GroupParticipant[] }));
-      sorted.forEach((participant, index) => {
-        const groupIndex = index % newGroups.length;
-        newGroups[groupIndex].participants.push(participant);
-      });
-      return newGroups;
+      const numGroups = prev.length;
+      const chunkSize = Math.ceil(sorted.length / numGroups);
+      return prev.map((g, i) => ({
+        ...g,
+        participants: sorted.slice(i * chunkSize, (i + 1) * chunkSize),
+      }));
     });
   };
 
