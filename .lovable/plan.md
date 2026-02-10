@@ -1,90 +1,51 @@
 
 
-# Fix: Show Correct Per-Day Instructor Assignments in Capacity View
+# Fix: "Nach Alter verteilen" Should Group by Age, Not Interleave
 
-## Root Cause
+## Problem
 
-The capacity view (`useGroupCapacityData.ts`, line 162-165) picks the **first instance** with an assigned instructor to display as the course's instructor for the whole week:
+The current `distributeByAge` function sorts participants by birth date, then distributes them using round-robin (`index % numGroups`). This spreads ages evenly across groups:
 
-```typescript
-const firstInstanceWithInstructor = course.group_course_instances?.find(
-  (inst: any) => inst.instructor_id
-);
-const instructorId = firstInstanceWithInstructor?.instructor_id || null;
-```
+- Group 1: 14, 12, 11, 10, 6, 3
+- Group 2: 13, 12, 11, 9, 7, 5
 
-Since each day of the week can have a **different instructor** (assigned in Wochenplanung), this produces misleading results. The scheduler correctly shows Ivan for a specific day, but clicking through to the capacity view shows Gordon because Gordon happens to be on the first instance found.
+Instead, users expect contiguous age blocks:
 
-## Solution
+- Group 1 (older): 14, 13, 13, 12, 12, 11, 11, 10, 9
+- Group 2 (younger): 8, 7, 6, 5, 3
 
-Replace the single `instructorName` display with a list of **all unique instructors** assigned across the week's instances. This gives an accurate overview without requiring a full per-day breakdown.
+## Fix
 
----
+**File:** `src/components/group-capacity/SplitGroupDialog.tsx`
 
-## Changes
-
-### File 1: `src/hooks/useGroupCapacityData.ts`
-
-**In the no-training-groups branch (line 155-215):**
-
-- Instead of finding the first instance with an instructor, collect **all unique instructor IDs** from the week's instances
-- Set `instructorId` to the most frequently assigned instructor (primary)
-- Add a new field `allInstructorNames` (array of strings) with all unique instructor names for the week
-
-**In the `GroupCapacityInfo` interface (line 15-37):**
-- Add `allInstructorNames: string[]` field
-
-**In the training-groups branch (~line 280-310):**
-- Also populate `allInstructorNames` from the instances for that course
-
-### File 2: `src/components/group-capacity/GroupCapacityCard.tsx`
-
-**Line 50-55 -- Update instructor display:**
-
-- Instead of showing a single `group.instructorName`, show all unique instructors:
-  - If 1 instructor: show name as before
-  - If 2+ instructors: show comma-separated names (e.g., "Ivan Wachter, Graeme Gordon")
-  - If none: show "Kein Lehrer zugewiesen"
-
----
-
-## Technical Details
-
-The key change in the data hook:
+Replace the round-robin distribution in `distributeByAge` (lines 160-172) with contiguous chunk distribution:
 
 ```typescript
-// Collect all unique instructor IDs from this week's instances
-const weekInstructorIds = new Set<string>();
-course.group_course_instances?.forEach((inst: any) => {
-  if (inst.instructor_id) weekInstructorIds.add(inst.instructor_id);
-});
+const distributeByAge = () => {
+  if (!group) return;
+  
+  // Sort oldest first (earliest birthDate = oldest)
+  const sorted = [...group.participants].sort(
+    (a, b) => new Date(a.birthDate).getTime() - new Date(b.birthDate).getTime()
+  );
 
-// Pick most frequent as primary
-const instructorFrequency: Record<string, number> = {};
-course.group_course_instances?.forEach((inst: any) => {
-  if (inst.instructor_id) {
-    instructorFrequency[inst.instructor_id] = (instructorFrequency[inst.instructor_id] || 0) + 1;
-  }
-});
-const primaryInstructorId = Object.entries(instructorFrequency)
-  .sort(([,a], [,b]) => b - a)[0]?.[0] || null;
-
-// Build all instructor names
-const allInstructorNames = Array.from(weekInstructorIds)
-  .map(id => instructorMap.get(id))
-  .filter(Boolean) as string[];
+  setSplitGroups(prev => {
+    const numGroups = prev.length;
+    const chunkSize = Math.ceil(sorted.length / numGroups);
+    return prev.map((g, i) => ({
+      ...g,
+      participants: sorted.slice(i * chunkSize, (i + 1) * chunkSize),
+    }));
+  });
+};
 ```
 
-## Files to Modify
+This slices the sorted list into contiguous chunks -- Group 1 gets the oldest half, Group 2 gets the youngest half.
 
-| File | Changes |
-|------|---------|
-| `src/hooks/useGroupCapacityData.ts` | Add `allInstructorNames` to interface; collect all unique instructors from instances |
-| `src/components/group-capacity/GroupCapacityCard.tsx` | Display all instructor names instead of single name |
+## Result
 
-## Testing
+With 17 participants and 2 groups:
+- Group 1 (9 participants): ages 14, 13, 13, 12, 12, 11, 11, 10, 10
+- Group 2 (8 participants): ages 9, 8, 7, 6, 5, 3, ...
 
-- Assign different instructors to different days of the same course in Wochenplanung
-- Open the Capacity tab -- verify both instructor names appear
-- Click a group course block in the Scheduler -- verify the capacity card shows the correct instructor(s)
-- Verify single-instructor courses still display correctly
+Only one function changes, no other files affected.
