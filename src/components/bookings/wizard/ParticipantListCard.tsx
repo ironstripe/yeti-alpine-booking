@@ -9,7 +9,7 @@ import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { calculateAge, getAgeDisplay } from "@/lib/participant-utils";
-import { LEVEL_OPTIONS, getLevelLabel, getLevelBadgeColor } from "@/lib/level-utils";
+import { getLevelOptionsForAge, getLevelLabel, getLevelBadgeColor } from "@/lib/level-utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -358,25 +358,29 @@ export function ParticipantListCard({
                 <FormField
                   control={form.control}
                   name="level_current_season"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-xs">Level</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl>
-                          <SelectTrigger className="h-8 text-sm">
-                            <SelectValue placeholder="Auswählen" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {LEVEL_OPTIONS.map((opt) => (
-                            <SelectItem key={opt.value} value={opt.value}>
-                              {opt.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </FormItem>
-                  )}
+                  render={({ field }) => {
+                    const birthDateValue = form.watch("birth_date");
+                    const levelOpts = getLevelOptionsForAge(birthDateValue ?? null);
+                    return (
+                      <FormItem>
+                        <FormLabel className="text-xs">Level</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <FormControl>
+                            <SelectTrigger className="h-8 text-sm">
+                              <SelectValue placeholder="Auswählen" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {levelOpts.map((opt) => (
+                              <SelectItem key={opt.value} value={opt.value}>
+                                {opt.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </FormItem>
+                    );
+                  }}
                 />
               </div>
               <div className="flex justify-end gap-2">

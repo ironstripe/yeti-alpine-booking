@@ -11,7 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { calculateAge, getAgeDisplay } from "@/lib/participant-utils";
 import { 
-  LEVEL_OPTIONS, 
+  getLevelOptionsForAge, 
   getLevelLabel, 
   getLevelBadgeColor, 
   getNextLevel,
@@ -101,8 +101,10 @@ export function ParticipantSelection({
     },
   });
 
-  // Watch level_last_season to auto-suggest current season level
+  // Watch level_last_season and birth_date for dynamic level options
   const levelLastSeason = form.watch("level_last_season");
+  const watchedBirthDate = form.watch("birth_date");
+  const levelOptions = getLevelOptionsForAge(watchedBirthDate ?? null);
 
   useEffect(() => {
     if (levelLastSeason) {
@@ -331,7 +333,7 @@ export function ParticipantSelection({
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {LEVEL_OPTIONS.map((option) => (
+                        {levelOptions.map((option) => (
                           <SelectItem key={option.value} value={option.value}>
                             {option.label}
                           </SelectItem>
@@ -355,7 +357,7 @@ export function ParticipantSelection({
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {LEVEL_OPTIONS.map((option) => (
+                        {levelOptions.map((option) => (
                           <SelectItem key={option.value} value={option.value}>
                             {option.label}
                           </SelectItem>

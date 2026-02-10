@@ -33,7 +33,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { EnhancedDatePicker } from "@/components/ui/enhanced-date-picker";
-import { LEVEL_OPTIONS, getNextLevel } from "@/lib/level-utils";
+import { getLevelOptionsForAge, getNextLevel } from "@/lib/level-utils";
 import type { Tables } from "@/integrations/supabase/types";
 
 const participantEditSchema = z.object({
@@ -105,6 +105,9 @@ export function ParticipantEditDialog({
       sport: participant.sport || "ski",
     },
   });
+
+  // Compute age-aware level options from participant birth date
+  const levelOptions = getLevelOptionsForAge(participant.birth_date);
 
   // Watch level_last_season to auto-suggest current season level
   const levelLastSeason = form.watch("level_last_season");
@@ -210,7 +213,7 @@ export function ParticipantEditDialog({
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {LEVEL_OPTIONS.map((option) => (
+                        {levelOptions.map((option) => (
                           <SelectItem key={option.value} value={option.value}>
                             {option.label}
                           </SelectItem>
@@ -234,7 +237,7 @@ export function ParticipantEditDialog({
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {LEVEL_OPTIONS.map((option) => (
+                        {levelOptions.map((option) => (
                           <SelectItem key={option.value} value={option.value}>
                             {option.label}
                           </SelectItem>
