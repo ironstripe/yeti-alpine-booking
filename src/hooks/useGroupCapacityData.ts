@@ -21,6 +21,9 @@ export interface GroupCapacityInfo {
   customName: string | null;
   weekStart: string;
   
+  discipline: string;
+  skillLevelId: string | null;
+  
   participantCount: number;
   minParticipants: number;
   maxParticipants: number;
@@ -79,6 +82,8 @@ export function useGroupCapacityData(weekStart: Date) {
             id,
             name,
             color,
+            discipline,
+            skill_level_id,
             min_participants,
             max_participants
           ),
@@ -107,6 +112,8 @@ export function useGroupCapacityData(weekStart: Date) {
             id,
             name,
             color,
+            discipline,
+            skill_level_id,
             min_participants,
             max_participants,
             group_course_instances!inner (
@@ -213,6 +220,8 @@ export function useGroupCapacityData(weekStart: Date) {
             groupNumber: 1,
             customName: null,
             weekStart: weekStartStr,
+            discipline: (course as any).discipline || 'ski',
+            skillLevelId: (course as any).skill_level_id || null,
             participantCount,
             minParticipants,
             maxParticipants,
@@ -306,6 +315,8 @@ export function useGroupCapacityData(weekStart: Date) {
           groupNumber: tg.group_number,
           customName: tg.custom_name,
           weekStart: tg.week_start,
+          discipline: course?.discipline || 'ski',
+          skillLevelId: course?.skill_level_id || null,
           participantCount,
           minParticipants,
           maxParticipants,
@@ -391,6 +402,7 @@ export function useMergeGroups() {
       targetGroupId: string;
       newGroupName?: string;
       instructorId?: string;
+      assistantInstructorId?: string;
     }) => {
       const { data, error } = await supabase
         .rpc('merge_training_groups', {
@@ -398,6 +410,7 @@ export function useMergeGroups() {
           p_target_group_id: params.targetGroupId,
           p_new_group_name: params.newGroupName || null,
           p_instructor_id: params.instructorId || null,
+          p_assistant_instructor_id: params.assistantInstructorId || null,
         });
 
       if (error) throw error;

@@ -4139,15 +4139,26 @@ export type Database = {
         Returns: boolean
       }
       is_admin_or_office: { Args: { _user_id: string }; Returns: boolean }
-      merge_training_groups: {
-        Args: {
-          p_instructor_id?: string
-          p_new_group_name?: string
-          p_source_group_ids: string[]
-          p_target_group_id: string
-        }
-        Returns: Json
-      }
+      merge_training_groups:
+        | {
+            Args: {
+              p_instructor_id?: string
+              p_new_group_name?: string
+              p_source_group_ids: string[]
+              p_target_group_id: string
+            }
+            Returns: Json
+          }
+        | {
+            Args: {
+              p_assistant_instructor_id?: string
+              p_instructor_id?: string
+              p_new_group_name?: string
+              p_source_group_ids: string[]
+              p_target_group_id: string
+            }
+            Returns: Json
+          }
       move_participant_to_group: {
         Args: { p_enrollment_id: string; p_target_group_id: string }
         Returns: Json
