@@ -443,6 +443,7 @@ export function useGenerateInstances() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['group-course-instances'] });
       queryClient.invalidateQueries({ queryKey: ['group-courses'] });
+      queryClient.invalidateQueries({ queryKey: ['group-planning'] });
       toast.success(`${data.instances_created || 0} Instanzen generiert`);
     },
     onError: (error) => {
@@ -553,6 +554,7 @@ export function useCopyWeekAssignments() {
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['group-course-instances'] });
+      queryClient.invalidateQueries({ queryKey: ['group-planning'] });
       toast.success(`${data.courses_copied || 0} Kurszuweisungen kopiert`);
     },
     onError: (error) => {
