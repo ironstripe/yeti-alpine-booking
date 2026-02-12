@@ -81,7 +81,7 @@ serve(async (req) => {
 
     const { data: instructor, error: instructorError } = await supabaseAdmin
       .from("instructors")
-      .select("id, email, first_name, last_name")
+      .select("id, email, first_name, last_name, roles")
       .eq("id", instructor_id)
       .single();
 
@@ -165,17 +165,39 @@ serve(async (req) => {
       console.log("Created new user:", authUserId);
     }
 
-    // Ensure teacher role (idempotent upsert)
-    const { error: roleError } = await supabaseAdmin
-      .from("user_roles")
-      .upsert(
-        { user_id: authUserId, role: "teacher" },
-        { onConflict: "user_id,role" }
-      );
+    // Map instructor roles to user_roles
+    const instructorRoles: string[] = instructor.roles || [];
+    const userRolesToAssign: string[] = [];
+    
+    if (instructorRoles.some((r: string) => ["ski", "snowboard"].includes(r))) {
+      userRolesToAssign.push("teacher");
+    }
+    if (instructorRoles.includes("office")) {
+      userRolesToAssign.push("office");
+    }
+    if (instructorRoles.includes("admin")) {
+      userRolesToAssign.push("admin");
+    }
+    
+    // Fallback: if no roles mapped, default to teacher
+    if (userRolesToAssign.length === 0) {
+      userRolesToAssign.push("teacher");
+    }
+    
+    console.log("Assigning roles:", userRolesToAssign, "from instructor roles:", instructorRoles);
 
-    if (roleError) {
-      console.error("Role assignment error:", roleError);
-      // Don't fail the whole request - continue with invitation
+    // Upsert all mapped roles
+    for (const role of userRolesToAssign) {
+      const { error: roleError } = await supabaseAdmin
+        .from("user_roles")
+        .upsert(
+          { user_id: authUserId, role },
+          { onConflict: "user_id,role" }
+        );
+
+      if (roleError) {
+        console.error(`Role assignment error for ${role}:`, roleError);
+      }
     }
 
     // Generate magic link for password setup
