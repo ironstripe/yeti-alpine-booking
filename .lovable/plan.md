@@ -1,34 +1,31 @@
 
+# Fix: Add "Go to Detail" Button After AI Extraction
 
-# Fix: "Woche generieren" Button Not Updating UI
+## Problem
 
-## Root Cause
+After running the AI extraction in the test panel, the conversation is created in the database and extraction results are displayed, but there is no way to navigate to the conversation detail page. The created conversation's ID is used during extraction but never stored, so users are stuck in the dialog.
 
-The `useGenerateInstances()` mutation in `src/hooks/useGroupCourses.ts` invalidates these query keys on success:
-- `['group-course-instances']`
-- `['group-courses']`
+## Solution
 
-But the planning page (`useGroupPlanningData`) uses a **different** query key:
-- `['group-planning', weekStartStr]`
+1. **Store the created conversation ID** in component state after `createConversation()` returns.
+2. **Add a "Zur Nachricht" (Go to Message) button** in the footer that appears after successful extraction, navigating to `/inbox/{conversationId}` and closing the dialog.
 
-Because `['group-planning']` is never invalidated, the planning page data never refreshes after generation. The instances **are** created in the database, but the UI stays stuck showing the "Keine Instanzen vorhanden" empty state.
+## Technical Details
 
-## Fix
+### File: `src/components/inbox/AITestPanel.tsx`
 
-Add the missing query invalidation in `useGenerateInstances()` (line 444 in `src/hooks/useGroupCourses.ts`):
+- Add `useNavigate` from `react-router-dom`
+- Add `const [createdConversationId, setCreatedConversationId] = useState<string | null>(null)`
+- In `handleRunTest`, after creating conversation: `setCreatedConversationId(conversation.id)`
+- In `handleReset`, clear: `setCreatedConversationId(null)`
+- Add a new button in the footer (next to "Zurücksetzen") when `createdConversationId` is set:
+  ```
+  "Zur Nachricht" -> navigate(`/inbox/${createdConversationId}`), close dialog
+  ```
 
-```text
-queryClient.invalidateQueries({ queryKey: ['group-planning'] });
-```
-
-Also apply the same fix to `useCopyWeekAssignments()` further down in the same file, so copied assignments also refresh the planning view.
-
-## Files to Modify
-
-| File | Change |
-|------|--------|
-| `src/hooks/useGroupCourses.ts` | Add `queryClient.invalidateQueries({ queryKey: ['group-planning'] })` to the `onSuccess` callbacks of `useGenerateInstances()` and `useCopyWeekAssignments()` |
-
-## Impact
-
-Single-line addition per mutation. No other changes needed -- the RPC function and UI components are working correctly; only the cache invalidation was missing.
+| Change | Detail |
+|--------|--------|
+| New state | `createdConversationId` to track the created conversation |
+| New import | `useNavigate` from react-router-dom, `ExternalLink` icon from lucide-react |
+| Footer button | "Zur Nachricht" button appears after extraction, navigates to detail page |
+| Reset cleanup | Clear `createdConversationId` on reset |
