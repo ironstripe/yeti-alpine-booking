@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Loader2, Users, Crown, Briefcase, GraduationCap, MoreHorizontal, KeyRound, Check, Clock, Mail } from "lucide-react";
+import { Loader2, Users, Crown, Briefcase, GraduationCap, MoreHorizontal, KeyRound, Check, Clock, Mail, UserPlus } from "lucide-react";
+import { NewUserDialog } from "@/components/settings/NewUserDialog";
 import { SettingsLayout } from "@/components/settings/SettingsLayout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -42,6 +43,7 @@ export default function SettingsUsers() {
   const removeRole = useRemoveUserRole();
   
   const [resetDialogOpen, setResetDialogOpen] = useState(false);
+  const [newUserDialogOpen, setNewUserDialogOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<UserWithRole | null>(null);
 
   const handleResetPassword = (user: UserWithRole) => {
@@ -90,6 +92,10 @@ export default function SettingsUsers() {
           <CardHeader>
             <div className="flex items-center justify-between">
               <CardTitle className="text-base">Benutzer</CardTitle>
+              <Button size="sm" onClick={() => setNewUserDialogOpen(true)}>
+                <UserPlus className="h-4 w-4 mr-2" />
+                Neuer Benutzer
+              </Button>
             </div>
           </CardHeader>
           <CardContent>
@@ -274,6 +280,9 @@ export default function SettingsUsers() {
           </CardContent>
         </Card>
       </div>
+
+      {/* New User Dialog */}
+      <NewUserDialog open={newUserDialogOpen} onOpenChange={setNewUserDialogOpen} />
 
       {/* Password Reset Confirmation Dialog */}
       <ConfirmDialog

@@ -34,9 +34,10 @@ export function useInviteInstructor() {
       toast.success("Einladung gesendet!", {
         description: data.message,
       });
-      // Invalidate instructor queries to refresh data
+      // Invalidate instructor and settings queries to refresh data
       queryClient.invalidateQueries({ queryKey: ["instructor"] });
       queryClient.invalidateQueries({ queryKey: ["instructors"] });
+      queryClient.invalidateQueries({ queryKey: ["settings-users"] });
     },
     onError: (error: Error) => {
       // Check for Resend sandbox error
