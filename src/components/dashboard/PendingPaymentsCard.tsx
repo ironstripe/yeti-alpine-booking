@@ -40,7 +40,6 @@ export function PendingPaymentsCard() {
             last_name
           )
         `)
-        .neq("status", "cancelled")
         .order("payment_due_date", { ascending: true, nullsFirst: false })
         .limit(10);
 
