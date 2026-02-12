@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { BaseDialog } from "@/components/ui/base-dialog";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -15,6 +16,7 @@ import {
   Calendar,
   AlertCircle,
   Sparkles,
+  ExternalLink,
 } from "lucide-react";
 import { useTestConversation } from "@/hooks/useTestConversation";
 import { ConfidenceIndicator } from "./ConfidenceIndicator";
@@ -27,8 +29,10 @@ interface AITestPanelProps {
 }
 
 export function AITestPanel({ open, onOpenChange }: AITestPanelProps) {
+  const navigate = useNavigate();
   const [customSubject, setCustomSubject] = useState("");
   const [customContent, setCustomContent] = useState("");
+  const [createdConversationId, setCreatedConversationId] = useState<string | null>(null);
   const [extractionResult, setExtractionResult] = useState<{
     success: boolean;
     isBookingRequest: boolean;
@@ -52,6 +56,7 @@ export function AITestPanel({ open, onOpenChange }: AITestPanelProps) {
         content: customContent, 
         subject: customSubject || undefined 
       });
+      setCreatedConversationId(conversation.id);
 
       // Trigger AI extraction
       const result = await triggerExtraction(conversation.id);
@@ -70,6 +75,7 @@ export function AITestPanel({ open, onOpenChange }: AITestPanelProps) {
     setExtractionResult(null);
     setCustomContent("");
     setCustomSubject("");
+    setCreatedConversationId(null);
   };
 
   const isDisabled = isLoading || !customContent.trim();
@@ -97,6 +103,18 @@ export function AITestPanel({ open, onOpenChange }: AITestPanelProps) {
       {extractionResult && (
         <Button variant="outline" onClick={handleReset}>
           Zurücksetzen
+        </Button>
+      )}
+      {createdConversationId && (
+        <Button
+          variant="secondary"
+          onClick={() => {
+            navigate(`/inbox/${createdConversationId}`);
+            onOpenChange(false);
+          }}
+        >
+          Zur Nachricht
+          <ExternalLink className="h-4 w-4 ml-1" />
         </Button>
       )}
     </div>
