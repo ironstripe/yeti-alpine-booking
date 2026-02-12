@@ -94,6 +94,7 @@ export function Step2ProductAllocation() {
     toggleMiniSchedulerSlot,
     clearMiniSchedulerSelection,
     applyMiniSchedulerSelection,
+    setGroupInstructor,
     // Period day planner functions
     setDayInstructorOverride,
     setDayTimeOverride,
@@ -439,14 +440,35 @@ export function Step2ProductAllocation() {
   };
 
   // Handle applying the multi-selection to the wizard state
-  const handleApplyMultiSelection = () => {
+  const handleApplyMultiSelection = async () => {
+    // Capture instructor IDs before clearing selections
+    const instrIds = [...new Set(state.miniSchedulerSelections.map(s => s.instructorId))];
+    
     applyMiniSchedulerSelection();
-    // After applying, the context's timeSlot will be updated via setState.
-    // We need to force-sync the ref so the write effect doesn't overwrite.
-    // Use a microtask to read the updated state after React processes the setState.
-    setTimeout(() => {
-      // The sync effect will handle this via state.timeSlot change detection
-    }, 0);
+    
+    // If multi-instructor, fetch instructor objects to populate group proposal
+    if (instrIds.length > 1 && state.selectedParticipants.length > 1) {
+      try {
+        const { data: instructors } = await supabase
+          .from("instructors")
+          .select("*")
+          .in("id", instrIds);
+        
+        if (instructors) {
+          // Update group proposal with fetched instructor objects
+          for (const instr of instructors) {
+            setGroupInstructor(
+              `mini-group-${instrIds.indexOf(instr.id) + 1}`,
+              instr
+            );
+          }
+        }
+      } catch (err) {
+        console.error("Failed to fetch instructors for group proposal:", err);
+      }
+    }
+    
+    setTimeout(() => {}, 0);
   };
 
   const isGroupCourse = state.productType === "group";
@@ -947,10 +969,26 @@ export function Step2ProductAllocation() {
             {/* Multi-select action bar */}
             {state.miniSchedulerSelections.length > 0 && (
               <div className="mt-3 flex items-center justify-between gap-2 rounded-lg border border-primary bg-primary/5 p-3">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <Badge variant="secondary" className="bg-primary/20 text-primary">
                     {state.miniSchedulerSelections.length} Slots ausgewählt
                   </Badge>
+                  {(() => {
+                    const instrMap = new Map<string, { name: string; count: number }>();
+                    for (const s of state.miniSchedulerSelections) {
+                      const entry = instrMap.get(s.instructorId);
+                      if (entry) entry.count++;
+                      else instrMap.set(s.instructorId, { name: s.instructorName, count: 1 });
+                    }
+                    if (instrMap.size > 1) {
+                      return (
+                        <span className="text-xs text-muted-foreground">
+                          {[...instrMap.values()].map(v => `${v.name} (${v.count})`).join(", ")}
+                        </span>
+                      );
+                    }
+                    return null;
+                  })()}
                   <span className="text-xs text-muted-foreground">
                     (Ctrl+Klick für weitere)
                   </span>
