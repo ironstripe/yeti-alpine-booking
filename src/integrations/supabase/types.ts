@@ -3302,6 +3302,48 @@ export type Database = {
           },
         ]
       }
+      ticket_history: {
+        Row: {
+          created_at: string
+          created_by_user_id: string | null
+          details: Json | null
+          event_type: string
+          id: string
+          ticket_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by_user_id?: string | null
+          details?: Json | null
+          event_type: string
+          id?: string
+          ticket_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by_user_id?: string | null
+          details?: Json | null
+          event_type?: string
+          id?: string
+          ticket_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ticket_history_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "pending_booking_confirmations"
+            referencedColumns: ["ticket_id"]
+          },
+          {
+            foreignKeyName: "ticket_history_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "tickets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ticket_item_overrides: {
         Row: {
           created_at: string

@@ -18,7 +18,10 @@ import {
   Pencil,
   XCircle,
   Calendar,
+  History,
 } from "lucide-react";
+import { TicketTimeline } from "@/components/bookings/TicketTimeline";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CancellationDialog } from "@/components/bookings/CancellationDialog";
 import { PageHeader } from "@/components/layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -386,47 +389,60 @@ const BookingDetail = () => {
             </Card>
           )}
 
-          {/* Communication Log */}
+          {/* History, Comments & Communication */}
           <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Mail className="h-5 w-5" />
-                Kommunikationsverlauf
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {emailLogs.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-4">
-                  Noch keine E-Mails gesendet
-                </p>
-              ) : (
-                <div className="space-y-2">
-                  {emailLogs.map((log: any) => (
-                    <div key={log.id} className="flex items-center justify-between py-2 border-b border-border last:border-0">
-                      <div className="flex items-center gap-3">
-                        <div className={`h-2 w-2 rounded-full ${
-                          log.status === 'delivered' ? 'bg-green-500' :
-                          log.status === 'sent' ? 'bg-blue-500' :
-                          log.status === 'failed' ? 'bg-red-500' : 'bg-gray-400'
-                        }`} />
-                        <div>
-                          <p className="text-sm font-medium">{log.subject}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {format(new Date(log.created_at), 'dd.MM.yyyy HH:mm', { locale: de })}
-                          </p>
+            <Tabs defaultValue="timeline">
+              <CardHeader className="pb-2">
+                <TabsList>
+                  <TabsTrigger value="timeline">
+                    <History className="h-4 w-4 mr-1.5" />
+                    Verlauf & Kommentare
+                  </TabsTrigger>
+                  <TabsTrigger value="emails">
+                    <Mail className="h-4 w-4 mr-1.5" />
+                    E-Mails
+                  </TabsTrigger>
+                </TabsList>
+              </CardHeader>
+              <CardContent>
+                <TabsContent value="timeline" className="mt-0">
+                  <TicketTimeline ticketId={ticket.id} />
+                </TabsContent>
+                <TabsContent value="emails" className="mt-0">
+                  {emailLogs.length === 0 ? (
+                    <p className="text-sm text-muted-foreground text-center py-4">
+                      Noch keine E-Mails gesendet
+                    </p>
+                  ) : (
+                    <div className="space-y-2">
+                      {emailLogs.map((log: any) => (
+                        <div key={log.id} className="flex items-center justify-between py-2 border-b border-border last:border-0">
+                          <div className="flex items-center gap-3">
+                            <div className={`h-2 w-2 rounded-full ${
+                              log.status === 'delivered' ? 'bg-green-500' :
+                              log.status === 'sent' ? 'bg-blue-500' :
+                              log.status === 'failed' ? 'bg-red-500' : 'bg-gray-400'
+                            }`} />
+                            <div>
+                              <p className="text-sm font-medium">{log.subject}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {format(new Date(log.created_at), 'dd.MM.yyyy HH:mm', { locale: de })}
+                              </p>
+                            </div>
+                          </div>
+                          <Badge variant="outline" className="text-xs">
+                            {log.status === 'delivered' ? 'Zugestellt' :
+                             log.status === 'sent' ? 'Gesendet' :
+                             log.status === 'opened' ? 'Geöffnet' :
+                             log.status === 'failed' ? 'Fehlgeschlagen' : log.status}
+                          </Badge>
                         </div>
-                      </div>
-                      <Badge variant="outline" className="text-xs">
-                        {log.status === 'delivered' ? 'Zugestellt' :
-                         log.status === 'sent' ? 'Gesendet' :
-                         log.status === 'opened' ? 'Geöffnet' :
-                         log.status === 'failed' ? 'Fehlgeschlagen' : log.status}
-                      </Badge>
+                      ))}
                     </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
+                  )}
+                </TabsContent>
+              </CardContent>
+            </Tabs>
           </Card>
         </div>
 
