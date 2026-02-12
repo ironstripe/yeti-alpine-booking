@@ -1,83 +1,86 @@
 
+# Fix: Multi-Instructor Mini-Scheduler Selection for Multi-Participant Bookings
 
-# Fix: End-to-End User Creation & Role Sync
+## Problem
 
-## Problems Identified
+When booking 2 participants and selecting slots from the mini-scheduler with **different instructors** (e.g., O. Elmiger for Mon/Tue and H. Dirnhofer for Mon/Tue), the system:
 
-1. **No "Add User" in Settings/Users**: Staff must go to "Skilehrer" to create a person, then come back to Settings/Users to invite and manage roles. This is fragmented and confusing.
-
-2. **Roles not synced on invite**: The `invite-instructor` edge function hardcodes `role: "teacher"` (line 169-174) when creating the auth user, completely ignoring the instructor's actual `roles` array (e.g. `["ski", "office"]`). So an office-only person still gets "teacher" role.
-
-3. **`link-instructor-to-user` only runs on creation**: This function correctly maps instructor roles to user_roles, but it only fires when creating an instructor -- not when inviting. The invite path bypasses it entirely.
+1. **Resets the selection** when you Ctrl+Click a slot from a second instructor (line 666-677 in `BookingWizardContext.tsx` forces single-instructor)
+2. **Only stores one "base" instructor** with per-day overrides -- but two participants needing two instructors at the **same time on the same days** cannot be expressed as day-level overrides
+3. The existing `privateGroupProposal` system (which supports per-participant instructor assignment) is only triggered by the level-based grouping algorithm, not by manual mini-scheduler selections
 
 ## Solution
 
-### Fix 1: Add "Neuer Benutzer" Button to Settings/Users
+### Part 1: Allow Multi-Instructor Slot Selection
 
-Add a dialog on the Settings/Users page with a simplified form:
-- First name, last name, email (required)
-- Role checkboxes: Admin, Buro, Lehrer (at least one required)
-- On submit: creates an instructor record, then immediately invites them
-
-This creates a single-step flow: one click to create + invite + assign roles.
+Remove the restriction in `toggleMiniSchedulerSlot` that resets the selection when a different instructor is picked. Allow slots from multiple instructors to coexist in the `miniSchedulerSelections` array.
 
 | File | Change |
 |------|--------|
-| `src/pages/SettingsUsers.tsx` | Add "Neuer Benutzer" button in CardHeader |
-| `src/components/settings/NewUserDialog.tsx` (new) | Simple form: name, email, role checkboxes |
+| `src/contexts/BookingWizardContext.tsx` (lines 665-677) | Remove the "different instructor = reset" logic. Simply add the new slot regardless of instructor. |
 
-The dialog will:
-1. Create an instructor record with appropriate `roles` array (mapping: Lehrer -> `["ski"]`, Buro -> `["office"]`, both -> `["ski", "office"]`)
-2. Immediately call `invite-instructor` to send the invitation
-3. Invalidate queries to refresh the list
+### Part 2: Detect Multi-Instructor Selections and Generate Group Proposal
 
-### Fix 2: Update `invite-instructor` to Sync Actual Roles
+Update `applyMiniSchedulerSelection` to detect when selected slots span multiple instructors. When they do AND there are multiple participants:
 
-The edge function currently does:
-```text
-// Line 169 - PROBLEM: hardcoded "teacher" only
-.upsert({ user_id: authUserId, role: "teacher" }, ...)
-```
+- Group the slots by instructor
+- Create a `privateGroupProposal` automatically, assigning participants round-robin or evenly across instructor groups
+- Each group gets its own instructor, time, and participant list
 
-Change it to:
-1. Fetch the instructor's `roles` array from the DB (already fetching instructor, just add `roles` to the select)
-2. Map instructor roles to user_roles using the same logic as `link-instructor-to-user`:
-   - `ski` or `snowboard` in roles -> assign `teacher`
-   - `office` in roles -> assign `office`
-3. Upsert all mapped roles, not just "teacher"
+If only one instructor is selected, the current logic remains unchanged.
 
 | File | Change |
 |------|--------|
-| `supabase/functions/invite-instructor/index.ts` | Fetch instructor.roles, map and upsert all applicable user_roles |
+| `src/contexts/BookingWizardContext.tsx` (lines 728-850) | After computing instructor counts, if multiple instructors are found AND `selectedParticipants.length > 1`, build a `privateGroupProposal` with groups split by instructor. Use the first instructor's slots for group 1 participants, second instructor's slots for group 2, etc. |
 
-### Fix 3: Refresh Settings Users After Invite
+### Part 3: Show Multi-Instructor Selection Count in UI
 
-Currently `useInviteInstructor` only invalidates `["instructor"]` and `["instructors"]` queries. Add invalidation for `["settings-users"]` so the user list updates immediately after inviting.
+The floating action bar already shows "X Slots ausgewahlt". Update it to also show the instructor breakdown when multiple instructors are selected (e.g., "4 Slots: O. Elmiger (2), H. Dirnhofer (2)").
 
 | File | Change |
 |------|--------|
-| `src/hooks/useInviteInstructor.ts` | Add `queryClient.invalidateQueries({ queryKey: ["settings-users"] })` in onSuccess |
+| `src/components/bookings/wizard/Step2ProductAllocation.tsx` (lines 948-955) | Enhance the selection badge to show per-instructor counts when multi-instructor slots are selected |
 
-## End-to-End Flow After Fix
+### Part 4: Ensure Step 3 Reflects the Group Proposal
+
+Step 3 (`Step3InstructorDetails.tsx`) already handles `privateGroupProposal` correctly -- it shows "Skilehrer wurden pro Gruppe in Schritt 2 zugewiesen" when a multi-group proposal exists. No changes needed here.
+
+Similarly, `BookingSummaryCards.tsx` and `PriceBreakdown.tsx` already render per-group details. No changes needed.
+
+## Logic Flow After Fix
 
 ```text
-Settings/Users -> "Neuer Benutzer" button
-  -> Fill: Name, Email, Roles (Admin/Buro/Lehrer)
-  -> Submit
-    1. Creates instructor record with mapped roles array
-    2. Calls invite-instructor
-    3. invite-instructor creates auth user
-    4. invite-instructor reads instructor.roles, maps to user_roles (teacher/office/admin)
-    5. Sends invitation email
-    6. User list refreshes showing new user with correct roles and "Eingeladen" status
+Mini-Scheduler: User Ctrl+Clicks slots across 2 instructors
+  -> toggleMiniSchedulerSlot: allows multi-instructor (no reset)
+  -> UI shows "4 Slots: Elmiger (2), Dirnhofer (2)"
+  -> User clicks "Auswahl ubernehmen"
+  -> applyMiniSchedulerSelection detects 2 instructors + 2 participants
+  -> Creates privateGroupProposal:
+       Group 1: Participant A -> Elmiger, 12:00-13:00
+       Group 2: Participant B -> Dirnhofer, 12:00-13:00
+  -> Step 2 Group Proposal Panel shows the assignment (editable)
+  -> Step 3 shows "Skilehrer pro Gruppe zugewiesen"
+  -> Step 4 summary shows both groups with correct pricing
 ```
+
+## Participant-to-Group Assignment Strategy
+
+When the grouping algorithm hasn't split participants (compatible levels), the mini-scheduler multi-instructor selection will assign participants evenly:
+- With 2 participants and 2 instructors: 1 participant per instructor
+- With 3 participants and 2 instructors: 2 to the first, 1 to the second
+- The assignment follows participant order (as listed in Step 1)
+- The user can always adjust assignments in the Group Proposal Panel
 
 ## Files Summary
 
 | File | Action |
 |------|--------|
-| `src/components/settings/NewUserDialog.tsx` | Create |
-| `src/pages/SettingsUsers.tsx` | Add button + dialog |
-| `supabase/functions/invite-instructor/index.ts` | Fix role mapping |
-| `src/hooks/useInviteInstructor.ts` | Add settings-users invalidation |
+| `src/contexts/BookingWizardContext.tsx` | Allow multi-instructor selection + generate group proposal on apply |
+| `src/components/bookings/wizard/Step2ProductAllocation.tsx` | Enhance selection badge UI for multi-instructor feedback |
 
+## Edge Cases Handled
+
+- **1 participant, 2 instructors**: Falls back to the existing day-override model (different instructor per day)
+- **2+ participants, 1 instructor**: No change to current behavior
+- **Algorithm already split groups**: Mini-scheduler selections update the existing group proposal's instructors rather than creating a new one
+- **More instructors than participants**: Extra instructor groups are created with empty participant lists (user must assign manually)
