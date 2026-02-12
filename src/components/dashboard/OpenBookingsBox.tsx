@@ -17,12 +17,18 @@ interface OpenBooking {
   issue: string;
 }
 
-function getBookingIssue(paidAmount: number, totalAmount: number): string {
+function getBookingIssue(paidAmount: number, totalAmount: number, status: string | null): string {
+  const isCancelled = status === "storno" || status === "cancelled";
   if (paidAmount === 0) {
-    return `Offen: CHF ${totalAmount.toFixed(0)}`;
+    return isCancelled
+      ? `Stornogebühr: CHF ${totalAmount.toFixed(0)}`
+      : `Offen: CHF ${totalAmount.toFixed(0)}`;
   }
   if (paidAmount < totalAmount) {
-    return `Teilbezahlt: CHF ${paidAmount.toFixed(0)} / ${totalAmount.toFixed(0)}`;
+    const remaining = totalAmount - paidAmount;
+    return isCancelled
+      ? `Stornogebühr: CHF ${remaining.toFixed(0)} offen`
+      : `Teilbezahlt: CHF ${paidAmount.toFixed(0)} / ${totalAmount.toFixed(0)}`;
   }
   return "Prüfung erforderlich";
 }
@@ -45,7 +51,6 @@ export function OpenBookingsBox() {
           customers (first_name, last_name)
         `
         )
-        .neq("status", "cancelled")
         .gt("total_amount", 0)
         .order("created_at", { ascending: false })
         .limit(20);
@@ -70,7 +75,7 @@ export function OpenBookingsBox() {
           customer_name: ticket.customers
             ? `${ticket.customers.first_name || ""} ${ticket.customers.last_name}`.trim()
             : "Unbekannt",
-          issue: getBookingIssue(paidAmount, totalAmount),
+          issue: getBookingIssue(paidAmount, totalAmount, ticket.status),
         };
       });
     },
