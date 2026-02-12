@@ -662,20 +662,7 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
         return { ...prev, miniSchedulerSelections: newSelections };
       }
 
-      // Check if selecting for a different instructor
-      if (prev.miniSchedulerSelections.length > 0) {
-        const firstInstructorId = prev.miniSchedulerSelections[0].instructorId;
-        if (firstInstructorId !== slot.instructorId) {
-          // Different instructor - start new selection
-          return {
-            ...prev,
-            miniSchedulerSelections: [{
-              ...slot,
-              id: generateMiniSlotId(),
-            }],
-          };
-        }
-      }
+      // Multi-instructor selections are allowed for multi-participant bookings
 
       // Add the slot
       return {
@@ -835,16 +822,56 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
         }
       }
 
+      // Check if multiple instructors are selected AND multiple participants exist
+      const uniqueInstructorIds = [...instructorCounts.keys()];
+      let privateGroupProposal = prev.privateGroupProposal;
+
+      if (uniqueInstructorIds.length > 1 && prev.selectedParticipants.length > 1) {
+        // Build a privateGroupProposal: split participants across instructors
+        const participantIds = prev.selectedParticipants.map(p => p.id);
+        const groups = uniqueInstructorIds.map((instrId, idx) => {
+          const instrSlots = sortedSlots.filter(s => s.instructorId === instrId);
+          // Determine time from this instructor's slots (most frequent)
+          const instrTimeCounts = new Map<string, number>();
+          for (const s of instrSlots) {
+            const tk = `${s.startTime}-${s.endTime}`;
+            instrTimeCounts.set(tk, (instrTimeCounts.get(tk) || 0) + 1);
+          }
+          let bestTime = `${instrSlots[0].startTime}-${instrSlots[0].endTime}`;
+          let bestCount = 0;
+          for (const [tk, c] of instrTimeCounts) {
+            if (c > bestCount) { bestCount = c; bestTime = tk; }
+          }
+          const [st, et] = bestTime.split("-");
+
+          return {
+            id: `mini-group-${idx + 1}`,
+            participantIds: [] as string[],
+            instructorId: instrId,
+            instructor: null as Tables<"instructors"> | null,
+            startTime: st,
+            endTime: et,
+          };
+        });
+
+        // Distribute participants evenly across groups (round-robin)
+        participantIds.forEach((pid, idx) => {
+          groups[idx % groups.length].participantIds.push(pid);
+        });
+
+        privateGroupProposal = { groups, warnings: [] };
+      }
+
       return {
         ...prev,
         selectedDates: dates,
         instructorId: baseInstructorId,
-        // Note: instructor object will be fetched by the component
         timeSlot: `${baseStartTime} - ${baseEndTime}`,
         duration,
         timeSelections,
         dayTimeOverrides,
         dayInstructorOverrides,
+        privateGroupProposal,
         miniSchedulerSelections: [], // Clear after applying
       };
     });
