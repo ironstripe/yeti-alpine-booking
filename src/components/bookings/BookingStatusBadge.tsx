@@ -13,10 +13,18 @@ export function BookingStatusBadge({
   hasUnconfirmedInstructor,
 }: BookingStatusBadgeProps) {
   // Priority: cancelled > draft > instructor pending > payment status
-  if (status === "cancelled") {
+  if (status === "cancelled" || status === "storno") {
     return (
       <Badge variant="outline" className="bg-destructive/10 text-destructive border-destructive/20">
         🔴 Storniert
+      </Badge>
+    );
+  }
+
+  if (status === "partial_cancelled") {
+    return (
+      <Badge variant="outline" className="bg-destructive/10 text-orange-600 border-orange-500/20">
+        🟠 Teilstorniert
       </Badge>
     );
   }
