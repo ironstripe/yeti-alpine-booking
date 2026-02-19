@@ -86,6 +86,27 @@ export function useCancellation() {
 
       if (cancellationError) throw cancellationError;
 
+      // 3b. Add cancellation reason as audit trail comment
+      const { data: userData } = await supabase.auth.getUser();
+      const userEmail = userData?.user?.email || "System";
+
+      let commentContent = `Stornierung: ${input.cancellationReason}`;
+      if (input.waiverReason) {
+        commentContent += `\nKulanz-Begründung: ${input.waiverReason}`;
+      }
+
+      const { error: commentError } = await supabase
+        .from("ticket_comments")
+        .insert({
+          ticket_id: input.ticketId,
+          comment_type: "internal",
+          content: commentContent,
+          created_by_user_id: userData?.user?.id || "",
+          created_by_name: userEmail,
+        });
+
+      if (commentError) throw commentError;
+
       // 4. Update ticket status
       const { error: ticketError } = await supabase
         .from("tickets")
@@ -110,6 +131,8 @@ export function useCancellation() {
       queryClient.invalidateQueries({ queryKey: ["tickets"] });
       queryClient.invalidateQueries({ queryKey: ["bookings"] });
       queryClient.invalidateQueries({ queryKey: ["customer-credits"] });
+      queryClient.invalidateQueries({ queryKey: ["ticket-comments"] });
+      queryClient.invalidateQueries({ queryKey: ["ticket-history"] });
       toast.success("Buchung erfolgreich storniert");
     },
     onError: (error) => {
