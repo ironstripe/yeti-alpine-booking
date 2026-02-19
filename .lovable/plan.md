@@ -1,81 +1,51 @@
 
 
-# Add Logged-In User to Booking Audit Trail
+# Add Cancellation Reason as Audit Trail Comment
 
-## Problem
+## Current Behavior
 
-The `ticket_history` table already has a `created_by_user_id` column, but all 4 database triggers never populate it -- every history entry has `NULL` for the user. The timeline UI also never resolves user IDs to names/emails, so even if the column were filled, it wouldn't display.
+The cancellation dialog has **two text fields**:
+1. **Stornierungsgrund** (cancellation reason) -- always required
+2. **Kulanz-Begrundung** (waiver reason) -- only shown when within 24h AND fee is waived/custom
 
-## Solution
+When a cancellation is submitted:
+- The `log_booking_cancelled` trigger creates a `ticket_history` event with the reason in `details.reason`
+- But **no comment** is added to `ticket_comments`, so the reason doesn't appear as a readable comment in the timeline
 
-### Part 1: Update Database Triggers to Capture `auth.uid()`
+## Changes
 
-All 4 trigger functions need one small change: add `created_by_user_id = auth.uid()` to their INSERT statements. Since these triggers fire in the context of an authenticated Supabase request, `auth.uid()` returns the logged-in user's ID.
+### 1. Add a `ticket_comments` entry during cancellation
 
-A single migration will replace all 4 functions:
+In `useCancellation.ts`, after creating the cancellation record and before updating the ticket status, insert a `ticket_comment` with the cancellation reason. This adds a visible comment in the timeline alongside the automatic "Stornierung" history event.
 
-| Trigger Function | Event |
-|---|---|
-| `log_ticket_created` | Booking created |
-| `log_ticket_status_changed` | Status changed |
-| `log_ticket_item_instructor_changed` | Instructor changed |
-| `log_booking_cancelled` | Cancellation recorded |
+The comment will include:
+- The cancellation reason
+- The waiver reason (if applicable), appended on a new line
 
-Each INSERT changes from:
-```sql
-INSERT INTO ticket_history (ticket_id, event_type, details)
-```
-to:
-```sql
-INSERT INTO ticket_history (ticket_id, event_type, details, created_by_user_id)
-VALUES (..., auth.uid())
-```
+**File**: `src/hooks/useCancellation.ts`
 
-### Part 2: Resolve User IDs to Emails in the Timeline
+- Add `waiverReason` is already in the input (no change needed to interface)
+- After step 3 (create cancellation record), get the current user via `supabase.auth.getUser()`
+- Insert a `ticket_comment` with `comment_type: "internal"` and a combined content string like:
+  - `"Stornierung: {reason}"` (or with waiver: `"Stornierung: {reason}\nKulanz-Begrundung: {waiverReason}"`)
 
-Update `useTicketHistory.ts` to:
-1. Collect all non-null `created_by_user_id` values from history entries
-2. Look up the corresponding instructor records (the `instructors` table links to auth users and has emails)
-3. Pass the resolved email as `actorName` into each `TimelineEntry`
+### 2. Invalidate comment queries
 
-Since there's no `profiles` table, we'll use a lightweight approach: query `instructors` by matching email from `auth.users`. However, since we can't query `auth.users` from the client, we'll instead store the user email directly in the `details` JSONB when the trigger fires. This is more reliable.
+Add `queryClient.invalidateQueries({ queryKey: ["ticket-comments"] })` and `queryClient.invalidateQueries({ queryKey: ["ticket-history"] })` to the `onSuccess` handler so the timeline refreshes immediately.
 
-**Revised approach**: Add `actor_email` to the trigger's `details` JSONB by looking it up in `auth.users`:
+**File**: `src/hooks/useCancellation.ts`
 
-```sql
-INSERT INTO ticket_history (ticket_id, event_type, created_by_user_id, details)
-VALUES (
-  NEW.id,
-  'BOOKING_CREATED',
-  auth.uid(),
-  jsonb_build_object(
-    'ticket_number', NEW.ticket_number,
-    'total_amount', NEW.total_amount,
-    'customer_id', NEW.customer_id,
-    'actor_email', (SELECT email FROM auth.users WHERE id = auth.uid())
-  )
-);
-```
+## No UI Changes Needed
 
-Then in the frontend, simply read `details.actor_email` as the actor name -- no extra queries needed.
-
-### Part 3: Display Actor in Timeline UI
-
-Update `useTicketHistory.ts`:
-- In the `useUnifiedTimeline` mapping for history events, set `actorName` from `e.details.actor_email` instead of `null`
-
-This means every timeline entry will show e.g. "Buchung erstellt" with "ivo@ivo.ch" as the actor.
-
-## Files Summary
-
-| File | Action |
-|---|---|
-| New migration SQL | Update 4 trigger functions to include `auth.uid()` and `actor_email` |
-| `src/hooks/useTicketHistory.ts` | Read `details.actor_email` as `actorName` for history events |
+- The two text fields in the dialog are functionally different (reason vs. waiver justification) -- they serve distinct purposes and should stay
+- The waiver reason field only appears conditionally (within 24h + non-AGB fee), so the user typically only sees one field
+- Both values get combined into a single audit trail comment
 
 ## Result
 
-Timeline entries will show:
-- "Buchung erstellt" -- ivo@ivo.ch -- 19.02.2026 14:30
-- "Status geandert: confirmed -> storno" -- ivo@ivo.ch -- 19.02.2026 15:00
-- Existing entries (before this change) will continue showing without a user (graceful fallback)
+After cancellation, the booking timeline will show:
+- **System event**: "Stornierung: Vollstornierung -- {reason} (Gebuhr: CHF X.XX)" (from trigger)
+- **Comment**: "Stornierung: {reason}" with the user's email (from the new comment insert)
+
+This gives a clear, readable audit trail entry that shows who cancelled and why.
+
