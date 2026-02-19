@@ -77,7 +77,7 @@ export function useUnifiedTimeline(ticketId: string | undefined) {
       type: EVENT_LABELS[e.event_type] || e.event_type,
       content: formatEventDetails(e),
       details: e.details,
-      actorName: null,
+      actorName: (e.details?.actor_email as string) || null,
     })),
     ...comments.map((c: TicketComment): TimelineEntry => ({
       id: c.id,
