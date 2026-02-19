@@ -724,22 +724,44 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
       // Extract unique dates
       const dates = [...new Set(sortedSlots.map((s) => s.date))].sort();
 
-      // Find base instructor and time (most frequent)
+      // Count instructors (for multi-instructor detection)
       const instructorCounts = new Map<string, { count: number; name: string }>();
-      const timeCounts = new Map<string, number>();
-
       for (const slot of sortedSlots) {
-        // Count instructors
         const ic = instructorCounts.get(slot.instructorId);
         if (ic) {
           ic.count++;
         } else {
           instructorCounts.set(slot.instructorId, { count: 1, name: slot.instructorName });
         }
-        
-        // Count times
-        const timeKey = `${slot.startTime}-${slot.endTime}`;
-        timeCounts.set(timeKey, (timeCounts.get(timeKey) || 0) + 1);
+      }
+
+      // --- Merge adjacent 1h slots per instructor+date into contiguous ranges ---
+      type MergedRange = { instructorId: string; instructorName: string; date: string; startTime: string; endTime: string };
+      const mergedRanges: MergedRange[] = [];
+
+      // Group slots by instructorId + date
+      const slotGroups = new Map<string, typeof sortedSlots>();
+      for (const slot of sortedSlots) {
+        const key = `${slot.instructorId}|${slot.date}`;
+        const arr = slotGroups.get(key) || [];
+        arr.push(slot);
+        slotGroups.set(key, arr);
+      }
+
+      for (const [, groupSlots] of slotGroups) {
+        // Sort by startTime
+        const sorted = [...groupSlots].sort((a, b) => a.startTime.localeCompare(b.startTime));
+        let current = { ...sorted[0] };
+        for (let i = 1; i < sorted.length; i++) {
+          // If this slot's start equals current end, extend
+          if (sorted[i].startTime === current.endTime) {
+            current.endTime = sorted[i].endTime;
+          } else {
+            mergedRanges.push({ instructorId: current.instructorId, instructorName: current.instructorName, date: current.date, startTime: current.startTime, endTime: current.endTime });
+            current = { ...sorted[i] };
+          }
+        }
+        mergedRanges.push({ instructorId: current.instructorId, instructorName: current.instructorName, date: current.date, startTime: current.startTime, endTime: current.endTime });
       }
 
       // Find most frequent instructor
@@ -752,10 +774,15 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
         }
       }
 
-      // Find most frequent time
-      let baseTimeKey = `${sortedSlots[0].startTime}-${sortedSlots[0].endTime}`;
+      // Find most frequent merged time range
+      const mergedTimeCounts = new Map<string, number>();
+      for (const r of mergedRanges) {
+        const key = `${r.startTime}-${r.endTime}`;
+        mergedTimeCounts.set(key, (mergedTimeCounts.get(key) || 0) + 1);
+      }
+      let baseTimeKey = `${mergedRanges[0].startTime}-${mergedRanges[0].endTime}`;
       let maxTimeCount = 0;
-      for (const [key, count] of timeCounts) {
+      for (const [key, count] of mergedTimeCounts) {
         if (count > maxTimeCount) {
           maxTimeCount = count;
           baseTimeKey = key;
@@ -763,7 +790,7 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
       }
       const [baseStartTime, baseEndTime] = baseTimeKey.split("-");
 
-      // Calculate duration
+      // Calculate duration from merged range
       const startHour = parseInt(baseStartTime.split(":")[0]);
       const endHour = parseInt(baseEndTime.split(":")[0]);
       const duration = endHour - startHour;
@@ -830,14 +857,14 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
         // Build a privateGroupProposal: split participants across instructors
         const participantIds = prev.selectedParticipants.map(p => p.id);
         const groups = uniqueInstructorIds.map((instrId, idx) => {
-          const instrSlots = sortedSlots.filter(s => s.instructorId === instrId);
-          // Determine time from this instructor's slots (most frequent)
+          // Use merged ranges for this instructor's time
+          const instrRanges = mergedRanges.filter(r => r.instructorId === instrId);
           const instrTimeCounts = new Map<string, number>();
-          for (const s of instrSlots) {
-            const tk = `${s.startTime}-${s.endTime}`;
+          for (const r of instrRanges) {
+            const tk = `${r.startTime}-${r.endTime}`;
             instrTimeCounts.set(tk, (instrTimeCounts.get(tk) || 0) + 1);
           }
-          let bestTime = `${instrSlots[0].startTime}-${instrSlots[0].endTime}`;
+          let bestTime = `${instrRanges[0].startTime}-${instrRanges[0].endTime}`;
           let bestCount = 0;
           for (const [tk, c] of instrTimeCounts) {
             if (c > bestCount) { bestCount = c; bestTime = tk; }
@@ -862,10 +889,14 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
         privateGroupProposal = { groups, warnings: [] };
       }
 
+      // Clear base instructor when multi-group proposal is active
+      const isMultiGroup = privateGroupProposal && privateGroupProposal.groups.length > 1;
+
       return {
         ...prev,
         selectedDates: dates,
-        instructorId: baseInstructorId,
+        instructorId: isMultiGroup ? null : baseInstructorId,
+        instructor: isMultiGroup ? null : prev.instructor,
         timeSlot: `${baseStartTime} - ${baseEndTime}`,
         duration,
         timeSelections,

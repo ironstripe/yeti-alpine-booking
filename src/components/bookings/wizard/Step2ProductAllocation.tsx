@@ -1029,8 +1029,8 @@ export function Step2ProductAllocation() {
           </div>
         )}
 
-        {/* Selected instructor display */}
-        {state.instructor && !isGroupCourse && (
+        {/* Selected instructor display - hide when multi-group proposal is active */}
+        {state.instructor && !isGroupCourse && (!state.privateGroupProposal || state.privateGroupProposal.groups.length <= 1) && (
           <div className="flex items-center gap-2 rounded-md border border-primary bg-primary/5 p-2">
             <Check className="h-4 w-4 text-primary" />
             <span className="text-sm font-medium">
