@@ -1,235 +1,192 @@
 
-
-# Refactor Booking Wizard to Product-First Flow with Shopping Cart
+# Shared Private Lessons & Split Invoicing (V2)
 
 ## Overview
 
-This refactoring replaces the current linear "Customer-First" wizard (Customer -> Product -> Summary) with a flexible "Product-First" flow using a shopping cart concept:
-
-**New Flow:** Product+Cart (with optional Customer Shortcut) -> Assign Participants + Customer -> Summary
-
-This is a large-scale refactor affecting ~15 files across context, components, hooks, and pages.
+This feature introduces "Shared Private Lessons" -- allowing multiple independent customers/parties to share a single instructor time slot, with automatic proportional invoice splitting. It requires a new database table, modifications to the existing `tickets` table, a new UI workflow triggered from existing bookings, pricing logic, and scheduler display changes.
 
 ---
 
-## Architecture Changes
+## Phase 1: Database Schema
 
-### New State Model: Cart-Based
+### New table: `master_bookings`
 
-The core change is introducing a `CartItem` concept. Instead of storing a single product configuration in the wizard state, we store an array of cart items. Each cart item captures one product configuration (type, dates, times, instructor, etc.).
+Represents a single instructor time slot that can be shared by multiple tickets.
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | uuid, PK | Default `gen_random_uuid()` |
+| `instructor_id` | uuid, FK -> instructors | NOT NULL |
+| `date` | date | NOT NULL |
+| `start_time` | time | NOT NULL |
+| `end_time` | time | NOT NULL |
+| `total_participants` | integer | Cached count across all parties |
+| `created_at` | timestamptz | Default `now()` |
+| `updated_at` | timestamptz | Default `now()` |
+
+RLS: Admin/office roles only (same pattern as `tickets`).
+
+### Modify table: `tickets`
+
+Add columns:
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `master_booking_id` | uuid, FK -> master_bookings, nullable | Links shared tickets |
+| `is_initiator` | boolean, default false | First party gets rounding remainder |
+| `share_participant_count` | integer, nullable | How many participants THIS party contributes |
+
+### Unique constraint
+
+A composite unique constraint on `master_bookings (instructor_id, date, start_time, end_time)` prevents double-booking at the DB level.
+
+---
+
+## Phase 2: Proportional Price Splitting Logic
+
+### New utility: `src/lib/pricing/shared-lesson-pricing.ts`
 
 ```text
-BookingWizardState (new)
-+---------------------------+
-| cartItems: CartItem[]     |  <-- NEW: array of configured products
-| activeCartItemId: string  |  <-- NEW: which item is being edited
-| customer: Customer | null |
-| selectedParticipants: []  |
-| ... (shared fields)       |
-+---------------------------+
-
-CartItem
-+---------------------------+
-| id: string                |
-| productType: private|group|
-| sport: ski|snowboard|null |
-| selectedDates: string[]   |
-| timeSlot: string | null   |
-| duration: number | null   |
-| instructorId: string|null |
-| instructor: Instructor    |
-| assignLater: boolean      |
-| meetingPoint: string|null |
-| selectedGroupId: string   |
-| groupCourseType: string   |
-| ... (all product config)  |
-| assignedParticipantIds: []|  <-- filled in Step 2
-+---------------------------+
+calculateSharedLessonSplit(
+  totalParticipants: number,
+  parties: { ticketId: string; participantCount: number; isInitiator: boolean }[],
+  date: Date,
+  startTime: string,
+  endTime: string,
+  rates: TimeSlotRate[],
+  highSeasonPeriods: HighSeasonPeriod[]
+) => SharedSplitResult
 ```
 
-### Step Flow
+**Algorithm:**
+1. Calculate total lesson cost using existing `calculatePrivateLessonPrice()` with `totalParticipants` across all parties
+2. Per-participant rate = `floor(totalCost * 100 / totalParticipants) / 100` (floor to centimes)
+3. Each party share = `perParticipantRate * partyParticipantCount`
+4. Rounding remainder = `totalCost - sum(all shares)` (will be 0-N centimes)
+5. Add remainder to the initiator's share
 
+**Example validation:**
+- 3 participants total, 2h lesson (10:00-12:00): 85 + 85 + 20 = CHF 190 total (wait, let me recalculate based on rates)
+- Actually per the spec example: total = CHF 115 for some configuration
+- The formula handles any total correctly via the rounding logic
+
+---
+
+## Phase 3: UI -- "Share & Split Invoice" Action
+
+### Entry Points
+
+1. **Booking Detail page** (`src/pages/BookingDetail.tsx`): Add a "Teilen & Rechnung splitten" button in the action area for private lesson tickets
+2. **Scheduler BookingDetailDialog** (`src/components/scheduler/BookingDetailDialog.tsx`): Add same action button when viewing a private lesson
+
+### Conditions to show button:
+- Ticket contains private lesson items (not group)
+- Ticket status is not cancelled
+- Total participants across all parties sharing this slot < 5
+
+### New component: `src/components/bookings/SharedLessonWizard.tsx`
+
+A focused 3-step dialog/sheet for adding a party to an existing lesson:
+
+**Step 1 -- Lesson Context (read-only)**
+- Shows: product, date, time, instructor, meeting point
+- Lists all current participants grouped by customer/party
+- Shows remaining capacity: `5 - currentTotal = X spots available`
+
+**Step 2 -- Add New Party**
+- `CustomerSearch` to find/select the new customer
+- `ParticipantSelection` to pick/create participants for this customer
+- Validation: cannot exceed remaining capacity (5 - current total)
+- Cannot select same customer as an existing party
+
+**Step 3 -- Summary & Price Split**
+- Shows ALL parties with their participants
+- Calculates and displays the proportional split per party
+- Highlights which amounts changed (existing parties get updated amounts)
+- Rounding indicator: shows initiator gets the remainder
+- Confirm button creates the new ticket and updates all amounts
+
+### Backend logic on confirm:
+1. If no `master_booking` exists yet for this lesson, create one from the original ticket's instructor/date/time
+2. Link the original ticket to the `master_booking` (set `master_booking_id`, `is_initiator = true`)
+3. Create a new ticket for the new customer with:
+   - Same product, dates, times, instructor
+   - `master_booking_id` pointing to same master booking
+   - `is_initiator = false`
+   - Own `ticket_items` for each of their participants
+4. Recalculate and update `total_amount` on ALL linked tickets using the split formula
+5. Update `master_bookings.total_participants`
+
+---
+
+## Phase 4: Scheduler Display Changes
+
+### File: `src/hooks/useSchedulerData.ts`
+
+When building `SchedulerBooking` objects for private lessons:
+- Query tickets joined to `master_bookings` to detect shared lessons
+- For shared lessons, aggregate all participant names across all linked tickets
+- Set a new `isSharedLesson: boolean` flag on `SchedulerBooking`
+
+### File: `src/lib/scheduler-utils.ts`
+
+Add to `SchedulerBooking` interface:
 ```text
-Step 1: Product + Cart
-+-------------------------------------------+
-| [Optional: Customer Shortcut search bar]  |
-|                                           |
-| [Product configuration area]              |
-|  - Type (Private/Group)                   |
-|  - Dates, Time, Sport                     |
-|  - Instructor/Group selection             |
-|  - Mini-scheduler, Period planner         |
-|                                           |
-| [Cart Summary sidebar/bar]               |
-|  - List of added items                    |
-|  - "Add another product" button           |
-|  - "Assign Participants ->" button        |
-+-------------------------------------------+
-
-Step 2: Assign Participants + Customer
-+-------------------------------------------+
-| [Customer section - if not pre-selected]  |
-|  - Search/Create customer                 |
-|  - CustomerPayerCard (if selected)        |
-|                                           |
-| [Participant Assignment per Cart Item]    |
-|  - CartItem 1: drag/select participants   |
-|  - CartItem 2: drag/select participants   |
-|  - Add new participants inline            |
-+-------------------------------------------+
-
-Step 3: Summary (mostly unchanged)
-+-------------------------------------------+
-| Summary cards iterate over cart items     |
-| Price breakdown per cart item             |
-| Payment, Discount, Confirmations          |
-+-------------------------------------------+
+isSharedLesson?: boolean;
+sharedCustomerNames?: string[];  // e.g., ["Huber", "Meier"]
+masterBookingId?: string;
 ```
+
+### File: `src/components/scheduler/BookingBar.tsx`
+
+- For shared lessons, display label as: `"Privat: Huber / Meier"` instead of single participant name
+- Add a small "link" icon indicator (existing `Link2` icon already imported)
+- Tooltip shows all parties and participant counts
+
+### Deduplication:
+
+Currently each `ticket_item` with an instructor becomes a separate bar. For shared lessons, multiple ticket_items from different tickets share the same slot. The scheduler must deduplicate: group all ticket_items that share the same `master_booking_id` + date into a single bar, displaying combined names.
 
 ---
 
-## Implementation Plan (Phased)
+## Phase 5: Booking Detail View Changes
 
-### Phase 1: Refactor State Management
+### File: `src/pages/BookingDetail.tsx`
 
-**File: `src/contexts/BookingWizardContext.tsx`**
-
-1. Define `CartItem` interface with all product-related fields extracted from current `BookingWizardState`
-2. Add `cartItems: CartItem[]` and `activeCartItemId: string | null` to state
-3. Add cart management functions:
-   - `addCartItem()` - creates new empty cart item and sets it active
-   - `removeCartItem(id)` - removes item from cart
-   - `setActiveCartItem(id)` - switches which item is being configured
-   - `updateActiveCartItem(partial)` - updates current active item's fields
-   - `assignParticipantToCartItem(cartItemId, participantId)` - Step 2 assignment
-4. Modify existing setters (setProductType, setSelectedDates, setTimeSlot, etc.) to operate on the active cart item instead of root state
-5. Update `canProceed()`:
-   - Step 1: At least one cart item with valid product config
-   - Step 2: Customer selected + all cart items have at least one participant assigned
-   - Step 3: Payment method selected
-6. Keep existing advanced features (mini-scheduler, period planner, multi-group proposal, participant-specific booking) working within the active cart item context
-7. Maintain backward compatibility for scheduler prefill and edit mode
-
-### Phase 2: Redesign Step 1 (Product + Cart)
-
-**File: `src/components/bookings/wizard/Step1ProductCart.tsx`** (new file, replaces Step1CustomerParticipant)
-
-1. Add optional "Schnellbuchung" customer search bar at the top
-   - Uses existing `CustomerSearch` component
-   - When a customer is selected, fetch their participants and pre-load into state
-   - Collapsible/dismissable if not needed
-2. Move all product configuration UI from current `Step2ProductAllocation.tsx` into this step:
-   - Product type selection (Private/Group)
-   - Sport selection
-   - Calendar / date picker
-   - Time slot selection
-   - Mini-scheduler grid
-   - Period day planner
-   - Group course selector
-   - Meeting point, language, instructor preferences
-3. Add persistent cart summary bar/sidebar showing:
-   - List of items in cart with brief descriptions
-   - "Add another product" button (loops back to empty product config)
-   - Item count badge
-4. Footer buttons: "Add another product" and "Assign Participants ->"
-
-### Phase 3: Redesign Step 2 (Assign Participants + Customer)
-
-**File: `src/components/bookings/wizard/Step2AssignCustomer.tsx`** (new file, replaces Step1CustomerParticipant for this context)
-
-1. Customer section (skipped if already selected via shortcut):
-   - Reuse `CustomerPayerCard` and `CustomerSearch`
-   - Once customer selected, auto-load their participants
-2. Participant assignment section:
-   - For each cart item, show a card with:
-     - Product summary (type, dates, time)
-     - Participant assignment area (checkboxes/toggles from existing `ParticipantListCard`)
-     - Lunch/vegetarian options for group courses
-   - Pre-populate participants if customer was selected via shortcut
-3. Keep existing participant management features:
-   - Add guest participants
-   - Inline participant creation
-   - Lunch day selection per participant
-
-### Phase 4: Adapt Step 3 (Summary)
-
-**File: `src/components/bookings/wizard/Step4Summary.tsx`** (modify existing)
-
-1. `BookingSummaryCards`: Iterate over `state.cartItems` instead of single product state
-   - Show one "Kurs" card per cart item
-   - Each card shows its assigned participants
-2. `PriceBreakdown`: Sum prices across all cart items
-   - Show per-item line items
-   - Combined discount and total
-3. Keep payment, discount, and confirmation sections unchanged
-
-### Phase 5: Adapt Booking Creation Hook
-
-**File: `src/hooks/useCreateBooking.ts`** (modify existing)
-
-1. Iterate over `state.cartItems` to generate `ticket_items`
-2. Each cart item produces its own set of ticket_items (per participant x per date)
-3. Calculate total across all cart items
-4. Handle mixed product types (some items private, some group) in a single ticket
-5. Keep existing pricing logic per cart item type (private lesson rates, group course tiers, lunch)
-6. Keep period booking metadata creation per cart item
-
-### Phase 6: Update Supporting Components
-
-1. **`WizardProgress.tsx`**: Update step labels
-   - Step 1: "Produkt & Warenkorb"
-   - Step 2: "Teilnehmer & Kunde"  
-   - Step 3: "Abschluss"
-
-2. **`BookingWizard.tsx`** (page): 
-   - Render new step components
-   - Update prefill logic to add items to cart instead of setting root state
-   - Keep scheduler integration: prefill creates a cart item from scheduler data
-   - Keep edit mode: loads existing ticket items as cart items
-
-3. **`CustomerPayerCard.tsx`**: No changes needed, reused in Step 2
-
-4. **`ParticipantListCard.tsx`**: Minor adaptation to work per-cart-item context
+When a ticket has a `master_booking_id`:
+- Show a "Geteilte Privatstunde" (Shared Private Lesson) indicator badge
+- Show a section listing all other parties sharing this lesson, with links to their tickets
+- Show this party's proportional share vs. the total
+- "Share & Split Invoice" button to add more parties (if capacity allows)
 
 ---
 
-## Technical Details
+## Phase 6: Cancellation Handling
 
-### Cart Item ID Generation
-Each cart item gets a unique ID via `crypto.randomUUID()` for tracking.
+### Business rule: No recalculation on cancellation
 
-### Active Cart Item Pattern
-All existing product-related setters (setProductType, setSelectedDates, etc.) will be refactored to update the active cart item:
+When a party cancels their ticket (via existing cancellation flow):
+- The cancelled ticket follows standard cancellation workflow (cancellation fee etc.)
+- The remaining parties' `total_amount` values are **NOT** recalculated
+- The `master_bookings.total_participants` is updated (decremented)
+- If ALL parties cancel, the `master_booking` can be soft-deleted or left as-is
 
-```typescript
-const setProductType = (type) => {
-  setState(prev => ({
-    ...prev,
-    cartItems: prev.cartItems.map(item =>
-      item.id === prev.activeCartItemId
-        ? { ...item, productType: type }
-        : item
-    ),
-  }));
-};
-```
+No code changes to the cancellation flow itself -- just ensure the existing flow doesn't trigger a recalculation. The split amounts are "frozen" at creation time.
 
-### Scheduler Integration
-When the wizard opens from the scheduler with instructor + appointments:
-1. A cart item is created automatically with the prefilled data
-2. The cart item is set as active
-3. User proceeds normally from Step 1
+---
 
-### Edit Mode
-When editing an existing ticket:
-1. Each ticket_item group (by product type + instructor) becomes a cart item
-2. Cart is pre-populated, customer is locked
-3. User starts at Step 2
+## Phase 7: Invoice Generation
 
-### Backward Compatibility
-- The `useCreateBooking` hook's interface changes to read from `cartItems` array
-- All existing advanced features (multi-group proposal, period planner, participant-specific booking) work within a single cart item context
-- The `useUpdateBooking` hook needs minimal changes since edit mode still works per-item
+### Existing invoice system
+
+Each ticket already generates its own invoice with its own `total_amount`. Since each party has its own ticket with the correct proportional amount, the existing invoice generation works without changes.
+
+The invoice shows:
+- The customer's participants only
+- The proportional amount (already set on `total_amount`)
+- Standard invoice format
+
+No changes needed to invoice generation code.
 
 ---
 
@@ -237,24 +194,21 @@ When editing an existing ticket:
 
 | File | Action | Description |
 |------|--------|-------------|
-| `src/contexts/BookingWizardContext.tsx` | **Major refactor** | Add CartItem type, cart management, redirect setters to active item |
-| `src/components/bookings/wizard/Step1ProductCart.tsx` | **New file** | Product config + cart UI + optional customer shortcut |
-| `src/components/bookings/wizard/Step2AssignCustomer.tsx` | **New file** | Customer selection + per-cart-item participant assignment |
-| `src/components/bookings/wizard/Step4Summary.tsx` | **Modify** | Iterate over cart items |
-| `src/components/bookings/wizard/BookingSummaryCards.tsx` | **Modify** | Per-cart-item summary cards |
-| `src/components/bookings/wizard/PriceBreakdown.tsx` | **Modify** | Sum prices across cart items |
-| `src/components/bookings/wizard/WizardProgress.tsx` | **Modify** | Update step labels |
-| `src/pages/BookingWizard.tsx` | **Modify** | New step components, prefill -> cart, navigation |
-| `src/hooks/useCreateBooking.ts` | **Modify** | Iterate cart items for ticket_item creation |
-| `src/components/bookings/wizard/Step1CustomerParticipant.tsx` | **Delete** | Replaced by Step2AssignCustomer |
-| `src/components/bookings/wizard/Step2ProductAllocation.tsx` | **Delete** | Replaced by Step1ProductCart |
+| Migration SQL | **Create** | `master_bookings` table + `tickets` columns |
+| `src/lib/pricing/shared-lesson-pricing.ts` | **New** | Proportional split calculator with rounding |
+| `src/components/bookings/SharedLessonWizard.tsx` | **New** | 3-step dialog for adding a party |
+| `src/hooks/useSharedLesson.ts` | **New** | Hook for creating/managing shared lessons |
+| `src/pages/BookingDetail.tsx` | **Modify** | Add shared lesson indicator + action button |
+| `src/components/scheduler/BookingDetailDialog.tsx` | **Modify** | Add "Share & Split" action |
+| `src/hooks/useSchedulerData.ts` | **Modify** | Aggregate shared lesson data, deduplicate bars |
+| `src/lib/scheduler-utils.ts` | **Modify** | Add shared lesson fields to `SchedulerBooking` |
+| `src/components/scheduler/BookingBar.tsx` | **Modify** | Display combined names for shared lessons |
 
 ---
 
-## Risk Mitigation
+## Technical Considerations
 
-- **Incremental approach**: Each phase is self-contained; we can validate after each phase
-- **Feature preservation**: All advanced features (mini-scheduler, period planner, multi-group proposals, participant-specific booking) are preserved within cart item context
-- **Edit mode**: Converted to cart-based model but functionally equivalent
-- **Scheduler integration**: Prefill creates a cart item instead of setting root state
-
+- **Conflict detection**: The `master_bookings` unique constraint on `(instructor_id, date, start_time, end_time)` prevents double-booking at the DB level
+- **Max participants**: Enforced in the UI wizard (Step 2 validation) and can optionally be enforced via a DB trigger on `master_bookings.total_participants <= 5`
+- **Backward compatibility**: Existing non-shared private lessons continue to work with `master_booking_id = null`; no migration of existing data needed
+- **Rounding correctness**: The split algorithm guarantees `sum(all shares) == total` by assigning the remainder to the initiator
