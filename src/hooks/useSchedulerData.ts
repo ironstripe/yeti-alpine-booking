@@ -129,7 +129,11 @@ export function useSchedulerData({ startDate, endDate, instructorId }: UseSchedu
           tickets!inner (
             status,
             paid_amount,
-            total_amount
+            total_amount,
+            master_booking_id,
+            is_initiator,
+            customer_id,
+            customer:customers(last_name)
           ),
           customer_participants (
             first_name,
@@ -324,61 +328,110 @@ export function useSchedulerData({ startDate, endDate, instructorId }: UseSchedu
       };
     });
 
-  // Transform bookings with period metadata
-  const bookings: SchedulerBooking[] = (bookingsQuery.data || [])
-    .filter((b) => !instructorId || b.instructor_id === instructorId)
-    .map((b) => {
-      const ticket = b.tickets as unknown as { status: string; paid_amount: number; total_amount: number };
-      const participant = b.customer_participants as unknown as { first_name: string; last_name: string; sport: string | null } | null;
-      
-      // Find period metadata if this booking is part of a period
-      const periodMeta = b.period_group_id 
-        ? (periodMetadataQuery.data || []).find(pm => pm.period_group_id === b.period_group_id)
-        : null;
-      
-      // Calculate period total days if we have metadata
-      let periodTotalDays: number | undefined;
-      if (periodMeta) {
-        const startDate = new Date(periodMeta.start_date);
-        const endDate = new Date(periodMeta.end_date);
-        periodTotalDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+  // Transform bookings with period metadata and shared lesson deduplication
+  const rawBookings = (bookingsQuery.data || [])
+    .filter((b) => !instructorId || b.instructor_id === instructorId);
+
+  // Group by master_booking_id for deduplication of shared lessons
+  const masterBookingGroups = new Map<string, typeof rawBookings>();
+  const standaloneBookings: typeof rawBookings = [];
+
+  for (const b of rawBookings) {
+    const ticket = b.tickets as unknown as { status: string; paid_amount: number; total_amount: number; master_booking_id: string | null; is_initiator: boolean; customer_id: string; customer: { last_name: string } | null };
+    if (ticket?.master_booking_id) {
+      const key = `${ticket.master_booking_id}-${b.date}`;
+      if (!masterBookingGroups.has(key)) {
+        masterBookingGroups.set(key, []);
       }
+      masterBookingGroups.get(key)!.push(b);
+    } else {
+      standaloneBookings.push(b);
+    }
+  }
 
-      // Determine if this is an override (differs from base)
-      const isOverride = b.is_period_override || (
-        periodMeta && (
-          b.instructor_id !== periodMeta.base_instructor_id ||
-          b.time_start !== periodMeta.base_time_start ||
-          b.time_end !== periodMeta.base_time_end
-        )
-      );
+  // Process standalone bookings normally
+  const bookings: SchedulerBooking[] = standaloneBookings.map((b) => {
+    const ticket = b.tickets as unknown as { status: string; paid_amount: number; total_amount: number; master_booking_id: string | null };
+    const participant = b.customer_participants as unknown as { first_name: string; last_name: string; sport: string | null } | null;
+    
+    const periodMeta = b.period_group_id 
+      ? (periodMetadataQuery.data || []).find(pm => pm.period_group_id === b.period_group_id)
+      : null;
+    
+    let periodTotalDays: number | undefined;
+    if (periodMeta) {
+      const startDate = new Date(periodMeta.start_date);
+      const endDate = new Date(periodMeta.end_date);
+      periodTotalDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+    }
 
-      return {
-        id: b.id,
-        instructorId: b.instructor_id!,
-        date: b.date,
-        timeStart: b.time_start || "09:00",
-        timeEnd: b.time_end || "10:00",
-        type: "private" as const,
-        isPaid: (ticket?.total_amount || 0) > 0 && (ticket?.paid_amount || 0) >= (ticket?.total_amount || 0),
-        ticketId: b.ticket_id,
-        participantName: participant 
-          ? `${participant.first_name} ${participant.last_name || ""}`.trim()
-          : undefined,
-        status: b.status || "booked",
-        participantSport: participant?.sport || null,
-        // Period-related fields
-        isPartOfPeriod: !!b.period_group_id,
-        periodGroupId: b.period_group_id || undefined,
-        periodStartDate: periodMeta?.start_date || undefined,
-        periodEndDate: periodMeta?.end_date || undefined,
-        periodTotalDays,
-        isOverride: isOverride || undefined,
-        baseInstructorId: periodMeta?.base_instructor_id || undefined,
-        baseTimeStart: periodMeta?.base_time_start || undefined,
-        baseTimeEnd: periodMeta?.base_time_end || undefined,
-      };
+    const isOverride = b.is_period_override || (
+      periodMeta && (
+        b.instructor_id !== periodMeta.base_instructor_id ||
+        b.time_start !== periodMeta.base_time_start ||
+        b.time_end !== periodMeta.base_time_end
+      )
+    );
+
+    return {
+      id: b.id,
+      instructorId: b.instructor_id!,
+      date: b.date,
+      timeStart: b.time_start || "09:00",
+      timeEnd: b.time_end || "10:00",
+      type: "private" as const,
+      isPaid: (ticket?.total_amount || 0) > 0 && (ticket?.paid_amount || 0) >= (ticket?.total_amount || 0),
+      ticketId: b.ticket_id,
+      participantName: participant 
+        ? `${participant.first_name} ${participant.last_name || ""}`.trim()
+        : undefined,
+      status: b.status || "booked",
+      participantSport: participant?.sport || null,
+      isPartOfPeriod: !!b.period_group_id,
+      periodGroupId: b.period_group_id || undefined,
+      periodStartDate: periodMeta?.start_date || undefined,
+      periodEndDate: periodMeta?.end_date || undefined,
+      periodTotalDays,
+      isOverride: isOverride || undefined,
+      baseInstructorId: periodMeta?.base_instructor_id || undefined,
+      baseTimeStart: periodMeta?.base_time_start || undefined,
+      baseTimeEnd: periodMeta?.base_time_end || undefined,
+    };
+  });
+
+  // Process shared lesson groups - deduplicate into single bars
+  for (const [key, groupBookings] of masterBookingGroups) {
+    if (groupBookings.length === 0) continue;
+    const first = groupBookings[0];
+    
+    // Collect unique customer last names across all tickets in this group
+    const customerNames = new Set<string>();
+    for (const b of groupBookings) {
+      const ticket = b.tickets as unknown as { customer: { last_name: string } | null };
+      if (ticket?.customer?.last_name) {
+        customerNames.add(ticket.customer.last_name);
+      }
+    }
+
+    const ticket = first.tickets as unknown as { status: string; paid_amount: number; total_amount: number; master_booking_id: string };
+
+    bookings.push({
+      id: first.id,
+      instructorId: first.instructor_id!,
+      date: first.date,
+      timeStart: first.time_start || "09:00",
+      timeEnd: first.time_end || "10:00",
+      type: "private" as const,
+      isPaid: true, // Shared lessons show as "paid" in scheduler
+      ticketId: first.ticket_id,
+      participantName: [...customerNames].join(" / "),
+      status: first.status || "booked",
+      participantSport: null,
+      isSharedLesson: true,
+      sharedCustomerNames: [...customerNames],
+      masterBookingId: ticket.master_booking_id,
     });
+  }
 
   // Add group course instances as bookings
   const groupBookings: SchedulerBooking[] = (groupInstancesQuery.data || [])

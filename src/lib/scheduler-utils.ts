@@ -34,6 +34,10 @@ export interface SchedulerBooking {
   baseInstructorId?: string;
   baseTimeStart?: string;
   baseTimeEnd?: string;
+  // Shared lesson fields
+  isSharedLesson?: boolean;
+  sharedCustomerNames?: string[];
+  masterBookingId?: string;
 }
 
 export interface SchedulerAbsence {

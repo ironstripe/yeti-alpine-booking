@@ -19,6 +19,7 @@ import {
   XCircle,
   Calendar,
   History,
+  Link2,
 } from "lucide-react";
 import { TicketTimeline } from "@/components/bookings/TicketTimeline";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -45,6 +46,8 @@ import { useCreateInvoice, useInvoicesByTicket, useSendInvoice } from "@/hooks/u
 import { useSendTestEmail } from "@/hooks/useEmailTemplates";
 import { InvoicePrintTemplate } from "@/components/invoices/InvoicePrintTemplate";
 import { TicketItemEditCard } from "@/components/bookings/TicketItemEditCard";
+import { SharedLessonWizard } from "@/components/bookings/SharedLessonWizard";
+import { useSharedLessonData } from "@/hooks/useSharedLesson";
 import { formatCurrency } from "@/lib/swiss-qr-utils";
 
 const BookingDetail = () => {
@@ -62,7 +65,7 @@ const BookingDetail = () => {
   const [showInvoicePreview, setShowInvoicePreview] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<string | null>(null);
   const [showCancellation, setShowCancellation] = useState(false);
-  
+  const [showSharedLessonWizard, setShowSharedLessonWizard] = useState(false);
   const queryClient = useQueryClient();
   
   const { data: schoolSettings } = useSchoolSettings();
@@ -503,6 +506,19 @@ const BookingDetail = () => {
                 <Clock className="h-4 w-4 mr-2" />
                 Erinnerung senden
               </Button>
+
+              {/* Share & Split button - only for private lesson tickets */}
+              {ticket.items?.some((item: any) => !item.product?.name?.toLowerCase().includes('gruppe')) && 
+               ticket.status !== 'cancelled' && (
+                <Button
+                  variant="outline"
+                  className="w-full justify-start"
+                  onClick={() => setShowSharedLessonWizard(true)}
+                >
+                  <Link2 className="h-4 w-4 mr-2" />
+                  Teilen & Rechnung splitten
+                </Button>
+              )}
               
               <Button 
                 variant="outline" 
@@ -663,6 +679,15 @@ const BookingDetail = () => {
           onSuccess={() => {
             queryClient.invalidateQueries({ queryKey: ["ticket-detail", id] });
           }}
+        />
+      )}
+
+      {/* Shared Lesson Wizard */}
+      {ticket && (
+        <SharedLessonWizard
+          open={showSharedLessonWizard}
+          onOpenChange={setShowSharedLessonWizard}
+          ticketId={ticket.id}
         />
       )}
     </>

@@ -111,8 +111,13 @@ export function BookingBar({ booking, slotWidth, instructorSpecialization, isPla
             {isOfficeShift && (
               <Building className="h-2.5 w-2.5 shrink-0" />
             )}
+            {booking.isSharedLesson && (
+              <Link2 className="h-2.5 w-2.5 text-primary shrink-0" />
+            )}
             <span className="truncate">
-              {booking.participantName || (booking.type === "group" ? "Gruppe" : booking.type === "office_shift" ? "Bürodienst" : "Privat")}
+              {booking.isSharedLesson && booking.sharedCustomerNames?.length
+                ? `Privat: ${booking.sharedCustomerNames.join(" / ")}`
+                : booking.participantName || (booking.type === "group" ? "Gruppe" : booking.type === "office_shift" ? "Bürodienst" : "Privat")}
             </span>
           </div>
         </TooltipTrigger>
@@ -121,8 +126,15 @@ export function BookingBar({ booking, slotWidth, instructorSpecialization, isPla
             <p className="font-medium">
               {booking.type === "group" ? "Gruppenkurs" : booking.type === "office_shift" ? "Bürodienst" : "Privatstunde"}
               {booking.isPartOfPeriod && " (Periode)"}
+              {booking.isSharedLesson && " (Geteilt)"}
             </p>
-            {booking.participantName && (
+            {booking.isSharedLesson && booking.sharedCustomerNames && (
+              <p className="text-sm flex items-center gap-1">
+                <Link2 className="h-3 w-3" />
+                {booking.sharedCustomerNames.join(" / ")}
+              </p>
+            )}
+            {booking.participantName && !booking.isSharedLesson && (
               <p className="text-sm">{booking.participantName}</p>
             )}
             <p className="text-sm text-muted-foreground">
@@ -145,7 +157,7 @@ export function BookingBar({ booking, slotWidth, instructorSpecialization, isPla
                 Treffpunkt: {booking.meetingPoint}
               </p>
             )}
-            {booking.type === "private" && (
+            {booking.type === "private" && !booking.isSharedLesson && (
               <p className="text-sm">
                 Status: {booking.isPaid ? "Bezahlt ✓" : "Offen"}
               </p>
