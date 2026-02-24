@@ -52,7 +52,7 @@ export function BookingSummaryCards({ onEditStep }: BookingSummaryCardsProps) {
           <CardTitle className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
             Kunde
           </CardTitle>
-          <Button variant="ghost" size="sm" onClick={() => onEditStep(1)}>
+          <Button variant="ghost" size="sm" onClick={() => onEditStep(2)}>
             Ändern
           </Button>
         </CardHeader>
@@ -84,7 +84,7 @@ export function BookingSummaryCards({ onEditStep }: BookingSummaryCardsProps) {
           <CardTitle className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
             Teilnehmer
           </CardTitle>
-          <Button variant="ghost" size="sm" onClick={() => onEditStep(1)}>
+          <Button variant="ghost" size="sm" onClick={() => onEditStep(2)}>
             Ändern
           </Button>
         </CardHeader>
@@ -118,7 +118,7 @@ export function BookingSummaryCards({ onEditStep }: BookingSummaryCardsProps) {
           <CardTitle className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
             Kurs
           </CardTitle>
-          <Button variant="ghost" size="sm" onClick={() => onEditStep(2)}>
+          <Button variant="ghost" size="sm" onClick={() => onEditStep(1)}>
             Ändern
           </Button>
         </CardHeader>
@@ -235,7 +235,7 @@ export function BookingSummaryCards({ onEditStep }: BookingSummaryCardsProps) {
               <CardTitle className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
                 Mittagsbetreuung
               </CardTitle>
-              <Button variant="ghost" size="sm" onClick={() => onEditStep(2)}>
+              <Button variant="ghost" size="sm" onClick={() => onEditStep(1)}>
                 Ändern
               </Button>
             </CardHeader>
@@ -268,7 +268,7 @@ export function BookingSummaryCards({ onEditStep }: BookingSummaryCardsProps) {
           <CardTitle className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
             Skilehrer & Details
           </CardTitle>
-          <Button variant="ghost" size="sm" onClick={() => onEditStep(2)}>
+          <Button variant="ghost" size="sm" onClick={() => onEditStep(1)}>
             Ändern
           </Button>
         </CardHeader>
