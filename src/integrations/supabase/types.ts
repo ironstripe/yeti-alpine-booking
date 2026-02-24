@@ -2207,6 +2207,47 @@ export type Database = {
           },
         ]
       }
+      master_bookings: {
+        Row: {
+          created_at: string
+          date: string
+          end_time: string
+          id: string
+          instructor_id: string
+          start_time: string
+          total_participants: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          date: string
+          end_time: string
+          id?: string
+          instructor_id: string
+          start_time: string
+          total_participants?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          date?: string
+          end_time?: string
+          id?: string
+          instructor_id?: string
+          start_time?: string
+          total_participants?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "master_bookings_instructor_id_fkey"
+            columns: ["instructor_id"]
+            isOneToOne: false
+            referencedRelation: "instructors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notification_preferences: {
         Row: {
           created_at: string | null
@@ -3598,11 +3639,14 @@ export type Database = {
           customer_id: string
           id: string
           internal_notes: string | null
+          is_initiator: boolean
+          master_booking_id: string | null
           notes: string | null
           notes_for_instructors: string | null
           paid_amount: number | null
           payment_due_date: string | null
           payment_method: string | null
+          share_participant_count: number | null
           skip_documents: boolean | null
           status: string | null
           ticket_number: string
@@ -3619,11 +3663,14 @@ export type Database = {
           customer_id: string
           id?: string
           internal_notes?: string | null
+          is_initiator?: boolean
+          master_booking_id?: string | null
           notes?: string | null
           notes_for_instructors?: string | null
           paid_amount?: number | null
           payment_due_date?: string | null
           payment_method?: string | null
+          share_participant_count?: number | null
           skip_documents?: boolean | null
           status?: string | null
           ticket_number: string
@@ -3640,11 +3687,14 @@ export type Database = {
           customer_id?: string
           id?: string
           internal_notes?: string | null
+          is_initiator?: boolean
+          master_booking_id?: string | null
           notes?: string | null
           notes_for_instructors?: string | null
           paid_amount?: number | null
           payment_due_date?: string | null
           payment_method?: string | null
+          share_participant_count?: number | null
           skip_documents?: boolean | null
           status?: string | null
           ticket_number?: string
@@ -3667,6 +3717,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "pending_booking_confirmations"
             referencedColumns: ["customer_id"]
+          },
+          {
+            foreignKeyName: "tickets_master_booking_id_fkey"
+            columns: ["master_booking_id"]
+            isOneToOne: false
+            referencedRelation: "master_bookings"
+            referencedColumns: ["id"]
           },
         ]
       }
