@@ -98,6 +98,141 @@ export interface PrivateGroupProposal {
   warnings: string[];
 }
 
+// NEW: Cart item represents one product configuration in the shopping cart
+export interface CartItem {
+  id: string;
+  productType: "private" | "group" | null;
+  productId: string | null;
+  sport: "ski" | "snowboard" | null;
+  dateRange: { start: string; end: string } | null;
+  selectedDates: string[];
+  timeSlot: string | null;
+  duration: number | null;
+  numberOfPersons: number;
+  includeLunch: boolean;
+  selectedGroupId: string | null;
+  groupCourseType: "windel_wedelkurs" | "kids_village" | "standard" | null;
+  lunchSelections: Record<string, string[]>;
+  vegetarianSelections: Record<string, boolean>;
+  appointments: AppointmentSlot[] | null;
+  useParticipantSpecificBooking: boolean;
+  participantBookings: Record<string, ParticipantBookingDetails>;
+  dayInstructorOverrides: Record<string, string | null>;
+  dayTimeOverrides: Record<string, TimeBlock[]>;
+  timeSelections: TimeSelection[];
+  miniSchedulerSelections: MiniSchedulerSlot[];
+  privateGroupProposal: PrivateGroupProposal | null;
+  instructorId: string | null;
+  instructor: Tables<"instructors"> | null;
+  assignLater: boolean;
+  meetingPoint: string | null;
+  preferredInstructorId: string | null;
+  language: string;
+  assignedParticipantIds: string[];
+}
+
+export function createEmptyCartItem(): CartItem {
+  return {
+    id: crypto.randomUUID(),
+    productType: null,
+    productId: null,
+    sport: null,
+    dateRange: null,
+    selectedDates: [],
+    timeSlot: null,
+    duration: null,
+    numberOfPersons: 1,
+    includeLunch: false,
+    selectedGroupId: null,
+    groupCourseType: null,
+    lunchSelections: {},
+    vegetarianSelections: {},
+    appointments: null,
+    useParticipantSpecificBooking: false,
+    participantBookings: {},
+    dayInstructorOverrides: {},
+    dayTimeOverrides: {},
+    timeSelections: [],
+    miniSchedulerSelections: [],
+    privateGroupProposal: null,
+    instructorId: null,
+    instructor: null,
+    assignLater: false,
+    meetingPoint: "sammelplatz_gorfion",
+    preferredInstructorId: null,
+    language: "de",
+    assignedParticipantIds: [],
+  };
+}
+
+// Extract product-related fields from root state into a CartItem snapshot
+function extractCartItemFromState(state: BookingWizardState, itemId: string): CartItem {
+  return {
+    id: itemId,
+    productType: state.productType,
+    productId: state.productId,
+    sport: state.sport,
+    dateRange: state.dateRange,
+    selectedDates: state.selectedDates,
+    timeSlot: state.timeSlot,
+    duration: state.duration,
+    numberOfPersons: state.numberOfPersons,
+    includeLunch: state.includeLunch,
+    selectedGroupId: state.selectedGroupId,
+    groupCourseType: state.groupCourseType,
+    lunchSelections: state.lunchSelections,
+    vegetarianSelections: state.vegetarianSelections,
+    appointments: state.appointments,
+    useParticipantSpecificBooking: state.useParticipantSpecificBooking,
+    participantBookings: state.participantBookings,
+    dayInstructorOverrides: state.dayInstructorOverrides,
+    dayTimeOverrides: state.dayTimeOverrides,
+    timeSelections: state.timeSelections,
+    miniSchedulerSelections: state.miniSchedulerSelections,
+    privateGroupProposal: state.privateGroupProposal,
+    instructorId: state.instructorId,
+    instructor: state.instructor,
+    assignLater: state.assignLater,
+    meetingPoint: state.meetingPoint,
+    preferredInstructorId: state.preferredInstructorId,
+    language: state.language,
+    assignedParticipantIds: state.cartItems.find(i => i.id === itemId)?.assignedParticipantIds || [],
+  };
+}
+
+// Apply a CartItem's fields back to root state
+function applyCartItemToState(item: CartItem): Partial<BookingWizardState> {
+  return {
+    productType: item.productType,
+    productId: item.productId,
+    sport: item.sport,
+    dateRange: item.dateRange,
+    selectedDates: item.selectedDates,
+    timeSlot: item.timeSlot,
+    duration: item.duration,
+    numberOfPersons: item.numberOfPersons,
+    includeLunch: item.includeLunch,
+    selectedGroupId: item.selectedGroupId,
+    groupCourseType: item.groupCourseType,
+    lunchSelections: item.lunchSelections,
+    vegetarianSelections: item.vegetarianSelections,
+    appointments: item.appointments,
+    useParticipantSpecificBooking: item.useParticipantSpecificBooking,
+    participantBookings: item.participantBookings,
+    dayInstructorOverrides: item.dayInstructorOverrides,
+    dayTimeOverrides: item.dayTimeOverrides,
+    timeSelections: item.timeSelections,
+    miniSchedulerSelections: item.miniSchedulerSelections,
+    privateGroupProposal: item.privateGroupProposal,
+    instructorId: item.instructorId,
+    instructor: item.instructor,
+    assignLater: item.assignLater,
+    meetingPoint: item.meetingPoint,
+    preferredInstructorId: item.preferredInstructorId,
+    language: item.language,
+  };
+}
+
 export interface BookingWizardState {
   // Step 1: Customer & Participants
   customerId: string | null;
@@ -173,6 +308,9 @@ export interface BookingWizardState {
   editingTicketId: string | null;
   originalItems: OriginalTicketItem[];
   originalParticipantIds: string[]; // Track original participants to detect add/remove
+  // Cart
+  cartItems: CartItem[];
+  activeCartItemId: string | null;
 }
 
 interface BookingWizardContextType {
@@ -237,6 +375,11 @@ interface BookingWizardContextType {
   goToPreviousStep: () => void;
   canProceed: () => boolean;
   resetWizard: () => void;
+  // Cart management
+  addCartItem: () => void;
+  removeCartItem: (id: string) => void;
+  setActiveCartItem: (id: string) => void;
+  getAllCartItems: () => CartItem[];
   // New: Pre-fill from scheduler
   prefillFromScheduler: (instructorId: string, appointments: AppointmentSlot[]) => void;
   // Edit mode
@@ -298,12 +441,79 @@ const initialState: BookingWizardState = {
   editingTicketId: null,
   originalItems: [],
   originalParticipantIds: [],
+  // Cart
+  cartItems: [],
+  activeCartItemId: null,
 };
 
 const BookingWizardContext = createContext<BookingWizardContextType | null>(null);
 
 export function BookingWizardProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<BookingWizardState>(initialState);
+  const [state, setState] = useState<BookingWizardState>(() => {
+    const firstItem = createEmptyCartItem();
+    return {
+      ...initialState,
+      cartItems: [firstItem],
+      activeCartItemId: firstItem.id,
+    };
+  });
+
+  // === Cart Management ===
+  const addCartItem = () => {
+    setState(prev => {
+      // Save current root state to active cart item
+      const updatedItems = prev.cartItems.map(item =>
+        item.id === prev.activeCartItemId
+          ? extractCartItemFromState(prev, item.id)
+          : item
+      );
+      const newItem = createEmptyCartItem();
+      return {
+        ...prev,
+        ...applyCartItemToState(newItem),
+        cartItems: [...updatedItems, newItem],
+        activeCartItemId: newItem.id,
+      };
+    });
+  };
+
+  const removeCartItem = (id: string) => {
+    setState(prev => {
+      const filtered = prev.cartItems.filter(item => item.id !== id);
+      if (filtered.length === 0) {
+        const newItem = createEmptyCartItem();
+        return { ...prev, ...applyCartItemToState(newItem), cartItems: [newItem], activeCartItemId: newItem.id };
+      }
+      if (prev.activeCartItemId === id) {
+        const target = filtered[0];
+        return { ...prev, ...applyCartItemToState(target), cartItems: filtered, activeCartItemId: target.id };
+      }
+      return { ...prev, cartItems: filtered };
+    });
+  };
+
+  const setActiveCartItem = (id: string) => {
+    setState(prev => {
+      if (prev.activeCartItemId === id) return prev;
+      // Save current root state to active cart item
+      const updatedItems = prev.cartItems.map(item =>
+        item.id === prev.activeCartItemId
+          ? extractCartItemFromState(prev, item.id)
+          : item
+      );
+      const target = updatedItems.find(item => item.id === id);
+      if (!target) return prev;
+      return { ...prev, ...applyCartItemToState(target), cartItems: updatedItems, activeCartItemId: id };
+    });
+  };
+
+  const getAllCartItems = (): CartItem[] => {
+    return state.cartItems.map(item =>
+      item.id === state.activeCartItemId
+        ? extractCartItemFromState(state, item.id)
+        : item
+    );
+  };
 
   const setCustomer = (customer: Tables<"customers"> | null) => {
     setState((prev) => ({
@@ -1072,34 +1282,19 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
 
   const canProceed = (): boolean => {
     switch (state.currentStep) {
-      case 1:
-        return state.customer !== null && state.selectedParticipants.length > 0;
-      case 2: {
-        // Check participant-specific mode
-        if (state.useParticipantSpecificBooking) {
-          // Each participant must have dates and product type
-          const allParticipantsHaveBookings = state.selectedParticipants.every((p) => {
-            const booking = state.participantBookings[p.id];
-            if (!booking) return false;
-            if (booking.dates.length === 0) return false;
-            if (booking.productType === "private" && (!booking.startTime || !booking.endTime)) return false;
-            if (booking.productType === "group" && !booking.groupCourseId) return false;
-            return true;
-          });
-          return allParticipantsHaveBookings && state.meetingPoint !== null;
-        }
-        
-        // Shared mode (original logic)
+      case 1: {
+        // Step 1: Product + Cart - active item must have valid product config
         const hasProduct = state.productType !== null && state.selectedDates.length > 0;
         const hasMeetingPoint = state.meetingPoint !== null;
         
-        // For private: instructor selected OR assign later checked
         if (state.productType === "private") {
           return hasProduct && hasMeetingPoint && (state.instructor !== null || state.assignLater);
         }
-        // For group: no instructor validation needed
         return hasProduct && hasMeetingPoint;
       }
+      case 2:
+        // Step 2: Customer + Participants assigned
+        return state.customer !== null && state.selectedParticipants.length > 0;
       case 3:
         return true;
       default:
@@ -1108,7 +1303,12 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
   };
 
   const resetWizard = () => {
-    setState(initialState);
+    const firstItem = createEmptyCartItem();
+    setState({
+      ...initialState,
+      cartItems: [firstItem],
+      activeCartItemId: firstItem.id,
+    });
   };
 
   // Load existing ticket for editing
@@ -1303,6 +1503,11 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
         goToPreviousStep,
         canProceed,
         resetWizard,
+        // Cart management
+        addCartItem,
+        removeCartItem,
+        setActiveCartItem,
+        getAllCartItems,
         prefillFromScheduler,
         loadTicketForEditing,
       }}

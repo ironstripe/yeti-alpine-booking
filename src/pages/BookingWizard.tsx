@@ -25,8 +25,8 @@ import {
   SelectedParticipant,
 } from "@/contexts/BookingWizardContext";
 import { WizardProgress } from "@/components/bookings/wizard/WizardProgress";
-import { Step1CustomerParticipant } from "@/components/bookings/wizard/Step1CustomerParticipant";
-import { Step2ProductAllocation } from "@/components/bookings/wizard/Step2ProductAllocation";
+import { Step1ProductCart } from "@/components/bookings/wizard/Step1ProductCart";
+import { Step2AssignCustomer } from "@/components/bookings/wizard/Step2AssignCustomer";
 import { Step4Summary } from "@/components/bookings/wizard/Step4Summary";
 import type { BookingPrefillState } from "@/types/booking-prefill";
 
@@ -463,7 +463,7 @@ function BookingWizardContent() {
 
         // Jump to step 2 if we have customer + participants
         if (customer && selectedParticipants.length > 0) {
-          setCurrentStep(2);
+          setCurrentStep(1);
           toast.success("Daten aus Anfrage übernommen");
         } else if (customer) {
           toast.success("Kunde aus Anfrage übernommen");
@@ -592,8 +592,8 @@ function BookingWizardContent() {
 
       {/* Content */}
       <main className="mx-auto max-w-5xl px-4 pb-4">
-        {state.currentStep === 1 && <Step1CustomerParticipant />}
-        {state.currentStep === 2 && <Step2ProductAllocation />}
+        {state.currentStep === 1 && <Step1ProductCart />}
+        {state.currentStep === 2 && <Step2AssignCustomer />}
         {state.currentStep === 3 && <Step4Summary onEditStep={setCurrentStep} />}
       </main>
 
