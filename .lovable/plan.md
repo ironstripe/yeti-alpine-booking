@@ -1,53 +1,52 @@
 
 
-# Fix Multi-Instructor Mini-Scheduler Selection Issues
+# Fix Password Reset Flow
 
-## Root Causes
+## Problem
 
-### Issue 1: False "Unubliche Startzeit" Warning
-The mini-scheduler stores each hour-cell as a separate slot (10:00-11:00 and 11:00-12:00). When `applyMiniSchedulerSelection` computes the "base time", it picks the most frequent 1h slot (e.g., 10:00-11:00), resulting in `duration = 1` and triggering the unusual-slot warning. The fix is to **merge adjacent slots per instructor per date** into contiguous time ranges before computing the base time and duration.
+When a user clicks the password reset link from their email, they land in the main app (dashboard) instead of seeing the "set new password" form. The root cause is a race condition between Supabase's automatic token processing and the app's routing.
 
-### Issue 2: Only One Instructor in Selection Display
-The bottom "Ausgewahlt" bar (lines 1032-1043 of `Step2ProductAllocation.tsx`) shows `state.instructor` -- which is the single "base" instructor. When `applyMiniSchedulerSelection` runs, it sets `instructorId: baseInstructorId` but never clears or updates `state.instructor` (the full object). So the old instructor from a previous selection (or none) persists. The fix is to **clear `state.instructor` when a multi-group proposal is created** (since individual instructors are tracked per group).
+## Root Cause
 
-### Issue 3: Wrong Instructor Name ("Christoph Buhler")
-The "Ausgewahlt" display shows `state.instructor.first_name + state.instructor.last_name`. Since `applyMiniSchedulerSelection` does not update `state.instructor`, it shows whatever was previously set. The fix is the same as Issue 2 -- clear the base instructor when using multi-group proposal, AND hide the "Ausgewahlt" bar entirely when a multi-group proposal is active.
+The Supabase client (PKCE flow) automatically detects and processes recovery tokens from the URL. It fires a `PASSWORD_RECOVERY` auth event, but the `AuthContext` ignores this event entirely -- it only handles `SIGNED_IN`, `SIGNED_OUT`, etc. As a result:
 
-## Changes
+1. Supabase processes the recovery link and authenticates the user
+2. The `SIGNED_IN` event fires, setting the user in AuthContext
+3. The app sees an authenticated user and renders the dashboard
+4. The `/reset-password` page's manual hash-parsing logic finds nothing (tokens already consumed)
 
-### File 1: `src/contexts/BookingWizardContext.tsx`
+## Solution
 
-**Merge adjacent slots before computing base time** (in `applyMiniSchedulerSelection`, around line 720):
-- After sorting slots, group them by (instructorId + date) 
-- Merge consecutive 1h slots into contiguous ranges (e.g., 10:00-11:00 + 11:00-12:00 becomes 10:00-12:00)
-- Use these merged ranges for base time/duration calculation and for the group proposal times
+### 1. Handle `PASSWORD_RECOVERY` event in AuthContext
 
-**Clear instructor when multi-group proposal is created** (around line 865):
-- When `privateGroupProposal` is built (multi-instructor + multi-participant), set `instructor: null` and `instructorId: null` in the returned state
-- This prevents stale instructor data from showing
+Add a `PASSWORD_RECOVERY` case to the `onAuthStateChange` handler. When detected, set the session/user AND navigate to `/reset-password`. This ensures the user always lands on the password form, regardless of which URL they initially hit.
 
-### File 2: `src/components/bookings/wizard/Step2ProductAllocation.tsx`
+**File**: `src/contexts/AuthContext.tsx`
+- Add `PASSWORD_RECOVERY` to the switch statement
+- Set session and user (same as `SIGNED_IN`)
+- Use `window.location.replace('/reset-password')` to redirect if not already on that page (using `window.location` instead of React Router because this fires outside component context)
 
-**Hide the "Ausgewahlt" instructor bar when a multi-group proposal exists** (lines 1032-1043):
-- Add condition: only show when `!state.privateGroupProposal || state.privateGroupProposal.groups.length <= 1`
-- When multi-group proposal is active, Step 2 already shows the Group Proposal Panel with per-group instructors
+### 2. Simplify ResetPassword page
 
-## Slot Merging Logic
+Remove the manual hash-parsing `useEffect` entirely. It's unnecessary because the Supabase client already handles token exchange automatically. The component just needs to check if the user is authenticated (which AuthContext guarantees after the recovery event).
 
-```text
-Input slots: [{Azaroual, Mon, 10:00-11:00}, {Azaroual, Mon, 11:00-12:00}, 
-              {Bader, Tue, 10:00-11:00}, {Bader, Tue, 11:00-12:00}]
-
-After merge: [{Azaroual, Mon, 10:00-12:00}, {Bader, Tue, 10:00-12:00}]
-
-Base time: 10:00-12:00 (most frequent merged range)
-Duration: 2h
-isUnusualSlot: false (duration != 1)
-```
+**File**: `src/pages/ResetPassword.tsx`
+- Remove the `establishSession` useEffect and related state (`isVerifying`, `verificationComplete`)
+- Keep the simple flow: if `authLoading` show spinner, if no `user` show "invalid link", if `user` show password form
 
 ## Files Summary
 
 | File | Change |
 |------|--------|
-| `src/contexts/BookingWizardContext.tsx` | Merge adjacent slots before base time calculation; clear instructor on multi-group proposal |
-| `src/components/bookings/wizard/Step2ProductAllocation.tsx` | Hide single-instructor "Ausgewahlt" bar when multi-group proposal is active |
+| `src/contexts/AuthContext.tsx` | Handle `PASSWORD_RECOVERY` event, redirect to `/reset-password` |
+| `src/pages/ResetPassword.tsx` | Remove manual token parsing, simplify to auth-state-only logic |
+
+## Result
+
+After the fix:
+1. User clicks reset link in email
+2. Supabase client processes tokens, fires `PASSWORD_RECOVERY`
+3. AuthContext sets the user and redirects to `/reset-password`
+4. ResetPassword page detects authenticated user, shows "set new password" form
+5. User sets password, gets signed out, redirected to login
+
