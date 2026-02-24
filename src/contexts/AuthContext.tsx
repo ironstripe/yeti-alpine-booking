@@ -46,6 +46,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.log("Auth event:", event); // Debug logging
         
         switch (event) {
+          case "PASSWORD_RECOVERY":
+            setSession(newSession);
+            setUser(newSession?.user ?? null);
+            setLoading(false);
+            // Redirect to reset-password page if not already there
+            if (window.location.pathname !== '/reset-password') {
+              window.location.replace('/reset-password');
+            }
+            break;
           case "SIGNED_IN":
           case "TOKEN_REFRESHED":
             setSession(newSession);

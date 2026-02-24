@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -18,70 +18,6 @@ export default function ResetPassword() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [isVerifying, setIsVerifying] = useState(true);
-  const verificationComplete = useRef(false);
-
-  // Explicitly establish session from URL hash tokens
-  useEffect(() => {
-    const establishSession = async () => {
-      // If already verified or user exists, skip
-      if (verificationComplete.current || user) {
-        setIsVerifying(false);
-        return;
-      }
-
-      // Parse tokens from URL hash
-      const hash = window.location.hash.substring(1); // Remove #
-      const params = new URLSearchParams(hash);
-      const accessToken = params.get('access_token');
-      const refreshToken = params.get('refresh_token');
-      const type = params.get('type');
-
-      console.log("ResetPassword: Checking URL hash", { 
-        hasAccessToken: !!accessToken, 
-        hasRefreshToken: !!refreshToken, 
-        type 
-      });
-
-      // Only proceed if this is a recovery type
-      if (!accessToken || !refreshToken || type !== 'recovery') {
-        // No tokens in URL or not a recovery - link was likely already used or expired
-        console.log("ResetPassword: No valid recovery tokens in URL, marking as expired");
-        setIsVerifying(false);
-        verificationComplete.current = true;
-        return;
-      }
-
-      // Explicitly establish session from tokens
-      try {
-        console.log("ResetPassword: Establishing session from URL tokens");
-        const { data, error: sessionError } = await supabase.auth.setSession({
-          access_token: accessToken,
-          refresh_token: refreshToken,
-        });
-
-        if (sessionError) {
-          console.error("ResetPassword: Failed to establish session", sessionError);
-          setIsVerifying(false);
-          verificationComplete.current = true;
-          return;
-        }
-
-        if (data.session) {
-          console.log("ResetPassword: Session established successfully");
-          // Clear the hash from URL for cleanliness
-          window.history.replaceState(null, '', window.location.pathname + window.location.search);
-        }
-      } catch (err) {
-        console.error("ResetPassword: Error establishing session", err);
-      }
-
-      setIsVerifying(false);
-      verificationComplete.current = true;
-    };
-
-    establishSession();
-  }, [user]);
 
   const validatePassword = () => {
     if (password.length < 6) {
@@ -133,7 +69,7 @@ export default function ResetPassword() {
   };
 
   // Show loading while checking auth or verifying recovery tokens
-  if (authLoading || isVerifying) {
+  if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4">
