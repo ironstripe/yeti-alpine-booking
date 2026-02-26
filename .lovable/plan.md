@@ -1,78 +1,132 @@
 
+# Materialausleihe fur Schneesportlehrer
 
-# Allow Adding Participants Without a Customer First
+## Overview
 
-## Problem
-
-The current `SlotBookingPopover` requires a customer to be selected via "Schnellbuchung" before any participants can be added. It shows a blocking message: "Bitte zuerst einen Kunden uber Schnellbuchung auswahlen". This defeats the purpose of the V3 refactoring where the natural flow is: select product, add participants, THEN assign a customer/payer.
-
-## Solution
-
-Introduce **local (temporary) participants** that live only in wizard state -- no database writes until a customer is assigned in Step 2. When a customer IS pre-selected, the existing DB-backed participant flow continues to work as before.
+A full equipment rental management system for ski school instructors, covering inventory management (settings), checkout/check-in workflows (office + instructor portal), and automated reminders.
 
 ---
 
-## Changes
+## Task 1: Database Schema
 
-### 1. Add Local Participant Support to Context
+Create 4 new tables via migration + enums + RLS policies.
 
-**File**: `src/contexts/BookingWizardContext.tsx`
+**Enums:**
+- `inventory_condition`: 'Neu', 'Ok', 'Ausgebleicht', 'Ersetzen'
+- `inventory_item_status`: 'Verfugbar', 'Ausgeliehen', 'Verloren', 'In Reparatur'
+- `rental_status`: 'Wartet auf Quittierung', 'Ausgeliehen', 'Teilweise zuruckgegeben', 'Abgeschlossen'
+- `rental_item_status`: 'Ausgeliehen', 'Ruckgabe initiiert', 'Zuruckgegeben', 'Verloren gemeldet'
+- `return_condition`: 'Ok', 'Beschadigt', 'Verloren'
 
-- Add a `localParticipants` array to `BookingWizardState` storing temporary participant objects (first_name, last_name, birth_date, skill_level, sport) with generated UUIDs.
-- Add `addLocalParticipant()` and `removeLocalParticipant()` actions to the context.
-- These local participants are used for `assignedParticipantIds` in cart items just like DB participants.
+**Tables:**
 
-### 2. Refactor SlotBookingPopover to Support Both Modes
+1. **inventory_categories** (id, name, description, created_at)
+2. **inventory_items** (id, category_id FK, name, inventory_number UNIQUE, size, color, condition, status, created_at, updated_at)
+3. **inventory_rentals** (id, instructor_id FK to instructors, office_user_id FK to auth.users, rental_period_start, rental_period_end, status, created_at, updated_at)
+4. **inventory_rental_items** (id, rental_id FK, item_id FK, status, returned_at, return_condition, notes, created_at)
 
-**File**: `src/components/bookings/wizard/SlotBookingPopover.tsx`
-
-**When NO customer is pre-selected:**
-- Show existing local participants (from context) as selectable checkboxes.
-- Show a "+ Neuen Teilnehmer erstellen" form that creates a **local participant** (stored in wizard state, not DB).
-- The form collects: first_name, last_name (optional), birth_date, skill_level.
-- No database call needed.
-
-**When a customer IS pre-selected (Schnellbuchung):**
-- Continue fetching DB participants for that customer (existing behavior).
-- ALSO show local participants if any were created before the customer was selected.
-- The "+ Neuen Teilnehmer erstellen" form creates a DB-backed participant (existing behavior).
-
-**Remove** the blocking "Bitte zuerst einen Kunden" message entirely.
-
-### 3. Persist Local Participants to DB in Step 2
-
-**File**: `src/components/bookings/wizard/Step2AssignCustomer.tsx`
-
-- When a customer is selected in Step 2, automatically save any `localParticipants` to the `customer_participants` table linked to that customer.
-- Replace local participant IDs in all cart items' `assignedParticipantIds` with the newly created DB IDs.
-- Clear `localParticipants` from state after successful persistence.
-- Show a toast confirming participants were linked to the customer.
-
-### 4. Update Cart Display to Show Local Participant Names
-
-**File**: `src/components/bookings/wizard/Step1ProductCart.tsx`
-
-- When rendering cart item participant names, look up from both DB participants (`selectedParticipants`) and `localParticipants` in state.
-- Display participant names regardless of whether they are local or DB-backed.
+**RLS:** All tables restricted to admin/office via `is_admin_or_office()`. Additionally, instructors can read their own rentals + rental items and update rental item status (for return initiation) and rental status (for confirmation).
 
 ---
 
-## Flow Summary
+## Task 2: Settings UI - Inventar
 
-```text
-Step 1: Click slot -> Popover opens -> Create "Anna (6J, Beginner)" as local participant
-     -> Assign to slot -> Add to cart -> Cart shows "Privatstunde Ski 2h (Anna)"
-     -> Optionally use Schnellbuchung to pre-select customer (loads their DB participants too)
+**Files:**
+- New: `src/pages/SettingsInventory.tsx` -- main settings page with two tabs
+- New: `src/components/settings/inventory/InventoryItemsTab.tsx` -- table + CRUD for items
+- New: `src/components/settings/inventory/InventoryCategoriesTab.tsx` -- table + CRUD for categories
+- New: `src/components/settings/inventory/InventoryItemFormModal.tsx` -- form dialog for creating/editing items
+- New: `src/hooks/useInventory.ts` -- React Query hooks for inventory CRUD
 
-Step 2: Select customer "Familie Muller" -> Local participants auto-saved to DB
-     -> Cart item IDs updated to real DB IDs
+**Changes:**
+- `src/components/settings/SettingsLayout.tsx`: Add "Inventar" nav item with `Boxes` icon pointing to `/settings/inventory`
+- `src/App.tsx`: Add route `settings/inventory` -> `SettingsInventory`, add import
 
-Step 3: Summary with all real data
-```
+---
 
-## Technical Details
+## Task 3: Office Rental Management Page
 
-- `LocalParticipant` interface: `{ id: string, first_name: string, last_name: string | null, birth_date: string, skill_level: string | null, sport: "ski" | "snowboard" }`
-- IDs use `crypto.randomUUID()` with a `local-` prefix to distinguish from DB UUIDs
-- The `canProceed` logic for Step 1 stays the same (checks `assignedParticipantIds.length > 0`)
-- The `canProceed` logic for Step 2 adds a check: if `localParticipants.length > 0`, customer is required before proceeding (to trigger the DB save)
+**Files:**
+- New: `src/pages/Rentals.tsx` -- main rental management page showing instructors with rental counts and "Neue Ausleihe" buttons
+- New: `src/components/rentals/NewRentalDialog.tsx` -- modal for creating a rental (date range, item search/add, send to instructor)
+- New: `src/components/rentals/RentalDetailDialog.tsx` -- view/manage existing rental details
+- New: `src/components/rentals/ReturnCheckDialog.tsx` -- dialog for office to confirm returns and set conditions
+- New: `src/hooks/useRentals.ts` -- React Query hooks for rental CRUD
+
+**Changes:**
+- `src/components/layout/AppSidebar.tsx`: Add "Materialausleihe" nav item with `Boxes` icon pointing to `/rentals`
+- `src/App.tsx`: Add route `rentals` -> `Rentals`, add import
+
+---
+
+## Task 4: Instructor Portal - Rental Confirmation
+
+**Files:**
+- New: `src/pages/InstructorRentals.tsx` -- "Mein Material" page showing current rentals, pending confirmations, and return initiation
+
+**Changes:**
+- `src/components/instructor-portal/InstructorLayout.tsx`: Add "Material" nav item with `Boxes` icon pointing to `/instructor/rentals`
+- `src/App.tsx`: Add route `instructor/rentals` -> `InstructorRentals`
+
+**Confirmation flow:**
+- Page shows pending rentals (status = 'Wartet auf Quittierung') with item list and "Empfang bestatigen" button
+- Clicking updates `inventory_rentals.status` to 'Ausgeliehen' and each `inventory_rental_items.status` to 'Ausgeliehen'
+
+---
+
+## Task 5: Return Flow
+
+**Instructor side** (in `InstructorRentals.tsx`):
+- Active rentals show checkboxes per item
+- "Ruckgabe initiieren" button updates selected items to 'Ruckgabe initiiert'
+
+**Office side:**
+- Dashboard (`src/components/dashboard/ActionRequiredBox.tsx`): Add a new alert type for pending returns ("Ruckgabe von [Name] zur Kontrolle")
+- `ReturnCheckDialog.tsx`: For each item, set return_condition (Ok/Beschadigt/Verloren) with optional notes
+- "Ruckgabe abschliessen" button: updates items to 'Zuruckgegeben', sets `returned_at`, updates item inventory status back to 'Verfugbar' (or 'Verloren'), recalculates rental status
+
+---
+
+## Task 6: Notifications
+
+**Checkout notification:**
+- When office creates a rental, insert into `instructor_notification_queue` with a new notification type `instructor.rental.checkout`
+- The existing `send-instructor-notification` edge function will be extended with a new template for rental confirmation
+
+**Return reminder:**
+- New edge function: `supabase/functions/rental-reminders/index.ts`
+- Runs daily via pg_cron
+- Checks for rentals where `rental_period_end` is in 7 days with unreturned items
+- Sends reminder notification to instructor
+
+---
+
+## Task 7: Dashboard Integration
+
+**File:** `src/components/dashboard/ActionRequiredBox.tsx`
+
+Add a new query to check for `inventory_rental_items` with status = 'Ruckgabe initiiert'. Display as actionable alert: "Ruckgabe von [Instructor Name] zur Kontrolle" with a link to the rentals page.
+
+---
+
+## Implementation Order
+
+1. Database migration (enums, tables, RLS)
+2. React Query hooks (`useInventory.ts`, `useRentals.ts`)
+3. Settings UI (inventory management)
+4. Office rental page + new rental dialog
+5. Instructor portal page (confirmation + return initiation)
+6. Office return check dialog
+7. Dashboard integration
+8. Notification extension + reminder cron job
+9. Routing + navigation updates (App.tsx, sidebar, settings nav, instructor nav)
+
+---
+
+## Technical Notes
+
+- All tables use `is_admin_or_office()` for write access, with instructor-specific read/update policies
+- Inventory item `status` is automatically updated when rented/returned via application logic (not triggers, to keep it simple)
+- The `instructor_id` in `inventory_rentals` references `instructors.id` (not auth.users), consistent with the rest of the codebase
+- Size options are hardcoded as a constant: `['S', 'M', 'L', 'XL', 'XXL', 'XXXL']`
+- The rental reminder edge function uses the existing Resend API key for email delivery
