@@ -1,50 +1,41 @@
 
-
-# Fix webhook-email Edge Function for Resend Payload Format
+# Fix: Remove non-existent `raw_payload` column from webhook insert
 
 ## Problem
 
-The Resend inbound email webhook wraps email data inside `payload.data`, but the current code reads from `payload` directly. This causes `senderEmail`, `subject`, and `content` to be empty, failing the `NOT NULL` constraint on the `conversations` table.
+The `webhook-email` edge function is failing with error:
+```
+Could not find the 'raw_payload' column of 'conversations' in the schema cache
+```
 
-Additionally, the `conversations` table lacks an `external_message_id` column, causing a second error (`PGRST204`).
+The `conversations` table does not have a `raw_payload` column, but the INSERT statement on **line 46** of `supabase/functions/webhook-email/index.ts` still includes `raw_payload: payload`.
 
-## Changes
+This is why new emails from Resend are received but never appear in the inbox -- the insert fails every time.
 
-### 1. Fix payload extraction in `supabase/functions/webhook-email/index.ts`
+## Fix
 
-- Detect Resend format via `payload.type === 'email.received'`
-- Extract fields from `payload.data` when Resend format is detected
-- Use `subject` as fallback for missing body text
-- Fix `messageId` field name (`message_id` for Resend)
-- Remove `external_message_id` from the insert (column doesn't exist in the table)
-- Keep backward compatibility for other webhook providers
+**File:** `supabase/functions/webhook-email/index.ts`
 
-### 2. Add `external_message_id` column to `conversations` table
+Remove line 46 (`raw_payload: payload,`) from the insert object. No other changes needed.
 
-- Run a migration to add the missing column so message deduplication works
-
-### 3. Deploy the updated edge function
-
-## Technical Details
-
-Updated extraction logic in `webhook-email/index.ts`:
-
+The corrected insert will be:
 ```typescript
-const isResendInbound = payload.type === 'email.received' && payload.data;
-const emailData = isResendInbound ? payload.data : payload;
-
-const senderEmail = emailData.from?.email || emailData.from || "";
-const senderName = emailData.from?.name || extractNameFromEmail(senderEmail);
-const subject = emailData.subject || "";
-// Resend inbound webhook doesn't include body text - use subject as fallback
-// TODO: Retrieve full body via Resend API if needed
-const bodyText = emailData.text || emailData.html || emailData["body-plain"] || subject || "No body";
-const messageId = emailData.message_id || emailData.messageId || emailData["Message-Id"] || emailData.id || crypto.randomUUID();
+.insert({
+  channel: "email",
+  direction: "inbound",
+  contact_identifier: senderEmail,
+  contact_name: senderName,
+  subject: subject,
+  content: bodyText,
+  status: "unread",
+  external_message_id: messageId,
+})
 ```
 
-Migration SQL:
+## Deployment
 
-```sql
-ALTER TABLE public.conversations ADD COLUMN IF NOT EXISTS external_message_id text;
-```
+Redeploy the `webhook-email` edge function after the fix.
 
+## Verification
+
+After deployment, send a test email to your Resend inbound address and confirm the message appears in the inbox.
