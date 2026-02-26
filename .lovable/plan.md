@@ -1,62 +1,50 @@
 
-# Printable Equipment Rental Reports
+# Resend Full Setup: API Key + Webhook + Sender Domain
 
 ## Overview
 
-Add a "Report" button to the Materialausleihe page that opens a dialog with instructor selection, then generates a print-styled report matching the original paper "Ausleihformular" layout using `useReactToPrint` (already installed).
+Three changes to fully configure Resend for your project:
+
+1. **Update RESEND_API_KEY** with your new key
+2. **Configure Resend webhook** to forward inbound emails to your existing `webhook-email` edge function
+3. **Update sender domain** in all edge functions from `onboarding@resend.dev` to your verified domain
 
 ---
 
-## Changes
+## Task 1: Update RESEND_API_KEY
 
-### 1. Update Rental Item Query to Include Color
+Use the secrets tool to prompt you to enter the new Resend API key value, replacing the existing one.
 
-**File**: `src/hooks/useRentals.ts`
+---
 
-The current `item:item_id(...)` select does not include `color`. Update both `useRentals` and `useInstructorRentals` queries:
+## Task 2: Webhook URL for Inbound Emails
+
+Your project already has the `webhook-email` edge function ready to receive inbound emails. The webhook URL to configure in Resend's dashboard is:
 
 ```
-item:item_id(id, name, inventory_number, size, color, category:category_id(name))
+https://pgrlrsrjwyixndmrzhct.supabase.co/functions/v1/webhook-email
 ```
 
-Also update the `RentalItemWithDetails` interface to add `color` to the item type.
-
-### 2. Create Printable Report Dialog Component
-
-**New file**: `src/components/rentals/RentalReportDialog.tsx`
-
-A dialog (following the same pattern as `AttendanceListPreview.tsx`) containing:
-- An instructor dropdown (`Select`) with "Alle Lehrer" as default plus all instructors who have active rentals (status = "Ausgeliehen")
-- A "Report erstellen & Drucken" button that triggers `useReactToPrint`
-- A hidden `ref`-based print area containing the formatted report
-
-**Report layout (print area):**
-- Per instructor: header with name, then items grouped by category (Bekleidung, Material, Diverses, etc.)
-- Table columns: Artikel | Nr./Detail | Grosse/Farbe | Anzahl | Datum Ausleihe | Visum | Datum Ruckgabe | Visum
-- Each instructor section uses `page-break-after: always` for multi-instructor reports
-- Print-only CSS: hide app chrome, clean borders, compact font sizes
-
-### 3. Add Report Button to Rentals Page
-
-**File**: `src/pages/Rentals.tsx`
-
-- Import `RentalReportDialog` and add a `Printer` icon button next to the existing "Neue Ausleihe" button in the `PageHeader` actions
-- Add state for `reportDialogOpen`
+You need to add this URL in your **Resend dashboard** under **Webhooks** (or **Inbound Emails** settings) so that incoming emails are forwarded to your backend. No code changes needed -- the edge function already handles parsing Resend's payload format.
 
 ---
 
-## Data Flow
+## Task 3: Update Sender Domain in Edge Functions
 
-1. Dialog opens, fetches rentals via existing `useRentals()` hook
-2. Filters to only rentals/items with status "Ausgeliehen"
-3. Groups items by instructor, then by category
-4. `useReactToPrint` prints the ref container with print-optimized CSS
+Once you have a verified domain in Resend, update the `from` address in these 3 edge functions:
+
+**Files to update:**
+- `supabase/functions/send-notification/index.ts` (line 32): Change `from: "Schneesportschule Malbun <onboarding@resend.dev>"` to your domain
+- `supabase/functions/send-instructor-notification/index.ts` (line 44): Same change
+- `supabase/functions/invite-instructor/index.ts` (line 278): Change `from: "Schneesportschule <onboarding@resend.dev>"` to your domain
+
+I will ask you for the sender email address (e.g., `noreply@schneesportschule-malbun.li`) and update all three functions.
 
 ---
 
-## Technical Notes
+## Implementation Order
 
-- Uses `useReactToPrint` (already a dependency) with `contentRef` pattern, consistent with `AttendanceListPreview`, `LunchListPreview`, etc.
-- No new database queries needed -- reuses the existing `useRentals()` hook and filters client-side
-- Print styles use `@media print` within a `style` tag inside the print container, plus inline styles for the table structure
-- "Alle Lehrer" generates one section per instructor with CSS page breaks between them
+1. Ask for new RESEND_API_KEY value via secrets tool
+2. Ask for your verified sender domain/email
+3. Update all 3 edge functions with the new sender address
+4. Provide you the webhook URL to paste into Resend's dashboard
