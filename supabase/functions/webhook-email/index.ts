@@ -19,12 +19,18 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+    // Detect Resend inbound format (wraps data inside payload.data)
+    const isResendInbound = payload.type === 'email.received' && payload.data;
+    const emailData = isResendInbound ? payload.data : payload;
+
     // Extract email data - handle multiple provider formats (Resend, Mailgun, SendGrid)
-    const senderEmail = payload.from?.email || payload.sender || payload.from || "";
-    const senderName = payload.from?.name || extractNameFromEmail(senderEmail);
-    const subject = payload.subject || "";
-    const bodyText = payload.text || payload["body-plain"] || stripHtml(payload.html || payload["body-html"] || "");
-    const messageId = payload.messageId || payload["Message-Id"] || payload.id || crypto.randomUUID();
+    const senderEmail = emailData.from?.email || emailData.sender || emailData.from || "";
+    const senderName = emailData.from?.name || extractNameFromEmail(senderEmail);
+    const subject = emailData.subject || "";
+    // Resend inbound webhook doesn't include body text - use subject as fallback
+    // TODO: Retrieve full body via Resend API if needed
+    const bodyText = emailData.text || emailData.html || emailData["body-plain"] || stripHtml(emailData["body-html"] || "") || subject || "No body";
+    const messageId = emailData.message_id || emailData.messageId || emailData["Message-Id"] || emailData.id || crypto.randomUUID();
 
     // Store incoming message in conversations
     const { data: conversation, error: insertError } = await supabase
