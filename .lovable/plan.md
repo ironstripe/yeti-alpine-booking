@@ -1,32 +1,31 @@
 
-# Fix: Deselecting slots that span multiple hours
 
-## Problem
+# Replace Calendar with RangeDatePicker in Step2ProductAllocation
 
-When you drag-select a 2+ hour block (e.g., 09:00-11:00), it creates ONE multi-select entry with `startTime="09:00", endTime="11:00"`. When you then click a single cell (e.g., the 09:00 cell) to deselect it, the click generates `startTime="09:00", endTime="10:00"`. The toggle function in `BookingWizardContext.tsx` does an **exact match** on `startTime` AND `endTime` -- so it can't find the 2-hour slot, and instead of removing it, it tries to add a new 1-hour slot on top of it.
+## What changes
 
-This is why deselection "works sometimes" (when you click a slot that was added as a single 1-hour cell) but fails on multi-hour drag selections.
+Swap the basic `Calendar` component for the existing `RangeDatePicker` component in the date selection area of Step2ProductAllocation. This adds click-and-drag date selection while keeping all existing date picking functionality (single clicks, month navigation, past-date disabling).
 
-## Solution
+## Technical details
 
-Change the toggle matching logic to use **overlap-based matching** instead of exact match. When clicking a cell, find any existing selection that **covers** that cell's hour, and remove it entirely.
+### File: `src/components/bookings/wizard/Step2ProductAllocation.tsx`
 
-### File: `src/contexts/BookingWizardContext.tsx`
+1. **Update import**: Replace `Calendar` import with `RangeDatePicker` from `@/components/ui/range-date-picker`
 
-**Change the `toggleMiniSchedulerSlot` function** (lines 857-886):
+2. **Replace the Calendar component** (lines 561-570) with:
+   ```tsx
+   <RangeDatePicker
+     selected={state.selectedDates.map((d) => parseISO(d))}
+     onSelect={(dates) => handleDateSelect(dates)}
+     month={selectedMonth}
+     onMonthChange={setSelectedMonth}
+     minDate={new Date(new Date().setHours(0, 0, 0, 0))}
+     showQuickActions={true}
+     className="rounded-md border bg-background text-xs"
+   />
+   ```
 
-Instead of matching on exact `startTime + endTime`, find any selection where:
-- Same `instructorId` and `date`
-- The clicked hour falls within the selection's time range (i.e., `selectionStart <= clickedHour < selectionEnd`)
+3. **Simplify `handleDateSelect`** (lines 410-415): The `RangeDatePicker` always passes `Date[]` (never `undefined`), so the `undefined` check can be removed, but keeping it is harmless.
 
-If found, remove the entire multi-hour block. If not found, add a new 1-hour slot as before.
+No other files need changes. The `RangeDatePicker` component already supports all needed features: drag selection, single click toggle, range mode, quick actions (Mo-Fr, full week), and visual selection summary.
 
-### File: `src/components/bookings/wizard/MiniSchedulerGrid.tsx`
-
-No changes needed -- the existing `onMouseUp` handler already passes the correct single-cell time range to `onMultiSelectToggle`. The fix is entirely in the matching logic.
-
-### Result
-
-- Clicking any cell within a multi-hour selection removes the entire selection block
-- Clicking an unselected cell adds a 1-hour slot (existing behavior)
-- Single-hour selections continue to toggle normally
