@@ -1,37 +1,32 @@
 
-
-# Fix: Single-cell click highlights slots on ALL dates
+# Fix: Deselecting slots that span multiple hours
 
 ## Problem
 
-When you click a single cell (e.g., 11:00 on Fr. 27 for D. Clarke), the slot gets correctly added to the multi-select. However, the `isWithinSelectedDuration` highlight (line 677) also activates, which highlights the same time slot across ALL dates for the selected instructor. This creates the illusion of selecting 2+ cells when you only clicked one.
+When you drag-select a 2+ hour block (e.g., 09:00-11:00), it creates ONE multi-select entry with `startTime="09:00", endTime="11:00"`. When you then click a single cell (e.g., the 09:00 cell) to deselect it, the click generates `startTime="09:00", endTime="10:00"`. The toggle function in `BookingWizardContext.tsx` does an **exact match** on `startTime` AND `endTime` -- so it can't find the 2-hour slot, and instead of removing it, it tries to add a new 1-hour slot on top of it.
 
-**Root cause**: The `isWithinSelectedDuration` check (line 342) only compares the hour against `selectedStartTime + selectedDuration` -- it does NOT filter by date. So if you click 11:00 on Fr. 27, it highlights 11:00 on Sa. 28 as well.
-
-Additionally, the `onSlotSelect` call on line 652 updates `selectedStartTime` and `selectedDuration` on every click, which feeds the duration highlight. In the new toggle-based model, the duration highlight is redundant since selections are tracked individually via `multiSelectSlots`.
+This is why deselection "works sometimes" (when you click a slot that was added as a single 1-hour cell) but fails on multi-hour drag selections.
 
 ## Solution
 
-**File: `src/components/bookings/wizard/MiniSchedulerGrid.tsx`**
+Change the toggle matching logic to use **overlap-based matching** instead of exact match. When clicking a cell, find any existing selection that **covers** that cell's hour, and remove it entirely.
 
-1. **Remove the `isSelectedInstructorDuration` highlight entirely** (line 677). In the toggle-based model, selected cells are already visualized by the `isMultiSelected` check (line 672). The duration-based highlight is a leftover from the old single-select model and now causes double/phantom highlighting.
+### File: `src/contexts/BookingWizardContext.tsx`
 
-2. **Remove the `isWithinSelectedDuration` function** (lines 342-346) since it's no longer used.
+**Change the `toggleMiniSchedulerSlot` function** (lines 857-886):
 
-3. **Remove the `isSelectedInstructorDuration` variable** (line 582) that calls the removed function.
+Instead of matching on exact `startTime + endTime`, find any selection where:
+- Same `instructorId` and `date`
+- The clicked hour falls within the selection's time range (i.e., `selectionStart <= clickedHour < selectionEnd`)
 
-4. **Remove the selected-instructor row highlight that dims ALL cells** (line 682): `isSelected && available && !inDragRange && "bg-primary/10 hover:bg-primary/20"`. This makes the entire row of the selected instructor look highlighted even when individual cells are not selected.
+If found, remove the entire multi-hour block. If not found, add a new 1-hour slot as before.
 
-**File: `src/components/bookings/wizard/Step2ProductAllocation.tsx`**
+### File: `src/components/bookings/wizard/MiniSchedulerGrid.tsx`
 
-5. **Remove the `setStartTime` / `setEndTime` calls** from `handleSlotSelect` (lines 427-428). In the toggle model, time syncing should derive from the multi-select state, not from individual clicks. The instructor assignment (`setInstructor`) can remain.
+No changes needed -- the existing `onMouseUp` handler already passes the correct single-cell time range to `onMultiSelectToggle`. The fix is entirely in the matching logic.
 
-These changes ensure: one click = one cell highlighted, via the existing `isMultiSelected` visual (checkmark + ring).
+### Result
 
-### Files Changed
-
-| File | Change |
-|------|--------|
-| `MiniSchedulerGrid.tsx` | Remove `isWithinSelectedDuration`, `isSelectedInstructorDuration`, and the selected-instructor row tint from cell styling |
-| `Step2ProductAllocation.tsx` | Remove `setStartTime`/`setEndTime` from `handleSlotSelect` to stop feeding the duration highlight |
-
+- Clicking any cell within a multi-hour selection removes the entire selection block
+- Clicking an unselected cell adds a 1-hour slot (existing behavior)
+- Single-hour selections continue to toggle normally
