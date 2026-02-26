@@ -421,19 +421,12 @@ export function Step2ProductAllocation() {
     timeEnd: string
   ) => {
     try {
+      // Update selected instructor to the most recently clicked one
       setInstructor(instructor);
-      const clickedDuration = parseInt(timeEnd.split(":")[0]) - parseInt(timeStart.split(":")[0]);
-      if (clickedDuration === 1 && calculatedDuration && calculatedDuration > 1) {
-        // Keep the duration they selected, just assign the instructor
-      } else {
-        setStartTime(timeStart);
-        setEndTime(timeEnd);
-      }
-      // Clear any multi-select when doing a normal slot selection
-      if (state.miniSchedulerSelections.length > 0) {
-        clearMiniSchedulerSelection();
-      }
-      // No auto-navigation - user must click "Weiter" to proceed
+      // Sync time dropdowns from the clicked slot
+      setStartTime(timeStart);
+      setEndTime(timeEnd);
+      // Do NOT clear multi-select - toggle model handles it
     } catch (error) {
       console.error("Error selecting slot:", error);
     }
