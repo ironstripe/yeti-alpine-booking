@@ -1,11 +1,12 @@
 import { Badge } from "@/components/ui/badge";
-import { Banknote, UserPlus, Mail, Users2 } from "lucide-react";
+import { Banknote, UserPlus, Mail, Users2, Package } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { DashboardTaskCard } from "./DashboardTaskCard";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useUnassignedGroupsCheck } from "@/hooks/useUnassignedGroupsCheck";
+import { usePendingReturnsCount } from "@/hooks/useRentals";
 
 interface ActionCounts {
   overduePayments: number;
@@ -19,21 +20,18 @@ export function ActionRequiredBox() {
   const { data: actions, isLoading } = useQuery({
     queryKey: ["action-counts-dashboard"],
     queryFn: async (): Promise<ActionCounts> => {
-      // Count overdue payments (tickets with payment_status = 'overdue')
       const { count: overduePayments } = await supabase
         .from("tickets")
         .select("id", { count: "exact", head: true })
         .eq("status", "confirmed")
-        .lt("paid_amount", supabase.rpc ? 0 : 0); // Simplified - will count all unpaid
+        .lt("paid_amount", supabase.rpc ? 0 : 0);
 
-      // Count tickets with unassigned instructors
       const { count: unassignedInstructors } = await supabase
         .from("ticket_items")
         .select("id", { count: "exact", head: true })
         .is("instructor_id", null)
         .neq("status", "cancelled");
 
-      // Count pending confirmations
       const { count: pendingConfirmations } = await supabase
         .from("tickets")
         .select("id", { count: "exact", head: true })
@@ -50,6 +48,8 @@ export function ActionRequiredBox() {
   const { data: unassignedGroups } = useUnassignedGroupsCheck();
   const unassignedGroupCount = unassignedGroups?.length || 0;
 
+  const { data: pendingReturnsCount } = usePendingReturnsCount();
+
   if (isLoading) {
     return (
       <DashboardTaskCard title="Handlungsbedarf" count={0}>
@@ -63,8 +63,8 @@ export function ActionRequiredBox() {
   }
 
   const total = actions
-    ? actions.overduePayments + actions.unassignedInstructors + actions.pendingConfirmations + unassignedGroupCount
-    : unassignedGroupCount;
+    ? actions.overduePayments + actions.unassignedInstructors + actions.pendingConfirmations + unassignedGroupCount + (pendingReturnsCount || 0)
+    : unassignedGroupCount + (pendingReturnsCount || 0);
 
   const actionItems = [
     {
@@ -101,6 +101,13 @@ export function ActionRequiredBox() {
         }
       },
       color: "text-orange-600",
+    },
+    {
+      icon: Package,
+      label: "Rückgaben zur Kontrolle",
+      count: pendingReturnsCount || 0,
+      onClick: () => navigate("/rentals"),
+      color: "text-teal-600",
     },
   ];
 

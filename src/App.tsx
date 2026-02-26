@@ -78,6 +78,9 @@ import SettingsSystem from "./pages/SettingsSystem";
 import SetPassword from "./pages/SetPassword";
 import ResetPassword from "./pages/ResetPassword";
 import TestInstructorLogin from "./pages/TestInstructorLogin";
+import SettingsInventory from "./pages/SettingsInventory";
+import Rentals from "./pages/Rentals";
+import InstructorRentals from "./pages/InstructorRentals";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -163,6 +166,7 @@ const AppRoutes = () => (
     <Route path="/instructor/availability" element={<InstructorAvailability />} />
     <Route path="/instructor/group/:instanceId" element={<InstructorGroupManagement />} />
     <Route path="/instructor/profile" element={<InstructorProfile />} />
+    <Route path="/instructor/rentals" element={<InstructorRentals />} />
 
     {/* Protected app routes (single persistent layout to avoid remount flicker) */}
     <Route element={<AppLayout />}>
@@ -182,6 +186,7 @@ const AppRoutes = () => (
       <Route path="events" element={<Events />} />
       <Route path="events/:id" element={<EventDetail />} />
       <Route path="reconciliation" element={<Reconciliation />} />
+      <Route path="rentals" element={<Rentals />} />
       <Route path="lists" element={<Lists />} />
       <Route path="shop" element={<Shop />} />
       <Route path="shop/products" element={<ShopProducts />} />
@@ -209,6 +214,7 @@ const AppRoutes = () => (
       <Route path="settings/ai" element={<SettingsAI />} />
       <Route path="settings/import" element={<SettingsDataImport />} />
       <Route path="settings/system" element={<SettingsSystem />} />
+      <Route path="settings/inventory" element={<SettingsInventory />} />
     </Route>
 
     {/* Catch-all route */}
