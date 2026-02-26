@@ -423,9 +423,6 @@ export function Step2ProductAllocation() {
     try {
       // Update selected instructor to the most recently clicked one
       setInstructor(instructor);
-      // Sync time dropdowns from the clicked slot
-      setStartTime(timeStart);
-      setEndTime(timeEnd);
       // Do NOT clear multi-select - toggle model handles it
     } catch (error) {
       console.error("Error selecting slot:", error);
