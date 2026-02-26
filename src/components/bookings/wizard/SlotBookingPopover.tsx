@@ -5,6 +5,7 @@ import { format, differenceInYears } from "date-fns";
 import { de } from "date-fns/locale";
 
 import { supabase } from "@/integrations/supabase/client";
+import { useBookingWizard } from "@/contexts/BookingWizardContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -75,6 +76,7 @@ export function SlotBookingPopover({
   onAddToCart,
 }: SlotBookingPopoverProps) {
   const queryClient = useQueryClient();
+  const { state, addLocalParticipant } = useBookingWizard();
   const [selectedParticipantIds, setSelectedParticipantIds] = useState<string[]>([]);
   const [duration, setDuration] = useState<number>(() => {
     const s = parseInt(startTime.split(":")[0]);
@@ -97,8 +99,8 @@ export function SlotBookingPopover({
     return `${end.toString().padStart(2, "0")}:00`;
   }, [startTime, duration]);
 
-  // Fetch participants for the pre-selected customer
-  const { data: participants = [] } = useQuery({
+  // Fetch DB participants for pre-selected customer
+  const { data: dbParticipants = [] } = useQuery({
     queryKey: ["customer-participants", preselectedCustomerId],
     queryFn: async () => {
       if (!preselectedCustomerId) return [];
@@ -113,7 +115,7 @@ export function SlotBookingPopover({
     enabled: !!preselectedCustomerId,
   });
 
-  // Create participant mutation
+  // Create DB participant mutation (only when customer is pre-selected)
   const createParticipantMutation = useMutation({
     mutationFn: async (form: NewParticipantForm) => {
       if (!preselectedCustomerId) throw new Error("Kein Kunde ausgewählt");
@@ -135,10 +137,31 @@ export function SlotBookingPopover({
     onSuccess: (newP) => {
       queryClient.invalidateQueries({ queryKey: ["customer-participants", preselectedCustomerId] });
       setSelectedParticipantIds((prev) => [...prev, newP.id]);
-      setShowNewParticipant(false);
-      setNewParticipant({ first_name: "", last_name: "", birth_date: "", skill_level: "" });
+      resetNewParticipantForm();
     },
   });
+
+  const resetNewParticipantForm = () => {
+    setShowNewParticipant(false);
+    setNewParticipant({ first_name: "", last_name: "", birth_date: "", skill_level: "" });
+  };
+
+  // Create local participant (no DB write)
+  const handleCreateLocalParticipant = () => {
+    const localP = {
+      first_name: newParticipant.first_name,
+      last_name: newParticipant.last_name || null,
+      birth_date: newParticipant.birth_date || "2015-01-01",
+      skill_level: newParticipant.skill_level || null,
+      sport: (sport || "ski") as "ski" | "snowboard",
+    };
+    addLocalParticipant(localP);
+    // The ID is generated inside addLocalParticipant, so we need to find it after state update
+    // We'll use a slight workaround: generate the ID here to pre-select it
+    // Actually, since addLocalParticipant uses crypto.randomUUID(), we can't predict it.
+    // Instead, we just reset the form. The user will see the new participant in the list and select it.
+    resetNewParticipantForm();
+  };
 
   const toggleParticipant = (id: string) => {
     setSelectedParticipantIds((prev) =>
@@ -158,12 +181,34 @@ export function SlotBookingPopover({
       meetingPoint,
       sport,
     });
-    // Reset state
     setSelectedParticipantIds([]);
     onClose();
   };
 
   const canAdd = selectedParticipantIds.length > 0;
+
+  // Combine local participants + DB participants for display
+  const localParticipants = state.localParticipants;
+  const allParticipants = [
+    ...localParticipants.map((lp) => ({
+      id: lp.id,
+      first_name: lp.first_name,
+      last_name: lp.last_name,
+      birth_date: lp.birth_date,
+      level_current_season: lp.skill_level,
+      isLocal: true,
+    })),
+    ...dbParticipants.map((dp) => ({
+      id: dp.id,
+      first_name: dp.first_name,
+      last_name: dp.last_name,
+      birth_date: dp.birth_date,
+      level_current_season: dp.level_current_season,
+      isLocal: false,
+    })),
+  ];
+
+  const hasCustomer = !!preselectedCustomerId;
 
   return (
     <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
@@ -239,13 +284,9 @@ export function SlotBookingPopover({
               Teilnehmer
             </Label>
 
-            {!preselectedCustomerId ? (
+            {allParticipants.length === 0 && !showNewParticipant ? (
               <div className="text-sm text-muted-foreground rounded-md border border-dashed p-3 text-center">
-                Bitte zuerst einen Kunden über "Schnellbuchung" auswählen, um Teilnehmer zuzuweisen.
-              </div>
-            ) : participants.length === 0 && !showNewParticipant ? (
-              <div className="text-sm text-muted-foreground rounded-md border border-dashed p-3 text-center">
-                Keine Teilnehmer gefunden.
+                Noch keine Teilnehmer.
                 <Button
                   variant="link"
                   size="sm"
@@ -258,7 +299,7 @@ export function SlotBookingPopover({
               </div>
             ) : (
               <div className="space-y-1">
-                {participants.map((p) => {
+                {allParticipants.map((p) => {
                   const isSelected = selectedParticipantIds.includes(p.id);
                   const age = p.birth_date
                     ? differenceInYears(new Date(), new Date(p.birth_date))
@@ -282,6 +323,11 @@ export function SlotBookingPopover({
                           <span className="text-muted-foreground ml-1">({age}J)</span>
                         )}
                       </div>
+                      {p.isLocal && (
+                        <Badge variant="outline" className="text-[10px] h-5 text-muted-foreground">
+                          Lokal
+                        </Badge>
+                      )}
                       {p.level_current_season && (
                         <Badge variant="outline" className="text-[10px] h-5">
                           {p.level_current_season}
@@ -343,10 +389,16 @@ export function SlotBookingPopover({
                   <Button
                     size="sm"
                     className="h-7 text-xs"
-                    disabled={!newParticipant.first_name || createParticipantMutation.isPending}
-                    onClick={() => createParticipantMutation.mutate(newParticipant)}
+                    disabled={!newParticipant.first_name || (hasCustomer && createParticipantMutation.isPending)}
+                    onClick={() => {
+                      if (hasCustomer) {
+                        createParticipantMutation.mutate(newParticipant);
+                      } else {
+                        handleCreateLocalParticipant();
+                      }
+                    }}
                   >
-                    {createParticipantMutation.isPending ? "Speichern..." : "Erstellen"}
+                    {hasCustomer && createParticipantMutation.isPending ? "Speichern..." : "Erstellen"}
                   </Button>
                   <Button
                     variant="ghost"
@@ -359,17 +411,15 @@ export function SlotBookingPopover({
                 </div>
               </div>
             ) : (
-              preselectedCustomerId && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full h-7 text-xs"
-                  onClick={() => setShowNewParticipant(true)}
-                >
-                  <UserPlus className="h-3 w-3 mr-1" />
-                  Neuen Teilnehmer erstellen
-                </Button>
-              )
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full h-7 text-xs"
+                onClick={() => setShowNewParticipant(true)}
+              >
+                <UserPlus className="h-3 w-3 mr-1" />
+                Neuen Teilnehmer erstellen
+              </Button>
             )}
           </div>
 

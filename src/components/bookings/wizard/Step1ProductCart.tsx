@@ -79,16 +79,29 @@ export function Step1ProductCart() {
                   }`}
                   onClick={() => setActiveCartItem(item.id)}
                 >
-                  <span>
-                    {idx + 1}.{" "}
-                    {item.productType === "private"
-                      ? "Privatstunde"
-                      : item.productType === "group"
-                        ? "Gruppenkurs"
-                        : "Neues Produkt"}
-                    {item.selectedDates.length > 0 &&
-                      ` · ${item.selectedDates.length} Tag${item.selectedDates.length !== 1 ? "e" : ""}`}
-                  </span>
+                  <div>
+                    <span>
+                      {idx + 1}.{" "}
+                      {item.productType === "private"
+                        ? "Privatstunde"
+                        : item.productType === "group"
+                          ? "Gruppenkurs"
+                          : "Neues Produkt"}
+                      {item.selectedDates.length > 0 &&
+                        ` · ${item.selectedDates.length} Tag${item.selectedDates.length !== 1 ? "e" : ""}`}
+                    </span>
+                    {item.assignedParticipantIds.length > 0 && (
+                      <span className="text-xs text-muted-foreground ml-1">
+                        ({item.assignedParticipantIds.map((pid) => {
+                          const local = state.localParticipants?.find((lp) => lp.id === pid);
+                          if (local) return local.first_name;
+                          const db = state.selectedParticipants?.find((sp) => sp.id === pid);
+                          if (db) return db.first_name;
+                          return "?";
+                        }).join(", ")})
+                      </span>
+                    )}
+                  </div>
                   {item.id !== state.activeCartItemId && (
                     <Button
                       variant="ghost"
