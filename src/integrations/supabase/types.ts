@@ -2118,6 +2118,169 @@ export type Database = {
         }
         Relationships: []
       }
+      inventory_categories: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+        }
+        Relationships: []
+      }
+      inventory_items: {
+        Row: {
+          category_id: string | null
+          color: string | null
+          condition: Database["public"]["Enums"]["inventory_condition"]
+          created_at: string
+          id: string
+          inventory_number: string | null
+          name: string
+          size: string | null
+          status: Database["public"]["Enums"]["inventory_item_status"]
+          updated_at: string
+        }
+        Insert: {
+          category_id?: string | null
+          color?: string | null
+          condition?: Database["public"]["Enums"]["inventory_condition"]
+          created_at?: string
+          id?: string
+          inventory_number?: string | null
+          name: string
+          size?: string | null
+          status?: Database["public"]["Enums"]["inventory_item_status"]
+          updated_at?: string
+        }
+        Update: {
+          category_id?: string | null
+          color?: string | null
+          condition?: Database["public"]["Enums"]["inventory_condition"]
+          created_at?: string
+          id?: string
+          inventory_number?: string | null
+          name?: string
+          size?: string | null
+          status?: Database["public"]["Enums"]["inventory_item_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inventory_items_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "inventory_categories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      inventory_rental_items: {
+        Row: {
+          created_at: string
+          id: string
+          item_id: string
+          notes: string | null
+          rental_id: string
+          return_condition:
+            | Database["public"]["Enums"]["return_condition"]
+            | null
+          returned_at: string | null
+          status: Database["public"]["Enums"]["rental_item_status"]
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          item_id: string
+          notes?: string | null
+          rental_id: string
+          return_condition?:
+            | Database["public"]["Enums"]["return_condition"]
+            | null
+          returned_at?: string | null
+          status?: Database["public"]["Enums"]["rental_item_status"]
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          item_id?: string
+          notes?: string | null
+          rental_id?: string
+          return_condition?:
+            | Database["public"]["Enums"]["return_condition"]
+            | null
+          returned_at?: string | null
+          status?: Database["public"]["Enums"]["rental_item_status"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inventory_rental_items_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "inventory_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inventory_rental_items_rental_id_fkey"
+            columns: ["rental_id"]
+            isOneToOne: false
+            referencedRelation: "inventory_rentals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      inventory_rentals: {
+        Row: {
+          created_at: string
+          id: string
+          instructor_id: string
+          office_user_id: string
+          rental_period_end: string | null
+          rental_period_start: string
+          status: Database["public"]["Enums"]["rental_status"]
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          instructor_id: string
+          office_user_id: string
+          rental_period_end?: string | null
+          rental_period_start: string
+          status?: Database["public"]["Enums"]["rental_status"]
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          instructor_id?: string
+          office_user_id?: string
+          rental_period_end?: string | null
+          rental_period_start?: string
+          status?: Database["public"]["Enums"]["rental_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inventory_rentals_instructor_id_fkey"
+            columns: ["instructor_id"]
+            isOneToOne: false
+            referencedRelation: "instructors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       invoices: {
         Row: {
           created_at: string | null
@@ -4279,6 +4442,23 @@ export type Database = {
     Enums: {
       app_role: "admin" | "office" | "teacher"
       instructor_role_type: "teacher" | "assistant"
+      inventory_condition: "Neu" | "Ok" | "Ausgebleicht" | "Ersetzen"
+      inventory_item_status:
+        | "Verfügbar"
+        | "Ausgeliehen"
+        | "Verloren"
+        | "In Reparatur"
+      rental_item_status:
+        | "Ausgeliehen"
+        | "Rückgabe initiiert"
+        | "Zurückgegeben"
+        | "Verloren gemeldet"
+      rental_status:
+        | "Wartet auf Quittierung"
+        | "Ausgeliehen"
+        | "Teilweise zurückgegeben"
+        | "Abgeschlossen"
+      return_condition: "Ok" | "Beschädigt" | "Verloren"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -4408,6 +4588,26 @@ export const Constants = {
     Enums: {
       app_role: ["admin", "office", "teacher"],
       instructor_role_type: ["teacher", "assistant"],
+      inventory_condition: ["Neu", "Ok", "Ausgebleicht", "Ersetzen"],
+      inventory_item_status: [
+        "Verfügbar",
+        "Ausgeliehen",
+        "Verloren",
+        "In Reparatur",
+      ],
+      rental_item_status: [
+        "Ausgeliehen",
+        "Rückgabe initiiert",
+        "Zurückgegeben",
+        "Verloren gemeldet",
+      ],
+      rental_status: [
+        "Wartet auf Quittierung",
+        "Ausgeliehen",
+        "Teilweise zurückgegeben",
+        "Abgeschlossen",
+      ],
+      return_condition: ["Ok", "Beschädigt", "Verloren"],
     },
   },
 } as const

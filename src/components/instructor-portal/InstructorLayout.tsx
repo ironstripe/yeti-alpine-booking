@@ -2,7 +2,7 @@ import { ReactNode, useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserRole } from "@/hooks/useUserRole";
-import { Home, Calendar, Hand, User, Menu, Bell, LogOut, ClipboardCheck, Loader2, ArrowRightLeft } from "lucide-react";
+import { Home, Calendar, Hand, User, Menu, Bell, LogOut, ClipboardCheck, Loader2, ArrowRightLeft, Package } from "lucide-react";
 import { usePendingBookingsCount } from "@/hooks/usePendingBookingsCount";
 import { useTransferRequests } from "@/hooks/useTransferRequests";
 import { Badge } from "@/components/ui/badge";
@@ -28,6 +28,7 @@ const navItems = [
   { title: "Plan", url: "/instructor/schedule", icon: Calendar },
   { title: "Planung", url: "/instructor/live-planning", icon: ArrowRightLeft, badgeKey: "transfers" },
   { title: "Bestätigen", url: "/instructor/confirmations", icon: ClipboardCheck, badgeKey: "confirmations" },
+  { title: "Material", url: "/instructor/rentals", icon: Package },
   { title: "Profil", url: "/instructor/profile", icon: User },
 ];
 
@@ -153,6 +154,8 @@ export function InstructorLayout({ children }: InstructorLayoutProps) {
         return "Bestätigungen";
       case "/instructor/availability":
         return "Meine Verfügbarkeit";
+      case "/instructor/rentals":
+        return "Mein Material";
       case "/instructor/profile":
         return "Mein Profil";
       default:
