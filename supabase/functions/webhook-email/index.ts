@@ -43,7 +43,6 @@ serve(async (req) => {
         subject: subject,
         content: bodyText,
         status: "unread",
-        raw_payload: payload,
         external_message_id: messageId,
       })
       .select()
