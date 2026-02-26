@@ -380,6 +380,7 @@ interface BookingWizardContextType {
   removeCartItem: (id: string) => void;
   setActiveCartItem: (id: string) => void;
   getAllCartItems: () => CartItem[];
+  setCartItemParticipants: (itemId: string, participantIds: string[]) => void;
   // New: Pre-fill from scheduler
   prefillFromScheduler: (instructorId: string, appointments: AppointmentSlot[]) => void;
   // Edit mode
@@ -1283,18 +1284,31 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
   const canProceed = (): boolean => {
     switch (state.currentStep) {
       case 1: {
-        // Step 1: Product + Cart - active item must have valid product config
-        const hasProduct = state.productType !== null && state.selectedDates.length > 0;
-        const hasMeetingPoint = state.meetingPoint !== null;
+        // Step 1: Product + Participants - all cart items must have valid config + participants
+        const allItems = state.cartItems.map(item =>
+          item.id === state.activeCartItemId
+            ? extractCartItemFromState(state, item.id)
+            : item
+        );
         
-        if (state.productType === "private") {
-          return hasProduct && hasMeetingPoint && (state.instructor !== null || state.assignLater);
-        }
-        return hasProduct && hasMeetingPoint;
+        // Must have at least one valid cart item
+        if (allItems.length === 0) return false;
+        
+        // Every cart item must have product, dates, meeting point, and participants
+        return allItems.every(item => {
+          const hasProduct = item.productType !== null && item.selectedDates.length > 0;
+          const hasMeetingPoint = item.meetingPoint !== null;
+          const hasParticipants = item.assignedParticipantIds.length > 0;
+          
+          if (item.productType === "private") {
+            return hasProduct && hasMeetingPoint && hasParticipants && (item.instructorId !== null || item.assignLater);
+          }
+          return hasProduct && hasMeetingPoint && hasParticipants;
+        });
       }
       case 2:
-        // Step 2: Customer + Participants assigned
-        return state.customer !== null && state.selectedParticipants.length > 0;
+        // Step 2: Customer (payer) only — participants already assigned in step 1
+        return state.customer !== null;
       case 3:
         return true;
       default:
@@ -1442,6 +1456,17 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const setCartItemParticipants = (itemId: string, participantIds: string[]) => {
+    setState(prev => ({
+      ...prev,
+      cartItems: prev.cartItems.map(item =>
+        item.id === itemId
+          ? { ...item, assignedParticipantIds: participantIds }
+          : item
+      ),
+    }));
+  };
+
   return (
     <BookingWizardContext.Provider
       value={{
@@ -1508,6 +1533,7 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
         removeCartItem,
         setActiveCartItem,
         getAllCartItems,
+        setCartItemParticipants,
         prefillFromScheduler,
         loadTicketForEditing,
       }}

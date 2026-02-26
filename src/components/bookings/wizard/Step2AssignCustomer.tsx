@@ -1,11 +1,12 @@
+import { useState } from "react";
 import { useBookingWizard } from "@/contexts/BookingWizardContext";
-import { Step1CustomerParticipant } from "./Step1CustomerParticipant";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ShoppingCart } from "lucide-react";
+import { CustomerPayerCard } from "./CustomerPayerCard";
 
 export function Step2AssignCustomer() {
-  const { state, getAllCartItems } = useBookingWizard();
+  const { state, setCustomer, getAllCartItems } = useBookingWizard();
   const cartItems = getAllCartItems();
 
   return (
@@ -33,8 +34,15 @@ export function Step2AssignCustomer() {
         </Card>
       )}
 
-      {/* Customer + Participant selection (reuses existing component) */}
-      <Step1CustomerParticipant />
+      {/* Customer (payer) selection only — participants are assigned in Step 1 */}
+      <Card>
+        <CardContent className="p-4">
+          <CustomerPayerCard
+            customer={state.customer}
+            onCustomerChange={setCustomer}
+          />
+        </CardContent>
+      </Card>
     </div>
   );
 }
