@@ -14,6 +14,9 @@ import {
   Search,
   AlertTriangle,
   Sparkles,
+  Maximize2,
+  Minimize2,
+  X,
 } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
@@ -38,6 +41,7 @@ import {
 } from "@/components/ui/select";
 import { BookingWarnings, type BookingWarning } from "./BookingWarnings";
 import { MiniSchedulerGrid } from "./MiniSchedulerGrid";
+import { SlotBookingPopover, type SlotBookingData } from "./SlotBookingPopover";
 import { GroupSelector } from "./GroupSelector";
 import { PeriodDayPlanner } from "./PeriodDayPlanner";
 import { LunchSupervisionAddon } from "./LunchSupervisionAddon";
@@ -103,6 +107,8 @@ export function Step2ProductAllocation() {
     removeTimeBlock,
     removeDayInstructorOverride,
     removeDayTimeOverride,
+    setCartItemParticipants,
+    addCartItem,
   } = useBookingWizard();
 
   const [selectedMonth, setSelectedMonth] = useState<Date>(new Date());
@@ -123,6 +129,16 @@ export function Step2ProductAllocation() {
     return null;
   });
   const [preferredTeacher, setPreferredTeacher] = useState("");
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  
+  // Slot popover state
+  const [popoverSlot, setPopoverSlot] = useState<{
+    instructorId: string;
+    instructorName: string;
+    date: string;
+    startTime: string;
+    endTime: string;
+  } | null>(null);
 
   // Analyze participants for group course recommendations
   const groupRecommendation = useMemo(() => {
@@ -421,13 +437,50 @@ export function Step2ProductAllocation() {
     timeEnd: string
   ) => {
     try {
-      // Update selected instructor to the most recently clicked one
+      // Open the SlotBookingPopover instead of just selecting
       setInstructor(instructor);
-      // Do NOT clear multi-select - toggle model handles it
+      setPopoverSlot({
+        instructorId: instructor.id,
+        instructorName: `${instructor.first_name} ${instructor.last_name}`,
+        date,
+        startTime: timeStart,
+        endTime: timeEnd,
+      });
     } catch (error) {
       console.error("Error selecting slot:", error);
     }
   };
+
+  // Handle adding a slot config to the cart
+  const handleSlotAddToCart = (data: SlotBookingData) => {
+    // Update the active cart item with the slot data
+    if (data.startTime && data.endTime) {
+      setTimeSlot(`${data.startTime} - ${data.endTime}`);
+      setDuration(data.duration);
+    }
+    setMeetingPoint(data.meetingPoint);
+    
+    // Set participants on the active cart item
+    if (state.activeCartItemId) {
+      setCartItemParticipants(state.activeCartItemId, data.participantIds);
+    }
+    
+    // Set the dates if not already set
+    if (data.date && !state.selectedDates.includes(data.date)) {
+      setSelectedDates([...state.selectedDates, data.date]);
+    }
+  };
+
+  // Fullscreen ESC handler
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && isFullscreen) {
+        setIsFullscreen(false);
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [isFullscreen]);
 
   // Handle applying the multi-selection to the wizard state
   const handleApplyMultiSelection = async () => {
@@ -929,15 +982,26 @@ export function Step2ProductAllocation() {
         ) : showAvailabilityGrid ? (
           <div className={cn(
             "transition-opacity",
-            state.assignLater && "opacity-50 pointer-events-none"
+            state.assignLater && "opacity-50 pointer-events-none",
+            isFullscreen && "fixed inset-0 z-50 bg-background p-4 overflow-auto"
           )}>
-            {/* Multi-select instruction hint */}
-            {state.selectedDates.length > 1 && (
-              <div className="flex items-center gap-2 mb-3 px-2.5 py-2 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded text-xs text-blue-700 dark:text-blue-300">
-                <Info className="h-3.5 w-3.5 flex-shrink-0" />
-                <span>
-                  <strong>Tipp:</strong> Halte <kbd className="px-1 py-0.5 bg-blue-100 dark:bg-blue-900 rounded text-[10px] font-mono">Ctrl</kbd> gedrückt, um mehrere Zeitslots auszuwählen.
-                </span>
+            {/* Fullscreen header */}
+            {isFullscreen && (
+              <div className="flex items-center justify-between mb-3 px-2 py-1.5 rounded-md bg-muted">
+                <span className="text-sm font-medium">Scheduler (Vollbild)</span>
+                <Button variant="ghost" size="sm" onClick={() => setIsFullscreen(false)}>
+                  <X className="h-4 w-4 mr-1" />
+                  ESC zum Schließen
+                </Button>
+              </div>
+            )}
+            {/* Fullscreen toggle */}
+            {!isFullscreen && (
+              <div className="flex justify-end mb-1">
+                <Button variant="ghost" size="sm" className="h-6 text-xs gap-1" onClick={() => setIsFullscreen(true)}>
+                  <Maximize2 className="h-3 w-3" />
+                  Vollbild
+                </Button>
               </div>
             )}
             <MiniSchedulerGrid
@@ -1034,10 +1098,27 @@ export function Step2ProductAllocation() {
         {/* Instruction hint */}
         {showAvailabilityGrid && !state.instructor && (
           <p className="text-xs text-muted-foreground text-center">
-            Klicken Sie auf einen grünen Slot um den Lehrer direkt zuzuweisen
+            Klicken Sie auf einen grünen Slot um Teilnehmer zuzuweisen und in den Warenkorb zu legen
           </p>
         )}
       </div>
+
+      {/* Slot Booking Popover */}
+      {popoverSlot && (
+        <SlotBookingPopover
+          open={!!popoverSlot}
+          onClose={() => setPopoverSlot(null)}
+          instructorId={popoverSlot.instructorId}
+          instructorName={popoverSlot.instructorName}
+          date={popoverSlot.date}
+          startTime={popoverSlot.startTime}
+          endTime={popoverSlot.endTime}
+          preselectedCustomerId={state.customerId}
+          sport={state.sport}
+          defaultMeetingPoint={state.meetingPoint || "sammelplatz_gorfion"}
+          onAddToCart={handleSlotAddToCart}
+        />
+      )}
     </div>
   );
 }
