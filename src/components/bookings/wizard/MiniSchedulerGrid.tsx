@@ -327,22 +327,14 @@ export function MiniSchedulerGrid({
       return score;
     };
 
-    // Sort: available for selected time first, then by score
+    // Sort by score only - do NOT use selectedStartTime/selectedDuration to avoid re-sorting on selection
     return filtered.sort((a, b) => {
-      // First: Sort by availability for selected time
-      const aAvailable = isAvailableForSelectedTime(a);
-      const bAvailable = isAvailableForSelectedTime(b);
-      
-      if (aAvailable && !bAvailable) return -1;
-      if (!aAvailable && bAvailable) return 1;
-      
-      // Then: Apply 4-tier ranking
       const scoreA = getAvailabilityScore(a);
       const scoreB = getAvailabilityScore(b);
       if (scoreB !== scoreA) return scoreB - scoreA;
       return a.last_name.localeCompare(b.last_name);
     });
-  }, [instructors, sport, language, selectedDates, bookings, absences, preferredTeacher, bookingHistory, selectedDuration, selectedStartTime]);
+  }, [instructors, sport, language, selectedDates, bookings, absences, preferredTeacher, bookingHistory]);
 
   // (isSlotAvailable is defined earlier)
 
@@ -354,10 +346,11 @@ export function MiniSchedulerGrid({
   };
 
   // Check if slot is in hover preview range
+  // Hover preview: single cell only (no multi-slot duration preview)
   const isInHoverPreview = (instructorId: string, date: string, hour: number) => {
-    if (!hoveredSlot || !selectedDuration) return false;
+    if (!hoveredSlot) return false;
     if (hoveredSlot.instructorId !== instructorId || hoveredSlot.date !== date) return false;
-    return hour >= hoveredSlot.hour && hour < hoveredSlot.hour + selectedDuration;
+    return hour === hoveredSlot.hour;
   };
 
   // Check if slot is in drag selection range
@@ -485,14 +478,10 @@ export function MiniSchedulerGrid({
                 Lehrer
               </div>
               {HOURS.map((hour) => {
-                const isHighlighted = isWithinSelectedDuration(hour);
                 return (
                   <div
                     key={hour}
-                    className={cn(
-                      "flex-1 border-r border-slate-200 px-1 py-1 text-center text-[10px] font-semibold text-muted-foreground last:border-r-0",
-                      isHighlighted && "bg-primary/10 text-primary"
-                    )}
+                    className="flex-1 border-r border-slate-200 px-1 py-1 text-center text-[10px] font-semibold text-muted-foreground last:border-r-0"
                   >
                     {hour}:00
                   </div>
@@ -626,11 +615,11 @@ export function MiniSchedulerGrid({
                                       });
                                     }
                                   }}
-                                  onMouseEnter={() => {
+                                    onMouseEnter={() => {
                                     // Update drag range if dragging
                                     if (dragState?.isActive && dragState.instructorId === instructor.id && dragState.date === dateStr) {
                                       setDragState(prev => prev ? { ...prev, currentHour: hour } : null);
-                                    } else if (available && selectedDuration && !dragState?.isActive) {
+                                    } else if (available && !dragState?.isActive) {
                                       setHoveredSlot({ instructorId: instructor.id, date: dateStr, hour });
                                     }
                                   }}
@@ -650,8 +639,8 @@ export function MiniSchedulerGrid({
                                       
                                       // Check if the entire range is available
                                       if (isDragRangeAvailable()) {
-                                        // Check if Ctrl/Cmd is held for multi-select
-                                        if ((e.ctrlKey || e.metaKey) && onMultiSelectToggle) {
+                                        if (onMultiSelectToggle) {
+                                          // Always toggle into multi-select (no Ctrl required)
                                           onMultiSelectToggle({
                                             instructorId: instructor.id,
                                             instructorName: `${instructor.first_name} ${instructor.last_name}`,
@@ -659,8 +648,9 @@ export function MiniSchedulerGrid({
                                             startTime: dragTimeStart,
                                             endTime: dragTimeEnd,
                                           });
+                                          // Also update selected instructor
+                                          onSlotSelect(instructor, dateStr, dragTimeStart, dragTimeEnd);
                                         } else {
-                                          // Normal click - clear multi-select and do single select
                                           onSlotSelect(instructor, dateStr, dragTimeStart, dragTimeEnd);
                                         }
                                       }
