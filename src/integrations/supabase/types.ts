@@ -410,6 +410,7 @@ export type Database = {
           data_completeness: number | null
           detected_language: string | null
           direction: string
+          external_message_id: string | null
           id: string
           matched_customer_id: string | null
           notes: string | null
@@ -433,6 +434,7 @@ export type Database = {
           data_completeness?: number | null
           detected_language?: string | null
           direction?: string
+          external_message_id?: string | null
           id?: string
           matched_customer_id?: string | null
           notes?: string | null
@@ -456,6 +458,7 @@ export type Database = {
           data_completeness?: number | null
           detected_language?: string | null
           direction?: string
+          external_message_id?: string | null
           id?: string
           matched_customer_id?: string | null
           notes?: string | null
