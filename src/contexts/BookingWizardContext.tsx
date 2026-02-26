@@ -856,17 +856,17 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
   // Toggle slot selection in mini-scheduler (for Ctrl+Click)
   const toggleMiniSchedulerSlot = (slot: Omit<MiniSchedulerSlot, "id">) => {
     setState((prev) => {
-      // Check if slot already exists
-      const existingIndex = prev.miniSchedulerSelections.findIndex(
-        (s) =>
-          s.instructorId === slot.instructorId &&
-          s.date === slot.date &&
-          s.startTime === slot.startTime &&
-          s.endTime === slot.endTime
-      );
+      // Find any existing selection that overlaps with the clicked cell
+      const clickedStartMinutes = parseInt(slot.startTime.split(":")[0]) * 60;
+      const existingIndex = prev.miniSchedulerSelections.findIndex((s) => {
+        if (s.instructorId !== slot.instructorId || s.date !== slot.date) return false;
+        const selStart = parseInt(s.startTime.split(":")[0]) * 60;
+        const selEnd = parseInt(s.endTime.split(":")[0]) * 60;
+        return clickedStartMinutes >= selStart && clickedStartMinutes < selEnd;
+      });
 
       if (existingIndex >= 0) {
-        // Remove the slot (toggle off)
+        // Remove the entire overlapping slot (toggle off)
         const newSelections = [...prev.miniSchedulerSelections];
         newSelections.splice(existingIndex, 1);
         return { ...prev, miniSchedulerSelections: newSelections };
