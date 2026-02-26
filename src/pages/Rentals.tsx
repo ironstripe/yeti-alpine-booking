@@ -8,7 +8,8 @@ import { useRentals, RentalWithDetails } from "@/hooks/useRentals";
 import { NewRentalDialog } from "@/components/rentals/NewRentalDialog";
 import { RentalDetailDialog } from "@/components/rentals/RentalDetailDialog";
 import { ReturnCheckDialog } from "@/components/rentals/ReturnCheckDialog";
-import { Plus, Eye, CheckCircle } from "lucide-react";
+import { RentalReportDialog } from "@/components/rentals/RentalReportDialog";
+import { Plus, Eye, CheckCircle, Printer } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
@@ -25,15 +26,21 @@ export default function Rentals() {
   const [newDialogOpen, setNewDialogOpen] = useState(false);
   const [detailRental, setDetailRental] = useState<RentalWithDetails | null>(null);
   const [returnCheckRental, setReturnCheckRental] = useState<RentalWithDetails | null>(null);
+  const [reportDialogOpen, setReportDialogOpen] = useState(false);
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="Materialausleihe"
         actions={
-          <Button onClick={() => setNewDialogOpen(true)}>
-            <Plus className="h-4 w-4 mr-2" /> Neue Ausleihe
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setReportDialogOpen(true)}>
+              <Printer className="h-4 w-4 mr-2" /> Report
+            </Button>
+            <Button onClick={() => setNewDialogOpen(true)}>
+              <Plus className="h-4 w-4 mr-2" /> Neue Ausleihe
+            </Button>
+          </div>
         }
       />
 
@@ -107,6 +114,7 @@ export default function Rentals() {
       <NewRentalDialog open={newDialogOpen} onOpenChange={setNewDialogOpen} />
       <RentalDetailDialog rental={detailRental} onClose={() => setDetailRental(null)} />
       <ReturnCheckDialog rental={returnCheckRental} onClose={() => setReturnCheckRental(null)} />
+      <RentalReportDialog open={reportDialogOpen} onOpenChange={setReportDialogOpen} />
     </div>
   );
 }

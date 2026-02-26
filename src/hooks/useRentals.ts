@@ -24,7 +24,7 @@ export interface RentalItemWithDetails {
   return_condition: string | null;
   notes: string | null;
   created_at: string;
-  item?: { id: string; name: string; inventory_number: string | null; size: string | null; category?: { name: string } | null } | null;
+  item?: { id: string; name: string; inventory_number: string | null; size: string | null; color: string | null; category?: { name: string } | null } | null;
 }
 
 export function useRentals() {
@@ -38,7 +38,7 @@ export function useRentals() {
           instructor:instructor_id(id, first_name, last_name),
           items:inventory_rental_items(
             *,
-            item:item_id(id, name, inventory_number, size, category:category_id(name))
+            item:item_id(id, name, inventory_number, size, color, category:category_id(name))
           )
         `)
         .order("created_at", { ascending: false });
@@ -60,7 +60,7 @@ export function useInstructorRentals(instructorId: string | null) {
           instructor:instructor_id(id, first_name, last_name),
           items:inventory_rental_items(
             *,
-            item:item_id(id, name, inventory_number, size, category:category_id(name))
+            item:item_id(id, name, inventory_number, size, color, category:category_id(name))
           )
         `)
         .eq("instructor_id", instructorId!)
