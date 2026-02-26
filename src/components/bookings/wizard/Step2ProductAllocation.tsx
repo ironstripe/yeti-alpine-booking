@@ -22,7 +22,7 @@ import { useBookingWizard } from "@/contexts/BookingWizardContext";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { Calendar } from "@/components/ui/calendar";
+import { RangeDatePicker } from "@/components/ui/range-date-picker";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -558,15 +558,14 @@ export function Step2ProductAllocation() {
               <CalendarDays className="h-3 w-3" />
               {state.productType === "private" ? "Datum" : "Kurstage"}
             </Label>
-            <Calendar
-              mode="multiple"
+            <RangeDatePicker
               selected={state.selectedDates.map((d) => parseISO(d))}
-              onSelect={handleDateSelect}
+              onSelect={(dates) => handleDateSelect(dates)}
               month={selectedMonth}
               onMonthChange={setSelectedMonth}
-              locale={de}
-              className="rounded-md border bg-background pointer-events-auto text-xs"
-              disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
+              minDate={new Date(new Date().setHours(0, 0, 0, 0))}
+              showQuickActions={true}
+              className="rounded-md border bg-background text-xs"
             />
             {state.selectedDates.length > 0 && (
               <div className="flex flex-wrap gap-1">
