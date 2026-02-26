@@ -233,11 +233,22 @@ function applyCartItemToState(item: CartItem): Partial<BookingWizardState> {
   };
 }
 
+// Local participant (temporary, not yet persisted to DB)
+export interface LocalParticipant {
+  id: string; // prefixed with "local-"
+  first_name: string;
+  last_name: string | null;
+  birth_date: string;
+  skill_level: string | null;
+  sport: "ski" | "snowboard";
+}
+
 export interface BookingWizardState {
   // Step 1: Customer & Participants
   customerId: string | null;
   customer: Tables<"customers"> | null;
   selectedParticipants: SelectedParticipant[];
+  localParticipants: LocalParticipant[];
   
   // Step 2: Product & Date (shared mode - default)
   productType: "private" | "group" | null;
@@ -319,6 +330,10 @@ interface BookingWizardContextType {
   setSelectedParticipants: (participants: SelectedParticipant[]) => void;
   toggleParticipant: (participant: SelectedParticipant) => void;
   addGuestParticipant: (participant: Omit<SelectedParticipant, "id" | "isGuest">) => void;
+  // Local participants
+  addLocalParticipant: (participant: Omit<LocalParticipant, "id">) => void;
+  removeLocalParticipant: (id: string) => void;
+  replaceLocalParticipantIds: (idMap: Record<string, string>) => void;
   // Step 2 setters
   setProductType: (type: "private" | "group" | null) => void;
   setProductId: (id: string | null) => void;
@@ -391,6 +406,7 @@ const initialState: BookingWizardState = {
   customerId: null,
   customer: null,
   selectedParticipants: [],
+  localParticipants: [],
   productType: null,
   productId: null,
   sport: null,
@@ -552,6 +568,40 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
         };
       }
     });
+  };
+
+  // Local participant management
+  const addLocalParticipant = (participant: Omit<LocalParticipant, "id">) => {
+    setState((prev) => {
+      const newParticipant: LocalParticipant = {
+        ...participant,
+        id: `local-${crypto.randomUUID()}`,
+      };
+      return {
+        ...prev,
+        localParticipants: [...prev.localParticipants, newParticipant],
+      };
+    });
+  };
+
+  const removeLocalParticipant = (id: string) => {
+    setState((prev) => ({
+      ...prev,
+      localParticipants: prev.localParticipants.filter((p) => p.id !== id),
+    }));
+  };
+
+  const replaceLocalParticipantIds = (idMap: Record<string, string>) => {
+    setState((prev) => ({
+      ...prev,
+      localParticipants: [],
+      cartItems: prev.cartItems.map((item) => ({
+        ...item,
+        assignedParticipantIds: item.assignedParticipantIds.map(
+          (pid) => idMap[pid] || pid
+        ),
+      })),
+    }));
   };
 
   const addGuestParticipant = (participant: Omit<SelectedParticipant, "id" | "isGuest">) => {
@@ -1307,7 +1357,7 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
         });
       }
       case 2:
-        // Step 2: Customer (payer) only — participants already assigned in step 1
+        // Step 2: Customer (payer) required; if local participants exist, customer must be set to persist them
         return state.customer !== null;
       case 3:
         return true;
@@ -1475,6 +1525,9 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
         setSelectedParticipants,
         toggleParticipant,
         addGuestParticipant,
+        addLocalParticipant,
+        removeLocalParticipant,
+        replaceLocalParticipantIds,
         setProductType,
         setProductId,
         setSport,
