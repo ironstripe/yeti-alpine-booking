@@ -1,214 +1,92 @@
 
-# Shared Private Lessons & Split Invoicing (V2)
 
-## Overview
+# Fix Mini-Scheduler UX: Stable Sorting + Intuitive Click Behavior
 
-This feature introduces "Shared Private Lessons" -- allowing multiple independent customers/parties to share a single instructor time slot, with automatic proportional invoice splitting. It requires a new database table, modifications to the existing `tickets` table, a new UI workflow triggered from existing bookings, pricing logic, and scheduler display changes.
+## Problems Identified
 
----
+### Problem 1: Instructor list reorders after slot selection
+When you click a slot for an instructor (e.g., Dominique Clarke), the `handleSlotSelect` callback updates `selectedStartTime` and `selectedDuration` in the wizard state. The `sortedInstructors` memo in `MiniSchedulerGrid.tsx` depends on `selectedStartTime` and `selectedDuration` (line 345), which triggers a re-sort using `isAvailableForSelectedTime()`. This causes instructors to jump positions after selection -- very disorienting.
 
-## Phase 1: Database Schema
+### Problem 2: Single click selects 4 slots (entire duration block)
+When you click one cell, the drag handler fires `onSlotSelect` with the selected duration (e.g., if duration is set to 1h, it should select 1 slot). However, the `isWithinSelectedDuration` highlight (line 593) highlights ALL slots matching the selected time window across the instructor's row, creating the visual impression of 4 slots being selected. Additionally, if `selectedDuration` was previously set to a longer value, the hover preview (`isInHoverPreview`) shows a multi-slot block.
 
-### New table: `master_bookings`
-
-Represents a single instructor time slot that can be shared by multiple tickets.
-
-| Column | Type | Notes |
-|--------|------|-------|
-| `id` | uuid, PK | Default `gen_random_uuid()` |
-| `instructor_id` | uuid, FK -> instructors | NOT NULL |
-| `date` | date | NOT NULL |
-| `start_time` | time | NOT NULL |
-| `end_time` | time | NOT NULL |
-| `total_participants` | integer | Cached count across all parties |
-| `created_at` | timestamptz | Default `now()` |
-| `updated_at` | timestamptz | Default `now()` |
-
-RLS: Admin/office roles only (same pattern as `tickets`).
-
-### Modify table: `tickets`
-
-Add columns:
-
-| Column | Type | Notes |
-|--------|------|-------|
-| `master_booking_id` | uuid, FK -> master_bookings, nullable | Links shared tickets |
-| `is_initiator` | boolean, default false | First party gets rounding remainder |
-| `share_participant_count` | integer, nullable | How many participants THIS party contributes |
-
-### Unique constraint
-
-A composite unique constraint on `master_bookings (instructor_id, date, start_time, end_time)` prevents double-booking at the DB level.
+### Problem 3: Multi-select requires Ctrl+Click
+Currently, selecting multiple cells requires Ctrl+Click (line 654). The user wants plain left-click to allow marking multiple cells.
 
 ---
 
-## Phase 2: Proportional Price Splitting Logic
+## Solution
 
-### New utility: `src/lib/pricing/shared-lesson-pricing.ts`
+### Fix 1: Freeze instructor order once selected
+
+**File: `src/components/bookings/wizard/MiniSchedulerGrid.tsx`**
+
+- Add a `useRef` to capture and freeze the instructor sort order after the initial render (or after dates/sport/language change).
+- Once sorted, the list stays stable regardless of `selectedStartTime` or `selectedDuration` changes.
+- Only re-sort when meaningful filter criteria change (dates, sport, language, instructor data).
+- Pin the selected instructor to its current position (don't move it to top or let it drift down).
+
+Implementation: Split the `sortedInstructors` memo into two stages:
+1. A "base sort" memo that depends only on `instructors, sport, language, selectedDates, bookings, absences, preferredTeacher, bookingHistory` (NOT `selectedStartTime` or `selectedDuration`).
+2. The availability-for-time check becomes a visual indicator (dimming) rather than a re-sort trigger.
+
+### Fix 2: Single-slot click behavior (no phantom multi-select)
+
+**File: `src/components/bookings/wizard/MiniSchedulerGrid.tsx`**
+
+- Change click behavior: a single click on a free slot selects ONLY that 1-hour cell, not the entire duration block.
+- The `isWithinSelectedDuration` highlight should only apply AFTER the user has explicitly set a duration via the dropdown -- not as an automatic expansion of a click.
+- Remove the duration-based hover preview that shows multiple slots highlighted. Instead, show a subtle single-cell hover.
+
+### Fix 3: Plain click for multi-select (no Ctrl required)
+
+**File: `src/components/bookings/wizard/MiniSchedulerGrid.tsx`**
+
+Change the click model to a toggle-based approach:
+- **Plain click** on a free slot toggles it selected/unselected (adds/removes from selection).
+- Clicking a slot for the **same instructor** adds to the selection.
+- Clicking a slot for a **different instructor** is allowed for multi-instructor scenarios (existing behavior for multi-group proposals).
+- A "Clear Selection" action remains available.
+- The drag behavior (mousedown + drag across slots) continues to work for selecting contiguous time ranges.
+
+**File: `src/components/bookings/wizard/Step2ProductAllocation.tsx`**
+
+- Update `handleSlotSelect` to work with the new toggle model.
+- When a slot is clicked, it gets added to `miniSchedulerSelections` directly (like the current Ctrl+Click path does).
+- The "selected instructor" indicator updates to show the most recently clicked instructor.
+- The time/duration dropdowns sync from the selection (most common time becomes the default).
+
+---
+
+## Technical Details
+
+### Instructor Sort Stability
 
 ```text
-calculateSharedLessonSplit(
-  totalParticipants: number,
-  parties: { ticketId: string; participantCount: number; isInitiator: boolean }[],
-  date: Date,
-  startTime: string,
-  endTime: string,
-  rates: TimeSlotRate[],
-  highSeasonPeriods: HighSeasonPeriod[]
-) => SharedSplitResult
+// Before: sortedInstructors depends on selectedStartTime, selectedDuration
+useMemo(() => { ... }, [instructors, ..., selectedStartTime, selectedDuration]);
+
+// After: Remove selectedStartTime and selectedDuration from deps
+// Use dimming (opacity) instead of re-sorting for unavailable instructors
+useMemo(() => { ... }, [instructors, sport, language, selectedDates, bookings, absences, preferredTeacher, bookingHistory]);
 ```
 
-**Algorithm:**
-1. Calculate total lesson cost using existing `calculatePrivateLessonPrice()` with `totalParticipants` across all parties
-2. Per-participant rate = `floor(totalCost * 100 / totalParticipants) / 100` (floor to centimes)
-3. Each party share = `perParticipantRate * partyParticipantCount`
-4. Rounding remainder = `totalCost - sum(all shares)` (will be 0-N centimes)
-5. Add remainder to the initiator's share
+The `isAvailableForSelectedTime` check moves from a sort criterion to a purely visual indicator (the existing `opacity-50` class on line 522 already does this).
 
-**Example validation:**
-- 3 participants total, 2h lesson (10:00-12:00): 85 + 85 + 20 = CHF 190 total (wait, let me recalculate based on rates)
-- Actually per the spec example: total = CHF 115 for some configuration
-- The formula handles any total correctly via the rounding logic
+### New Click Model
 
----
-
-## Phase 3: UI -- "Share & Split Invoice" Action
-
-### Entry Points
-
-1. **Booking Detail page** (`src/pages/BookingDetail.tsx`): Add a "Teilen & Rechnung splitten" button in the action area for private lesson tickets
-2. **Scheduler BookingDetailDialog** (`src/components/scheduler/BookingDetailDialog.tsx`): Add same action button when viewing a private lesson
-
-### Conditions to show button:
-- Ticket contains private lesson items (not group)
-- Ticket status is not cancelled
-- Total participants across all parties sharing this slot < 5
-
-### New component: `src/components/bookings/SharedLessonWizard.tsx`
-
-A focused 3-step dialog/sheet for adding a party to an existing lesson:
-
-**Step 1 -- Lesson Context (read-only)**
-- Shows: product, date, time, instructor, meeting point
-- Lists all current participants grouped by customer/party
-- Shows remaining capacity: `5 - currentTotal = X spots available`
-
-**Step 2 -- Add New Party**
-- `CustomerSearch` to find/select the new customer
-- `ParticipantSelection` to pick/create participants for this customer
-- Validation: cannot exceed remaining capacity (5 - current total)
-- Cannot select same customer as an existing party
-
-**Step 3 -- Summary & Price Split**
-- Shows ALL parties with their participants
-- Calculates and displays the proportional split per party
-- Highlights which amounts changed (existing parties get updated amounts)
-- Rounding indicator: shows initiator gets the remainder
-- Confirm button creates the new ticket and updates all amounts
-
-### Backend logic on confirm:
-1. If no `master_booking` exists yet for this lesson, create one from the original ticket's instructor/date/time
-2. Link the original ticket to the `master_booking` (set `master_booking_id`, `is_initiator = true`)
-3. Create a new ticket for the new customer with:
-   - Same product, dates, times, instructor
-   - `master_booking_id` pointing to same master booking
-   - `is_initiator = false`
-   - Own `ticket_items` for each of their participants
-4. Recalculate and update `total_amount` on ALL linked tickets using the split formula
-5. Update `master_bookings.total_participants`
-
----
-
-## Phase 4: Scheduler Display Changes
-
-### File: `src/hooks/useSchedulerData.ts`
-
-When building `SchedulerBooking` objects for private lessons:
-- Query tickets joined to `master_bookings` to detect shared lessons
-- For shared lessons, aggregate all participant names across all linked tickets
-- Set a new `isSharedLesson: boolean` flag on `SchedulerBooking`
-
-### File: `src/lib/scheduler-utils.ts`
-
-Add to `SchedulerBooking` interface:
 ```text
-isSharedLesson?: boolean;
-sharedCustomerNames?: string[];  // e.g., ["Huber", "Meier"]
-masterBookingId?: string;
+onMouseUp handler changes:
+  Before: Ctrl+Click -> multi-select, Plain click -> single select + clear
+  After:  Plain click -> toggle in multi-select, always additive
+          The "Apply Selection" bar appears when selections.length > 0
+          User clicks "Apply" to commit, or continues adding
 ```
 
-### File: `src/components/scheduler/BookingBar.tsx`
+### Files Changed
 
-- For shared lessons, display label as: `"Privat: Huber / Meier"` instead of single participant name
-- Add a small "link" icon indicator (existing `Link2` icon already imported)
-- Tooltip shows all parties and participant counts
+| File | Change |
+|------|--------|
+| `src/components/bookings/wizard/MiniSchedulerGrid.tsx` | Remove time-based re-sorting; change click to toggle-select; simplify hover preview to single cell |
+| `src/components/bookings/wizard/Step2ProductAllocation.tsx` | Update `handleSlotSelect` to use toggle model; keep multi-select action bar |
 
-### Deduplication:
-
-Currently each `ticket_item` with an instructor becomes a separate bar. For shared lessons, multiple ticket_items from different tickets share the same slot. The scheduler must deduplicate: group all ticket_items that share the same `master_booking_id` + date into a single bar, displaying combined names.
-
----
-
-## Phase 5: Booking Detail View Changes
-
-### File: `src/pages/BookingDetail.tsx`
-
-When a ticket has a `master_booking_id`:
-- Show a "Geteilte Privatstunde" (Shared Private Lesson) indicator badge
-- Show a section listing all other parties sharing this lesson, with links to their tickets
-- Show this party's proportional share vs. the total
-- "Share & Split Invoice" button to add more parties (if capacity allows)
-
----
-
-## Phase 6: Cancellation Handling
-
-### Business rule: No recalculation on cancellation
-
-When a party cancels their ticket (via existing cancellation flow):
-- The cancelled ticket follows standard cancellation workflow (cancellation fee etc.)
-- The remaining parties' `total_amount` values are **NOT** recalculated
-- The `master_bookings.total_participants` is updated (decremented)
-- If ALL parties cancel, the `master_booking` can be soft-deleted or left as-is
-
-No code changes to the cancellation flow itself -- just ensure the existing flow doesn't trigger a recalculation. The split amounts are "frozen" at creation time.
-
----
-
-## Phase 7: Invoice Generation
-
-### Existing invoice system
-
-Each ticket already generates its own invoice with its own `total_amount`. Since each party has its own ticket with the correct proportional amount, the existing invoice generation works without changes.
-
-The invoice shows:
-- The customer's participants only
-- The proportional amount (already set on `total_amount`)
-- Standard invoice format
-
-No changes needed to invoice generation code.
-
----
-
-## Files Summary
-
-| File | Action | Description |
-|------|--------|-------------|
-| Migration SQL | **Create** | `master_bookings` table + `tickets` columns |
-| `src/lib/pricing/shared-lesson-pricing.ts` | **New** | Proportional split calculator with rounding |
-| `src/components/bookings/SharedLessonWizard.tsx` | **New** | 3-step dialog for adding a party |
-| `src/hooks/useSharedLesson.ts` | **New** | Hook for creating/managing shared lessons |
-| `src/pages/BookingDetail.tsx` | **Modify** | Add shared lesson indicator + action button |
-| `src/components/scheduler/BookingDetailDialog.tsx` | **Modify** | Add "Share & Split" action |
-| `src/hooks/useSchedulerData.ts` | **Modify** | Aggregate shared lesson data, deduplicate bars |
-| `src/lib/scheduler-utils.ts` | **Modify** | Add shared lesson fields to `SchedulerBooking` |
-| `src/components/scheduler/BookingBar.tsx` | **Modify** | Display combined names for shared lessons |
-
----
-
-## Technical Considerations
-
-- **Conflict detection**: The `master_bookings` unique constraint on `(instructor_id, date, start_time, end_time)` prevents double-booking at the DB level
-- **Max participants**: Enforced in the UI wizard (Step 2 validation) and can optionally be enforced via a DB trigger on `master_bookings.total_participants <= 5`
-- **Backward compatibility**: Existing non-shared private lessons continue to work with `master_booking_id = null`; no migration of existing data needed
-- **Rounding correctness**: The split algorithm guarantees `sum(all shares) == total` by assigning the remainder to the initiator
