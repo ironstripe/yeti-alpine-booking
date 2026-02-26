@@ -338,12 +338,6 @@ export function MiniSchedulerGrid({
 
   // (isSlotAvailable is defined earlier)
 
-  // Check if slot is within selected duration window
-  const isWithinSelectedDuration = (hour: number) => {
-    if (!selectedStartTime || !selectedDuration) return false;
-    const startHour = parseInt(selectedStartTime.split(":")[0]);
-    return hour >= startHour && hour < startHour + selectedDuration;
-  };
 
   // Check if slot is in hover preview range
   // Hover preview: single cell only (no multi-slot duration preview)
@@ -579,7 +573,7 @@ export function MiniSchedulerGrid({
                           const timeStart = `${hour.toString().padStart(2, "0")}:00`;
                           const timeEnd = `${(hour + 1).toString().padStart(2, "0")}:00`;
                           // Only highlight duration for the SELECTED instructor, not all
-                          const isSelectedInstructorDuration = isSelected && isWithinSelectedDuration(hour);
+                          
                           const isHoverPreview = isInHoverPreview(instructor.id, dateStr, hour);
                           const canBookDuration = isDurationBlockAvailable(instructor.id, dateStr, hour);
                           const materialConflict = getMaterialConflict(instructor.id, dateStr, hour);
@@ -673,13 +667,9 @@ export function MiniSchedulerGrid({
                                     // Drag selection highlight
                                     !isMultiSelected && inDragRange && dragRangeValid && "bg-blue-200 ring-2 ring-inset ring-primary",
                                     !isMultiSelected && inDragRange && !dragRangeValid && "bg-rose-200 ring-2 ring-inset ring-rose-500",
-                                    // Duration highlight ONLY for the selected instructor's time window
-                                    !isMultiSelected && isSelectedInstructorDuration && "ring-2 ring-inset ring-primary bg-primary/20",
                                     // Hover preview for booking block
                                     !isMultiSelected && isHoverPreview && canBookDuration && !inDragRange && "bg-blue-100",
                                     !isMultiSelected && isHoverPreview && !canBookDuration && !inDragRange && "bg-rose-200",
-                                    // Selected instructor slot highlight
-                                    !isMultiSelected && isSelected && available && !inDragRange && "bg-primary/10 hover:bg-primary/20",
                                     // Material conflict warning
                                     materialConflict && available && "ring-1 ring-amber-500"
                                   )}
