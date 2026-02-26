@@ -41,7 +41,7 @@ async function sendEmailWithResend(
       Authorization: `Bearer ${RESEND_API_KEY}`,
     },
     body: JSON.stringify({
-      from: "Schneesportschule Malbun <onboarding@resend.dev>",
+      from: "Schneesportschule Malbun <info@schneesportschule-malbun.li>",
       to: [to],
       subject,
       html,

@@ -275,7 +275,7 @@ serve(async (req) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        from: "Schneesportschule <onboarding@resend.dev>",
+        from: "Schneesportschule Malbun <info@schneesportschule-malbun.li>",
         to: [instructor.email],
         subject: "Einladung zum Lehrer-Portal",
         html: emailHtml,
