@@ -225,7 +225,29 @@ serve(async (req) => {
       if (conversation.matched_customer_id) {
         finalCustomerId = conversation.matched_customer_id;
         console.log("Using matched customer from conversation:", finalCustomerId);
-      } 
+        
+        // Merge any new data from extraction into existing customer
+        const { data: existingCustomer } = await supabase
+          .from("customers")
+          .select("*")
+          .eq("id", finalCustomerId)
+          .single();
+        
+        if (existingCustomer && customerData) {
+          const updates: Record<string, string> = {};
+          if (!existingCustomer.phone && customerData.phone) updates.phone = customerData.phone;
+          if (!existingCustomer.street && customerData.address?.street) {
+            updates.street = customerData.address.street;
+            if (customerData.address.zip) updates.zip = customerData.address.zip;
+            if (customerData.address.city) updates.city = customerData.address.city;
+            if (customerData.address.country) updates.country = customerData.address.country;
+          }
+          if (Object.keys(updates).length > 0) {
+            await supabase.from("customers").update(updates).eq("id", finalCustomerId);
+            console.log(`Updated existing customer with new fields: ${Object.keys(updates).join(", ")}`);
+          }
+        }
+      }
       // Try to find customer by email before creating (synchronized with ConvertToBookingButton)
       else if (customerData.email) {
         const { data: existingByEmail } = await supabase
@@ -334,6 +356,15 @@ serve(async (req) => {
       if (existingParticipant) {
         participantIds.push(existingParticipant.id);
         console.log("Found existing participant:", existingParticipant.id, firstName);
+        
+        // Update skill level if new information is available
+        if (participant.skill_level) {
+          await supabase
+            .from("customer_participants")
+            .update({ level_current_season: participant.skill_level })
+            .eq("id", existingParticipant.id);
+          console.log(`Updated skill level for ${firstName} to ${participant.skill_level}`);
+        }
       } else {
         // Calculate birth date from age if needed
         let birthDate = participant.birth_date;
