@@ -188,6 +188,11 @@ Zeiten für Gruppenkurse:
   }
 }
 
+**SKILEHRER-ANFRAGE ERKENNUNG:**
+- Wenn der Kunde nach einem bestimmten Skilehrer fragt (z.B. "Ist Claudia verfügbar?", "Wir möchten gerne wieder mit Marco", "Können wir Sabine buchen?"), setze instructor_request.is_requested auf true und instructor_name auf den Vornamen.
+- Wenn der Kunde auch einen anderen Lehrer akzeptieren würde (z.B. "am liebsten Claudia, aber sonst auch jemand anderes"), setze is_flexible auf true.
+- Wenn nur ein allgemeiner Wunsch wie "einen guten Lehrer" geäussert wird, NICHT als instructor_request markieren – das gehört in booking.instructor_preference.
+
 Du MUSST die Funktion "extract_booking_info" aufrufen mit den extrahierten Daten.`;
 }
 
@@ -392,6 +397,24 @@ const extractionTools = [
           notes: {
             type: "string",
             description: "Anmerkungen zu Unklarheiten oder wichtige Hinweise",
+          },
+          instructor_request: {
+            type: "object",
+            description: "Details wenn der Kunde explizit nach einem bestimmten Skilehrer fragt.",
+            properties: {
+              is_requested: {
+                type: "boolean",
+                description: "True wenn der Kunde explizit nach einem bestimmten Skilehrer fragt (z.B. 'Ist Claudia verfügbar?', 'Wir möchten gerne wieder mit Marco').",
+              },
+              instructor_name: {
+                type: "string",
+                description: "Der Vorname des gewünschten Skilehrers (z.B. 'Claudia', 'Marco').",
+              },
+              is_flexible: {
+                type: "boolean",
+                description: "True wenn der Kunde auch einen anderen Skilehrer akzeptieren würde (z.B. 'am liebsten Claudia, aber sonst auch jemand anderes').",
+              },
+            },
           },
         },
         required: ["is_booking_request", "classification", "missing_information"],
