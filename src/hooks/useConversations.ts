@@ -22,6 +22,7 @@ export interface ConversationWithCustomer {
   direction: string;
   created_at: string;
   customer_id: string | null;
+  matched_customer_id: string | null;
   ai_extracted_data?: unknown;
   ai_confidence_score?: number | null;
   customer?: {
@@ -49,6 +50,7 @@ export function useConversations({ filter, search, limit = 50 }: UseConversation
           direction,
           created_at,
           customer_id,
+          matched_customer_id,
           ai_extracted_data,
           ai_confidence_score,
           customers!customer_id (

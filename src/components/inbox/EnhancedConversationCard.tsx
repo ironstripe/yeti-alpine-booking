@@ -22,6 +22,7 @@ import { de } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { ConfidenceIndicator } from "./ConfidenceIndicator";
 import { BookingReadyBadge, calculateDataCompleteness, isBookingReady, getMissingRequiredFields } from "./BookingReadyBadge";
+import { CustomerStatusBadge } from "./CustomerStatusBadge";
 import { useState } from "react";
 import type { ExtractedData } from "@/hooks/useAIExtraction";
 
@@ -36,6 +37,7 @@ interface ConversationWithExtraction {
   direction: string;
   created_at: string;
   customer_id: string | null;
+  matched_customer_id: string | null;
   ai_extracted_data?: ExtractedData | null;
   ai_confidence_score?: number | null;
   customer?: {
@@ -151,6 +153,7 @@ export function EnhancedConversationCard({
               )}>
                 {displayName}
               </span>
+              <CustomerStatusBadge isExistingCustomer={!!conversation.matched_customer_id} size="sm" />
               <Badge variant="outline" className="text-xs shrink-0 uppercase">
                 {conversation.channel === "whatsapp" ? "WA" : 
                  conversation.channel === "email" ? "E-Mail" : conversation.channel}
