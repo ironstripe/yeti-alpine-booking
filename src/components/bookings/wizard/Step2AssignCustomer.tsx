@@ -3,7 +3,7 @@ import { useMutation } from "@tanstack/react-query";
 import { useBookingWizard } from "@/contexts/BookingWizardContext";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ShoppingCart, Users } from "lucide-react";
+import { ShoppingCart, Users, UserCheck, Info } from "lucide-react";
 import { CustomerPayerCard } from "./CustomerPayerCard";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -70,8 +70,22 @@ export function Step2AssignCustomer() {
     }
   }, [state.customer, state.localParticipants.length]);
 
+  const isExistingCustomerPrefill = !!state.customer && !!state.conversationId;
+
   return (
     <div className="space-y-4">
+      {/* Existing customer info banner */}
+      {isExistingCustomerPrefill && (
+        <Card className="border-primary/30 bg-primary/5">
+          <CardContent className="p-3 flex items-center gap-2">
+            <UserCheck className="h-4 w-4 text-primary" />
+            <span className="text-sm text-primary">
+              Bestandskunde erkannt. Kundendaten wurden automatisch übernommen.
+            </span>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Local participants info */}
       {state.localParticipants.length > 0 && !state.customer && (
         <Card className="border-amber-500/50 bg-amber-50/50 dark:bg-amber-950/20">
