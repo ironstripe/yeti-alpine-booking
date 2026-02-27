@@ -30,6 +30,8 @@ import { ClassificationBadge, type MessageClassification } from "@/components/in
 import { AIReplyAssistant } from "@/components/inbox/AIReplyAssistant";
 import { ConfidenceIndicator } from "@/components/inbox/ConfidenceIndicator";
 import { BookingReadyBadge, getMissingRequiredFields, calculateDataCompleteness, isBookingReady } from "@/components/inbox/BookingReadyBadge";
+import { CustomerStatusBadge } from "@/components/inbox/CustomerStatusBadge";
+import { CustomerContextPanel } from "@/components/inbox/CustomerContextPanel";
 import { useTriggerAIExtraction, type ExtractedData } from "@/hooks/useAIExtraction";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -323,6 +325,7 @@ export default function InboxDetail() {
                     {conversation.direction === "inbound" && (
                       <Badge variant="secondary">Eingehend</Badge>
                     )}
+                    <CustomerStatusBadge isExistingCustomer={!!conversation.matched_customer_id} />
                   </div>
                   <CardTitle className="text-lg">
                     {conversation.contact_name || conversation.contact_identifier}
@@ -404,6 +407,11 @@ export default function InboxDetail() {
 
         {/* AI Extraction Panel */}
         <div className="space-y-4">
+          {/* Customer Context Panel (for matched customers) */}
+          {conversation.matched_customer_id && (
+            <CustomerContextPanel customerId={conversation.matched_customer_id} />
+          )}
+
           {extractedData ? (
             <>
               {/* Classification Badge added to ExtractionPanel header area */}
