@@ -32,6 +32,7 @@ import { ConfidenceIndicator } from "@/components/inbox/ConfidenceIndicator";
 import { BookingReadyBadge, getMissingRequiredFields, calculateDataCompleteness, isBookingReady } from "@/components/inbox/BookingReadyBadge";
 import { CustomerStatusBadge } from "@/components/inbox/CustomerStatusBadge";
 import { CustomerContextPanel } from "@/components/inbox/CustomerContextPanel";
+import { AmbiguousCustomerMatch } from "@/components/inbox/AmbiguousCustomerMatch";
 import { useTriggerAIExtraction, type ExtractedData } from "@/hooks/useAIExtraction";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -407,6 +408,15 @@ export default function InboxDetail() {
 
         {/* AI Extraction Panel */}
         <div className="space-y-4">
+          {/* Ambiguous Customer Match */}
+          {extractedData?.customer_match_method === "ambiguous" && extractedData?.customer_match_candidates && (
+            <AmbiguousCustomerMatch
+              conversationId={conversation.id}
+              candidates={extractedData.customer_match_candidates as any[]}
+              onResolved={() => refetch()}
+            />
+          )}
+
           {/* Customer Context Panel (for matched customers) */}
           {conversation.matched_customer_id && (
             <CustomerContextPanel customerId={conversation.matched_customer_id} />

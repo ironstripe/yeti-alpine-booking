@@ -464,12 +464,13 @@ serve(async (req) => {
       }
     }
 
-    // 3. Prepare message content for AI
+    // 2b. AI Extraction (moved before secondary matching so we can use extracted data)
+    // Prepare message content for AI
     const messageContent = conversation.subject
       ? `Betreff: ${conversation.subject}\n\n${conversation.content}`
       : conversation.content;
 
-    // 4. Call Lovable AI Gateway with enhanced tool calling
+    // Call Lovable AI Gateway with enhanced tool calling
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -515,20 +516,124 @@ serve(async (req) => {
     const extractedData = JSON.parse(toolCall.function.arguments);
     console.log("Extracted data:", extractedData);
 
-    // 5. Apply fallback parsing for booking data that AI might have missed
+    // 2c. Secondary matching: Try extracted email/phone if no match from sender
+    if (!matchedCustomerId && extractedData) {
+      const extractedEmail = (extractedData.customer as any)?.email;
+      const extractedPhone = (extractedData.customer as any)?.phone;
+
+      if (extractedEmail || extractedPhone) {
+        const orConditions: string[] = [];
+        if (extractedEmail) orConditions.push(`email.eq.${extractedEmail}`);
+        if (extractedPhone) orConditions.push(`phone.eq.${extractedPhone}`);
+
+        const { data: foundCustomer } = await supabase
+          .from("customers")
+          .select("id, first_name, last_name, email, phone, street, city, zip, country")
+          .or(orConditions.join(","))
+          .maybeSingle();
+
+        if (foundCustomer) {
+          matchedCustomerId = foundCustomer.id;
+          isExistingCustomer = true;
+          existingCustomerData = foundCustomer;
+          console.log(`Customer matched via extracted data: ${foundCustomer.first_name} ${foundCustomer.last_name}`);
+        }
+      }
+    }
+
+    // 2d. Fuzzy name matching as last resort
+    if (!matchedCustomerId && extractedData?.customer) {
+      const custData = extractedData.customer as Record<string, unknown>;
+      const extractedName = (custData.name || [custData.first_name, custData.last_name].filter(Boolean).join(" ")) as string;
+      
+      if (extractedName) {
+        const nameParts = extractedName.trim().split(/\s+/);
+        if (nameParts.length >= 2) {
+          const firstName = nameParts[0];
+          const lastName = nameParts[nameParts.length - 1];
+
+          const { data: nameMatches } = await supabase
+            .from("customers")
+            .select("id, first_name, last_name, email, phone, street, city, zip, country")
+            .ilike("first_name", `${firstName}%`)
+            .ilike("last_name", `${lastName}%`)
+            .limit(3);
+
+          if (nameMatches && nameMatches.length === 1) {
+            matchedCustomerId = nameMatches[0].id;
+            isExistingCustomer = true;
+            existingCustomerData = nameMatches[0];
+            extractedData.customer_match_method = "name_only";
+            console.log(`Customer matched by name: ${nameMatches[0].first_name} ${nameMatches[0].last_name}`);
+          } else if (nameMatches && nameMatches.length > 1) {
+            extractedData.customer_match_candidates = nameMatches.map((c: any) => ({
+              id: c.id,
+              name: `${c.first_name} ${c.last_name}`,
+              email: c.email,
+            }));
+            extractedData.customer_match_method = "ambiguous";
+            console.log(`Multiple customer matches found for name: ${extractedName}`);
+          }
+        }
+      }
+    }
+
+    // 3. Apply fallback parsing for booking data that AI might have missed
     // Pass notes as additional source for time parsing
     const extractedNotes = extractedData.notes as string | undefined;
     const enrichedData = extractBookingDataFallback(messageContent, extractedData, extractedNotes);
 
-    // 5.5. Correct all dates to ensure they are in the future
+    // 3.5. Correct all dates to ensure they are in the future
     const dateCorrectedData = correctExtractedDates(enrichedData);
 
-    // 6. Validate and clean extracted data
+    // 4. Validate and clean extracted data
     const cleanedData = validateAndCleanExtraction(dateCorrectedData, isExistingCustomer);
 
     // Add customer matching info to extracted data
     cleanedData.matched_customer_id = matchedCustomerId;
     cleanedData.is_existing_customer = isExistingCustomer;
+
+    // Preserve match method and candidates from extraction phase
+    if (extractedData.customer_match_method) {
+      cleanedData.customer_match_method = extractedData.customer_match_method;
+    }
+    if (extractedData.customer_match_candidates) {
+      cleanedData.customer_match_candidates = extractedData.customer_match_candidates;
+    }
+
+    // 4.5. Enrich with existing customer data for downstream use (generate-reply)
+    if (isExistingCustomer && existingCustomerData) {
+      cleanedData.existing_customer_data = {
+        id: existingCustomerData.id,
+        first_name: existingCustomerData.first_name,
+        last_name: existingCustomerData.last_name,
+        email: existingCustomerData.email,
+        phone: existingCustomerData.phone,
+        street: existingCustomerData.street,
+        zip: existingCustomerData.zip,
+        city: existingCustomerData.city,
+        country: existingCustomerData.country,
+      };
+
+      // Pre-fill customer object with matched data
+      if (!cleanedData.customer) {
+        cleanedData.customer = {};
+      }
+      const customer = cleanedData.customer as Record<string, unknown>;
+      if (!customer.name) customer.name = [existingCustomerData.first_name, existingCustomerData.last_name].filter(Boolean).join(" ");
+      if (!customer.first_name) customer.first_name = existingCustomerData.first_name;
+      if (!customer.last_name) customer.last_name = existingCustomerData.last_name;
+      if (!customer.email) customer.email = existingCustomerData.email;
+      if (!customer.phone) customer.phone = existingCustomerData.phone;
+      if (!customer.address && existingCustomerData.street) {
+        customer.address = {
+          street: existingCustomerData.street,
+          zip: existingCustomerData.zip,
+          city: existingCustomerData.city,
+          country: existingCustomerData.country,
+        };
+      }
+    }
 
     // 7. Update conversation with AI data and new rule-based scores
     const updateData: Record<string, unknown> = {
