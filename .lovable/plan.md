@@ -1,67 +1,94 @@
 
 
-# Fix: Retrieve Email Body from Resend API
+# Instructor Availability Check via AI
 
-## Problem
-Resend inbound webhooks intentionally do **not** include the email body (html/text). They only send metadata (from, subject, to, email_id, attachments). That's why every incoming email only shows the subject as the message content.
-
-## Solution
-After receiving the webhook, call the **Resend Received Emails API** to fetch the full email body before storing it in the database.
-
-**API endpoint:** `GET https://api.resend.com/emails/receiving/{email_id}`
-**Auth:** `Authorization: Bearer RESEND_API_KEY`
+## Overview
+When a customer asks about a specific instructor (e.g., "Is Claudia available Friday?"), the system will:
+1. Detect the request during extraction
+2. Check the instructor's real-time availability via a new edge function
+3. Generate a context-aware reply (confirming, suggesting alternatives, or listing free slots)
 
 ## Changes
 
-**File:** `supabase/functions/webhook-email/index.ts`
+### 1. Update Extraction Schema (`process-ai-message`)
+**File:** `supabase/functions/process-ai-message/index.ts`
 
-1. After detecting the Resend format and extracting `emailData`, use the `email_id` from `emailData` to call the Resend API
-2. Fetch the full email content (html + text) from `https://api.resend.com/emails/receiving/{email_id}`
-3. Use the retrieved `text` or `html` as the body, falling back to `subject` only if the API call fails
-4. Keep the existing fallback chain for non-Resend providers
+- Add `instructor_request` object to the `extractionTools` schema with fields:
+  - `is_requested` (boolean)
+  - `instructor_name` (string) 
+  - `is_flexible` (boolean)
+- Add extraction instructions to the system prompt telling the AI to detect instructor requests
+- Note: the existing `booking.instructor_preference` field (line 344) is a simple string; the new structured object provides richer data
 
-### Updated flow:
+### 2. New Edge Function: `check-instructor-availability`
+**File:** `supabase/functions/check-instructor-availability/index.ts`
 
+Input: `{ instructorName, requestedDates, requestedTime?, isFlexible, requestedSpecialization? }`
+
+Logic flow:
+1. **Find instructor** by first name in `instructors` table (status = 'active')
+   - 0 matches -> `{ status: "not_found" }`
+   - 2+ matches -> `{ status: "ambiguous", matches: [...] }`
+   - 1 match -> proceed
+2. **Check conflicts** for each requested date:
+   - Query `ticket_items` (non-cancelled, matching instructor + date)
+   - Query `group_course_instances` (non-cancelled, matching instructor + date)
+   - Query `instructor_absences` (confirmed, overlapping date range)
+3. **Determine free slots** per day (09:00-16:00 in 1h increments, excluding conflicts)
+4. **Build response** based on scenario:
+   - All requested slots free -> `{ status: "available" }`
+   - Specific slot taken but others free -> `{ status: "unavailable_slot", free_slots }`
+   - No time specified -> `{ status: "free_slots_list", free_slots }`
+   - Fully booked + flexible -> query other active instructors for alternatives -> `{ status: "alternatives_found" }`
+   - Fully booked + not flexible -> `{ status: "fully_booked" }`
+
+**Config:** Add `[functions.check-instructor-availability]` with `verify_jwt = false` to `supabase/config.toml`
+
+### 3. Integrate into `generate-reply`
+**File:** `supabase/functions/generate-reply/index.ts`
+
+- After loading conversation data, check if `extractedData.instructor_request?.is_requested` is true
+- If so, call `check-instructor-availability` via `supabase.functions.invoke()`
+- Pass the result as `availabilityContext` into the system prompt
+- Add prompt section with rules for each status:
+  - `available` -> confirm and ask to book
+  - `unavailable_slot` -> offer alternative time slots
+  - `alternatives_found` -> suggest other instructors by name
+  - `free_slots_list` -> list all free time blocks
+  - `ambiguous` -> ask which instructor they mean (e.g., "Claudia H. oder Claudia T.?")
+  - `not_found` / `fully_booked` -> inform politely
+  - Never reveal *why* an instructor is unavailable (privacy)
+
+### 4. Update ExtractedData Interface in `generate-reply`
+Add `instructor_request` to the `ExtractedData` interface so TypeScript recognizes the new field.
+
+## Technical Details
+
+### Edge Function: Slot Calculation
 ```text
-Webhook received
-  -> Detect Resend format
-  -> Extract email_id from payload.data
-  -> Call GET /emails/receiving/{email_id} with RESEND_API_KEY
-  -> Use response.text or response.html as body content
-  -> Fall back to subject if API call fails
-  -> Store in conversations table
-  -> Trigger AI processing
+For each requested date:
+  1. Build array of 1h slots: [09-10, 10-11, ..., 15-16]
+  2. Remove slots overlapping with ticket_items (time_start/time_end)
+  3. Remove slots overlapping with group_course_instances (start_time/end_time)
+  4. Remove all slots if instructor has full-day absence
+  5. Remove overlapping slots for partial-day absences
+  6. Return remaining slots as free
 ```
 
-### Technical detail:
+### Alternative Instructor Query
+When finding alternatives, filter by:
+- `status = 'active'`
+- Not the originally requested instructor
+- No conflicts on the requested dates/times
+- Match `specialization` if provided (ski/snowboard/both)
+- Limit to 3 results
 
-```typescript
-// After extracting emailData...
-let bodyText = "";
+### Files Modified
+1. `supabase/functions/process-ai-message/index.ts` -- extraction schema + prompt
+2. `supabase/functions/check-instructor-availability/index.ts` -- new edge function
+3. `supabase/functions/generate-reply/index.ts` -- call availability check + prompt rules
+4. `supabase/config.toml` -- register new function (auto-managed, but verify_jwt entry needed)
 
-if (isResendInbound && emailData.email_id) {
-  // Fetch full email body from Resend API
-  try {
-    const resendApiKey = Deno.env.get("RESEND_API_KEY");
-    const emailResponse = await fetch(
-      `https://api.resend.com/emails/receiving/${emailData.email_id}`,
-      { headers: { Authorization: `Bearer ${resendApiKey}` } }
-    );
-    if (emailResponse.ok) {
-      const fullEmail = await emailResponse.json();
-      bodyText = fullEmail.text || stripHtml(fullEmail.html || "") || "";
-    }
-  } catch (e) {
-    console.error("Failed to fetch email body from Resend:", e);
-  }
-}
-
-// Fallback for non-Resend or if API call failed
-if (!bodyText) {
-  bodyText = emailData.text || emailData.html || emailData["body-plain"]
-    || stripHtml(emailData["body-html"] || "") || subject || "No body";
-}
-```
-
-No database changes needed. Only the edge function is updated. It will be redeployed automatically.
+### Deployment
+All three edge functions (`process-ai-message`, `generate-reply`, `check-instructor-availability`) will be deployed after changes.
 
