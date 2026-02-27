@@ -93,6 +93,9 @@ export interface ExtractedData {
   data_completeness?: number;
   booking_ready?: boolean;
   ai_original_confidence?: number;
+  customer_match_method?: string;
+  customer_match_candidates?: Array<{ id: string; name: string; email: string }>;
+  existing_customer_data?: Record<string, unknown>;
 }
 
 export function useTriggerAIExtraction() {

@@ -408,23 +408,68 @@ Schneesportschule Malbun
   const isGroup = courseType === "group";
 
   // Build context-specific instructions
+
+  // Customer-status-specific instructions using existing_customer_data
+  const existingCustomerDataFromExtraction = extractedData?.existing_customer_data as Record<string, unknown> | undefined;
+  
+  let customerDataInstruction = "";
+  if (isExistingCustomer && existingCustomerDataFromExtraction) {
+    const knownFields: string[] = [];
+    if (existingCustomerDataFromExtraction.street) knownFields.push("Adresse");
+    if (existingCustomerDataFromExtraction.email) knownFields.push("E-Mail");
+    if (existingCustomerDataFromExtraction.phone) knownFields.push("Telefonnummer");
+
+    customerDataInstruction = `
+**KUNDENSTATUS: BESTANDSKUNDE**
+- Der Kunde "${customerName}" ist bereits im System erfasst.
+- Verwende eine vertraute, persönliche Ansprache (z.B. "Schön, dass du wieder bei uns buchst!").
+- Du DARFST NICHT nach folgenden Daten fragen, da sie bereits vorliegen: ${knownFields.join(", ")}.
+- Frage NUR nach Informationen, die für DIESE Buchung fehlen (z.B. Teilnehmerdetails, Kursdaten, Zeiten, Level).
+${bookingHistory}`;
+  } else if (isExistingCustomer) {
+    customerDataInstruction = `
+**BESTANDSKUNDE:**
+${customerName || "Kunde"} ist bereits im System. Adresse und Kontaktdaten sind vorhanden.
+Frage NICHT nach: Adresse, E-Mail, Telefonnummer (ausser zur Bestätigung).`;
+  } else {
+    customerDataInstruction = `
+**KUNDENSTATUS: NEUKUNDE**
+- Der Kunde ist neu und noch nicht im System erfasst.
+- Verwende eine einladende, herzliche Ansprache.
+- Du MUSST alle fehlenden Stammdaten erfragen, die für eine Buchung nötig sind:
+  - Vollständiger Name (Vor- und Nachname)
+  - E-Mail-Adresse (falls nicht aus Absender bekannt)
+  - Mobilnummer
+  - Adresse (Strasse, PLZ, Ort) – erkläre, dass diese für die QR-Rechnung benötigt wird.
+- Bündle die Fragen effizient: Stammdaten + Buchungsdaten in einer Nachricht.`;
+  }
+
+  // Filter out already-known fields from missingInfo for existing customers
+  let effectiveMissingFields = missingFields;
+  if (isExistingCustomer && existingCustomerDataFromExtraction) {
+    const fieldsToRemove = ["customer_address", "customer_email", "customer_phone", "customer_contact"];
+    effectiveMissingFields = missingFields.filter(
+      field => !fieldsToRemove.includes(field)
+    );
+  }
+
+  // Build question strategy using filtered missing fields
   let questionStrategy = "";
 
-  if (bookingReady || missingFields.length === 0) {
+  if (bookingReady || effectiveMissingFields.length === 0) {
     questionStrategy = `
 **ALLE DATEN VORHANDEN:**
 Die Buchung kann erstellt werden. Bestätige die Anfrage und fasse die Details zusammen.
 Informiere über die nächsten Schritte (Verfügbarkeitsprüfung, Bestätigung folgt).`;
-  } else if (missingFields.length <= 3) {
+  } else if (effectiveMissingFields.length <= 3) {
     questionStrategy = `
-**WENIGE DATEN FEHLEN (${missingFields.length}):**
+**WENIGE DATEN FEHLEN (${effectiveMissingFields.length}):**
 Stelle die fehlenden Fragen in einem natürlichen Absatz. Nicht als nummerierte Liste.
-Fehlend: ${missingFields.map((f) => getMissingFieldLabel(f)).join(", ")}`;
+Fehlend: ${effectiveMissingFields.map((f) => getMissingFieldLabel(f)).join(", ")}`;
   } else {
-    // Prioritize questions - most important first
-    const prioritizedMissing = prioritizeMissingFields(missingFields, isPrivate, isGroup);
+    const prioritizedMissing = prioritizeMissingFields(effectiveMissingFields, isPrivate, isGroup);
     questionStrategy = `
-**MEHRERE DATEN FEHLEN (${missingFields.length}):**
+**MEHRERE DATEN FEHLEN (${effectiveMissingFields.length}):**
 Priorisiere die wichtigsten 3-4 Fragen. Bündle zusammengehörige Fragen.
 
 Priorität 1 (jetzt fragen): ${prioritizedMissing.slice(0, 4).map((f) => getMissingFieldLabel(f)).join(", ")}
@@ -438,21 +483,6 @@ Priorisierungslogik:
 5. Mittagsbetreuung (nur bei Ganztags-Gruppenkursen)`;
   }
 
-  // Customer data handling
-  let customerDataInstruction = "";
-  if (isExistingCustomer) {
-    customerDataInstruction = `
-**BESTANDSKUNDE:**
-${customerName || "Kunde"} ist bereits im System. Adresse und Kontaktdaten sind vorhanden.
-Frage NICHT nach: Adresse, E-Mail, Telefonnummer (ausser zur Bestätigung).`;
-  } else if (missingCustomer.length > 0) {
-    customerDataInstruction = `
-**NEUKUNDE:**
-Frage nach Kontaktdaten/Adresse nur, wenn alle anderen wichtigen Daten bereits vorliegen.
-Bündle Kontaktdaten-Fragen: "Für die Buchungsbestätigung benötigen wir noch deine Adresse und Telefonnummer."`;
-  }
-
-  // Course-type specific instructions
   let courseTypeInstruction = "";
   if (isPrivate) {
     courseTypeInstruction = `
