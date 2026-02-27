@@ -29,7 +29,32 @@ serve(async (req) => {
     const subject = emailData.subject || "";
     // Resend inbound webhook doesn't include body text - use subject as fallback
     // TODO: Retrieve full body via Resend API if needed
-    const bodyText = emailData.text || emailData.html || emailData["body-plain"] || stripHtml(emailData["body-html"] || "") || subject || "No body";
+    // Fetch full email body from Resend API for inbound emails
+    let bodyText = "";
+
+    if (isResendInbound && emailData.email_id) {
+      try {
+        const resendApiKey = Deno.env.get("RESEND_API_KEY");
+        const emailResponse = await fetch(
+          `https://api.resend.com/emails/receiving/${emailData.email_id}`,
+          { headers: { Authorization: `Bearer ${resendApiKey}` } }
+        );
+        if (emailResponse.ok) {
+          const fullEmail = await emailResponse.json();
+          console.log("Resend API response keys:", Object.keys(fullEmail));
+          bodyText = fullEmail.text || stripHtml(fullEmail.html || "") || "";
+        } else {
+          console.error("Resend API error:", emailResponse.status, await emailResponse.text());
+        }
+      } catch (e) {
+        console.error("Failed to fetch email body from Resend:", e);
+      }
+    }
+
+    // Fallback for non-Resend or if API call failed
+    if (!bodyText) {
+      bodyText = emailData.text || emailData.html || emailData["body-plain"] || stripHtml(emailData["body-html"] || "") || subject || "No body";
+    }
     const messageId = emailData.message_id || emailData.messageId || emailData["Message-Id"] || emailData.id || crypto.randomUUID();
 
     // Store incoming message in conversations
