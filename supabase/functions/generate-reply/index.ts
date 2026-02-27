@@ -66,6 +66,12 @@ interface ExtractedData {
   confidence?: number;
   data_completeness?: number;
   booking_ready?: boolean;
+  existing_customer_data?: Record<string, unknown>;
+  instructor_request?: {
+    is_requested?: boolean;
+    instructor_name?: string;
+    is_flexible?: boolean;
+  };
 }
 
 interface Conversation {
@@ -244,6 +250,41 @@ serve(async (req) => {
         "";
     }
 
+    // Step 4b: Check instructor availability if requested
+    let availabilityContext: Record<string, unknown> | null = null;
+    const instructorRequest = extractedData.instructor_request;
+
+    if (instructorRequest?.is_requested && instructorRequest?.instructor_name) {
+      console.log(`Instructor availability check requested for: ${instructorRequest.instructor_name}`);
+      try {
+        const requestedDates = extractedData.booking?.dates?.map((d) => d.date) || [];
+        const requestedTime = extractedData.booking?.dates?.[0]?.start_time && extractedData.booking?.dates?.[0]?.end_time
+          ? { start: extractedData.booking.dates[0].start_time, end: extractedData.booking.dates[0].end_time }
+          : undefined;
+
+        const { data: availResult, error: availError } = await supabase.functions.invoke(
+          "check-instructor-availability",
+          {
+            body: {
+              instructorName: instructorRequest.instructor_name,
+              requestedDates,
+              requestedTime,
+              isFlexible: instructorRequest.is_flexible || false,
+            },
+          }
+        );
+
+        if (!availError && availResult) {
+          availabilityContext = availResult;
+          console.log("Availability check result:", JSON.stringify(availResult));
+        } else {
+          console.error("Availability check error:", availError);
+        }
+      } catch (e) {
+        console.error("Error calling check-instructor-availability:", e);
+      }
+    }
+
     // Build the intelligent system prompt
     const systemPrompt = buildReplySystemPrompt(
       channel as "email" | "whatsapp",
@@ -256,7 +297,8 @@ serve(async (req) => {
       bookingHistory,
       bookingReady,
       channelConfig,
-      knowledgeBaseContent
+      knowledgeBaseContent,
+      availabilityContext
     );
 
     const userMessage = `Bitte formuliere eine Antwort auf die folgende Kundenanfrage:
@@ -346,7 +388,8 @@ function buildReplySystemPrompt(
   bookingHistory: string,
   bookingReady: boolean,
   channelConfig: ChannelConfig,
-  knowledgeBaseContent: string
+  knowledgeBaseContent: string,
+  availabilityContext: Record<string, unknown> | null
 ): string {
   // Channel-specific instructions
   const channelInstructions = channel === "whatsapp"
@@ -533,6 +576,7 @@ ${customerDataInstruction}
 ${courseTypeInstruction}
 ${questionStrategy}
 ${buildDateConflictInstruction(extractedData)}
+${buildAvailabilityInstruction(availabilityContext)}
 
 **STIL-REGELN FÜR DIE ANTWORT:**
 
@@ -689,3 +733,88 @@ function formatDateForPrompt(dateStr: string): string {
   }
 }
 
+// Build instruction for instructor availability context
+function buildAvailabilityInstruction(ctx: Record<string, unknown> | null): string {
+  if (!ctx || !ctx.status) return "";
+
+  const status = ctx.status as string;
+  const instructor = ctx.instructor as { first_name?: string; last_name?: string } | undefined;
+  const instrName = instructor ? `${instructor.first_name} ${instructor.last_name?.[0] || ""}`.trim() : "Der gewünschte Lehrer";
+
+  let instruction = `\n**SKILEHRER-VERFÜGBARKEIT (${instrName}):**\n`;
+
+  switch (status) {
+    case "available":
+      instruction += `✅ ${instrName} ist zum gewünschten Zeitpunkt VERFÜGBAR.
+- Bestätige die Verfügbarkeit und frage, ob du die Buchung vornehmen sollst.
+- Beispiel: "Gute Nachrichten! ${instrName} ist an deinem Wunschtermin verfügbar. Soll ich die Stunde buchen?"`;
+      break;
+
+    case "unavailable_slot": {
+      const freeSlots = ctx.free_slots as Record<string, Array<{ start: string; end: string }>> | undefined;
+      let slotList = "";
+      if (freeSlots) {
+        for (const [date, slots] of Object.entries(freeSlots)) {
+          if (slots.length > 0) {
+            slotList += `\n  ${date}: ${slots.map((s) => `${s.start}-${s.end}`).join(", ")}`;
+          }
+        }
+      }
+      instruction += `⚠️ ${instrName} ist zur gewünschten Zeit NICHT verfügbar, hat aber andere freie Zeiten:${slotList}
+- Teile dem Kunden mit, dass die gewünschte Zeit leider belegt ist.
+- Biete die alternativen Zeiten an.
+- SAGE NICHT warum der Lehrer nicht verfügbar ist.`;
+      break;
+    }
+
+    case "free_slots_list": {
+      const freeSlots = ctx.free_slots as Record<string, Array<{ start: string; end: string }>> | undefined;
+      let slotList = "";
+      if (freeSlots) {
+        for (const [date, slots] of Object.entries(freeSlots)) {
+          if (slots.length > 0) {
+            slotList += `\n  ${date}: ${slots.map((s) => `${s.start}-${s.end}`).join(", ")}`;
+          }
+        }
+      }
+      instruction += `📋 Freie Zeiten von ${instrName}:${slotList}
+- Liste die verfügbaren Zeitfenster auf und frage den Kunden, welche Zeit passt.`;
+      break;
+    }
+
+    case "alternatives_found": {
+      const alternatives = ctx.alternatives as Array<{ first_name: string; last_name: string }> | undefined;
+      const altNames = alternatives?.map((a) => `${a.first_name} ${a.last_name?.[0] || ""}`.trim()).join(", ") || "";
+      instruction += `🔄 ${instrName} ist leider NICHT verfügbar. Alternative Lehrer wären: ${altNames}
+- Teile mit, dass ${instrName} leider nicht verfügbar ist (OHNE Grund zu nennen).
+- Schlage die Alternativen vor.
+- Beispiel: "${instrName} ist leider nicht verfügbar. Alternativ wären ${altNames} zu deiner Wunschzeit frei."`;
+      break;
+    }
+
+    case "ambiguous": {
+      const matches = ctx.matches as Array<{ first_name: string; last_name: string }> | undefined;
+      const matchList = matches?.map((m) => `${m.first_name} ${m.last_name}`).join(" oder ") || "";
+      instruction += `❓ Mehrere Lehrer mit dem Namen "${ctx.instructorName}" gefunden: ${matchList}
+- Frage den Kunden, welchen Lehrer er meint.
+- Beispiel: "Wir haben zwei Lehrerinnen mit dem Namen ${ctx.instructorName}. Meinst du ${matchList}?"`;
+      break;
+    }
+
+    case "not_found":
+      instruction += `❌ Kein aktiver Lehrer mit dem Namen "${ctx.instructorName}" gefunden.
+- Teile höflich mit, dass du den Namen nicht zuordnen kannst.
+- Biete an, einen passenden Lehrer zuzuteilen.`;
+      break;
+
+    case "fully_booked":
+      instruction += `❌ ${instrName} ist an den gewünschten Tagen komplett ausgebucht.
+- Teile höflich mit, dass ${instrName} leider nicht verfügbar ist.
+- SAGE NICHT warum (Datenschutz!). Sage einfach "ist leider nicht verfügbar" oder "ist bereits gebucht".
+- Biete an, einen anderen passenden Lehrer zu finden.`;
+      break;
+  }
+
+  instruction += `\n\n**WICHTIG:** Nenne NIEMALS den Grund für die Nichtverfügbarkeit eines Lehrers (keine Angabe ob krank, im Urlaub, andere Buchung etc.).`;
+  return instruction;
+}
