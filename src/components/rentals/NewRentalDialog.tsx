@@ -19,9 +19,10 @@ import { useAuth } from "@/contexts/AuthContext";
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  preselectedInstructorId?: string;
 }
 
-export function NewRentalDialog({ open, onOpenChange }: Props) {
+export function NewRentalDialog({ open, onOpenChange, preselectedInstructorId }: Props) {
   const { user } = useAuth();
   const { data: instructors } = useQuery({
     queryKey: ["instructors-list-rentals"],
@@ -34,7 +35,7 @@ export function NewRentalDialog({ open, onOpenChange }: Props) {
   const { data: items } = useInventoryItems();
   const createRental = useCreateRental();
 
-  const [instructorId, setInstructorId] = useState("");
+  const [instructorId, setInstructorId] = useState(preselectedInstructorId || "");
   const [startDate, setStartDate] = useState<Date | undefined>(new Date());
   const [endDate, setEndDate] = useState<Date | undefined>();
   const [selectedItemIds, setSelectedItemIds] = useState<string[]>([]);
@@ -60,7 +61,7 @@ export function NewRentalDialog({ open, onOpenChange }: Props) {
     }, {
       onSuccess: () => {
         onOpenChange(false);
-        setInstructorId(""); setSelectedItemIds([]); setSearch(""); setStartDate(new Date()); setEndDate(undefined);
+        setInstructorId(preselectedInstructorId || ""); setSelectedItemIds([]); setSearch(""); setStartDate(new Date()); setEndDate(undefined);
       },
     });
   };
@@ -77,7 +78,7 @@ export function NewRentalDialog({ open, onOpenChange }: Props) {
         <div className="space-y-4">
           <div>
             <label className="text-sm font-medium">Lehrer *</label>
-            <Select value={instructorId} onValueChange={setInstructorId}>
+            <Select value={instructorId} onValueChange={setInstructorId} disabled={!!preselectedInstructorId}>
               <SelectTrigger><SelectValue placeholder="Lehrer auswählen..." /></SelectTrigger>
               <SelectContent>
                 {instructors?.map((inst) => (
