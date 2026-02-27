@@ -12,6 +12,7 @@ import { SeasonStatsCard } from "@/components/instructors/detail/SeasonStatsCard
 import { AbsenceRequestCard } from "@/components/instructors/detail/AbsenceRequestCard";
 import { RolesCapabilitiesCard } from "@/components/instructors/detail/RolesCapabilitiesCard";
 import { RecurringBlocksTab } from "@/components/instructor/RecurringBlocksTab";
+import { InstructorRentalsCard } from "@/components/instructors/detail/InstructorRentalsCard";
 import { EditInstructorModal } from "@/components/instructors/EditInstructorModal";
 import { getSpecializationLabel } from "@/hooks/useInstructors";
 import { getLevelLabel } from "@/lib/instructor-utils";
@@ -157,6 +158,7 @@ export default function InstructorDetail() {
         {/* Right Column - Today, Absences & Stats */}
         <div className="lg:col-span-2 space-y-6">
           <TodayScheduleCard bookings={todayBookings} />
+          {isAdminOrOffice && id && <InstructorRentalsCard instructorId={id} />}
 {id && (
             <AbsenceRequestCard 
               instructorId={id} 
