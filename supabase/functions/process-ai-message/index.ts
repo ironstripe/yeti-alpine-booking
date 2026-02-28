@@ -56,11 +56,21 @@ Da du das aktuelle Datum kennst, wende diese Regeln STRIKT an:
 
 **WICHTIG - TEILNEHMER-SPEZIFISCHE BUCHUNGEN:**
 Jeder Teilnehmer kann individuelle Buchungsdetails haben (unterschiedliche Produkte, Tage, Zeiten).
-Erkenne unterschiedliche Skill-Levels und schlage passende Produkte vor:
+
+**PRODUKT-VORSCHLAG REGELN:**
+Wenn der Kunde explizit Privatstunden/Privatunterricht anfragt:
+- Setze product_type: "private" auf Booking- UND Teilnehmer-Ebene
+- Setze product_suggestion: "privatstunde" für JEDEN Teilnehmer
+- Frage NICHT nach Gruppenkursen
+- Dies gilt auch wenn einzelne Teilnehmer Anfänger oder sehr jung sind!
+
+Nur wenn der Kunde Gruppenkurse anfragt ODER keinen Typ spezifiziert:
 - beginner + Alter 3-4 → product_suggestion: "windel-wedel" (nur 10:00-12:00)
 - beginner + Alter 5+ → product_suggestion: "anfaenger-gruppenkurs"
 - intermediate → product_suggestion: "fortgeschrittenen-gruppenkurs"
-- advanced/expert → product_suggestion: "experten-kurs" oder "privat"
+- advanced/expert → product_suggestion: "experten-kurs"
+
+Wenn unklar, setze product_type: "unknown" und frage nach.
 
 Wenn Teilnehmer unterschiedliche Levels/Tage haben:
 - Setze booking_summary.has_different_levels/has_different_dates: true
@@ -188,6 +198,35 @@ Zeiten für Gruppenkurse:
   }
 }
 
+**BEISPIEL für Privatstunden-Anfrage:**
+{
+  "participants": [
+    {
+      "name": "Lina Müller",
+      "age": 7,
+      "skill_level": "beginner",
+      "booking": {
+        "product_type": "private",
+        "product_suggestion": "privatstunde",
+        "dates": [{"date": "${currentYear}-03-21"}, {"date": "${currentYear}-03-22"}]
+      }
+    },
+    {
+      "name": "Max Müller",
+      "age": 10,
+      "skill_level": "intermediate",
+      "booking": {
+        "product_type": "private",
+        "product_suggestion": "privatstunde",
+        "dates": [{"date": "${currentYear}-03-21"}, {"date": "${currentYear}-03-22"}]
+      }
+    }
+  ],
+  "booking": {
+    "product_type": "private"
+  }
+}
+
 **SKILEHRER-ANFRAGE ERKENNUNG:**
 - Wenn der Kunde nach einem bestimmten Skilehrer fragt (z.B. "Ist Claudia verfügbar?", "Wir möchten gerne wieder mit Marco", "Können wir Sabine buchen?"), setze instructor_request.is_requested auf true und instructor_name auf den Vornamen.
 - Wenn der Kunde auch einen anderen Lehrer akzeptieren würde (z.B. "am liebsten Claudia, aber sonst auch jemand anderes"), setze is_flexible auf true.
@@ -274,7 +313,7 @@ const extractionTools = [
                     },
                     product_suggestion: {
                       type: "string",
-                      description: "Vorgeschlagenes Produkt basierend auf Alter und Level (z.B. 'windel-wedel', 'anfaenger-gruppenkurs', 'fortgeschrittenen-gruppenkurs')",
+                      description: "Vorgeschlagenes Produkt basierend auf Anfrage, Alter und Level (z.B. 'privatstunde', 'windel-wedel', 'anfaenger-gruppenkurs', 'fortgeschrittenen-gruppenkurs')",
                     },
                     dates: {
                       type: "array",
