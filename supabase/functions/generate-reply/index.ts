@@ -340,8 +340,25 @@ serve(async (req) => {
     const extractedData = (conv.ai_extracted_data || {}) as ExtractedData;
     const classification = conv.classification || extractedData.classification || "other";
     const detectedLanguage = conv.detected_language || extractedData.detected_language || "de";
-    const missingInfo = extractedData.missing_information || [];
+    let missingInfo = extractedData.missing_information || [];
     const bookingReady = conv.booking_ready || extractedData.booking_ready || false;
+
+    // Filter out missing_information fields that are actually present in extractedData
+    if (extractedData.customer?.email) {
+      missingInfo = missingInfo.filter(f => f !== "customer_contact" && f !== "customer_email");
+    }
+    if (extractedData.customer?.phone) {
+      missingInfo = missingInfo.filter(f => f !== "customer_contact" && f !== "customer_phone");
+    }
+    if (extractedData.customer?.address?.street) {
+      missingInfo = missingInfo.filter(f => f !== "customer_address");
+    }
+    if (extractedData.participants?.length && extractedData.participants.every(p => p.birth_date || p.age)) {
+      missingInfo = missingInfo.filter(f => f !== "participant_birthdates");
+    }
+    if (extractedData.participants?.length && extractedData.participants.every(p => p.first_name || p.name)) {
+      missingInfo = missingInfo.filter(f => f !== "participant_names");
+    }
 
     // Step 3: Process customer data from parallel result
     let customerName = conv.contact_name || "";
@@ -673,6 +690,9 @@ ${questionStrategy}
 ${buildDateConflictInstruction(extractedData)}
 ${buildAvailabilityInstruction(availabilityContext)}
 
+**KRITISCH: Frage NIEMALS nach Daten, die unter "BEREITS EXTRAHIERTE DATEN" aufgelistet sind.
+Wenn dort E-Mail, Adresse, Telefon oder Geburtsdatum stehen, sind diese bereits bekannt und dürfen NICHT erneut erfragt werden.**
+
 **STIL-REGELN FÜR DIE ANTWORT:**
 
 1. Beginne mit einer freundlichen Begrüssung
@@ -761,16 +781,24 @@ function formatExtractedForPrompt(data: ExtractedData): string {
       const name = p.first_name || p.name || "Unbekannt";
       const ageInfo = p.age ? `${p.age}J` : p.birth_date ? `Geb. ${p.birth_date}` : "";
       const level = p.skill_level && p.skill_level !== "unknown" ? p.skill_level : "";
-      return [name, ageInfo, level].filter(Boolean).join(" ");
+      const discipline = p.discipline || "";
+      return [name, ageInfo, level, discipline].filter(Boolean).join(" ");
     });
     parts.push(`Teilnehmer (${data.participants.length}): ${pInfo.join("; ")}`);
   }
 
-  // Customer
+  // Customer - include all contact info
   if (data.customer) {
     const c = data.customer;
     const name = [c.first_name, c.last_name].filter(Boolean).join(" ") || c.name;
     if (name) parts.push(`Kunde: ${name}`);
+    if (c.email) parts.push(`E-Mail: ${c.email}`);
+    if (c.phone) parts.push(`Telefon: ${c.phone}`);
+    if (c.address) {
+      const addr = c.address;
+      const addrStr = [addr.street, addr.zip, addr.city, addr.country].filter(Boolean).join(", ");
+      if (addrStr) parts.push(`Adresse: ${addrStr}`);
+    }
   }
 
   return parts.length > 0 ? `\n**BEREITS EXTRAHIERTE DATEN:**\n${parts.join("\n")}` : "";
