@@ -1,84 +1,70 @@
 
 
-# Fix: AI Asks for Already-Extracted Data
+# Fix: Auto-Select Newly Created Participants in Booking Wizard
 
 ## Problem
-When the customer provides email, phone, address, and birth dates in their message, the AI correctly extracts this data but then asks for it again in the reply. This happens because:
+When creating a new participant in the "Slot konfigurieren" panel (SlotBookingPopover), the participant appears in the list but is NOT automatically selected (checkbox unchecked). The user must manually click the participant before clicking "In den Warenkorb". If they don't realize this, the cart item has no participants assigned, and "Weiter zum Kunden" stays disabled.
 
-1. **`formatExtractedForPrompt()`** (line 739-777) only includes customer name, participant name/age/level, and booking info -- it omits customer email, phone, address, and participant birth dates
-2. The AI generating the reply never sees these extracted fields, so it treats them as missing
+## Root Cause
+`addLocalParticipant()` generates the participant ID internally using `crypto.randomUUID()`. The SlotBookingPopover cannot predict this ID to auto-add it to `selectedParticipantIds`.
 
 ## Solution
+Generate the ID **before** calling `addLocalParticipant`, so the popover can immediately add it to the selected list.
 
-### 1. Expand `formatExtractedForPrompt()` to include all extracted fields
-**File:** `supabase/functions/generate-reply/index.ts` (lines 739-777)
+### Changes
 
-Add customer email, phone, and address to the "BEREITS EXTRAHIERTE DATEN" section:
+**File 1: `src/contexts/BookingWizardContext.tsx`**
+- Modify `addLocalParticipant` to accept a full `LocalParticipant` (including `id`) instead of `Omit<LocalParticipant, "id">`
+- This allows the caller to control the ID generation
 
+**File 2: `src/components/bookings/wizard/SlotBookingPopover.tsx`**
+- In `handleCreateLocalParticipant`:
+  1. Generate the ID upfront: `const id = "local-" + crypto.randomUUID()`
+  2. Pass the full participant (with id) to `addLocalParticipant`
+  3. Immediately add the ID to `selectedParticipantIds` so the participant is auto-selected
+
+### Technical Details
+
+In `BookingWizardContext.tsx`, change the signature and implementation:
 ```typescript
-// Customer section - add email, phone, address
-if (data.customer) {
-  const c = data.customer;
-  const name = [c.first_name, c.last_name].filter(Boolean).join(" ") || c.name;
-  if (name) parts.push(`Kunde: ${name}`);
-  if (c.email) parts.push(`E-Mail: ${c.email}`);
-  if (c.phone) parts.push(`Telefon: ${c.phone}`);
-  if (c.address) {
-    const addr = c.address;
-    const addrStr = [addr.street, addr.zip, addr.city, addr.country].filter(Boolean).join(", ");
-    if (addrStr) parts.push(`Adresse: ${addrStr}`);
-  }
-}
+// Before
+const addLocalParticipant = (participant: Omit<LocalParticipant, "id">) => {
+  setState((prev) => {
+    const newParticipant = { ...participant, id: `local-${crypto.randomUUID()}` };
+    return { ...prev, localParticipants: [...prev.localParticipants, newParticipant] };
+  });
+};
+
+// After
+const addLocalParticipant = (participant: LocalParticipant) => {
+  setState((prev) => ({
+    ...prev,
+    localParticipants: [...prev.localParticipants, participant],
+  }));
+};
 ```
 
-Add participant birth_date and discipline:
-
+In `SlotBookingPopover.tsx`:
 ```typescript
-// Participants - include birth_date
-const ageInfo = p.age ? `${p.age}J` : p.birth_date ? `Geb. ${p.birth_date}` : "";
-const level = p.skill_level && p.skill_level !== "unknown" ? p.skill_level : "";
-const discipline = p.discipline || "";
-return [name, ageInfo, level, discipline].filter(Boolean).join(" ");
+const handleCreateLocalParticipant = () => {
+  const id = `local-${crypto.randomUUID()}`;
+  addLocalParticipant({
+    id,
+    first_name: newParticipant.first_name,
+    last_name: newParticipant.last_name || null,
+    birth_date: newParticipant.birth_date || "2015-01-01",
+    skill_level: newParticipant.skill_level || null,
+    sport: (sport || "ski") as "ski" | "snowboard",
+  });
+  // Auto-select the new participant
+  setSelectedParticipantIds((prev) => [...prev, id]);
+  resetNewParticipantForm();
+};
 ```
 
-### 2. Filter `missing_information` against actually-extracted data
-**File:** `supabase/functions/generate-reply/index.ts` (around line 343)
-
-After loading `extractedData`, filter the `missing_information` list to remove fields that were actually extracted:
-
-```typescript
-// Remove fields from missingInfo that are actually present in extractedData
-let missingInfo = extractedData.missing_information || [];
-if (extractedData.customer?.email) {
-  missingInfo = missingInfo.filter(f => f !== "customer_contact" && f !== "customer_email");
-}
-if (extractedData.customer?.phone) {
-  missingInfo = missingInfo.filter(f => f !== "customer_contact" && f !== "customer_phone");
-}
-if (extractedData.customer?.address?.street) {
-  missingInfo = missingInfo.filter(f => f !== "customer_address");
-}
-if (extractedData.participants?.every(p => p.birth_date || p.age)) {
-  missingInfo = missingInfo.filter(f => f !== "participant_birthdates");
-}
-if (extractedData.participants?.every(p => p.first_name || p.name)) {
-  missingInfo = missingInfo.filter(f => f !== "participant_names");
-}
-```
-
-### 3. Add explicit instruction to not re-ask for provided data
-**File:** `supabase/functions/generate-reply/index.ts` (in `buildReplySystemPrompt`, around line 676)
-
-Add a rule:
-
-```text
-**KRITISCH: Frage NIEMALS nach Daten, die unter "BEREITS EXTRAHIERTE DATEN" aufgelistet sind.
-Wenn dort E-Mail, Adresse, Telefon oder Geburtsdatum stehen, sind diese bereits bekannt.**
-```
+Also update the type signature in the context interface from `Omit<LocalParticipant, "id">` to `LocalParticipant`.
 
 ## Files Modified
-1. `supabase/functions/generate-reply/index.ts` -- expand extracted data display, filter missing fields, add instruction
-
-## Deployment
-Redeploy `generate-reply` edge function after changes.
+1. `src/contexts/BookingWizardContext.tsx` -- change `addLocalParticipant` signature to accept full object with `id`
+2. `src/components/bookings/wizard/SlotBookingPopover.tsx` -- generate ID upfront and auto-select new participant
 
