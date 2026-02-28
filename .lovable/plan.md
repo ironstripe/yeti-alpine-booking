@@ -1,94 +1,74 @@
 
 
-# Instructor Availability Check via AI
+# Fix: AI Suggests Group Courses Even When Private Lessons Are Requested
 
-## Overview
-When a customer asks about a specific instructor (e.g., "Is Claudia available Friday?"), the system will:
-1. Detect the request during extraction
-2. Check the instructor's real-time availability via a new edge function
-3. Generate a context-aware reply (confirming, suggesting alternatives, or listing free slots)
+## Problem
+The system prompt in `process-ai-message` always maps participant age/level to group course names (e.g., "windel-wedel", "anfaenger-gruppenkurs") regardless of whether the customer explicitly requested private lessons. The `booking.product_type` is correctly set to `"private"`, but the per-participant `product_suggestion` still shows a group course name like "Anfänger-Gruppenkurs".
 
-## Changes
+## Root Cause
+Lines 57-63 of the system prompt unconditionally instruct the AI to suggest group courses based on age and skill level. There is no branching logic for when `product_type` is `"private"`.
 
-### 1. Update Extraction Schema (`process-ai-message`)
+## Solution
+
+### 1. Update System Prompt in `process-ai-message`
 **File:** `supabase/functions/process-ai-message/index.ts`
 
-- Add `instructor_request` object to the `extractionTools` schema with fields:
-  - `is_requested` (boolean)
-  - `instructor_name` (string) 
-  - `is_flexible` (boolean)
-- Add extraction instructions to the system prompt telling the AI to detect instructor requests
-- Note: the existing `booking.instructor_preference` field (line 344) is a simple string; the new structured object provides richer data
+Modify the product suggestion rules (lines 57-68) to be conditional on the requested product type:
 
-### 2. New Edge Function: `check-instructor-availability`
-**File:** `supabase/functions/check-instructor-availability/index.ts`
-
-Input: `{ instructorName, requestedDates, requestedTime?, isFlexible, requestedSpecialization? }`
-
-Logic flow:
-1. **Find instructor** by first name in `instructors` table (status = 'active')
-   - 0 matches -> `{ status: "not_found" }`
-   - 2+ matches -> `{ status: "ambiguous", matches: [...] }`
-   - 1 match -> proceed
-2. **Check conflicts** for each requested date:
-   - Query `ticket_items` (non-cancelled, matching instructor + date)
-   - Query `group_course_instances` (non-cancelled, matching instructor + date)
-   - Query `instructor_absences` (confirmed, overlapping date range)
-3. **Determine free slots** per day (09:00-16:00 in 1h increments, excluding conflicts)
-4. **Build response** based on scenario:
-   - All requested slots free -> `{ status: "available" }`
-   - Specific slot taken but others free -> `{ status: "unavailable_slot", free_slots }`
-   - No time specified -> `{ status: "free_slots_list", free_slots }`
-   - Fully booked + flexible -> query other active instructors for alternatives -> `{ status: "alternatives_found" }`
-   - Fully booked + not flexible -> `{ status: "fully_booked" }`
-
-**Config:** Add `[functions.check-instructor-availability]` with `verify_jwt = false` to `supabase/config.toml`
-
-### 3. Integrate into `generate-reply`
-**File:** `supabase/functions/generate-reply/index.ts`
-
-- After loading conversation data, check if `extractedData.instructor_request?.is_requested` is true
-- If so, call `check-instructor-availability` via `supabase.functions.invoke()`
-- Pass the result as `availabilityContext` into the system prompt
-- Add prompt section with rules for each status:
-  - `available` -> confirm and ask to book
-  - `unavailable_slot` -> offer alternative time slots
-  - `alternatives_found` -> suggest other instructors by name
-  - `free_slots_list` -> list all free time blocks
-  - `ambiguous` -> ask which instructor they mean (e.g., "Claudia H. oder Claudia T.?")
-  - `not_found` / `fully_booked` -> inform politely
-  - Never reveal *why* an instructor is unavailable (privacy)
-
-### 4. Update ExtractedData Interface in `generate-reply`
-Add `instructor_request` to the `ExtractedData` interface so TypeScript recognizes the new field.
-
-## Technical Details
-
-### Edge Function: Slot Calculation
 ```text
-For each requested date:
-  1. Build array of 1h slots: [09-10, 10-11, ..., 15-16]
-  2. Remove slots overlapping with ticket_items (time_start/time_end)
-  3. Remove slots overlapping with group_course_instances (start_time/end_time)
-  4. Remove all slots if instructor has full-day absence
-  5. Remove overlapping slots for partial-day absences
-  6. Return remaining slots as free
+**WICHTIG - TEILNEHMER-SPEZIFISCHE BUCHUNGEN:**
+Jeder Teilnehmer kann individuelle Buchungsdetails haben.
+
+**PRODUKT-VORSCHLAG REGELN:**
+Wenn der Kunde explizit Privatstunden/Privatunterricht anfragt:
+- Setze product_type: "private" auf Booking- UND Teilnehmer-Ebene
+- Setze product_suggestion: "privatstunde"
+- Frage NICHT nach Gruppenkursen
+
+Nur wenn der Kunde Gruppenkurse anfragt ODER keinen Typ spezifiziert:
+- beginner + Alter 3-4 -> product_suggestion: "windel-wedel"
+- beginner + Alter 5+ -> product_suggestion: "anfaenger-gruppenkurs"
+- intermediate -> product_suggestion: "fortgeschrittenen-gruppenkurs"
+- advanced/expert -> product_suggestion: "experten-kurs"
+
+Wenn unklar, setze product_type: "unknown" und frage nach.
 ```
 
-### Alternative Instructor Query
-When finding alternatives, filter by:
-- `status = 'active'`
-- Not the originally requested instructor
-- No conflicts on the requested dates/times
-- Match `specialization` if provided (ski/snowboard/both)
-- Limit to 3 results
+### 2. Update Example in System Prompt
+The example at lines 160-181 only shows a group booking scenario. Add a private lesson example so the AI learns the correct pattern:
 
-### Files Modified
-1. `supabase/functions/process-ai-message/index.ts` -- extraction schema + prompt
-2. `supabase/functions/check-instructor-availability/index.ts` -- new edge function
-3. `supabase/functions/generate-reply/index.ts` -- call availability check + prompt rules
-4. `supabase/config.toml` -- register new function (auto-managed, but verify_jwt entry needed)
+```json
+{
+  "name": "Participant",
+  "age": 7,
+  "skill_level": "beginner",
+  "booking": {
+    "product_type": "private",
+    "product_suggestion": "privatstunde",
+    "dates": [{"date": "2026-03-21"}, {"date": "2026-03-22"}]
+  }
+}
+```
 
-### Deployment
-All three edge functions (`process-ai-message`, `generate-reply`, `check-instructor-availability`) will be deployed after changes.
+### 3. Update `product_suggestion` Schema Description
+**File:** `supabase/functions/process-ai-message/index.ts` (line 275-277)
+
+Change the description to include private lesson as a valid suggestion:
+```
+"Vorgeschlagenes Produkt basierend auf Anfrage, Alter und Level 
+(z.B. 'privatstunde', 'windel-wedel', 'anfaenger-gruppenkurs', 
+'fortgeschrittenen-gruppenkurs')"
+```
+
+### 4. Update ExtractionPanel Display
+**File:** `src/components/inbox/ExtractionPanel.tsx`
+
+Update the `formatProductName` function (or equivalent display logic) to properly label "privatstunde" as "Privatstunde" in the UI, so it renders correctly alongside group course names.
+
+### 5. Redeploy
+Deploy `process-ai-message` edge function after changes.
+
+## Files Modified
+1. `supabase/functions/process-ai-message/index.ts` -- system prompt rules, example, schema description
+2. `src/components/inbox/ExtractionPanel.tsx` -- product name formatting (if needed)
 
