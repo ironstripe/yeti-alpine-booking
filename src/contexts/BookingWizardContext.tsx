@@ -331,7 +331,7 @@ interface BookingWizardContextType {
   toggleParticipant: (participant: SelectedParticipant) => void;
   addGuestParticipant: (participant: Omit<SelectedParticipant, "id" | "isGuest">) => void;
   // Local participants
-  addLocalParticipant: (participant: Omit<LocalParticipant, "id">) => void;
+  addLocalParticipant: (participant: LocalParticipant) => void;
   removeLocalParticipant: (id: string) => void;
   replaceLocalParticipantIds: (idMap: Record<string, string>) => void;
   // Step 2 setters
@@ -571,17 +571,11 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
   };
 
   // Local participant management
-  const addLocalParticipant = (participant: Omit<LocalParticipant, "id">) => {
-    setState((prev) => {
-      const newParticipant: LocalParticipant = {
-        ...participant,
-        id: `local-${crypto.randomUUID()}`,
-      };
-      return {
-        ...prev,
-        localParticipants: [...prev.localParticipants, newParticipant],
-      };
-    });
+  const addLocalParticipant = (participant: LocalParticipant) => {
+    setState((prev) => ({
+      ...prev,
+      localParticipants: [...prev.localParticipants, participant],
+    }));
   };
 
   const removeLocalParticipant = (id: string) => {
