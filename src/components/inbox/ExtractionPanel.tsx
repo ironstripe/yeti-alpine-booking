@@ -160,6 +160,7 @@ function formatProductName(slug: string): string {
     "fortgeschrittenen-gruppenkurs": "Fortgeschrittenen-Kurs",
     "experten-kurs": "Experten-Kurs",
     "privat": "Privatstunde",
+    "privatstunde": "Privatstunde",
   };
   return names[slug] || slug.replace(/-/g, " ");
 }
