@@ -1,74 +1,113 @@
 
 
-# Fix: AI Suggests Group Courses Even When Private Lessons Are Requested
+# Fix: Slow AI Reply Generation
 
 ## Problem
-The system prompt in `process-ai-message` always maps participant age/level to group course names (e.g., "windel-wedel", "anfaenger-gruppenkurs") regardless of whether the customer explicitly requested private lessons. The `booking.product_type` is correctly set to `"private"`, but the per-participant `product_suggestion` still shows a group course name like "Anfänger-Gruppenkurs".
+The `generate-reply` edge function performs 6+ sequential network calls before even reaching the AI model, plus a very large system prompt. Each step waits for the previous one to complete.
 
-## Root Cause
-Lines 57-63 of the system prompt unconditionally instruct the AI to suggest group courses based on age and skill level. There is no branching logic for when `product_type` is `"private"`.
+## Root Causes
+1. **Sequential DB queries**: Conversation, channel config, knowledge docs, customer data, booking history -- all run one after another
+2. **Knowledge docs downloaded in a loop**: 2 files downloaded one at a time from storage
+3. **Nested edge function call**: `check-instructor-availability` is invoked via HTTP (cold start + execution)
+4. **Large prompt**: ~800 lines of system prompt + full knowledge base content sent on every request
 
 ## Solution
 
-### 1. Update System Prompt in `process-ai-message`
-**File:** `supabase/functions/process-ai-message/index.ts`
+### 1. Parallelize Independent Queries
+**File:** `supabase/functions/generate-reply/index.ts`
 
-Modify the product suggestion rules (lines 57-68) to be conditional on the requested product type:
+After fetching the conversation (which is needed for everything else), run all independent queries in parallel using `Promise.all`:
 
 ```text
-**WICHTIG - TEILNEHMER-SPEZIFISCHE BUCHUNGEN:**
-Jeder Teilnehmer kann individuelle Buchungsdetails haben.
+// BEFORE (sequential):
+fetch conversation -> fetch config -> fetch docs -> fetch customer -> fetch tickets -> check availability -> call AI
 
-**PRODUKT-VORSCHLAG REGELN:**
-Wenn der Kunde explizit Privatstunden/Privatunterricht anfragt:
-- Setze product_type: "private" auf Booking- UND Teilnehmer-Ebene
-- Setze product_suggestion: "privatstunde"
-- Frage NICHT nach Gruppenkursen
-
-Nur wenn der Kunde Gruppenkurse anfragt ODER keinen Typ spezifiziert:
-- beginner + Alter 3-4 -> product_suggestion: "windel-wedel"
-- beginner + Alter 5+ -> product_suggestion: "anfaenger-gruppenkurs"
-- intermediate -> product_suggestion: "fortgeschrittenen-gruppenkurs"
-- advanced/expert -> product_suggestion: "experten-kurs"
-
-Wenn unklar, setze product_type: "unknown" und frage nach.
+// AFTER (parallel where possible):
+fetch conversation -> Promise.all([config, docs, customer]) -> Promise.all([tickets, availability]) -> call AI
 ```
 
-### 2. Update Example in System Prompt
-The example at lines 160-181 only shows a group booking scenario. Add a private lesson example so the AI learns the correct pattern:
+Specifically:
+- `getChannelConfig()`, knowledge document fetch, and customer lookup can all run in parallel
+- Booking history and availability check can run in parallel (both depend on customer data)
 
-```json
-{
-  "name": "Participant",
-  "age": 7,
-  "skill_level": "beginner",
-  "booking": {
-    "product_type": "private",
-    "product_suggestion": "privatstunde",
-    "dates": [{"date": "2026-03-21"}, {"date": "2026-03-22"}]
-  }
+### 2. Download Knowledge Docs in Parallel
+Replace the sequential for-loop with `Promise.all` for downloading the 2 knowledge documents simultaneously.
+
+### 3. Call check-instructor-availability Directly (Inline)
+Instead of invoking a separate edge function via HTTP (which adds cold-start latency), import and call the availability logic directly as a function within `generate-reply`. This eliminates one full HTTP round-trip.
+
+However, since edge functions are separate deployments, the simpler approach is to **query the DB directly** in `generate-reply` instead of calling the edge function. We'll extract the core query logic (find instructor + check conflicts) and run it inline.
+
+### 4. Trim the System Prompt
+- Cache knowledge base content (it rarely changes) -- not feasible in stateless edge functions, but we can at least skip downloading if no docs exist
+- Remove redundant examples from the prompt (the channel-specific examples are ~30 lines that could be shortened)
+
+## Implementation Details
+
+### File: `supabase/functions/generate-reply/index.ts`
+
+**Change 1: Parallel queries after conversation fetch**
+```typescript
+// Run independent queries in parallel
+const [channelConfig, knowledgeBaseContent, customerResult] = await Promise.all([
+  getChannelConfig(supabase, channel),
+  fetchKnowledgeBase(supabase),       // New extracted function
+  conv.matched_customer_id 
+    ? supabase.from("customers").select("*").eq("id", conv.matched_customer_id).single()
+    : Promise.resolve({ data: null, error: null }),
+]);
+```
+
+**Change 2: Parallel knowledge doc downloads**
+```typescript
+async function fetchKnowledgeBase(supabase: any): Promise<string> {
+  const { data: documents } = await supabase
+    .from("ai_knowledge_documents")
+    .select("storage_path, file_name");
+  
+  if (!documents || documents.length === 0) return "";
+  
+  // Download ALL docs in parallel
+  const results = await Promise.all(
+    documents.map(async (doc) => {
+      try {
+        const { data } = await supabase.storage
+          .from("ai_knowledge_base")
+          .download(doc.storage_path);
+        if (data) {
+          const text = await data.text();
+          return `\n--- ${doc.file_name} ---\n${text}\n--- ENDE ---`;
+        }
+      } catch {}
+      return "";
+    })
+  );
+  
+  return results.filter(Boolean).join("");
 }
 ```
 
-### 3. Update `product_suggestion` Schema Description
-**File:** `supabase/functions/process-ai-message/index.ts` (line 275-277)
+**Change 3: Inline availability check (query DB directly)**
+Instead of `supabase.functions.invoke("check-instructor-availability", ...)`, run the instructor lookup and conflict queries directly within this function. This saves one full HTTP round-trip + cold start.
 
-Change the description to include private lesson as a valid suggestion:
+**Change 4: Parallel booking history + availability**
+```typescript
+const [bookingHistory, availabilityContext] = await Promise.all([
+  fetchBookingHistory(supabase, customerId),
+  instructorRequest?.is_requested 
+    ? checkAvailabilityInline(supabase, instructorRequest, extractedData)
+    : Promise.resolve(null),
+]);
 ```
-"Vorgeschlagenes Produkt basierend auf Anfrage, Alter und Level 
-(z.B. 'privatstunde', 'windel-wedel', 'anfaenger-gruppenkurs', 
-'fortgeschrittenen-gruppenkurs')"
-```
 
-### 4. Update ExtractionPanel Display
-**File:** `src/components/inbox/ExtractionPanel.tsx`
-
-Update the `formatProductName` function (or equivalent display logic) to properly label "privatstunde" as "Privatstunde" in the UI, so it renders correctly alongside group course names.
-
-### 5. Redeploy
-Deploy `process-ai-message` edge function after changes.
+## Expected Impact
+- **Before**: ~6-8 sequential network calls (each 100-500ms) = 2-5 seconds before AI call
+- **After**: ~3 parallel groups = 0.5-1.5 seconds before AI call
+- The AI model call itself (~2-4 seconds) cannot be parallelized but the prompt stays the same size
 
 ## Files Modified
-1. `supabase/functions/process-ai-message/index.ts` -- system prompt rules, example, schema description
-2. `src/components/inbox/ExtractionPanel.tsx` -- product name formatting (if needed)
+1. `supabase/functions/generate-reply/index.ts` -- parallelize queries, inline availability check
+
+## Deployment
+Redeploy `generate-reply` edge function after changes.
 
