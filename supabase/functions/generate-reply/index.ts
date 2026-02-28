@@ -133,6 +133,158 @@ async function getChannelConfig(
   };
 }
 
+// Fetch knowledge base documents in parallel
+async function fetchKnowledgeBase(supabase: any): Promise<string> {
+  const { data: documents, error: docError } = await supabase
+    .from("ai_knowledge_documents")
+    .select("storage_path, file_name");
+
+  if (!documents || documents.length === 0 || docError) return "";
+
+  console.log(`Found ${documents.length} knowledge documents`);
+
+  const results = await Promise.all(
+    documents.map(async (doc: { storage_path: string; file_name: string }) => {
+      try {
+        const { data: fileContent, error: fileError } = await supabase.storage
+          .from("ai_knowledge_base")
+          .download(doc.storage_path);
+        if (fileContent && !fileError) {
+          const textContent = await fileContent.text();
+          if (textContent.trim()) {
+            return `\n\n--- WISSENSDOKUMENT: ${doc.file_name} ---\n${textContent}\n--- ENDE WISSENSDOKUMENT ---`;
+          }
+        }
+      } catch (e) {
+        console.error(`Error reading document ${doc.file_name}:`, e);
+      }
+      return "";
+    })
+  );
+
+  return results.filter(Boolean).join("");
+}
+
+// Inline availability check - replaces HTTP call to check-instructor-availability
+async function checkAvailabilityInline(
+  supabase: any,
+  instructorRequest: { is_requested?: boolean; instructor_name?: string; is_flexible?: boolean },
+  extractedData: ExtractedData
+): Promise<Record<string, unknown> | null> {
+  const instructorName = instructorRequest.instructor_name;
+  if (!instructorName) return null;
+
+  console.log(`Inline availability check for: ${instructorName}`);
+
+  try {
+    // 1. Find instructor by first name
+    const { data: instructors, error: instrError } = await supabase
+      .from("instructors")
+      .select("id, first_name, last_name, specialization, languages")
+      .eq("status", "active")
+      .ilike("first_name", instructorName);
+
+    if (instrError || !instructors || instructors.length === 0) {
+      return { status: "not_found", instructorName };
+    }
+
+    if (instructors.length > 1) {
+      return {
+        status: "ambiguous",
+        instructorName,
+        matches: instructors.map((i: any) => ({ id: i.id, first_name: i.first_name, last_name: i.last_name })),
+      };
+    }
+
+    const instructor = instructors[0];
+    const instructorId = instructor.id;
+    const requestedDates = extractedData.booking?.dates?.map((d) => d.date) || [];
+    const requestedTime = extractedData.booking?.dates?.[0]?.start_time && extractedData.booking?.dates?.[0]?.end_time
+      ? { start: extractedData.booking.dates[0].start_time!, end: extractedData.booking.dates[0].end_time! }
+      : undefined;
+    const isFlexible = instructorRequest.is_flexible || false;
+    const instructorInfo = { first_name: instructor.first_name, last_name: instructor.last_name };
+
+    if (!requestedDates || requestedDates.length === 0) {
+      return { status: "available", instructor: instructorInfo, message: "No specific dates requested" };
+    }
+
+    // 2. Fetch all conflicts in parallel
+    const [ticketItemsRes, groupInstancesRes, absencesRes] = await Promise.all([
+      supabase.from("ticket_items").select("id, date, time_start, time_end")
+        .eq("instructor_id", instructorId).in("date", requestedDates)
+        .neq("status", "cancelled").neq("status", "storno"),
+      supabase.from("group_course_instances").select("id, date, start_time, end_time")
+        .eq("instructor_id", instructorId).in("date", requestedDates)
+        .neq("status", "cancelled"),
+      supabase.from("instructor_absences").select("id, start_date, end_date, is_full_day, time_start, time_end")
+        .eq("instructor_id", instructorId).eq("status", "confirmed")
+        .lte("start_date", requestedDates[requestedDates.length - 1])
+        .gte("end_date", requestedDates[0]),
+    ]);
+
+    const ticketItems = ticketItemsRes.data || [];
+    const groupInstances = groupInstancesRes.data || [];
+    const absences = absencesRes.data || [];
+
+    // 3. Compute free slots per date
+    const timesOverlap = (s1: string, e1: string, s2: string, e2: string) => s1 < e2 && e1 > s2;
+    const generateDaySlots = () => {
+      const slots: { start: string; end: string }[] = [];
+      for (let h = 9; h < 16; h++) {
+        slots.push({ start: `${h.toString().padStart(2, "0")}:00`, end: `${(h + 1).toString().padStart(2, "0")}:00` });
+      }
+      return slots;
+    };
+
+    const perDateResults: Record<string, Array<{ date: string; start: string; end: string }>> = {};
+    for (const date of requestedDates) {
+      const freeSlots = generateDaySlots().filter((slot) => {
+        for (const absence of absences) {
+          if (date >= absence.start_date && date <= absence.end_date) {
+            if (absence.is_full_day !== false) return false;
+            if (absence.time_start && absence.time_end && timesOverlap(slot.start, slot.end, absence.time_start, absence.time_end)) return false;
+          }
+        }
+        for (const ti of ticketItems) {
+          if (ti.date === date && ti.time_start && ti.time_end && timesOverlap(slot.start, slot.end, ti.time_start, ti.time_end)) return false;
+        }
+        for (const gi of groupInstances) {
+          if (gi.date === date && gi.start_time && gi.end_time && timesOverlap(slot.start, slot.end, gi.start_time, gi.end_time)) return false;
+        }
+        return true;
+      });
+      perDateResults[date] = freeSlots.map((s) => ({ date, start: s.start, end: s.end }));
+    }
+
+    const allFreeSlots = Object.values(perDateResults).flat();
+    const fullyBookedDates = requestedDates.filter((d) => perDateResults[d].length === 0);
+
+    // 4. Build response
+    if (requestedTime) {
+      const requestedSlotFree = requestedDates.every((date) =>
+        perDateResults[date].some((slot) => timesOverlap(slot.start, slot.end, requestedTime.start, requestedTime.end))
+      );
+      if (requestedSlotFree) return { status: "available", instructor: instructorInfo };
+      if (allFreeSlots.length > 0) return { status: "unavailable_slot", instructor: instructorInfo, free_slots: perDateResults };
+      return { status: "fully_booked", instructor: instructorInfo };
+    }
+
+    if (fullyBookedDates.length === requestedDates.length) {
+      return { status: "fully_booked", instructor: instructorInfo };
+    }
+
+    if (allFreeSlots.length > 0) {
+      return { status: "free_slots_list", instructor: instructorInfo, free_slots: perDateResults };
+    }
+
+    return { status: "fully_booked", instructor: instructorInfo };
+  } catch (e) {
+    console.error("Error in inline availability check:", e);
+    return null;
+  }
+}
+
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
@@ -174,35 +326,16 @@ serve(async (req) => {
     const conv = conversation as Conversation;
     const channel = conv.channel || "email";
 
-    // Step 2: Get channel-specific configuration
-    const channelConfig = await getChannelConfig(supabase, channel);
+    // Step 2: Run independent queries in parallel
+    const [channelConfig, knowledgeBaseContent, customerResult] = await Promise.all([
+      getChannelConfig(supabase, channel),
+      fetchKnowledgeBase(supabase),
+      conv.matched_customer_id
+        ? supabase.from("customers").select("id, first_name, last_name, email").eq("id", conv.matched_customer_id).single()
+        : Promise.resolve({ data: null, error: null }),
+    ]);
+
     console.log(`Channel: ${channel}, using ${channel === "whatsapp" ? "WhatsApp" : "E-Mail"} tonality`);
-
-    // Step 3: Fetch and read Knowledge Documents
-    const { data: documents, error: docError } = await supabase
-      .from("ai_knowledge_documents")
-      .select("storage_path, file_name");
-
-    let knowledgeBaseContent = "";
-    if (documents && documents.length > 0 && !docError) {
-      console.log(`Found ${documents.length} knowledge documents`);
-      for (const doc of documents) {
-        try {
-          const { data: fileContent, error: fileError } = await supabase.storage
-            .from("ai_knowledge_base")
-            .download(doc.storage_path);
-
-          if (fileContent && !fileError) {
-            const textContent = await fileContent.text();
-            if (textContent.trim()) {
-              knowledgeBaseContent += `\n\n--- WISSENSDOKUMENT: ${doc.file_name} ---\n${textContent}\n--- ENDE WISSENSDOKUMENT ---`;
-            }
-          }
-        } catch (e) {
-          console.error(`Error reading document ${doc.file_name}:`, e);
-        }
-      }
-    }
 
     const extractedData = (conv.ai_extracted_data || {}) as ExtractedData;
     const classification = conv.classification || extractedData.classification || "other";
@@ -210,35 +343,14 @@ serve(async (req) => {
     const missingInfo = extractedData.missing_information || [];
     const bookingReady = conv.booking_ready || extractedData.booking_ready || false;
 
-    // Step 4: Fetch customer context if available
+    // Step 3: Process customer data from parallel result
     let customerName = conv.contact_name || "";
     let isExistingCustomer = false;
-    let bookingHistory = "";
 
-    if (conv.matched_customer_id) {
-      const { data: customer, error: custError } = await supabase
-        .from("customers")
-        .select("id, first_name, last_name, email")
-        .eq("id", conv.matched_customer_id)
-        .single();
-
-      if (customer && !custError) {
-        const cust = customer as Customer;
-        customerName = [cust.first_name, cust.last_name].filter(Boolean).join(" ");
-        isExistingCustomer = true;
-
-        // Fetch recent bookings for context
-        const { data: tickets } = await supabase
-          .from("tickets")
-          .select("id, created_at, total_amount, status")
-          .eq("customer_id", cust.id)
-          .order("created_at", { ascending: false })
-          .limit(3);
-
-        if (tickets && tickets.length > 0) {
-          bookingHistory = `\nDer Kunde hat ${tickets.length} frühere Buchung(en).`;
-        }
-      }
+    if (customerResult.data && !customerResult.error) {
+      const cust = customerResult.data as Customer;
+      customerName = [cust.first_name, cust.last_name].filter(Boolean).join(" ");
+      isExistingCustomer = true;
     }
 
     // Use customer name from extraction if not found elsewhere
@@ -250,39 +362,22 @@ serve(async (req) => {
         "";
     }
 
-    // Step 4b: Check instructor availability if requested
-    let availabilityContext: Record<string, unknown> | null = null;
+    // Step 4: Run booking history + availability check in parallel
     const instructorRequest = extractedData.instructor_request;
+    const customerId = isExistingCustomer ? (customerResult.data as Customer)?.id : null;
 
-    if (instructorRequest?.is_requested && instructorRequest?.instructor_name) {
-      console.log(`Instructor availability check requested for: ${instructorRequest.instructor_name}`);
-      try {
-        const requestedDates = extractedData.booking?.dates?.map((d) => d.date) || [];
-        const requestedTime = extractedData.booking?.dates?.[0]?.start_time && extractedData.booking?.dates?.[0]?.end_time
-          ? { start: extractedData.booking.dates[0].start_time, end: extractedData.booking.dates[0].end_time }
-          : undefined;
+    const [bookingHistoryResult, availabilityContext] = await Promise.all([
+      customerId
+        ? supabase.from("tickets").select("id, created_at, total_amount, status").eq("customer_id", customerId).order("created_at", { ascending: false }).limit(3)
+        : Promise.resolve({ data: null }),
+      (instructorRequest?.is_requested && instructorRequest?.instructor_name)
+        ? checkAvailabilityInline(supabase, instructorRequest, extractedData)
+        : Promise.resolve(null),
+    ]);
 
-        const { data: availResult, error: availError } = await supabase.functions.invoke(
-          "check-instructor-availability",
-          {
-            body: {
-              instructorName: instructorRequest.instructor_name,
-              requestedDates,
-              requestedTime,
-              isFlexible: instructorRequest.is_flexible || false,
-            },
-          }
-        );
-
-        if (!availError && availResult) {
-          availabilityContext = availResult;
-          console.log("Availability check result:", JSON.stringify(availResult));
-        } else {
-          console.error("Availability check error:", availError);
-        }
-      } catch (e) {
-        console.error("Error calling check-instructor-availability:", e);
-      }
+    let bookingHistory = "";
+    if (bookingHistoryResult.data && bookingHistoryResult.data.length > 0) {
+      bookingHistory = `\nDer Kunde hat ${bookingHistoryResult.data.length} frühere Buchung(en).`;
     }
 
     // Build the intelligent system prompt
