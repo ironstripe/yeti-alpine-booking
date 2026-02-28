@@ -148,18 +148,16 @@ export function SlotBookingPopover({
 
   // Create local participant (no DB write)
   const handleCreateLocalParticipant = () => {
-    const localP = {
+    const id = `local-${crypto.randomUUID()}`;
+    addLocalParticipant({
+      id,
       first_name: newParticipant.first_name,
       last_name: newParticipant.last_name || null,
       birth_date: newParticipant.birth_date || "2015-01-01",
       skill_level: newParticipant.skill_level || null,
       sport: (sport || "ski") as "ski" | "snowboard",
-    };
-    addLocalParticipant(localP);
-    // The ID is generated inside addLocalParticipant, so we need to find it after state update
-    // We'll use a slight workaround: generate the ID here to pre-select it
-    // Actually, since addLocalParticipant uses crypto.randomUUID(), we can't predict it.
-    // Instead, we just reset the form. The user will see the new participant in the list and select it.
+    });
+    setSelectedParticipantIds((prev) => [...prev, id]);
     resetNewParticipantForm();
   };
 
