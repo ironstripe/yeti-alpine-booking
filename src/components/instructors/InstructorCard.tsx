@@ -1,6 +1,6 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Phone, Snowflake, MountainSnow } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatPhoneDisplay } from "@/lib/phone-utils";
@@ -31,6 +31,9 @@ export function InstructorCard({ instructor, isPulsing, onClick }: InstructorCar
           {/* Avatar with status dot */}
           <div className="relative">
             <Avatar className="h-12 w-12">
+              {instructor.avatar_url && (
+                <AvatarImage src={instructor.avatar_url} alt={fullName} />
+              )}
               <AvatarFallback className={cn("text-white font-medium", avatarColor)}>
                 {initials}
               </AvatarFallback>

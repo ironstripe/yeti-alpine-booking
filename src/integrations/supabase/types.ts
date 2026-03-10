@@ -2037,6 +2037,7 @@ export type Database = {
       instructors: {
         Row: {
           ahv_number: string | null
+          avatar_url: string | null
           bank_name: string | null
           birth_date: string | null
           city: string | null
@@ -2065,6 +2066,7 @@ export type Database = {
         }
         Insert: {
           ahv_number?: string | null
+          avatar_url?: string | null
           bank_name?: string | null
           birth_date?: string | null
           city?: string | null
@@ -2093,6 +2095,7 @@ export type Database = {
         }
         Update: {
           ahv_number?: string | null
+          avatar_url?: string | null
           bank_name?: string | null
           birth_date?: string | null
           city?: string | null

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -21,7 +21,8 @@ import {
 } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { Check, Loader2 } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Check, Loader2, Camera } from "lucide-react";
 import { useUpdateInstructor } from "@/hooks/useUpdateInstructor";
 import { normalizePhoneNumber } from "@/lib/phone-utils";
 import {
@@ -33,6 +34,8 @@ import {
   STATUS_OPTIONS,
 } from "@/lib/instructor-utils";
 import { RoleSelector, getDisciplineFromRoles, hasTeachingRole, getRolesFromSpecialization } from "./RoleSelector";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 import type { Tables } from "@/integrations/supabase/types";
 
 const GENDER_OPTIONS = [
@@ -89,6 +92,66 @@ export function EditInstructorModal({
   const updateInstructor = useUpdateInstructor(instructor.id);
   const [ibanValue, setIbanValue] = useState("");
   const [ahvValue, setAhvValue] = useState("");
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Initialize avatar URL from instructor
+  useEffect(() => {
+    if (instructor?.avatar_url) {
+      setAvatarUrl(instructor.avatar_url);
+    } else {
+      setAvatarUrl(null);
+    }
+  }, [instructor]);
+
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      toast.error("Bitte wähle eine Bilddatei aus.");
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Das Bild darf maximal 5 MB gross sein.");
+      return;
+    }
+
+    setIsUploadingAvatar(true);
+    try {
+      const fileExt = file.name.split(".").pop();
+      const filePath = `${instructor.id}.${fileExt}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("instructor-avatars")
+        .upload(filePath, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from("instructor-avatars")
+        .getPublicUrl(filePath);
+
+      // Add cache-buster to force refresh
+      const urlWithCacheBust = `${publicUrl}?t=${Date.now()}`;
+
+      await updateInstructor.mutateAsync({ avatar_url: publicUrl });
+      setAvatarUrl(urlWithCacheBust);
+      toast.success("Profilbild aktualisiert");
+    } catch (err) {
+      console.error("Avatar upload error:", err);
+      toast.error("Fehler beim Hochladen des Profilbilds");
+    } finally {
+      setIsUploadingAvatar(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  const getInitials = () => {
+    return `${instructor.first_name?.charAt(0) || ""}${instructor.last_name?.charAt(0) || ""}`.toUpperCase();
+  };
 
   const {
     register,
@@ -204,6 +267,36 @@ export function EditInstructorModal({
 
         <ScrollArea className="max-h-[calc(90vh-140px)]">
           <form onSubmit={handleSubmit(onSubmit)} className="px-6 pb-6 space-y-6">
+            {/* Avatar Upload */}
+            <div className="flex flex-col items-center gap-3">
+              <div className="relative group cursor-pointer" onClick={() => fileInputRef.current?.click()}>
+                <Avatar className="h-20 w-20 text-xl">
+                  <AvatarImage src={avatarUrl || undefined} alt="Profilbild" />
+                  <AvatarFallback className="bg-primary/10 text-primary">
+                    {getInitials()}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="absolute inset-0 rounded-full bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                  {isUploadingAvatar ? (
+                    <Loader2 className="h-5 w-5 text-white animate-spin" />
+                  ) : (
+                    <Camera className="h-5 w-5 text-white" />
+                  )}
+                </div>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleAvatarUpload}
+                  disabled={isUploadingAvatar}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">Klicken um Foto zu ändern</p>
+            </div>
+
+            <Separator />
+
             {/* Section 1: Personal Data */}
             <div className="space-y-4">
               <h3 className="text-sm font-medium text-muted-foreground">
