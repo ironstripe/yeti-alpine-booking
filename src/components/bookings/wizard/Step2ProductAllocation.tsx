@@ -204,18 +204,26 @@ export function Step2ProductAllocation() {
     [setParticipantBooking]
   );
 
-  // Fetch products from database
+  // Fetch current season for product filtering
+  const { data: currentSeason } = useCurrentSeason();
+
+  // Fetch products from database (filtered by current season)
   const { data: products = [], isLoading: productsLoading } = useQuery({
-    queryKey: ["products"],
+    queryKey: ["products", "active", currentSeason?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from("products")
         .select("*")
         .eq("is_active", true)
         .order("sort_order");
+      if (currentSeason?.id) {
+        query = query.eq("season_id", currentSeason.id);
+      }
+      const { data, error } = await query;
       if (error) throw error;
       return data;
     },
+    enabled: !!currentSeason?.id,
   });
 
   // Calculate duration from start and end time
