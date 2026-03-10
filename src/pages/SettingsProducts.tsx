@@ -121,7 +121,26 @@ export default function SettingsProducts() {
   return (
     <SettingsLayout title="Produkte" description="Verwalte die buchbaren Leistungen">
       <div className="space-y-4">
-        <div className="flex justify-end">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            {seasons && seasons.length > 0 && (
+              <Select
+                value={activeSeasonId || ""}
+                onValueChange={setSelectedSeasonId}
+              >
+                <SelectTrigger className="w-[200px]">
+                  <SelectValue placeholder="Saison wählen" />
+                </SelectTrigger>
+                <SelectContent>
+                  {seasons.map((s) => (
+                    <SelectItem key={s.id} value={s.id}>
+                      {s.name} {s.is_current && "✦"}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          </div>
           <Button onClick={handleCreate}>
             <Plus className="h-4 w-4 mr-2" />
             Neues Produkt
