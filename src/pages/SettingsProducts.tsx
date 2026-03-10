@@ -24,8 +24,16 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useProducts, useDeleteProduct, ProductWithTiers } from "@/hooks/useProducts";
+import { useSeasons, useCurrentSeason } from "@/hooks/useSeasons";
 import { ProductFormModal } from "@/components/settings/ProductFormModal";
 import { getProductPriceDisplay, formatPriceCHF } from "@/lib/pricing-utils";
 import {
@@ -64,7 +72,14 @@ const pricingTypeLabels: Record<string, { label: string; icon: string }> = {
 };
 
 export default function SettingsProducts() {
-  const { data: products, isLoading } = useProducts();
+  const { data: seasons } = useSeasons();
+  const { data: currentSeason } = useCurrentSeason();
+  const [selectedSeasonId, setSelectedSeasonId] = useState<string | undefined>(undefined);
+
+  // Use current season as default once loaded
+  const activeSeasonId = selectedSeasonId || currentSeason?.id;
+
+  const { data: products, isLoading } = useProducts({ seasonId: activeSeasonId });
   const deleteProduct = useDeleteProduct();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<ProductWithTiers | null>(null);
