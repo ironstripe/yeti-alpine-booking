@@ -29,6 +29,7 @@ import { ParticipantBookingCard } from "./ParticipantBookingCard";
 import { BookingTimeGrid } from "./BookingTimeGrid";
 import { PrivateGroupProposal } from "./PrivateGroupProposal";
 import { usePrivateLessonRates, useHighSeasonPeriods } from "@/hooks/usePrivateLessonRates";
+import { useCurrentSeason } from "@/hooks/useSeasons";
 import {
   calculatePrivateLessonPrice,
   formatCHF,
