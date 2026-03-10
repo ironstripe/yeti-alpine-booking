@@ -1,70 +1,42 @@
 
 
-# Fix: Auto-Select Newly Created Participants in Booking Wizard
+# Add Profile Picture to Instructor Profiles
 
-## Problem
-When creating a new participant in the "Slot konfigurieren" panel (SlotBookingPopover), the participant appears in the list but is NOT automatically selected (checkbox unchecked). The user must manually click the participant before clicking "In den Warenkorb". If they don't realize this, the cart item has no participants assigned, and "Weiter zum Kunden" stays disabled.
+## Current State
+The `instructors` table has no column for a profile image. The UI shows initials in an `AvatarFallback` component everywhere.
 
-## Root Cause
-`addLocalParticipant()` generates the participant ID internally using `crypto.randomUUID()`. The SlotBookingPopover cannot predict this ID to auto-add it to `selectedParticipantIds`.
+## Plan
 
-## Solution
-Generate the ID **before** calling `addLocalParticipant`, so the popover can immediately add it to the selected list.
-
-### Changes
-
-**File 1: `src/contexts/BookingWizardContext.tsx`**
-- Modify `addLocalParticipant` to accept a full `LocalParticipant` (including `id`) instead of `Omit<LocalParticipant, "id">`
-- This allows the caller to control the ID generation
-
-**File 2: `src/components/bookings/wizard/SlotBookingPopover.tsx`**
-- In `handleCreateLocalParticipant`:
-  1. Generate the ID upfront: `const id = "local-" + crypto.randomUUID()`
-  2. Pass the full participant (with id) to `addLocalParticipant`
-  3. Immediately add the ID to `selectedParticipantIds` so the participant is auto-selected
-
-### Technical Details
-
-In `BookingWizardContext.tsx`, change the signature and implementation:
-```typescript
-// Before
-const addLocalParticipant = (participant: Omit<LocalParticipant, "id">) => {
-  setState((prev) => {
-    const newParticipant = { ...participant, id: `local-${crypto.randomUUID()}` };
-    return { ...prev, localParticipants: [...prev.localParticipants, newParticipant] };
-  });
-};
-
-// After
-const addLocalParticipant = (participant: LocalParticipant) => {
-  setState((prev) => ({
-    ...prev,
-    localParticipants: [...prev.localParticipants, participant],
-  }));
-};
+### 1. Database: Add `avatar_url` column to `instructors` table
+```sql
+ALTER TABLE public.instructors ADD COLUMN avatar_url TEXT;
 ```
 
-In `SlotBookingPopover.tsx`:
-```typescript
-const handleCreateLocalParticipant = () => {
-  const id = `local-${crypto.randomUUID()}`;
-  addLocalParticipant({
-    id,
-    first_name: newParticipant.first_name,
-    last_name: newParticipant.last_name || null,
-    birth_date: newParticipant.birth_date || "2015-01-01",
-    skill_level: newParticipant.skill_level || null,
-    sport: (sport || "ski") as "ski" | "snowboard",
-  });
-  // Auto-select the new participant
-  setSelectedParticipantIds((prev) => [...prev, id]);
-  resetNewParticipantForm();
-};
+### 2. Storage: Create `instructor-avatars` bucket
+```sql
+INSERT INTO storage.buckets (id, name, public) VALUES ('instructor-avatars', 'instructor-avatars', true);
 ```
+With RLS policies allowing authenticated users to upload/view.
 
-Also update the type signature in the context interface from `Omit<LocalParticipant, "id">` to `LocalParticipant`.
+### 3. UI Changes
 
-## Files Modified
-1. `src/contexts/BookingWizardContext.tsx` -- change `addLocalParticipant` signature to accept full object with `id`
-2. `src/components/bookings/wizard/SlotBookingPopover.tsx` -- generate ID upfront and auto-select new participant
+**`src/components/instructors/EditInstructorModal.tsx`**
+- Add an avatar upload section at the top of the form
+- File input that uploads to `instructor-avatars/{instructor_id}.jpg`
+- On successful upload, update `avatar_url` on the instructor record
+- Show current avatar preview with option to change
+
+**`src/pages/InstructorDetail.tsx`**
+- Use `AvatarImage` with `instructor.avatar_url` in the hero section (falls back to initials if no image)
+
+**`src/components/instructors/detail/ProfileInfoCard.tsx`**
+- No changes needed (avatar is in the hero section)
+
+**Instructor list views** (wherever instructor avatars are shown)
+- Update to use `AvatarImage` when `avatar_url` is present
+
+### 4. Files Modified
+1. Database migration — add `avatar_url` column + storage bucket + RLS policies
+2. `src/components/instructors/EditInstructorModal.tsx` — avatar upload UI
+3. `src/pages/InstructorDetail.tsx` — display avatar image
 
