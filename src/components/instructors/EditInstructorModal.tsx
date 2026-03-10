@@ -121,12 +121,17 @@ export function EditInstructorModal({
 
     setIsUploadingAvatar(true);
     try {
-      const fileExt = file.name.split(".").pop();
+      const extMap: Record<string, string> = {
+        'image/jpeg': 'jpg',
+        'image/png': 'png',
+        'image/webp': 'webp',
+      };
+      const fileExt = extMap[file.type] || 'jpg';
       const filePath = `${instructor.id}.${fileExt}`;
 
       const { error: uploadError } = await supabase.storage
         .from("instructor-avatars")
-        .upload(filePath, file, { upsert: true });
+        .upload(filePath, file, { upsert: true, contentType: file.type });
 
       if (uploadError) throw uploadError;
 
