@@ -16,6 +16,7 @@ interface UseProductsOptions {
   isTrainingProduct?: boolean;
   isActive?: boolean;
   includeTiers?: boolean;
+  seasonId?: string;
 }
 
 export function useProducts(options?: UseProductsOptions) {
