@@ -267,6 +267,36 @@ export function EditInstructorModal({
 
         <ScrollArea className="max-h-[calc(90vh-140px)]">
           <form onSubmit={handleSubmit(onSubmit)} className="px-6 pb-6 space-y-6">
+            {/* Avatar Upload */}
+            <div className="flex flex-col items-center gap-3">
+              <div className="relative group cursor-pointer" onClick={() => fileInputRef.current?.click()}>
+                <Avatar className="h-20 w-20 text-xl">
+                  <AvatarImage src={avatarUrl || undefined} alt="Profilbild" />
+                  <AvatarFallback className="bg-primary/10 text-primary">
+                    {getInitials()}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="absolute inset-0 rounded-full bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                  {isUploadingAvatar ? (
+                    <Loader2 className="h-5 w-5 text-white animate-spin" />
+                  ) : (
+                    <Camera className="h-5 w-5 text-white" />
+                  )}
+                </div>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleAvatarUpload}
+                  disabled={isUploadingAvatar}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">Klicken um Foto zu ändern</p>
+            </div>
+
+            <Separator />
+
             {/* Section 1: Personal Data */}
             <div className="space-y-4">
               <h3 className="text-sm font-medium text-muted-foreground">

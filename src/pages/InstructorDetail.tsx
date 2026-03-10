@@ -120,6 +120,9 @@ export default function InstructorDetail() {
         <div className="flex flex-col items-center text-center space-y-4">
           {/* Avatar */}
           <Avatar className="h-24 w-24 text-2xl">
+            {instructor.avatar_url && (
+              <AvatarImage src={instructor.avatar_url} alt={`${instructor.first_name} ${instructor.last_name}`} />
+            )}
             <AvatarFallback className="bg-primary/10 text-primary">
               {getInitials()}
             </AvatarFallback>

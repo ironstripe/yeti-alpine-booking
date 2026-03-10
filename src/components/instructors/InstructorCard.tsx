@@ -31,6 +31,9 @@ export function InstructorCard({ instructor, isPulsing, onClick }: InstructorCar
           {/* Avatar with status dot */}
           <div className="relative">
             <Avatar className="h-12 w-12">
+              {instructor.avatar_url && (
+                <AvatarImage src={instructor.avatar_url} alt={fullName} />
+              )}
               <AvatarFallback className={cn("text-white font-medium", avatarColor)}>
                 {initials}
               </AvatarFallback>
