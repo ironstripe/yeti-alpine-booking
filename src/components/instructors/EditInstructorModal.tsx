@@ -137,7 +137,7 @@ export function EditInstructorModal({
       // Add cache-buster to force refresh
       const urlWithCacheBust = `${publicUrl}?t=${Date.now()}`;
 
-      await updateInstructor.mutateAsync({ avatar_url: publicUrl });
+      await updateInstructor.mutateAsync({ avatar_url: urlWithCacheBust });
       setAvatarUrl(urlWithCacheBust);
       toast.success("Profilbild aktualisiert");
     } catch (err) {
