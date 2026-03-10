@@ -289,6 +289,7 @@ export default function SettingsProducts() {
         open={isModalOpen}
         onOpenChange={handleCloseModal}
         product={selectedProduct}
+        seasonId={activeSeasonId}
       />
 
       <AlertDialog open={!!productToDelete} onOpenChange={() => setProductToDelete(null)}>

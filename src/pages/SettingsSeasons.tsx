@@ -316,13 +316,25 @@ export default function SettingsSeasons() {
                 />
               </div>
             </div>
+            {seasons && seasons.length > 0 && (
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="duplicate-products"
+                  checked={duplicateProducts}
+                  onCheckedChange={(checked) => setDuplicateProducts(!!checked)}
+                />
+                <Label htmlFor="duplicate-products" className="text-sm font-normal">
+                  Produkte der letzten Saison übernehmen
+                </Label>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsSeasonModalOpen(false)}>
               Abbrechen
             </Button>
-            <Button onClick={handleCreateSeason} disabled={createSeason.isPending}>
-              {createSeason.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+            <Button onClick={handleCreateSeason} disabled={createSeasonWithProducts.isPending}>
+              {createSeasonWithProducts.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Erstellen
             </Button>
           </DialogFooter>
