@@ -92,6 +92,66 @@ export function EditInstructorModal({
   const updateInstructor = useUpdateInstructor(instructor.id);
   const [ibanValue, setIbanValue] = useState("");
   const [ahvValue, setAhvValue] = useState("");
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Initialize avatar URL from instructor
+  useEffect(() => {
+    if (instructor?.avatar_url) {
+      setAvatarUrl(instructor.avatar_url);
+    } else {
+      setAvatarUrl(null);
+    }
+  }, [instructor]);
+
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      toast.error("Bitte wähle eine Bilddatei aus.");
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Das Bild darf maximal 5 MB gross sein.");
+      return;
+    }
+
+    setIsUploadingAvatar(true);
+    try {
+      const fileExt = file.name.split(".").pop();
+      const filePath = `${instructor.id}.${fileExt}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("instructor-avatars")
+        .upload(filePath, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from("instructor-avatars")
+        .getPublicUrl(filePath);
+
+      // Add cache-buster to force refresh
+      const urlWithCacheBust = `${publicUrl}?t=${Date.now()}`;
+
+      await updateInstructor.mutateAsync({ avatar_url: publicUrl });
+      setAvatarUrl(urlWithCacheBust);
+      toast.success("Profilbild aktualisiert");
+    } catch (err) {
+      console.error("Avatar upload error:", err);
+      toast.error("Fehler beim Hochladen des Profilbilds");
+    } finally {
+      setIsUploadingAvatar(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  const getInitials = () => {
+    return `${instructor.first_name?.charAt(0) || ""}${instructor.last_name?.charAt(0) || ""}`.toUpperCase();
+  };
 
   const {
     register,
