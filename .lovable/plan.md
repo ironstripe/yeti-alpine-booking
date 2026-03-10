@@ -1,38 +1,70 @@
 
 
-# Fix: Instructor Avatar Upload - HEIC Format Issue
+# Fix: Auto-Select Newly Created Participants in Booking Wizard
+
+## Problem
+When creating a new participant in the "Slot konfigurieren" panel (SlotBookingPopover), the participant appears in the list but is NOT automatically selected (checkbox unchecked). The user must manually click the participant before clicking "In den Warenkorb". If they don't realize this, the cart item has no participants assigned, and "Weiter zum Kunden" stays disabled.
 
 ## Root Cause
-The uploaded image is in HEIC format (Apple's native format) but saved with a `.jpeg` extension. Browsers cannot display HEIC files. The file input uses `accept="image/*"` which allows iOS to send raw HEIC without conversion.
+`addLocalParticipant()` generates the participant ID internally using `crypto.randomUUID()`. The SlotBookingPopover cannot predict this ID to auto-add it to `selectedParticipantIds`.
 
 ## Solution
+Generate the ID **before** calling `addLocalParticipant`, so the popover can immediately add it to the selected list.
 
-**File: `src/components/instructors/EditInstructorModal.tsx`**
+### Changes
 
-Two changes:
+**File 1: `src/contexts/BookingWizardContext.tsx`**
+- Modify `addLocalParticipant` to accept a full `LocalParticipant` (including `id`) instead of `Omit<LocalParticipant, "id">`
+- This allows the caller to control the ID generation
 
-1. **Restrict accepted formats** on the file input to `accept="image/jpeg,image/png,image/webp"` instead of `accept="image/*"`. This tells iOS to automatically convert HEIC to JPEG before passing the file to the browser.
+**File 2: `src/components/bookings/wizard/SlotBookingPopover.tsx`**
+- In `handleCreateLocalParticipant`:
+  1. Generate the ID upfront: `const id = "local-" + crypto.randomUUID()`
+  2. Pass the full participant (with id) to `addLocalParticipant`
+  3. Immediately add the ID to `selectedParticipantIds` so the participant is auto-selected
 
-2. **Force correct content type** in the upload call by explicitly setting `contentType` based on `file.type`, and always use a consistent extension derived from the MIME type (not from the filename). This prevents MIME/extension mismatches.
+### Technical Details
 
+In `BookingWizardContext.tsx`, change the signature and implementation:
 ```typescript
-// Derive extension from MIME type, not filename
-const extMap: Record<string, string> = {
-  'image/jpeg': 'jpg',
-  'image/png': 'png', 
-  'image/webp': 'webp',
-};
-const fileExt = extMap[file.type] || 'jpg';
-const filePath = `${instructor.id}.${fileExt}`;
-
-await supabase.storage
-  .from("instructor-avatars")
-  .upload(filePath, file, { 
-    upsert: true, 
-    contentType: file.type 
+// Before
+const addLocalParticipant = (participant: Omit<LocalParticipant, "id">) => {
+  setState((prev) => {
+    const newParticipant = { ...participant, id: `local-${crypto.randomUUID()}` };
+    return { ...prev, localParticipants: [...prev.localParticipants, newParticipant] };
   });
+};
+
+// After
+const addLocalParticipant = (participant: LocalParticipant) => {
+  setState((prev) => ({
+    ...prev,
+    localParticipants: [...prev.localParticipants, participant],
+  }));
+};
 ```
 
+In `SlotBookingPopover.tsx`:
+```typescript
+const handleCreateLocalParticipant = () => {
+  const id = `local-${crypto.randomUUID()}`;
+  addLocalParticipant({
+    id,
+    first_name: newParticipant.first_name,
+    last_name: newParticipant.last_name || null,
+    birth_date: newParticipant.birth_date || "2015-01-01",
+    skill_level: newParticipant.skill_level || null,
+    sport: (sport || "ski") as "ski" | "snowboard",
+  });
+  // Auto-select the new participant
+  setSelectedParticipantIds((prev) => [...prev, id]);
+  resetNewParticipantForm();
+};
+```
+
+Also update the type signature in the context interface from `Omit<LocalParticipant, "id">` to `LocalParticipant`.
+
 ## Files Modified
-1. `src/components/instructors/EditInstructorModal.tsx` — restrict accept types, use MIME-based extension, set explicit contentType
+1. `src/contexts/BookingWizardContext.tsx` -- change `addLocalParticipant` signature to accept full object with `id`
+2. `src/components/bookings/wizard/SlotBookingPopover.tsx` -- generate ID upfront and auto-select new participant
 
