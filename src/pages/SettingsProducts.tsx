@@ -24,8 +24,16 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useProducts, useDeleteProduct, ProductWithTiers } from "@/hooks/useProducts";
+import { useSeasons, useCurrentSeason } from "@/hooks/useSeasons";
 import { ProductFormModal } from "@/components/settings/ProductFormModal";
 import { getProductPriceDisplay, formatPriceCHF } from "@/lib/pricing-utils";
 import {
@@ -64,7 +72,14 @@ const pricingTypeLabels: Record<string, { label: string; icon: string }> = {
 };
 
 export default function SettingsProducts() {
-  const { data: products, isLoading } = useProducts();
+  const { data: seasons } = useSeasons();
+  const { data: currentSeason } = useCurrentSeason();
+  const [selectedSeasonId, setSelectedSeasonId] = useState<string | undefined>(undefined);
+
+  // Use current season as default once loaded
+  const activeSeasonId = selectedSeasonId || currentSeason?.id;
+
+  const { data: products, isLoading } = useProducts({ seasonId: activeSeasonId });
   const deleteProduct = useDeleteProduct();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<ProductWithTiers | null>(null);
@@ -106,7 +121,26 @@ export default function SettingsProducts() {
   return (
     <SettingsLayout title="Produkte" description="Verwalte die buchbaren Leistungen">
       <div className="space-y-4">
-        <div className="flex justify-end">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            {seasons && seasons.length > 0 && (
+              <Select
+                value={activeSeasonId || ""}
+                onValueChange={setSelectedSeasonId}
+              >
+                <SelectTrigger className="w-[200px]">
+                  <SelectValue placeholder="Saison wählen" />
+                </SelectTrigger>
+                <SelectContent>
+                  {seasons.map((s) => (
+                    <SelectItem key={s.id} value={s.id}>
+                      {s.name} {s.is_current && "✦"}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          </div>
           <Button onClick={handleCreate}>
             <Plus className="h-4 w-4 mr-2" />
             Neues Produkt
@@ -255,6 +289,7 @@ export default function SettingsProducts() {
         open={isModalOpen}
         onOpenChange={handleCloseModal}
         product={selectedProduct}
+        seasonId={activeSeasonId}
       />
 
       <AlertDialog open={!!productToDelete} onOpenChange={() => setProductToDelete(null)}>

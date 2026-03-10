@@ -204,3 +204,74 @@ export function useDeleteHighSeasonPeriod() {
     },
   });
 }
+
+export function useCreateSeasonWithProducts() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (data: {
+      name: string;
+      start_date: string;
+      end_date: string;
+      is_current?: boolean;
+      duplicateProducts?: boolean;
+    }) => {
+      const { duplicateProducts = true, ...seasonData } = data;
+
+      // If this season is current, unset others first
+      if (seasonData.is_current) {
+        await supabase.from("seasons").update({ is_current: false }).eq("is_current", true);
+      }
+
+      // Create the new season
+      const { data: season, error } = await supabase
+        .from("seasons")
+        .insert(seasonData)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      let duplicatedCount = 0;
+
+      if (duplicateProducts) {
+        // Find the most recent previous season
+        const { data: previousSeasons } = await supabase
+          .from("seasons")
+          .select("id")
+          .neq("id", season.id)
+          .order("start_date", { ascending: false })
+          .limit(1);
+
+        if (previousSeasons && previousSeasons.length > 0) {
+          const { data: result, error: rpcError } = await supabase.rpc(
+            "duplicate_products_for_season",
+            {
+              p_source_season_id: previousSeasons[0].id,
+              p_target_season_id: season.id,
+            }
+          );
+
+          if (rpcError) throw rpcError;
+          duplicatedCount = result as number;
+        }
+      }
+
+      return { season, duplicatedCount };
+    },
+    onSuccess: ({ duplicatedCount }) => {
+      queryClient.invalidateQueries({ queryKey: ["seasons"] });
+      queryClient.invalidateQueries({ queryKey: ["current-season"] });
+      queryClient.invalidateQueries({ queryKey: ["products"] });
+      if (duplicatedCount > 0) {
+        toast.success(`Saison erstellt – ${duplicatedCount} Produkte übernommen`);
+      } else {
+        toast.success("Saison erstellt");
+      }
+    },
+    onError: (error) => {
+      console.error("Error creating season with products:", error);
+      toast.error("Fehler beim Erstellen");
+    },
+  });
+}

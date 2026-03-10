@@ -29,6 +29,7 @@ import { ParticipantBookingCard } from "./ParticipantBookingCard";
 import { BookingTimeGrid } from "./BookingTimeGrid";
 import { PrivateGroupProposal } from "./PrivateGroupProposal";
 import { usePrivateLessonRates, useHighSeasonPeriods } from "@/hooks/usePrivateLessonRates";
+import { useCurrentSeason } from "@/hooks/useSeasons";
 import {
   calculatePrivateLessonPrice,
   formatCHF,
@@ -70,18 +71,26 @@ export function Step2ProductDates() {
   const [startTime, setStartTime] = useState<string | null>(null);
   const [endTime, setEndTime] = useState<string | null>(null);
 
-  // Fetch products from database
+  // Fetch current season for product filtering
+  const { data: currentSeason } = useCurrentSeason();
+
+  // Fetch products from database (filtered by current season)
   const { data: products = [], isLoading } = useQuery({
-    queryKey: ["products"],
+    queryKey: ["products", "active", currentSeason?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from("products")
         .select("*")
         .eq("is_active", true)
         .order("sort_order");
+      if (currentSeason?.id) {
+        query = query.eq("season_id", currentSeason.id);
+      }
+      const { data, error } = await query;
       if (error) throw error;
       return data;
     },
+    enabled: !!currentSeason?.id,
   });
 
   // Fetch private lesson rates and high season periods

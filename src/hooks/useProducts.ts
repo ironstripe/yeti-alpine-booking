@@ -16,6 +16,7 @@ interface UseProductsOptions {
   isTrainingProduct?: boolean;
   isActive?: boolean;
   includeTiers?: boolean;
+  seasonId?: string;
 }
 
 export function useProducts(options?: UseProductsOptions) {
@@ -35,6 +36,9 @@ export function useProducts(options?: UseProductsOptions) {
       }
       if (options?.isActive !== undefined) {
         query = query.eq("is_active", options.isActive);
+      }
+      if (options?.seasonId) {
+        query = query.eq("season_id", options.seasonId);
       }
 
       const { data: products, error } = await query;

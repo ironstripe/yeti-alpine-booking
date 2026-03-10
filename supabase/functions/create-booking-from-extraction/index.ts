@@ -400,27 +400,38 @@ serve(async (req) => {
       }
     }
 
-    // 5. Find appropriate product
+    // 5. Find appropriate product (filtered by current season)
     const bookingData = extractedData.booking || {};
     const productType = bookingData.product_type || "private";
+
+    // Get current season
+    const { data: currentSeason } = await supabase
+      .from("seasons")
+      .select("id")
+      .eq("is_current", true)
+      .maybeSingle();
     
-    const { data: product } = await supabase
+    let productQuery = supabase
       .from("products")
       .select("id, price, name, type")
       .eq("type", productType)
-      .eq("is_active", true)
-      .limit(1)
-      .maybeSingle();
+      .eq("is_active", true);
+    if (currentSeason?.id) {
+      productQuery = productQuery.eq("season_id", currentSeason.id);
+    }
+    const { data: product } = await productQuery.limit(1).maybeSingle();
 
     // Fallback to any active product if specific type not found
     let selectedProduct = product;
     if (!selectedProduct) {
-      const { data: fallbackProduct } = await supabase
+      let fallbackQuery = supabase
         .from("products")
         .select("id, price, name, type")
-        .eq("is_active", true)
-        .limit(1)
-        .single();
+        .eq("is_active", true);
+      if (currentSeason?.id) {
+        fallbackQuery = fallbackQuery.eq("season_id", currentSeason.id);
+      }
+      const { data: fallbackProduct } = await fallbackQuery.limit(1).single();
       selectedProduct = fallbackProduct;
     }
 

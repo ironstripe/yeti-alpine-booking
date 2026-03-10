@@ -65,9 +65,10 @@ interface ProductFormModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   product: ProductWithTiers | null;
+  seasonId?: string;
 }
 
-export function ProductFormModal({ open, onOpenChange, product }: ProductFormModalProps) {
+export function ProductFormModal({ open, onOpenChange, product, seasonId }: ProductFormModalProps) {
   const createProduct = useCreateProduct();
   const updateProduct = useUpdateProduct();
   const isEditing = !!product;
@@ -169,6 +170,11 @@ export function ProductFormModal({ open, onOpenChange, product }: ProductFormMod
       is_active: data.is_active,
       is_training_product: data.is_training_product,
     };
+
+    // Include season_id for new products
+    if (!isEditing && seasonId) {
+      payload.season_id = seasonId;
+    }
 
     if (data.pricing_type === "tiered") {
       payload.price_tiers = data.price_tiers.filter(t => t.cumulative_price > 0);
