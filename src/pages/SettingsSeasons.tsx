@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
   Dialog,
@@ -21,10 +22,10 @@ import {
   useSeasons,
   useCurrentSeason,
   useHighSeasonPeriods,
-  useCreateSeason,
   useUpdateSeason,
   useCreateHighSeasonPeriod,
   useDeleteHighSeasonPeriod,
+  useCreateSeasonWithProducts,
 } from "@/hooks/useSeasons";
 
 export default function SettingsSeasons() {
@@ -32,7 +33,7 @@ export default function SettingsSeasons() {
   const { data: currentSeason } = useCurrentSeason();
   const { data: highSeasonPeriods, isLoading: periodsLoading } = useHighSeasonPeriods(currentSeason?.id);
   
-  const createSeason = useCreateSeason();
+  const createSeasonWithProducts = useCreateSeasonWithProducts();
   const updateSeason = useUpdateSeason();
   const createPeriod = useCreateHighSeasonPeriod();
   const deletePeriod = useDeleteHighSeasonPeriod();
@@ -40,21 +41,24 @@ export default function SettingsSeasons() {
   const [isSeasonModalOpen, setIsSeasonModalOpen] = useState(false);
   const [isPeriodModalOpen, setIsPeriodModalOpen] = useState(false);
   const [seasonForm, setSeasonForm] = useState({ name: "", start_date: "", end_date: "" });
+  const [duplicateProducts, setDuplicateProducts] = useState(true);
   const [periodForm, setPeriodForm] = useState({ name: "", start_date: "", end_date: "" });
 
   const isLoading = seasonsLoading || periodsLoading;
 
   const handleCreateSeason = () => {
     if (!seasonForm.name || !seasonForm.start_date || !seasonForm.end_date) return;
-    createSeason.mutate({
+    createSeasonWithProducts.mutate({
       name: seasonForm.name,
       start_date: seasonForm.start_date,
       end_date: seasonForm.end_date,
       is_current: !currentSeason,
+      duplicateProducts,
     }, {
       onSuccess: () => {
         setIsSeasonModalOpen(false);
         setSeasonForm({ name: "", start_date: "", end_date: "" });
+        setDuplicateProducts(true);
       }
     });
   };
