@@ -65,9 +65,10 @@ interface ProductFormModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   product: ProductWithTiers | null;
+  seasonId?: string;
 }
 
-export function ProductFormModal({ open, onOpenChange, product }: ProductFormModalProps) {
+export function ProductFormModal({ open, onOpenChange, product, seasonId }: ProductFormModalProps) {
   const createProduct = useCreateProduct();
   const updateProduct = useUpdateProduct();
   const isEditing = !!product;
