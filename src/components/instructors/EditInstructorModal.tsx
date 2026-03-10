@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -21,7 +21,8 @@ import {
 } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { Check, Loader2 } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Check, Loader2, Camera } from "lucide-react";
 import { useUpdateInstructor } from "@/hooks/useUpdateInstructor";
 import { normalizePhoneNumber } from "@/lib/phone-utils";
 import {
@@ -33,6 +34,8 @@ import {
   STATUS_OPTIONS,
 } from "@/lib/instructor-utils";
 import { RoleSelector, getDisciplineFromRoles, hasTeachingRole, getRolesFromSpecialization } from "./RoleSelector";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 import type { Tables } from "@/integrations/supabase/types";
 
 const GENDER_OPTIONS = [
