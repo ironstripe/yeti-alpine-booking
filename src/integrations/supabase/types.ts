@@ -2924,6 +2924,7 @@ export type Database = {
           name: string
           price: number
           pricing_type: string | null
+          season_id: string
           sort_order: number | null
           type: string
           vat_rate: number | null
@@ -2941,6 +2942,7 @@ export type Database = {
           name: string
           price: number
           pricing_type?: string | null
+          season_id: string
           sort_order?: number | null
           type: string
           vat_rate?: number | null
@@ -2958,11 +2960,20 @@ export type Database = {
           name?: string
           price?: number
           pricing_type?: string | null
+          season_id?: string
           sort_order?: number | null
           type?: string
           vat_rate?: number | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "products_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "seasons"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       refund_requests: {
         Row: {
@@ -3815,6 +3826,7 @@ export type Database = {
           paid_amount: number | null
           payment_due_date: string | null
           payment_method: string | null
+          season_id: string | null
           share_participant_count: number | null
           skip_documents: boolean | null
           status: string | null
@@ -3839,6 +3851,7 @@ export type Database = {
           paid_amount?: number | null
           payment_due_date?: string | null
           payment_method?: string | null
+          season_id?: string | null
           share_participant_count?: number | null
           skip_documents?: boolean | null
           status?: string | null
@@ -3863,6 +3876,7 @@ export type Database = {
           paid_amount?: number | null
           payment_due_date?: string | null
           payment_method?: string | null
+          season_id?: string | null
           share_participant_count?: number | null
           skip_documents?: boolean | null
           status?: string | null
@@ -3892,6 +3906,13 @@ export type Database = {
             columns: ["master_booking_id"]
             isOneToOne: false
             referencedRelation: "master_bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tickets_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "seasons"
             referencedColumns: ["id"]
           },
         ]
@@ -4389,6 +4410,10 @@ export type Database = {
           p_target_group_id: string
         }
         Returns: Json
+      }
+      duplicate_products_for_season: {
+        Args: { p_source_season_id: string; p_target_season_id: string }
+        Returns: number
       }
       generate_group_course_instances_for_week: {
         Args: { p_week_start_date: string }
