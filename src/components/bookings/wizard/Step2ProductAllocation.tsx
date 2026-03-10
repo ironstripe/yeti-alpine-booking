@@ -52,6 +52,7 @@ import {
   canSelectAlternativeMeetingPoint,
 } from "@/lib/meeting-point-utils";
 import { LEVEL_OPTIONS, mapLevelToCourseSkill, getLevelLabel } from "@/lib/level-utils";
+import { useCurrentSeason } from "@/hooks/useSeasons";
 import {
   getGroupRecommendationForParticipants,
   formatGroupTimes,
