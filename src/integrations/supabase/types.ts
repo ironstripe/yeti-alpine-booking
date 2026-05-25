@@ -217,6 +217,66 @@ export type Database = {
           },
         ]
       }
+      booking_consents: {
+        Row: {
+          accepted_at: string
+          agb_accepted: boolean
+          agb_version: string
+          created_at: string
+          id: string
+          ip_address: string | null
+          privacy_accepted: boolean
+          privacy_version: string
+          raw_payload: Json | null
+          source: string
+          ticket_id: string
+          user_agent: string | null
+        }
+        Insert: {
+          accepted_at: string
+          agb_accepted: boolean
+          agb_version: string
+          created_at?: string
+          id?: string
+          ip_address?: string | null
+          privacy_accepted: boolean
+          privacy_version: string
+          raw_payload?: Json | null
+          source: string
+          ticket_id: string
+          user_agent?: string | null
+        }
+        Update: {
+          accepted_at?: string
+          agb_accepted?: boolean
+          agb_version?: string
+          created_at?: string
+          id?: string
+          ip_address?: string | null
+          privacy_accepted?: boolean
+          privacy_version?: string
+          raw_payload?: Json | null
+          source?: string
+          ticket_id?: string
+          user_agent?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "booking_consents_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "pending_booking_confirmations"
+            referencedColumns: ["ticket_id"]
+          },
+          {
+            foreignKeyName: "booking_consents_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "tickets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       booking_requests: {
         Row: {
           converted_ticket_id: string | null
@@ -4419,6 +4479,7 @@ export type Database = {
         Args: { p_week_start_date: string }
         Returns: Json
       }
+      generate_ticket_number: { Args: never; Returns: string }
       generate_training_groups_for_week: {
         Args: { p_week_start: string }
         Returns: Json
