@@ -50,3 +50,6 @@ verify_jwt = false
 
 [functions.check-instructor-availability]
 verify_jwt = false
+
+[functions.intake-booking]
+verify_jwt = false
