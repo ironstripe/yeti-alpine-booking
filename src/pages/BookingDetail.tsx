@@ -29,6 +29,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { BookingStatusBadge } from "@/components/bookings/BookingStatusBadge";
+import { BookingSourceBadge } from "@/components/bookings/BookingSourceBadge";
 import { Separator } from "@/components/ui/separator";
 import {
   Dialog,
