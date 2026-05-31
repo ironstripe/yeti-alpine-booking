@@ -12,6 +12,7 @@ import {
 import { TicketWithDetails } from "@/hooks/useTickets";
 import { BookingStatusBadge } from "./BookingStatusBadge";
 import { BookingActionsMenu } from "./BookingActionsMenu";
+import { BookingSourceBadge } from "./BookingSourceBadge";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 
