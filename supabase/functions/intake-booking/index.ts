@@ -177,25 +177,41 @@ Deno.serve(async (req) => {
       return json({ error: "No active product found for type " + data.booking.product_type }, 400);
     }
 
-    // 4. Generate ticket number
-    const { data: ticketNumberData, error: tnErr } = await supabase.rpc("generate_ticket_number");
-    if (tnErr) throw new Error(`ticket_number: ${tnErr.message}`);
-    const ticketNumber = ticketNumberData as string;
+    // 4-5. Generate ticket number + create ticket with retry on unique-conflict (race-safe)
+    let ticket: { id: string; ticket_number: string } | null = null;
+    let lastErr: string | null = null;
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const { data: ticketNumberData, error: tnErr } = await supabase.rpc("generate_ticket_number");
+      if (tnErr) throw new Error(`ticket_number: ${tnErr.message}`);
+      const ticketNumber = ticketNumberData as string;
 
-    // 5. Create ticket
-    const { data: ticket, error: tErr } = await supabase
-      .from("tickets")
-      .insert({
-        ticket_number: ticketNumber,
-        customer_id: customerId,
-        status: "unconfirmed",
-        notes: data.booking.notes ?? null,
-        ticket_type: "standard",
-        source: data.source,
-      })
-      .select("id, ticket_number")
-      .single();
-    if (tErr) throw new Error(`ticket insert: ${tErr.message}`);
+      const { data: t, error: tErr } = await supabase
+        .from("tickets")
+        .insert({
+          ticket_number: ticketNumber,
+          customer_id: customerId,
+          status: "unconfirmed",
+          notes: data.booking.notes ?? null,
+          ticket_type: "standard",
+          source: data.source,
+        })
+        .select("id, ticket_number")
+        .single();
+
+      if (!tErr) {
+        ticket = t as { id: string; ticket_number: string };
+        break;
+      }
+      lastErr = tErr.message;
+      // Retry only on unique-violation (duplicate ticket_number race)
+      if (!/duplicate key|tickets_ticket_number_key|23505/i.test(tErr.message)) {
+        throw new Error(`ticket insert: ${tErr.message}`);
+      }
+      // Small jittered backoff before retry
+      await new Promise((r) => setTimeout(r, 50 + Math.floor(Math.random() * 100)));
+    }
+    if (!ticket) throw new Error(`ticket insert failed after retries: ${lastErr}`);
+
 
     // 6. Create ticket_items (one per date × participant for private, or per date with group for group)
     const itemsToInsert: any[] = [];
