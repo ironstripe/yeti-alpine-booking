@@ -29,6 +29,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { BookingStatusBadge } from "@/components/bookings/BookingStatusBadge";
+import { BookingSourceBadge } from "@/components/bookings/BookingSourceBadge";
 import { Separator } from "@/components/ui/separator";
 import {
   Dialog,
@@ -247,7 +248,8 @@ const BookingDetail = () => {
         title={`Buchung ${ticket.ticket_number}`}
         description={`${ticket.customer?.first_name || ''} ${ticket.customer?.last_name || ''} · ${ticket.customer?.email || ''}`}
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <BookingSourceBadge source={(ticket as any).source} />
             {fromScheduler && (
               <Button 
                 variant="default"

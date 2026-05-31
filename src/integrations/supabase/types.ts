@@ -3889,6 +3889,7 @@ export type Database = {
           season_id: string | null
           share_participant_count: number | null
           skip_documents: boolean | null
+          source: string
           status: string | null
           ticket_number: string
           ticket_type: string | null
@@ -3914,6 +3915,7 @@ export type Database = {
           season_id?: string | null
           share_participant_count?: number | null
           skip_documents?: boolean | null
+          source?: string
           status?: string | null
           ticket_number: string
           ticket_type?: string | null
@@ -3939,6 +3941,7 @@ export type Database = {
           season_id?: string | null
           share_participant_count?: number | null
           skip_documents?: boolean | null
+          source?: string
           status?: string | null
           ticket_number?: string
           ticket_type?: string | null

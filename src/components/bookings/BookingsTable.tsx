@@ -12,6 +12,7 @@ import {
 import { TicketWithDetails } from "@/hooks/useTickets";
 import { BookingStatusBadge } from "./BookingStatusBadge";
 import { BookingActionsMenu } from "./BookingActionsMenu";
+import { BookingSourceBadge } from "./BookingSourceBadge";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 
@@ -132,8 +133,11 @@ export function BookingsTable({
 
               {isColumnVisible("ticket") && (
                 <TableCell>
-                  <div className="font-medium text-primary">
-                    {ticket.ticket_number}
+                  <div className="flex items-center gap-2">
+                    <div className="font-medium text-primary">
+                      {ticket.ticket_number}
+                    </div>
+                    <BookingSourceBadge source={ticket.source} />
                   </div>
                   <div className="text-xs text-muted-foreground">
                     {ticket.participantCount} Teilnehmer
