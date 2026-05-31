@@ -248,7 +248,8 @@ const BookingDetail = () => {
         title={`Buchung ${ticket.ticket_number}`}
         description={`${ticket.customer?.first_name || ''} ${ticket.customer?.last_name || ''} · ${ticket.customer?.email || ''}`}
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <BookingSourceBadge source={(ticket as any).source} />
             {fromScheduler && (
               <Button 
                 variant="default"
