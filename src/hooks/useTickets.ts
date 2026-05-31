@@ -45,6 +45,7 @@ export interface TicketWithDetails {
   payment_method: string | null;
   notes: string | null;
   internal_notes: string | null;
+  source: string | null;
   created_at: string;
   updated_at: string;
   customer: {
