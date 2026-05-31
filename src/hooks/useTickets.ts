@@ -134,6 +134,7 @@ function computeTicketDetails(ticket: any): TicketWithDetails {
     payment_method: ticket.payment_method,
     notes: ticket.notes,
     internal_notes: ticket.internal_notes,
+    source: ticket.source ?? null,
     created_at: ticket.created_at,
     updated_at: ticket.updated_at,
     customer: {
