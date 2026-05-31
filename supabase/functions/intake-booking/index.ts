@@ -191,6 +191,7 @@ Deno.serve(async (req) => {
         status: "unconfirmed",
         notes: data.booking.notes ?? null,
         ticket_type: "standard",
+        source: data.source,
       })
       .select("id, ticket_number")
       .single();
