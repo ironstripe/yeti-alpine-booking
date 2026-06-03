@@ -447,7 +447,20 @@ serve(async (req) => {
     }
 
     // 6. Generate ticket number
-    const ticketNumber = `T-${new Date().getFullYear()}-${Date.now().toString().slice(-6)}`;
+    const { data: generatedTicketNumber, error: ticketNumberError } = await supabase.rpc("generate_ticket_number");
+    if (ticketNumberError || !generatedTicketNumber) {
+      console.error("Failed to generate ticket number:", ticketNumberError);
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: "Ticketnummer konnte nicht erzeugt werden.",
+          code: "TICKET_NUMBER_FAILED"
+        }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const ticketNumber = generatedTicketNumber as string;
 
     // 7. Parse dates from various formats
     let dates: Array<{ date: string; start_time?: string; end_time?: string }> = [];
