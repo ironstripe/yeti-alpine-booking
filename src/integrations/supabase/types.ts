@@ -3870,6 +3870,27 @@ export type Database = {
           },
         ]
       }
+      ticket_number_counters: {
+        Row: {
+          created_at: string
+          last_number: number
+          updated_at: string
+          year: number
+        }
+        Insert: {
+          created_at?: string
+          last_number?: number
+          updated_at?: string
+          year: number
+        }
+        Update: {
+          created_at?: string
+          last_number?: number
+          updated_at?: string
+          year?: number
+        }
+        Relationships: []
+      }
       tickets: {
         Row: {
           camp_end_date: string | null
