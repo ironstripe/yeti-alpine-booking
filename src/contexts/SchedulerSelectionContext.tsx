@@ -15,6 +15,7 @@ export interface DragState {
   isDragging: boolean;
   instructorId: string | null;
   date: string | null;
+  currentDate: string | null;
   startTime: string | null;
   currentTime: string | null;
   isBlocked: boolean;
@@ -56,7 +57,7 @@ interface SchedulerSelectionContextType {
   setIsResizing: (isResizing: boolean, slotId?: string) => void;
   getTotalHours: () => number;
   startDrag: (instructorId: string, date: string, startTime: string) => void;
-  updateDrag: (currentTime: string, isBlocked: boolean) => void;
+  updateDrag: (currentTime: string, isBlocked: boolean, currentDate?: string) => void;
   endDrag: (bookings: SchedulerBooking[], absences: SchedulerAbsence[]) => void;
   cancelDrag: () => void;
   shiftClickSelect: (
@@ -85,6 +86,22 @@ function generateSlotId(): string {
 function timeToMinutes(time: string): number {
   const [hours, minutes] = time.split(":").map(Number);
   return hours * 60 + (minutes || 0);
+}
+
+/** Inclusive list of ISO dates between two dates (either order) */
+function getDateRange(dateA: string, dateB: string): string[] {
+  const start = dateA <= dateB ? dateA : dateB;
+  const end = dateA <= dateB ? dateB : dateA;
+  const dates: string[] = [];
+  const cursor = new Date(`${start}T00:00:00`);
+  const last = new Date(`${end}T00:00:00`);
+  while (cursor <= last && dates.length < 31) {
+    dates.push(
+      `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, "0")}-${String(cursor.getDate()).padStart(2, "0")}`
+    );
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return dates;
 }
 
 function minutesToTime(minutes: number): string {
@@ -173,6 +190,7 @@ const initialDragState: DragState = {
   isDragging: false,
   instructorId: null,
   date: null,
+  currentDate: null,
   startTime: null,
   currentTime: null,
   isBlocked: false,
@@ -382,6 +400,7 @@ export function SchedulerSelectionProvider({ children }: { children: ReactNode }
         isDragging: true,
         instructorId,
         date,
+        currentDate: date,
         startTime,
         currentTime: startTime,
         isBlocked: false,
@@ -389,7 +408,7 @@ export function SchedulerSelectionProvider({ children }: { children: ReactNode }
     }));
   }, [state.teacherId]);
 
-  const updateDrag = useCallback((currentTime: string, isBlocked: boolean) => {
+  const updateDrag = useCallback((currentTime: string, isBlocked: boolean, currentDate?: string) => {
     setState((prev) => {
       if (!prev.drag.isDragging) return prev;
       return {
@@ -397,6 +416,7 @@ export function SchedulerSelectionProvider({ children }: { children: ReactNode }
         drag: {
           ...prev.drag,
           currentTime,
+          currentDate: currentDate ?? prev.drag.currentDate ?? prev.drag.date,
           isBlocked,
         },
       };
@@ -409,35 +429,25 @@ export function SchedulerSelectionProvider({ children }: { children: ReactNode }
         return { ...prev, drag: initialDragState };
       }
 
-      const { instructorId, date, startTime, currentTime, isBlocked } = prev.drag;
-      
+      const { instructorId, date, currentDate, startTime, currentTime, isBlocked } = prev.drag;
+
       if (isBlocked) {
         return { ...prev, drag: initialDragState };
       }
 
-      // Check if date is in the past
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const slotDate = new Date(date);
-      slotDate.setHours(0, 0, 0, 0);
-      
-      if (slotDate < today) {
-        return { ...prev, drag: initialDragState };
-      }
-
-      // Calculate the range (handle drag in either direction)
+      // Calculate the time range (handle drag in either direction)
       const startMinutes = timeToMinutes(startTime);
       const currentMinutes = timeToMinutes(currentTime);
-      
+
       const rangeStart = Math.min(startMinutes, currentMinutes);
       const rangeEnd = Math.max(startMinutes, currentMinutes) + 60; // Add 1 hour for end slot
-      
+
       // Clamp to operational hours
       const clampedStart = Math.max(rangeStart, OPERATIONAL_START_MINUTES);
       const clampedEnd = Math.min(rangeEnd, OPERATIONAL_END_MINUTES);
-      
+
       const duration = clampedEnd - clampedStart;
-      
+
       // Validate minimum duration
       if (duration < 60) {
         return { ...prev, drag: initialDragState };
@@ -446,53 +456,70 @@ export function SchedulerSelectionProvider({ children }: { children: ReactNode }
       const newStartTime = minutesToTime(clampedStart);
       const newEndTime = minutesToTime(clampedEnd);
 
-      // Check for conflicts
-      const hasBookingOverlap = bookings.some((b) => {
-        if (b.instructorId !== instructorId || b.date !== date) return false;
-        const bookingStart = timeToMinutes(b.timeStart);
-        const bookingEnd = timeToMinutes(b.timeEnd);
-        return clampedStart < bookingEnd && clampedEnd > bookingStart;
-      });
+      // Calculate the date range (vertical drag across consecutive days)
+      const dates = getDateRange(date, currentDate || date);
 
-      const isAbsent = absences.some(
-        (a) =>
-          a.instructorId === instructorId &&
-          date >= a.startDate &&
-          date <= a.endDate
-      );
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
 
-      const hasSelectionOverlap = prev.selections.some((s) => {
-        if (s.instructorId !== instructorId || s.date !== date) return false;
-        const selStart = timeToMinutes(s.startTime);
-        const selEnd = timeToMinutes(s.endTime);
-        return clampedStart < selEnd && clampedEnd > selStart;
-      });
+      const newSelections: SlotSelection[] = [];
 
-      if (hasBookingOverlap || isAbsent || hasSelectionOverlap) {
+      for (const d of dates) {
+        const dayDate = new Date(d);
+        dayDate.setHours(0, 0, 0, 0);
+        if (dayDate < today) continue;
+
+        const hasBookingOverlap = bookings.some((b) => {
+          if (b.instructorId !== instructorId || b.date !== d) return false;
+          const bookingStart = timeToMinutes(b.timeStart);
+          const bookingEnd = timeToMinutes(b.timeEnd);
+          return clampedStart < bookingEnd && clampedEnd > bookingStart;
+        });
+
+        const isAbsent = absences.some(
+          (a) =>
+            a.instructorId === instructorId &&
+            d >= a.startDate &&
+            d <= a.endDate
+        );
+
+        const hasSelectionOverlap = [...prev.selections, ...newSelections].some((sel) => {
+          if (sel.instructorId !== instructorId || sel.date !== d) return false;
+          const selStart = timeToMinutes(sel.startTime);
+          const selEnd = timeToMinutes(sel.endTime);
+          return clampedStart < selEnd && clampedEnd > selStart;
+        });
+
+        // Skip blocked days instead of aborting the whole range
+        if (hasBookingOverlap || isAbsent || hasSelectionOverlap) continue;
+
+        newSelections.push({
+          id: generateSlotId(),
+          instructorId,
+          date: d,
+          startTime: newStartTime,
+          endTime: newEndTime,
+          durationMinutes: duration,
+        });
+      }
+
+      if (newSelections.length === 0) {
         return { ...prev, drag: initialDragState };
       }
 
-      // Add the selection and set anchor for shift+click
-      const newSelection: SlotSelection = {
-        id: generateSlotId(),
-        instructorId,
-        date,
-        startTime: newStartTime,
-        endTime: newEndTime,
-        durationMinutes: duration,
-      };
+      const last = newSelections[newSelections.length - 1];
 
       return {
         ...prev,
         teacherId: instructorId,
-        selections: [...prev.selections, newSelection],
+        selections: [...prev.selections, ...newSelections],
         drag: initialDragState,
         anchorSlot: {
           instructorId,
-          date,
-          startTime: newStartTime,
-          endTime: newEndTime,
-          durationMinutes: duration,
+          date: last.date,
+          startTime: last.startTime,
+          endTime: last.endTime,
+          durationMinutes: last.durationMinutes,
         },
       };
     });
