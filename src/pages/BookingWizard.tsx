@@ -591,7 +591,8 @@ function BookingWizardContent() {
       </div>
 
       {/* Content */}
-      <main className="mx-auto max-w-5xl px-4 pb-4">
+      <main className="mx-auto max-w-5xl px-4 pb-4 space-y-4">
+        {state.currentStep === 1 && <SchedulerPrefillBanner />}
         {state.currentStep === 1 && <Step1ProductCart />}
         {state.currentStep === 2 && <Step2AssignCustomer />}
         {state.currentStep === 3 && <Step4Summary onEditStep={setCurrentStep} />}
