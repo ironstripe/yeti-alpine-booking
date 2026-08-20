@@ -18,6 +18,59 @@ export default function ResetPassword() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isVerifying, setIsVerifying] = useState(true);
+  const verificationComplete = useRef(false);
+
+  // Explicitly establish the recovery session from the URL
+  // (hash tokens or PKCE code) instead of relying on auto-detection.
+  useEffect(() => {
+    const establishSession = async () => {
+      if (verificationComplete.current) return;
+      verificationComplete.current = true;
+
+      try {
+        const hash = window.location.hash.startsWith("#")
+          ? window.location.hash.substring(1)
+          : "";
+        const hashParams = new URLSearchParams(hash);
+        const accessToken = hashParams.get("access_token");
+        const refreshToken = hashParams.get("refresh_token");
+
+        const queryParams = new URLSearchParams(window.location.search);
+        const code = queryParams.get("code");
+        const errorDescription =
+          hashParams.get("error_description") || queryParams.get("error_description");
+
+        if (errorDescription) {
+          console.error("ResetPassword: link error", errorDescription);
+        } else if (accessToken && refreshToken) {
+          const { error: sessionError } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          });
+          if (sessionError) {
+            console.error("ResetPassword: setSession failed", sessionError);
+          } else {
+            window.history.replaceState(null, "", window.location.pathname);
+          }
+        } else if (code) {
+          const { error: exchangeError } =
+            await supabase.auth.exchangeCodeForSession(code);
+          if (exchangeError) {
+            console.error("ResetPassword: code exchange failed", exchangeError);
+          } else {
+            window.history.replaceState(null, "", window.location.pathname);
+          }
+        }
+      } catch (err) {
+        console.error("ResetPassword: error establishing session", err);
+      } finally {
+        setIsVerifying(false);
+      }
+    };
+
+    establishSession();
+  }, []);
 
   const validatePassword = () => {
     if (password.length < 6) {
