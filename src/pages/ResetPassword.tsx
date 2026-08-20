@@ -122,7 +122,7 @@ export default function ResetPassword() {
   };
 
   // Show loading while checking auth or verifying recovery tokens
-  if (authLoading) {
+  if (authLoading || isVerifying) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4">
