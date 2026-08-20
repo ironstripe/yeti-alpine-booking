@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import { ArrowLeft, X, RefreshCw } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { SchedulerPrefillBanner } from "@/components/bookings/wizard/SchedulerPrefillBanner";
 import { cn } from "@/lib/utils";
 
 import { supabase } from "@/integrations/supabase/client";
