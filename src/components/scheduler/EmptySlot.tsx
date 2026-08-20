@@ -90,10 +90,15 @@ export function EmptySlot({
   // Check if this slot is within the drag preview range
   const isInDragRange = useCallback(() => {
     const { drag } = state;
-    if (!drag.isDragging || drag.instructorId !== instructorId || drag.date !== date) {
+    if (!drag.isDragging || drag.instructorId !== instructorId) {
       return false;
     }
-    if (!drag.startTime || !drag.currentTime) return false;
+    if (!drag.date || !drag.startTime || !drag.currentTime) return false;
+
+    // Vertical multi-day range: slot date must lie between drag start and current date
+    const dragDateStart = drag.currentDate && drag.currentDate < drag.date ? drag.currentDate : drag.date;
+    const dragDateEnd = drag.currentDate && drag.currentDate > drag.date ? drag.currentDate : drag.date;
+    if (date < dragDateStart || date > dragDateEnd) return false;
     
     const startMin = timeToMinutes(drag.startTime);
     const currentMin = timeToMinutes(drag.currentTime);
