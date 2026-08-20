@@ -25,7 +25,8 @@ export function ActionRequiredBox() {
         .from("tickets")
         .select("id, total_amount, paid_amount")
         .neq("status", "cancelled")
-        .gt("total_amount", 0);
+        .gt("total_amount", 0)
+        .range(0, 9999);
 
       const overduePayments = (unpaidTickets || []).filter(
         (t) => (t.paid_amount || 0) < (t.total_amount || 0)
