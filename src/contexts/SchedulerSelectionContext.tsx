@@ -431,7 +431,8 @@ export function SchedulerSelectionProvider({ children }: { children: ReactNode }
 
       const { instructorId, date, currentDate, startTime, currentTime, isBlocked } = prev.drag;
 
-      if (isBlocked) {
+      // For a single-day drag a blocked target aborts; multi-day drags skip blocked days below
+      if (isBlocked && (!currentDate || currentDate === date)) {
         return { ...prev, drag: initialDragState };
       }
 
