@@ -33,6 +33,7 @@ const PRESETS: Record<string, { startTime: string; endTime: string; weekdays: nu
   lunch: { startTime: "12:00", endTime: "13:00", weekdays: [1, 2, 3, 4, 5], reason: "Mittagspause" },
   morning_only: { startTime: "13:00", endTime: "16:00", weekdays: [1, 2, 3, 4, 5], reason: "Nur Vormittage verfügbar" },
   afternoon_only: { startTime: "09:00", endTime: "12:00", weekdays: [1, 2, 3, 4, 5], reason: "Nur Nachmittage verfügbar" },
+  group_reserve: { startTime: "10:00", endTime: "12:00", weekdays: [1, 2, 3, 4, 5], reason: "Gruppenkurs Reserve" },
 };
 
 interface RecurringBlockDialogProps {
