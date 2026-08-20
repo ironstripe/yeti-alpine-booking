@@ -398,6 +398,7 @@ interface BookingWizardContextType {
   setCartItemParticipants: (itemId: string, participantIds: string[]) => void;
   // New: Pre-fill from scheduler
   prefillFromScheduler: (instructorId: string, appointments: AppointmentSlot[]) => void;
+  clearSchedulerPrefill: () => void;
   // Edit mode
   loadTicketForEditing: (ticketId: string) => Promise<void>;
 }
@@ -1244,20 +1245,55 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
     const timeSlot = baseAppt ? `${baseStartTime} - ${baseEndTime}` : null;
     const duration = baseDuration / 60;
     
-    setState((prev) => ({
-      ...prev,
-      instructorId,
-      instructor,
-      appointments,
-      selectedDates: dates,
-      productType: "private",
-      timeSlot,
-      duration,
-      // Populate per-day time fields for BookingTimeGrid and PeriodDayPlanner
-      timeSelections,
-      dayTimeOverrides,
-      assignLater: false, // Instructor is already assigned from scheduler
-    }));
+    setState((prev) => {
+      const next = {
+        ...prev,
+        instructorId,
+        instructor,
+        appointments,
+        selectedDates: dates,
+        productType: "private" as const,
+        timeSlot,
+        duration,
+        // Populate per-day time fields for BookingTimeGrid and PeriodDayPlanner
+        timeSelections,
+        dayTimeOverrides,
+        assignLater: false, // Instructor is already assigned from scheduler
+      };
+      // Keep the active cart item snapshot in sync so the prefill survives cart switches
+      return {
+        ...next,
+        cartItems: next.cartItems.map((item) =>
+          item.id === next.activeCartItemId
+            ? { ...extractCartItemFromState(next, item.id) }
+            : item
+        ),
+      };
+    });
+  };
+
+  const clearSchedulerPrefill = () => {
+    setState((prev) => {
+      const next = {
+        ...prev,
+        appointments: null,
+        selectedDates: [],
+        timeSelections: [],
+        dayTimeOverrides: {},
+        timeSlot: null,
+        duration: null,
+        instructor: null,
+        instructorId: null,
+      };
+      return {
+        ...next,
+        cartItems: next.cartItems.map((item) =>
+          item.id === next.activeCartItemId
+            ? { ...extractCartItemFromState(next, item.id) }
+            : item
+        ),
+      };
+    });
   };
 
   // Step 3 setters
@@ -1582,6 +1618,7 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
         getAllCartItems,
         setCartItemParticipants,
         prefillFromScheduler,
+        clearSchedulerPrefill,
         loadTicketForEditing,
       }}
     >
