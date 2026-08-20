@@ -52,7 +52,7 @@ export function calculateCancellation(
   // treat it as outside the 24h window (no automatic AGB fee).
   const hoursBeforeStart = hasValidDate
     ? (firstCancelledDate.getTime() - now.getTime()) / (1000 * 60 * 60)
-    : Number.POSITIVE_INFINITY;
+    : 9999;
   const isWithin24h = hasValidDate && hoursBeforeStart < 24;
 
   // Calculate cancelled amount
