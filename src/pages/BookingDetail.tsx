@@ -113,7 +113,7 @@ const BookingDetail = () => {
       const { data, error } = await supabase
         .from("email_logs")
         .select("*")
-        .or(`metadata->ticket_id.eq.${id}`)
+        .eq("metadata->>ticket_id", id)
         .order("created_at", { ascending: false })
         .limit(10);
       
@@ -526,6 +526,12 @@ const BookingDetail = () => {
                 variant="outline" 
                 className="w-full justify-start text-destructive hover:text-destructive"
                 onClick={() => setShowCancellation(true)}
+                disabled={!ticket.items?.some((item: any) => !!item.date)}
+                title={
+                  !ticket.items?.some((item: any) => !!item.date)
+                    ? "Diese Buchung hat keine terminierten Positionen"
+                    : undefined
+                }
               >
                 <XCircle className="h-4 w-4 mr-2" />
                 Buchung stornieren

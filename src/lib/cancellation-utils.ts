@@ -40,14 +40,20 @@ export function calculateCancellation(
       : new Date(booking.start_date);
   }
 
+  const hasValidDate = !isNaN(firstCancelledDate.getTime());
+
   // Add start time if available
-  if (booking.start_time) {
+  if (hasValidDate && booking.start_time) {
     const [hours, minutes] = booking.start_time.split(":");
     firstCancelledDate.setHours(parseInt(hours), parseInt(minutes));
   }
 
-  const hoursBeforeStart = (firstCancelledDate.getTime() - now.getTime()) / (1000 * 60 * 60);
-  const isWithin24h = hoursBeforeStart < 24;
+  // Without a scheduled date there is no deadline to measure against:
+  // treat it as outside the 24h window (no automatic AGB fee).
+  const hoursBeforeStart = hasValidDate
+    ? (firstCancelledDate.getTime() - now.getTime()) / (1000 * 60 * 60)
+    : 9999;
+  const isWithin24h = hasValidDate && hoursBeforeStart < 24;
 
   // Calculate cancelled amount
   let cancelledAmount: number;

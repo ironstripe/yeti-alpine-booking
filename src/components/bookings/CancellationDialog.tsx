@@ -1,7 +1,15 @@
 import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
-import { format } from "date-fns";
+import { format, isValid } from "date-fns";
 import { de } from "date-fns/locale";
+
+/** Safely format a booking date; returns null for missing/invalid values. */
+function formatBookingDate(value: string | null | undefined, pattern: string): string | null {
+  if (!value) return null;
+  const date = new Date(value);
+  if (!isValid(date)) return null;
+  return format(date, pattern, { locale: de });
+}
 import {
   Dialog,
   DialogContent,
@@ -158,9 +166,10 @@ export function CancellationDialog({
               {booking.customer_name} · {booking.product_name}
             </p>
             <p className="text-sm text-muted-foreground">
-              {format(new Date(booking.start_date), "EEEE, dd. MMMM yyyy", { locale: de })}
+              {formatBookingDate(booking.start_date, "EEEE, dd. MMMM yyyy") ?? "Kein Datum hinterlegt"}
               {booking.end_date !== booking.start_date &&
-                ` – ${format(new Date(booking.end_date), "dd. MMMM yyyy", { locale: de })}`}
+                formatBookingDate(booking.end_date, "dd. MMMM yyyy") &&
+                ` – ${formatBookingDate(booking.end_date, "dd. MMMM yyyy")}`}
             </p>
             <div className="flex justify-between text-sm pt-2">
               <span>Buchungsbetrag:</span>

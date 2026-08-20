@@ -20,17 +20,26 @@ export function ActionRequiredBox() {
   const { data: actions, isLoading } = useQuery({
     queryKey: ["action-counts-dashboard"],
     queryFn: async (): Promise<ActionCounts> => {
-      const { count: overduePayments } = await supabase
+      // Tickets with an open balance (paid < total), excluding cancelled ones
+      const { data: unpaidTickets } = await supabase
         .from("tickets")
-        .select("id", { count: "exact", head: true })
-        .eq("status", "confirmed")
-        .lt("paid_amount", supabase.rpc ? 0 : 0);
+        .select("id, total_amount, paid_amount")
+        .neq("status", "cancelled")
+        .gt("total_amount", 0)
+        .range(0, 9999);
 
+      const overduePayments = (unpaidTickets || []).filter(
+        (t) => (t.paid_amount || 0) < (t.total_amount || 0)
+      ).length;
+
+      // Unassigned lessons: only active items from today onwards
+      const today = new Date().toISOString().split("T")[0];
       const { count: unassignedInstructors } = await supabase
         .from("ticket_items")
         .select("id", { count: "exact", head: true })
         .is("instructor_id", null)
-        .neq("status", "cancelled");
+        .neq("status", "cancelled")
+        .gte("date", today);
 
       const { count: pendingConfirmations } = await supabase
         .from("tickets")
