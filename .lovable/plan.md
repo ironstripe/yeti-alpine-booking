@@ -1,91 +1,48 @@
-# Roadmap: Website → Yeti Buchungs-Intake
+# Bugfix Sprint: Navigation & Dashboard-Zähler
 
-## Was wir bauen
-Eine öffentliche Edge Function `intake-booking` in Yeti, die Buchungen von der Website (und später Vapi/Make) empfängt und **direkt** als Ticket + Ticket-Items + Customer anlegt. Schutz via API-Key. Bei Validierungsfehler → HTTP 400.
+Alle vier Punkte wurden im laufenden System reproduziert bzw. gegen die Datenbank geprüft. Ergebnis: drei echte Bugs, ein Zähler ist bereits korrekt.
 
-## Phasen-Übersicht
+## 1. Buchungs-Detailseite stürzt ab (betrifft Task 2 und Task 3)
 
-```text
-Phase 1: Fundament (jetzt)
-  └─ Vertrag definieren (JSON-Schema) + Secret anlegen
-Phase 2: Endpoint bauen
-  └─ Edge Function intake-booking in Yeti
-Phase 3: Website anbinden
-  └─ Lovable-Website ruft Endpoint statt eigener DB
-Phase 4: Bot anbinden
-  └─ Vapi → Make → selber Endpoint
-```
+Bestätigt: Klick auf "Offene Buchungen" im Dashboard führt korrekt zu `/bookings/<id>`, aber die Seite zeigt "Etwas ist schiefgelaufen".
 
----
+Ursache (reproduziert): `BookingDetail` übergibt an den Stornierungs-Dialog `start_date: ticket.items[0]?.date || ''`. Bei Buchungen ohne Positionen ist das ein leerer String, und die Datumsformatierung wirft `RangeError: Invalid time value` — die ganze Seite crasht. In der Datenbank gibt es aktuell **43 Buchungen ohne Positionen** (u. a. YETY-2026-00989, die oben im Dashboard steht).
 
-## Phase 1 — Was wir ZUERST brauchen (bevor Code geschrieben wird)
+Da die Kundenhistorie auf dieselbe Route verlinkt, ist Task 3 derselbe Fehler — kein zweiter Bug.
 
-### 1.1 Datenvertrag festlegen (wichtigster Schritt)
-Wir definieren **genau ein** JSON-Format, das sowohl Website-Formular als auch Vapi/Make liefern müssen. Vorschlag (Pflichtfelder für CH-Vertrag + AGB/Datenschutz):
+Fix:
+- Datumsangaben im Stornierungs-Dialog defensiv behandeln (nur formatieren, wenn ein gültiges Datum vorliegt, sonst Platzhalter "Kein Datum").
+- Gleiche Absicherung in `calculateCancellation`, damit die Fristberechnung ohne Datum nicht kippt.
+- Stornieren-Button deaktivieren, wenn die Buchung keine terminierten Positionen hat.
 
-```text
-{
-  "source": "website" | "vapi",
-  "customer": {
-    "salutation", "first_name"*, "last_name"*,
-    "email"*, "phone"*,
-    "street"*, "zip"*, "city"*, "country"*  (CH-Vertrag)
-  },
-  "participants": [
-    { "first_name"*, "last_name"*, "birth_date"*, "skill_level", "discipline"* }
-  ],
-  "booking": {
-    "product_type"*: "private" | "group",
-    "sport"*: "ski" | "snowboard",
-    "dates"*: [{ "date", "start_time", "end_time" }],
-    "participant_count"*,
-    "notes"
-  },
-  "consent": {
-    "agb_accepted"*: true,
-    "agb_version"*: "2025-1",
-    "privacy_accepted"*: true,
-    "privacy_version"*: "2025-1",
-    "accepted_at"*: ISO-Timestamp,
-    "ip_address", "user_agent"
-  }
-}
-```
-\* = Pflicht, sonst HTTP 400.
+Zusätzlich (kleiner Folgefehler auf derselben Seite): Die E-Mail-Verlauf-Abfrage liefert HTTP 400 (`metadata->ticket_id` statt `metadata->>ticket_id`), der Verlauf bleibt dadurch immer leer.
 
-### 1.2 Consent-Speicherung klären
-Für rechtsgültigen CH-Vertrag müssen AGB/Datenschutz-Zustimmung **revisionssicher** gespeichert werden. Heute existiert dafür kein Feld in `tickets`. → In Phase 2 wahrscheinlich kleine Migration nötig (Tabelle `booking_consents` oder JSON-Spalte auf ticket).
+## 2. Zähler "Zahlungen ausstehend" zeigt 0
 
-### 1.3 Secret `YETI_INTAKE_API_KEY` anlegen
-Zufälliger 32+ Zeichen Key. Wird in HTTP-Header `X-API-Key` mitgeschickt.
+Bestätigt im Dashboard: "Zahlungen ausstehend: 0", obwohl **97 Buchungen** einen offenen Betrag haben.
 
-### 1.4 Verhalten bei Konflikten festlegen
-- **Customer existiert schon (gleiche Email)** → wiederverwenden oder neuen anlegen?
-- **Instructor-Zuweisung** → erst leer lassen (Office weist zu) oder schon Auto-Assign?
-- **Zahlung** → Status `unpaid` mit offenem Betrag, Rechnung später?
+Ursache: Die Abfrage in `ActionRequiredBox` enthält den Platzhalter-Vergleich `.lt("paid_amount", supabase.rpc ? 0 : 0)` — sie fragt also "bezahlt < 0" ab und liefert immer 0.
 
----
+Fix: Offene Buchungen korrekt ermitteln (Gesamtbetrag > 0, bezahlt < Gesamtbetrag, nicht storniert) und den Zähler daraus bilden. Klickziel bleibt die gefilterte Buchungsliste.
 
-## Phase 2 — Endpoint bauen (nach Freigabe Phase 1)
-- Migration für Consent-Daten (falls nötig)
-- Edge Function `intake-booking` (public, `verify_jwt = false`, validiert via Zod + API-Key)
-- Anlage: `customers` (oder Match) → `tickets` → `ticket_items` → `booking_consents`
-- Antwort: `{ ticket_id, ticket_number }` oder HTTP 400 mit Feldfehlern
+## 3. Zähler "Überfällig (>24h)"
 
-## Phase 3 — Website (Lovable)
-- Formular sammelt obige Felder inkl. AGB/Datenschutz-Checkboxen
-- POST auf `https://pgrlrsrjwyixndmrzhct.supabase.co/functions/v1/intake-booking` mit `X-API-Key`
+Geprüft: Der Posteingang zeigt 809, die Datenbank liefert exakt 809 ungelesene Eingänge älter als 24 Stunden. Dieser Zähler ist korrekt — hier ist keine Änderung nötig.
 
-## Phase 4 — Vapi + Make
-- Make-Szenario nimmt Vapi-Output, mappt aufs JSON-Schema, POST auf selben Endpoint
+Ebenfalls aufgefallen (nicht Teil der Aufgabe, auf Wunsch mit erledigt): "Lehrer nicht zugewiesen" zählt 114 Positionen ohne jede Zeit- oder Ticketprüfung, also auch vergangene und stornierte Buchungen.
 
----
+## 4. Passwort-Reset-Schleife
 
-## Konkret jetzt zu entscheiden
+Die Reset-Seite verlässt sich vollständig auf die automatische Token-Erkennung des Auth-Clients. Kommt der Nutzer über den E-Mail-Link (Tokens im URL-Fragment) an, ist die Sitzung beim ersten Rendern noch nicht gesetzt, und die Seite zeigt "Link ungültig" bzw. leitet zur Anmeldung.
 
-1. **Datenvertrag oben OK** — oder Felder ergänzen/streichen?
-2. **Customer-Dedupe**: Email-Match → vorhandenen Customer verwenden? (empfohlen: ja)
-3. **Instructor-Assignment**: zuerst leer / Office weist manuell zu? (empfohlen: ja, sicherster Start)
-4. **AGB/Datenschutz-Versionierung**: hast du schon Versionsnummern (z. B. "2025-1") oder sollen wir's neu anlegen?
+Fix: Dieselbe Mechanik wie bei der bereits funktionierenden Einladungsseite verwenden — Tokens aus dem URL-Fragment manuell auslesen, die Sitzung explizit setzen, während der Prüfung einen Ladezustand zeigen und erst danach entscheiden, ob das Formular oder die Fehlermeldung erscheint. Zusätzlich den PKCE-Code-Parameter (`?code=`) behandeln, falls der Link diese Form hat.
 
-Sobald diese 4 Punkte geklärt sind, schalte ich in Build-Modus, lege Secret + Migration + Edge Function an.
+## Technische Details
+
+- `src/components/bookings/CancellationDialog.tsx`: Datumsformatierung absichern.
+- `src/lib/cancellation-utils.ts`: ungültige/leere Startdaten abfangen.
+- `src/pages/BookingDetail.tsx`: Stornieren nur bei terminierten Positionen; `email_logs`-Filter auf `metadata->>ticket_id` korrigieren.
+- `src/components/dashboard/ActionRequiredBox.tsx`: Zahlungs-Zähler neu berechnen, Zuweisungs-Zähler auf aktive/zukünftige Positionen einschränken.
+- `src/pages/ResetPassword.tsx`: explizites Setzen der Recovery-Sitzung aus URL-Fragment bzw. Code, analog `SetPassword.tsx`.
+
+Keine Datenbank-Änderungen nötig.
