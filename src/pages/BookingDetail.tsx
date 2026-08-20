@@ -526,6 +526,12 @@ const BookingDetail = () => {
                 variant="outline" 
                 className="w-full justify-start text-destructive hover:text-destructive"
                 onClick={() => setShowCancellation(true)}
+                disabled={!ticket.items?.some((item: any) => !!item.date)}
+                title={
+                  !ticket.items?.some((item: any) => !!item.date)
+                    ? "Diese Buchung hat keine terminierten Positionen"
+                    : undefined
+                }
               >
                 <XCircle className="h-4 w-4 mr-2" />
                 Buchung stornieren
