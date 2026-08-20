@@ -113,7 +113,7 @@ const BookingDetail = () => {
       const { data, error } = await supabase
         .from("email_logs")
         .select("*")
-        .or(`metadata->ticket_id.eq.${id}`)
+        .eq("metadata->>ticket_id", id)
         .order("created_at", { ascending: false })
         .limit(10);
       
