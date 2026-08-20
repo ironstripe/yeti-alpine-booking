@@ -181,12 +181,10 @@ function SchedulerGridContent() {
         const slotInstructorId = slotElement.getAttribute('data-instructor-id');
         const slotDate = slotElement.getAttribute('data-date');
         
-        // Only update if same instructor and date
-        if (slotInstructorId === state.drag.instructorId && 
-            slotDate === state.drag.date && 
-            slotTime) {
+        // Same instructor required; the date may change (vertical multi-day drag)
+        if (slotInstructorId === state.drag.instructorId && slotDate && slotTime) {
           const hasConflict = checkSlotConflict(slotInstructorId, slotDate, slotTime);
-          updateDrag(slotTime, hasConflict);
+          updateDrag(slotTime, hasConflict, slotDate);
         }
       }
     };
