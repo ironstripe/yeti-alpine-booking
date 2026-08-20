@@ -1,13 +1,13 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
-import { calculateBarPosition, type SchedulerAbsence } from "@/lib/scheduler-utils";
+import { calculateBarPosition, isGroupReserve, type SchedulerAbsence } from "@/lib/scheduler-utils";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { Ban, Clock } from "lucide-react";
+import { Ban, Clock, Users } from "lucide-react";
 import { AbsenceDetailDialog } from "./AbsenceDetailDialog";
 
 interface BlockingBarProps {
@@ -38,6 +38,7 @@ export function BlockingBar({ absence, slotWidth }: BlockingBarProps) {
       );
 
   const isPending = absence.status === "pending";
+  const isReserve = isGroupReserve(absence);
   const isPartialDay = !absence.isFullDay && absence.timeStart && absence.timeEnd;
 
   const handleClick = (e: React.MouseEvent) => {
@@ -62,28 +63,37 @@ export function BlockingBar({ absence, slotWidth }: BlockingBarProps) {
               "absolute top-0.5 bottom-0.5 rounded border px-1.5 py-0.5 text-[10px] font-medium",
               "flex items-center gap-0.5",
               "cursor-pointer hover:ring-2 hover:ring-gray-500",
-              isPending
-                ? "bg-gray-200 text-gray-600 border-dashed border-amber-500"
-                : "bg-gray-300 text-gray-700 border-gray-400"
+              isReserve
+                ? "bg-indigo-100 text-indigo-800 border-dashed border-indigo-500"
+                : isPending
+                  ? "bg-gray-200 text-gray-600 border-dashed border-amber-500"
+                  : "bg-gray-300 text-gray-700 border-gray-400"
             )}
             style={{
               left: `${left}px`,
               width: `${Math.max(width - 4, 40)}px`,
-              ...(isPending
+              ...(isReserve
                 ? {
                     backgroundImage:
-                      "repeating-linear-gradient(45deg, transparent, transparent 3px, rgba(251, 191, 36, 0.15) 3px, rgba(251, 191, 36, 0.15) 6px)",
+                      "repeating-linear-gradient(45deg, transparent, transparent 3px, rgba(99, 102, 241, 0.28) 3px, rgba(99, 102, 241, 0.28) 6px)",
                   }
-                : {}),
+                : isPending
+                  ? {
+                      backgroundImage:
+                        "repeating-linear-gradient(45deg, transparent, transparent 3px, rgba(251, 191, 36, 0.15) 3px, rgba(251, 191, 36, 0.15) 6px)",
+                    }
+                  : {}),
             }}
           >
-            {isPending ? (
+            {isReserve ? (
+              <Users className="h-2.5 w-2.5 shrink-0 text-indigo-600" />
+            ) : isPending ? (
               <Clock className="h-2.5 w-2.5 shrink-0 text-amber-400" />
             ) : (
               <Ban className="h-2.5 w-2.5 shrink-0" />
             )}
           <span className="truncate">
-              {ABSENCE_LABELS[absence.type]}
+              {isReserve ? "Gruppenkurs Reserve" : ABSENCE_LABELS[absence.type]}
               {isPending && " (Antrag)"}
               {isPartialDay && ` ${absence.timeStart}-${absence.timeEnd}`}
             </span>
@@ -92,7 +102,7 @@ export function BlockingBar({ absence, slotWidth }: BlockingBarProps) {
         <TooltipContent side="top">
           <div className="space-y-1">
             <p className="font-medium flex items-center gap-1">
-              {ABSENCE_LABELS[absence.type]}
+              {isReserve ? "Gruppenkurs Reserve" : ABSENCE_LABELS[absence.type]}
               {isPending && (
                 <span className="text-amber-400 text-xs">(Ausstehend)</span>
               )}
@@ -111,7 +121,9 @@ export function BlockingBar({ absence, slotWidth }: BlockingBarProps) {
               <p className="text-sm">{absence.reason}</p>
             )}
             <p className="text-xs text-destructive mt-1">
-              {isPending 
+              {isReserve
+                ? "Keine Privatstunden möglich – Gruppenkurs-Zuteilung erlaubt"
+                : isPending 
                 ? "Antrag wartet auf Genehmigung" 
                 : isPartialDay
                   ? `Blockiert: ${absence.timeStart} - ${absence.timeEnd}`

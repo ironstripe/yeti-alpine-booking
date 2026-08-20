@@ -289,6 +289,7 @@ export function useSchedulerData({ startDate, endDate, instructorId }: UseSchedu
             type: "other" as const,
             status: "confirmed" as const,
             reason: block.reason || "Wiederkehrender Block",
+            blockKind: block.preset_type,
             isFullDay: false,
             timeStart: block.start_time,
             timeEnd: block.end_time,

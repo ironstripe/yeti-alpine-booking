@@ -25,6 +25,11 @@ const PRESETS = [
     label: "Nur Nachmittage", 
     icon: "🌇",
   },
+  { 
+    type: "group_reserve", 
+    label: "Gruppenkurs Reserve", 
+    icon: "👥",
+  },
 ];
 
 interface RecurringBlocksTabProps {
@@ -142,8 +147,15 @@ export function RecurringBlocksTab({ instructorId }: RecurringBlocksTabProps) {
                     <div className="space-y-2">
                       <div className="flex items-center gap-2">
                         <span className="font-medium">
-                          {block.reason || "Nicht verfügbar"}
+                          {block.preset_type === "group_reserve"
+                            ? "Gruppenkurs Reserve"
+                            : block.reason || "Nicht verfügbar"}
                         </span>
+                        {block.preset_type === "group_reserve" && (
+                          <Badge variant="outline" className="border-indigo-500 text-indigo-700">
+                            👥 Reserve
+                          </Badge>
+                        )}
                         {getStatusBadge(block.status)}
                       </div>
 

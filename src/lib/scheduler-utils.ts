@@ -52,7 +52,18 @@ export interface SchedulerAbsence {
   isFullDay: boolean;
   timeStart?: string; // e.g., "12:00"
   timeEnd?: string;   // e.g., "14:00"
+  /** Kind of recurring block this absence originates from (preset_type) */
+  blockKind?: string | null;
 }
+
+/** Preset type used for "Gruppenkurs Reserve" recurring blocks */
+export const GROUP_RESERVE_PRESET = "group_reserve";
+
+/** True when the block only reserves the instructor for an upcoming group course */
+export function isGroupReserve(absence: Pick<SchedulerAbsence, "blockKind">): boolean {
+  return absence.blockKind === GROUP_RESERVE_PRESET;
+}
+
 
 // Operational hours (lift times: 09:00 - 16:00)
 export const OPERATIONAL_START = "09:00";

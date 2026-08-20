@@ -9,6 +9,7 @@ export type BlockType =
   | 'private_unpaid' 
   | 'camp' 
   | 'office' 
+  | 'group_reserve'
   | 'unavailable';
 
 export interface BlockColorConfig {
@@ -42,6 +43,11 @@ export const BLOCK_COLORS: Record<BlockType, BlockColorConfig> = {
     bg: "bg-gray-400",
     text: "text-gray-800",
     label: "Büro",
+  },
+  group_reserve: {
+    bg: "bg-indigo-200",
+    text: "text-indigo-800",
+    label: "Gruppenkurs Reserve",
   },
   unavailable: {
     bg: "bg-gray-200",
@@ -90,6 +96,7 @@ export function getLegendItems(): BlockColorConfig[] {
     BLOCK_COLORS.private_unpaid,
     BLOCK_COLORS.camp,
     BLOCK_COLORS.office,
+    BLOCK_COLORS.group_reserve,
     BLOCK_COLORS.unavailable,
   ];
 }

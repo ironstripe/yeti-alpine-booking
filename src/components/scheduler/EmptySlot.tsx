@@ -48,6 +48,7 @@ export function EmptySlot({
     shiftClickSelect,
     toggleSlotSelection,
     clearSelection,
+    canSelectSlot,
   } = useSchedulerSelection();
 
   const { activeDragBookingId } = useDndKitDrag();
@@ -90,10 +91,15 @@ export function EmptySlot({
   // Check if this slot is within the drag preview range
   const isInDragRange = useCallback(() => {
     const { drag } = state;
-    if (!drag.isDragging || drag.instructorId !== instructorId || drag.date !== date) {
+    if (!drag.isDragging || drag.instructorId !== instructorId) {
       return false;
     }
-    if (!drag.startTime || !drag.currentTime) return false;
+    if (!drag.date || !drag.startTime || !drag.currentTime) return false;
+
+    // Vertical multi-day range: slot date must lie between drag start and current date
+    const dragDateStart = drag.currentDate && drag.currentDate < drag.date ? drag.currentDate : drag.date;
+    const dragDateEnd = drag.currentDate && drag.currentDate > drag.date ? drag.currentDate : drag.date;
+    if (date < dragDateStart || date > dragDateEnd) return false;
     
     const startMin = timeToMinutes(drag.startTime);
     const currentMin = timeToMinutes(drag.currentTime);
@@ -201,6 +207,31 @@ export function EmptySlot({
     startDrag(instructorId, date, timeSlot);
   };
 
+  // Double click = create booking directly with this slot prefilled
+  const handleDoubleClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (isInvalidDropZone) return;
+
+    const endMinutes = timeToMinutes(timeSlot) + 60;
+    const endTime = `${Math.floor(endMinutes / 60).toString().padStart(2, "0")}:${(endMinutes % 60).toString().padStart(2, "0")}`;
+
+    const validation = canSelectSlot(instructorId, date, timeSlot, endTime, bookings, absences);
+    if (!validation.valid) {
+      toast.error(validation.reason || "Slot nicht verfügbar");
+      return;
+    }
+
+    clearSelection();
+    const params = new URLSearchParams({
+      instructor: instructorId,
+      appointments: JSON.stringify([
+        { instructorId, date, startTime: timeSlot, durationMinutes: 60 },
+      ]),
+    });
+    navigate(`/bookings/new?${params.toString()}`);
+  };
+
   const handleMouseUp = () => {
     if (!state.drag.isDragging) return;
     endDrag(bookings, absences);
@@ -214,6 +245,7 @@ export function EmptySlot({
       data-date={date}
       onMouseDown={handleMouseDown}
       onMouseUp={handleMouseUp}
+      onDoubleClick={handleDoubleClick}
       className={cn(
         "absolute top-0 bottom-0 border-r border-border",
         "transition-colors duration-100 select-none touch-none",
