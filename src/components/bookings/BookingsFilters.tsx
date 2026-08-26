@@ -31,6 +31,10 @@ interface BookingsFiltersProps {
 
 const STATUS_OPTIONS = [
   { value: "confirmed", label: "Bestätigt" },
+  { value: "provisional", label: "Provisorisch" },
+  { value: "payment_pending", label: "Zahlung läuft" },
+  { value: "invoice_pending", label: "Rechnung offen" },
+  { value: "expired", label: "Abgelaufen" },
   { value: "draft", label: "Entwurf" },
   { value: "cancelled", label: "Storniert" },
 ];
@@ -53,6 +57,7 @@ const PAYMENT_METHOD_OPTIONS = [
   { value: "card", label: "Karte" },
   { value: "twint", label: "TWINT" },
   { value: "invoice", label: "Rechnung" },
+  { value: "online", label: "Onlinezahlung" },
 ];
 
 const ALL_COLUMNS = [
