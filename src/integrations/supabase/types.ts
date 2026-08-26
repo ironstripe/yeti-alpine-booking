@@ -840,6 +840,7 @@ export type Database = {
           city: string | null
           country: string | null
           created_at: string
+          customer_number: string | null
           customer_type: string | null
           email: string
           first_name: string | null
@@ -863,6 +864,7 @@ export type Database = {
           city?: string | null
           country?: string | null
           created_at?: string
+          customer_number?: string | null
           customer_type?: string | null
           email: string
           first_name?: string | null
@@ -886,6 +888,7 @@ export type Database = {
           city?: string | null
           country?: string | null
           created_at?: string
+          customer_number?: string | null
           customer_type?: string | null
           email?: string
           first_name?: string | null
@@ -3907,6 +3910,8 @@ export type Database = {
           paid_amount: number | null
           payment_due_date: string | null
           payment_method: string | null
+          reservation_expires_at: string | null
+          reservation_token: string | null
           season_id: string | null
           share_participant_count: number | null
           skip_documents: boolean | null
@@ -3933,6 +3938,8 @@ export type Database = {
           paid_amount?: number | null
           payment_due_date?: string | null
           payment_method?: string | null
+          reservation_expires_at?: string | null
+          reservation_token?: string | null
           season_id?: string | null
           share_participant_count?: number | null
           skip_documents?: boolean | null
@@ -3959,6 +3966,8 @@ export type Database = {
           paid_amount?: number | null
           payment_due_date?: string | null
           payment_method?: string | null
+          reservation_expires_at?: string | null
+          reservation_token?: string | null
           season_id?: string | null
           share_participant_count?: number | null
           skip_documents?: boolean | null
@@ -4495,10 +4504,15 @@ export type Database = {
         }
         Returns: Json
       }
+      create_provisional_reservation: {
+        Args: { p_payload: Json }
+        Returns: Json
+      }
       duplicate_products_for_season: {
         Args: { p_source_season_id: string; p_target_season_id: string }
         Returns: number
       }
+      expire_reservations: { Args: never; Returns: number }
       generate_group_course_instances_for_week: {
         Args: { p_week_start_date: string }
         Returns: Json
