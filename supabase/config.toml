@@ -53,3 +53,21 @@ verify_jwt = false
 
 [functions.intake-booking]
 verify_jwt = false
+
+[functions.get-products]
+verify_jwt = false
+
+[functions.get-availability]
+verify_jwt = false
+
+[functions.create-reservation]
+verify_jwt = false
+
+[functions.confirm-booking]
+verify_jwt = false
+
+[functions.get-booking-status]
+verify_jwt = false
+
+[functions.expire-reservations]
+verify_jwt = false
