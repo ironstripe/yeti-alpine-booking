@@ -57,6 +57,7 @@ const PAYMENT_METHOD_OPTIONS = [
   { value: "card", label: "Karte" },
   { value: "twint", label: "TWINT" },
   { value: "invoice", label: "Rechnung" },
+  { value: "online", label: "Onlinezahlung" },
 ];
 
 const ALL_COLUMNS = [
