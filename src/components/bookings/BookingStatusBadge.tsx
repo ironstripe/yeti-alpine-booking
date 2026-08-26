@@ -29,6 +29,38 @@ export function BookingStatusBadge({
     );
   }
 
+  if (status === "provisional") {
+    return (
+      <Badge variant="outline" className="bg-blue-500/10 text-blue-600 border-blue-500/20">
+        🔵 Provisorisch
+      </Badge>
+    );
+  }
+
+  if (status === "payment_pending") {
+    return (
+      <Badge variant="outline" className="bg-blue-500/10 text-blue-600 border-blue-500/20">
+        🔵 Zahlung läuft
+      </Badge>
+    );
+  }
+
+  if (status === "invoice_pending") {
+    return (
+      <Badge variant="outline" className="bg-purple-500/10 text-purple-600 border-purple-500/20">
+        🟣 Rechnung offen
+      </Badge>
+    );
+  }
+
+  if (status === "expired") {
+    return (
+      <Badge variant="outline" className="bg-muted text-muted-foreground">
+        ⚪ Abgelaufen
+      </Badge>
+    );
+  }
+
   if (status === "draft") {
     return (
       <Badge variant="outline" className="bg-muted text-muted-foreground">
