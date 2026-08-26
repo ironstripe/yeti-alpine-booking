@@ -42,6 +42,7 @@ export function CustomerSearch({
     // Convert CustomerWithCount to Tables<"customers"> - pass through all fields
     const fullCustomer: Tables<"customers"> = {
       id: customer.id,
+      customer_number: (customer as any).customer_number ?? null,
       first_name: customer.first_name,
       last_name: customer.last_name,
       email: customer.email,
