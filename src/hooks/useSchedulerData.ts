@@ -398,6 +398,10 @@ export function useSchedulerData({ startDate, endDate, instructorId }: UseSchedu
         ? `${participant.first_name} ${participant.last_name || ""}`.trim()
         : undefined,
       status: b.status || "booked",
+      ticketStatus: ticket?.status ?? null,
+      isProvisional: ticket?.status === "provisional" || ticket?.status === "payment_pending",
+      reservationExpiresAt: ticket?.reservation_expires_at ?? null,
+      source: ticket?.source ?? null,
       participantSport: participant?.sport || null,
       isPartOfPeriod: !!b.period_group_id,
       periodGroupId: b.period_group_id || undefined,
