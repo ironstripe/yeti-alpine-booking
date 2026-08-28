@@ -331,9 +331,18 @@ export function useSchedulerData({ startDate, endDate, instructorId }: UseSchedu
       };
     });
 
+  // Statuses that no longer occupy a slot (expired holds, cancellations)
+  const RELEASED_STATUSES = ["cancelled", "storno", "expired"];
+
   // Transform bookings with period metadata and shared lesson deduplication
   const rawBookings = (bookingsQuery.data || [])
-    .filter((b) => !instructorId || b.instructor_id === instructorId);
+    .filter((b) => !instructorId || b.instructor_id === instructorId)
+    .filter((b) => {
+      const ticketStatus = (b.tickets as unknown as { status: string | null })?.status;
+      if (ticketStatus && RELEASED_STATUSES.includes(ticketStatus)) return false;
+      if (b.status && RELEASED_STATUSES.includes(b.status)) return false;
+      return true;
+    });
 
   // Group by master_booking_id for deduplication of shared lessons
   const masterBookingGroups = new Map<string, typeof rawBookings>();
