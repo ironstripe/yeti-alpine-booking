@@ -60,7 +60,11 @@ Deno.serve(async (req) => {
       .select("id, first_name, last_name, roles")
       .eq("status", "active");
     if (instErr) throw new Error(`instructors: ${instErr.message}`);
-    const instructorIds = (instructors ?? []).map((i) => i.id);
+    const TEACHING_ROLES = ["ski", "snowboard", "telemark", "langlauf"];
+    const teachingInstructors = (instructors ?? []).filter(
+      (i: any) => !i.roles || i.roles.length === 0 || i.roles.some((r: string) => TEACHING_ROLES.includes(r)),
+    );
+    const instructorIds = teachingInstructors.map((i) => i.id);
 
     // Private lessons / reservations. Status filtering is done in JS so that a
     // malformed embedded filter can never silently return "everything is free".
