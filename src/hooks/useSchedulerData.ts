@@ -133,6 +133,8 @@ export function useSchedulerData({ startDate, endDate, instructorId }: UseSchedu
             master_booking_id,
             is_initiator,
             customer_id,
+            source,
+            reservation_expires_at,
             customer:customers(last_name)
           ),
           customer_participants (
