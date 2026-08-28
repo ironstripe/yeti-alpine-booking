@@ -57,7 +57,7 @@ Deno.serve(async (req) => {
   try {
     const { data: instructors, error: instErr } = await supabase
       .from("instructors")
-      .select("id, first_name, last_name")
+      .select("id, first_name, last_name, roles")
       .eq("status", "active");
     if (instErr) throw new Error(`instructors: ${instErr.message}`);
     const instructorIds = (instructors ?? []).map((i) => i.id);
