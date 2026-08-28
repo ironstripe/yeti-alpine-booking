@@ -124,7 +124,11 @@ export function BookingBar({ booking, slotWidth, instructorSpecialization, isPla
             {booking.isSharedLesson && (
               <Link2 className="h-2.5 w-2.5 text-primary shrink-0" />
             )}
+            {booking.isProvisional && (
+              <Hourglass className="h-2.5 w-2.5 shrink-0" />
+            )}
             <span className="truncate">
+              {booking.isProvisional && "Provisorisch: "}
               {booking.isSharedLesson && booking.sharedCustomerNames?.length
                 ? `Privat: ${booking.sharedCustomerNames.join(" / ")}`
                 : booking.participantName || (booking.type === "group" ? "Gruppe" : booking.type === "office_shift" ? "Bürodienst" : "Privat")}
