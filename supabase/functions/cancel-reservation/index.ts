@@ -89,8 +89,7 @@ Deno.serve(async (req) => {
       .update({
         status: "cancelled",
         reservation_expires_at: null,
-        cancelled_at: new Date().toISOString(),
-        cancellation_reason: reason ?? "Reservierung von der Website storniert",
+        internal_notes: `[${new Date().toISOString()}] ${reason ?? "Reservierung von der Website storniert"}`,
       })
       .eq("id", ticket.id);
     if (tErr) throw new Error(`tickets: ${tErr.message}`);
