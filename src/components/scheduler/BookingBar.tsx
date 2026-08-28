@@ -98,9 +98,19 @@ export function BookingBar({ booking, slotWidth, instructorSpecialization, isPla
               // Planning mode: dim existing bookings
               isPlanningMode && "opacity-50",
               // Period bookings: subtle left border indicator
-              booking.isPartOfPeriod && "border-l-2 border-l-primary"
+              booking.isPartOfPeriod && "border-l-2 border-l-primary",
+              // Provisional website reservations: amber, dashed
+              booking.isProvisional && "bg-amber-400 text-amber-950 border-amber-600 border-dashed"
             )}
-            style={style}
+            style={{
+              ...style,
+              ...(booking.isProvisional
+                ? {
+                    backgroundImage:
+                      "repeating-linear-gradient(45deg, transparent, transparent 3px, rgba(120, 53, 15, 0.18) 3px, rgba(120, 53, 15, 0.18) 6px)",
+                  }
+                : {}),
+            }}
           >
             {booking.isPartOfPeriod && (
               <Link2 className="h-2.5 w-2.5 text-primary shrink-0" />
