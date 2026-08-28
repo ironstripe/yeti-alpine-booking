@@ -137,6 +137,15 @@ export function BookingBar({ booking, slotWidth, instructorSpecialization, isPla
         </TooltipTrigger>
         <TooltipContent side="top" className="max-w-xs">
           <div className="space-y-1">
+            {booking.isProvisional && (
+              <p className="text-sm font-medium text-amber-600 flex items-center gap-1">
+                <Hourglass className="h-3 w-3" />
+                Provisorisch reserviert
+                {booking.source === "website" && " (Website)"}
+                {booking.reservationExpiresAt &&
+                  ` – gültig bis ${new Date(booking.reservationExpiresAt).toLocaleTimeString("de-CH", { hour: "2-digit", minute: "2-digit" })}`}
+              </p>
+            )}
             <p className="font-medium">
               {booking.type === "group" ? "Gruppenkurs" : booking.type === "office_shift" ? "Bürodienst" : "Privatstunde"}
               {booking.isPartOfPeriod && " (Periode)"}
