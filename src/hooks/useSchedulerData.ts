@@ -363,7 +363,7 @@ export function useSchedulerData({ startDate, endDate, instructorId }: UseSchedu
 
   // Process standalone bookings normally
   const bookings: SchedulerBooking[] = standaloneBookings.map((b) => {
-    const ticket = b.tickets as unknown as { status: string; paid_amount: number; total_amount: number; master_booking_id: string | null };
+    const ticket = b.tickets as unknown as { status: string; paid_amount: number; total_amount: number; master_booking_id: string | null; source?: string | null; reservation_expires_at?: string | null };
     const participant = b.customer_participants as unknown as { first_name: string; last_name: string; sport: string | null } | null;
     
     const periodMeta = b.period_group_id 
