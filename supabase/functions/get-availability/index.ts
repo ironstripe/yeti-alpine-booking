@@ -57,10 +57,14 @@ Deno.serve(async (req) => {
   try {
     const { data: instructors, error: instErr } = await supabase
       .from("instructors")
-      .select("id, first_name, last_name")
+      .select("id, first_name, last_name, roles")
       .eq("status", "active");
     if (instErr) throw new Error(`instructors: ${instErr.message}`);
-    const instructorIds = (instructors ?? []).map((i) => i.id);
+    const TEACHING_ROLES = ["ski", "snowboard", "telemark", "langlauf"];
+    const teachingInstructors = (instructors ?? []).filter(
+      (i: any) => !i.roles || i.roles.length === 0 || i.roles.some((r: string) => TEACHING_ROLES.includes(r)),
+    );
+    const instructorIds = teachingInstructors.map((i) => i.id);
 
     // Private lessons / reservations. Status filtering is done in JS so that a
     // malformed embedded filter can never silently return "everything is free".
@@ -82,17 +86,15 @@ Deno.serve(async (req) => {
 
     const { data: absences, error: absErr } = await supabase
       .from("instructor_absences")
-      .select("instructor_id, start_date, end_date, time_start, time_end, is_full_day")
-      .in("status", ["approved", "pending"])
+      .select("instructor_id, start_date, end_date, time_start, time_end, is_full_day, status")
       .lte("start_date", date_to)
       .gte("end_date", effFrom);
     if (absErr) throw new Error(`instructor_absences: ${absErr.message}`);
 
     const { data: blocks, error: blkErr } = await supabase
       .from("instructor_recurring_blocks")
-      .select("instructor_id, start_time, end_time, weekdays, valid_from, valid_until")
+      .select("instructor_id, start_time, end_time, weekdays, valid_from, valid_until, status")
       .eq("is_active", true)
-      .in("status", ["approved", "pending"])
       .lte("valid_from", date_to);
     if (blkErr) throw new Error(`instructor_recurring_blocks: ${blkErr.message}`);
 
@@ -126,13 +128,16 @@ Deno.serve(async (req) => {
       addBusy(gi.date, gi.instructor_id, toMin(gi.start_time), toMin(gi.end_time));
       addBusy(gi.date, gi.assistant_instructor_id, toMin(gi.start_time), toMin(gi.end_time));
     }
+    const NON_BLOCKING_ABSENCE_STATUS = new Set(["rejected", "declined", "cancelled", "abgelehnt", "storniert"]);
     for (const a of absences ?? []) {
+      if (a.status && NON_BLOCKING_ABSENCE_STATUS.has(String(a.status).toLowerCase())) continue;
       for (let d = maxDate(a.start_date, effFrom); d <= a.end_date && d <= date_to; d = nextDate(d)) {
         if (a.is_full_day) addBusy(d, a.instructor_id, OPEN_MIN, CLOSE_MIN);
         else if (a.time_start && a.time_end) addBusy(d, a.instructor_id, toMin(a.time_start), toMin(a.time_end));
       }
     }
     for (const b of blocks ?? []) {
+      if (b.status && NON_BLOCKING_ABSENCE_STATUS.has(String(b.status).toLowerCase())) continue;
       const until = b.valid_until && b.valid_until < date_to ? b.valid_until : date_to;
       for (let d = maxDate(b.valid_from, effFrom); d <= until; d = nextDate(d)) {
         const dow = new Date(d + "T12:00:00Z").getUTCDay();
