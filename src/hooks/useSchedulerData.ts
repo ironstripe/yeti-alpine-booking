@@ -133,6 +133,8 @@ export function useSchedulerData({ startDate, endDate, instructorId }: UseSchedu
             master_booking_id,
             is_initiator,
             customer_id,
+            source,
+            reservation_expires_at,
             customer:customers(last_name)
           ),
           customer_participants (
@@ -329,9 +331,18 @@ export function useSchedulerData({ startDate, endDate, instructorId }: UseSchedu
       };
     });
 
+  // Statuses that no longer occupy a slot (expired holds, cancellations)
+  const RELEASED_STATUSES = ["cancelled", "storno", "expired"];
+
   // Transform bookings with period metadata and shared lesson deduplication
   const rawBookings = (bookingsQuery.data || [])
-    .filter((b) => !instructorId || b.instructor_id === instructorId);
+    .filter((b) => !instructorId || b.instructor_id === instructorId)
+    .filter((b) => {
+      const ticketStatus = (b.tickets as unknown as { status: string | null })?.status;
+      if (ticketStatus && RELEASED_STATUSES.includes(ticketStatus)) return false;
+      if (b.status && RELEASED_STATUSES.includes(b.status)) return false;
+      return true;
+    });
 
   // Group by master_booking_id for deduplication of shared lessons
   const masterBookingGroups = new Map<string, typeof rawBookings>();
@@ -352,7 +363,7 @@ export function useSchedulerData({ startDate, endDate, instructorId }: UseSchedu
 
   // Process standalone bookings normally
   const bookings: SchedulerBooking[] = standaloneBookings.map((b) => {
-    const ticket = b.tickets as unknown as { status: string; paid_amount: number; total_amount: number; master_booking_id: string | null };
+    const ticket = b.tickets as unknown as { status: string; paid_amount: number; total_amount: number; master_booking_id: string | null; source?: string | null; reservation_expires_at?: string | null };
     const participant = b.customer_participants as unknown as { first_name: string; last_name: string; sport: string | null } | null;
     
     const periodMeta = b.period_group_id 
@@ -387,6 +398,10 @@ export function useSchedulerData({ startDate, endDate, instructorId }: UseSchedu
         ? `${participant.first_name} ${participant.last_name || ""}`.trim()
         : undefined,
       status: b.status || "booked",
+      ticketStatus: ticket?.status ?? null,
+      isProvisional: ticket?.status === "provisional" || ticket?.status === "payment_pending",
+      reservationExpiresAt: ticket?.reservation_expires_at ?? null,
+      source: ticket?.source ?? null,
       participantSport: participant?.sport || null,
       isPartOfPeriod: !!b.period_group_id,
       periodGroupId: b.period_group_id || undefined,

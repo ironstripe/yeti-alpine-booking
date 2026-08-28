@@ -1,7 +1,7 @@
 // Public endpoint: availability check for the website calendar.
-// Input: { date_from, date_to, product_id?, duration_minutes? }
-// Output: per date, the bookable start slots with the number of free instructors,
-// plus blocked times. All times are local wall-clock times (Europe/Zurich operating hours 09:00-16:00).
+// Input: { date_from, date_to, duration_minutes? }
+// Output: per date, all bookable start slots with the number (and IDs) of free instructors,
+// plus an `available` flag. Times are local wall-clock (Europe/Zurich, 09:00-16:00).
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { z } from "npm:zod@3.23.8";
@@ -11,11 +11,17 @@ const Payload = z.object({
   date_from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   date_to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   duration_minutes: z.number().int().min(30).max(480).default(120),
+  include_unavailable: z.boolean().default(true),
 });
 
 const OPEN_MIN = 9 * 60;  // 09:00
 const CLOSE_MIN = 16 * 60; // 16:00
 const STEP_MIN = 30;
+
+// Ticket statuses that do NOT block capacity
+const NON_BLOCKING_TICKET_STATUS = new Set(["cancelled", "storno", "expired", "rejected"]);
+// Ticket item statuses that do NOT block capacity
+const NON_BLOCKING_ITEM_STATUS = new Set(["cancelled", "storno", "expired"]);
 
 function toMin(t: string): number {
   const [h, m] = t.split(":").map(Number);
@@ -37,7 +43,7 @@ Deno.serve(async (req) => {
 
   const parsed = Payload.safeParse(body);
   if (!parsed.success) return json({ error: "Validation failed", details: parsed.error.flatten() }, 400);
-  const { date_from, date_to, duration_minutes } = parsed.data;
+  const { date_from, date_to, duration_minutes, include_unavailable } = parsed.data;
 
   if (date_to < date_from) return json({ error: "date_to must be >= date_from" }, 400);
   const today = new Date().toISOString().slice(0, 10);
@@ -49,38 +55,58 @@ Deno.serve(async (req) => {
   );
 
   try {
-    const { data: instructors } = await supabase
+    const { data: instructors, error: instErr } = await supabase
       .from("instructors")
       .select("id, first_name, last_name")
       .eq("status", "active");
+    if (instErr) throw new Error(`instructors: ${instErr.message}`);
     const instructorIds = (instructors ?? []).map((i) => i.id);
 
-    // Active bookings (confirmed, provisional, booked, pending etc. block capacity; cancelled/expired do not)
-    const { data: items } = await supabase
+    // Private lessons / reservations. Status filtering is done in JS so that a
+    // malformed embedded filter can never silently return "everything is free".
+    const { data: items, error: itemsErr } = await supabase
       .from("ticket_items")
-      .select("instructor_id, date, time_start, time_end, tickets!inner(status)")
+      .select("instructor_id, date, time_start, time_end, status, tickets!inner(status)")
       .gte("date", effFrom)
       .lte("date", date_to)
-      .not("instructor_id", "is", null)
-      .not("tickets.status", "in", '("cancelled","storno","expired")');
+      .not("instructor_id", "is", null);
+    if (itemsErr) throw new Error(`ticket_items: ${itemsErr.message}`);
 
-    const { data: absences } = await supabase
+    // Group course instances also occupy the instructor
+    const { data: groupInstances, error: giErr } = await supabase
+      .from("group_course_instances")
+      .select("instructor_id, assistant_instructor_id, date, start_time, end_time, status")
+      .gte("date", effFrom)
+      .lte("date", date_to);
+    if (giErr) throw new Error(`group_course_instances: ${giErr.message}`);
+
+    const { data: absences, error: absErr } = await supabase
       .from("instructor_absences")
       .select("instructor_id, start_date, end_date, time_start, time_end, is_full_day")
       .in("status", ["approved", "pending"])
       .lte("start_date", date_to)
       .gte("end_date", effFrom);
+    if (absErr) throw new Error(`instructor_absences: ${absErr.message}`);
 
-    const { data: blocks } = await supabase
+    const { data: blocks, error: blkErr } = await supabase
       .from("instructor_recurring_blocks")
       .select("instructor_id, start_time, end_time, weekdays, valid_from, valid_until")
       .eq("is_active", true)
       .in("status", ["approved", "pending"])
       .lte("valid_from", date_to);
+    if (blkErr) throw new Error(`instructor_recurring_blocks: ${blkErr.message}`);
+
+    const { data: officeBlocks, error: obErr } = await supabase
+      .from("office_hour_blocks")
+      .select("instructor_id, date, time_start, time_end")
+      .gte("date", effFrom)
+      .lte("date", date_to);
+    if (obErr) throw new Error(`office_hour_blocks: ${obErr.message}`);
 
     // Build per-date busy intervals per instructor
     const busy = new Map<string, Map<string, [number, number][]>>(); // date -> instructor -> intervals
-    const addBusy = (date: string, instructorId: string, s: number, e: number) => {
+    const addBusy = (date: string, instructorId: string | null, s: number, e: number) => {
+      if (!instructorId || !Number.isFinite(s) || !Number.isFinite(e) || e <= s) return;
       if (!busy.has(date)) busy.set(date, new Map());
       const m = busy.get(date)!;
       if (!m.has(instructorId)) m.set(instructorId, []);
@@ -88,7 +114,17 @@ Deno.serve(async (req) => {
     };
 
     for (const it of items ?? []) {
+      const ticketStatus = (it as any).tickets?.status as string | undefined;
+      if (ticketStatus && NON_BLOCKING_TICKET_STATUS.has(ticketStatus)) continue;
+      if (it.status && NON_BLOCKING_ITEM_STATUS.has(it.status)) continue;
+      if (!it.time_start || !it.time_end) continue;
       addBusy(it.date, it.instructor_id, toMin(it.time_start), toMin(it.time_end));
+    }
+    for (const gi of groupInstances ?? []) {
+      if (gi.status && NON_BLOCKING_ITEM_STATUS.has(gi.status)) continue;
+      if (!gi.start_time || !gi.end_time) continue;
+      addBusy(gi.date, gi.instructor_id, toMin(gi.start_time), toMin(gi.end_time));
+      addBusy(gi.date, gi.assistant_instructor_id, toMin(gi.start_time), toMin(gi.end_time));
     }
     for (const a of absences ?? []) {
       for (let d = maxDate(a.start_date, effFrom); d <= a.end_date && d <= date_to; d = nextDate(d)) {
@@ -103,11 +139,15 @@ Deno.serve(async (req) => {
         if (b.weekdays?.includes(dow)) addBusy(d, b.instructor_id, toMin(b.start_time), toMin(b.end_time));
       }
     }
+    for (const ob of officeBlocks ?? []) {
+      if (!ob.time_start || !ob.time_end) continue;
+      addBusy(ob.date, ob.instructor_id, toMin(ob.time_start), toMin(ob.time_end));
+    }
 
     // Build day list
     const days: any[] = [];
     for (let d = effFrom; d <= date_to; d = nextDate(d)) {
-      const dayBusy = busy.get(d) ?? new Map();
+      const dayBusy = busy.get(d) ?? new Map<string, [number, number][]>();
       const slots: any[] = [];
       for (let start = OPEN_MIN; start + duration_minutes <= CLOSE_MIN; start += STEP_MIN) {
         const end = start + duration_minutes;
@@ -115,13 +155,14 @@ Deno.serve(async (req) => {
           const intervals = dayBusy.get(id) ?? [];
           return !intervals.some(([s, e]) => s < end && e > start);
         });
-        if (freeInstructors.length > 0) {
-          slots.push({
-            start: toHHMM(start),
-            end: toHHMM(end),
-            free_instructors: freeInstructors.length,
-          });
-        }
+        if (freeInstructors.length === 0 && !include_unavailable) continue;
+        slots.push({
+          start: toHHMM(start),
+          end: toHHMM(end),
+          available: freeInstructors.length > 0,
+          free_instructors: freeInstructors.length,
+          available_instructor_ids: freeInstructors,
+        });
       }
       const weekday = new Date(d + "T12:00:00Z").getUTCDay(); // 0=Sun..6=Sat
       days.push({
@@ -129,12 +170,19 @@ Deno.serve(async (req) => {
         weekday,
         is_saturday: weekday === 6,
         is_weekday: weekday >= 1 && weekday <= 5,
-        fully_booked: slots.length === 0,
+        fully_booked: slots.every((s) => !s.available),
         slots,
       });
     }
 
-    return json({ success: true, timezone: "Europe/Zurich", open: "09:00", close: "16:00", days });
+    return json({
+      success: true,
+      timezone: "Europe/Zurich",
+      open: "09:00",
+      close: "16:00",
+      total_instructors: instructorIds.length,
+      days,
+    });
   } catch (e) {
     console.error("get-availability error:", e);
     return json({ error: "Internal error", message: (e as Error).message }, 500);

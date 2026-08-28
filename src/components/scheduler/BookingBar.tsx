@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/tooltip";
 import { BookingDetailDialog } from "./BookingDetailDialog";
 import { OfficeHoursDetailDialog } from "./OfficeHoursDetailDialog";
-import { AlertTriangle, Building, Link2 } from "lucide-react";
+import { AlertTriangle, Building, Hourglass, Link2 } from "lucide-react";
 
 interface BookingBarProps {
   booking: SchedulerBooking;
@@ -98,9 +98,19 @@ export function BookingBar({ booking, slotWidth, instructorSpecialization, isPla
               // Planning mode: dim existing bookings
               isPlanningMode && "opacity-50",
               // Period bookings: subtle left border indicator
-              booking.isPartOfPeriod && "border-l-2 border-l-primary"
+              booking.isPartOfPeriod && "border-l-2 border-l-primary",
+              // Provisional website reservations: amber, dashed
+              booking.isProvisional && "bg-amber-400 text-amber-950 border-amber-600 border-dashed"
             )}
-            style={style}
+            style={{
+              ...style,
+              ...(booking.isProvisional
+                ? {
+                    backgroundImage:
+                      "repeating-linear-gradient(45deg, transparent, transparent 3px, rgba(120, 53, 15, 0.18) 3px, rgba(120, 53, 15, 0.18) 6px)",
+                  }
+                : {}),
+            }}
           >
             {booking.isPartOfPeriod && (
               <Link2 className="h-2.5 w-2.5 text-primary shrink-0" />
@@ -114,7 +124,11 @@ export function BookingBar({ booking, slotWidth, instructorSpecialization, isPla
             {booking.isSharedLesson && (
               <Link2 className="h-2.5 w-2.5 text-primary shrink-0" />
             )}
+            {booking.isProvisional && (
+              <Hourglass className="h-2.5 w-2.5 shrink-0" />
+            )}
             <span className="truncate">
+              {booking.isProvisional && "Provisorisch: "}
               {booking.isSharedLesson && booking.sharedCustomerNames?.length
                 ? `Privat: ${booking.sharedCustomerNames.join(" / ")}`
                 : booking.participantName || (booking.type === "group" ? "Gruppe" : booking.type === "office_shift" ? "Bürodienst" : "Privat")}
@@ -123,6 +137,15 @@ export function BookingBar({ booking, slotWidth, instructorSpecialization, isPla
         </TooltipTrigger>
         <TooltipContent side="top" className="max-w-xs">
           <div className="space-y-1">
+            {booking.isProvisional && (
+              <p className="text-sm font-medium text-amber-600 flex items-center gap-1">
+                <Hourglass className="h-3 w-3" />
+                Provisorisch reserviert
+                {booking.source === "website" && " (Website)"}
+                {booking.reservationExpiresAt &&
+                  ` – gültig bis ${new Date(booking.reservationExpiresAt).toLocaleTimeString("de-CH", { hour: "2-digit", minute: "2-digit" })}`}
+              </p>
+            )}
             <p className="font-medium">
               {booking.type === "group" ? "Gruppenkurs" : booking.type === "office_shift" ? "Bürodienst" : "Privatstunde"}
               {booking.isPartOfPeriod && " (Periode)"}
