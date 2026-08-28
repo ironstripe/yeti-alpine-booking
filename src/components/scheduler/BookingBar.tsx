@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/tooltip";
 import { BookingDetailDialog } from "./BookingDetailDialog";
 import { OfficeHoursDetailDialog } from "./OfficeHoursDetailDialog";
-import { AlertTriangle, Building, Link2 } from "lucide-react";
+import { AlertTriangle, Building, Hourglass, Link2 } from "lucide-react";
 
 interface BookingBarProps {
   booking: SchedulerBooking;
