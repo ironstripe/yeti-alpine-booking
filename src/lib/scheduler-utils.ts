@@ -20,6 +20,14 @@ export interface SchedulerBooking {
   participantName?: string;
   status: string;
   participantSport?: string | null;
+  /** Underlying ticket status (e.g. provisional, payment_pending, confirmed) */
+  ticketStatus?: string | null;
+  /** Provisional website reservation with a 15-minute hold */
+  isProvisional?: boolean;
+  /** ISO timestamp when a provisional reservation expires */
+  reservationExpiresAt?: string | null;
+  /** Booking source (website, vapi, office) */
+  source?: string | null;
   // Group course capacity fields
   currentParticipants?: number;
   maxParticipants?: number;
