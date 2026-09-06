@@ -26,8 +26,13 @@ import {
 } from "@/components/bookings/BookingChangeConfirmDialog";
 import { PeriodModificationDialog, type PeriodModificationScope } from "./PeriodModificationDialog";
 import { usePeriodModification } from "@/hooks/usePeriodModification";
-import { useIsTouchDevice } from "@/hooks/use-touch-device";
+import { useIsTouchDevice, useIsMobileScheduler } from "@/hooks/use-touch-device";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { MobileSlotContext, type MobileSlotTapPayload } from "./mobile/MobileSlotContext";
+import { MobileSlotSheet } from "./mobile/MobileSlotSheet";
+import { MobileSchedulerAgenda } from "./mobile/MobileSchedulerAgenda";
+
+const MOBILE_VIEW_KEY = "scheduler.mobileView";
 
 const SLOT_WIDTH = 100; // px per hour
 
@@ -42,6 +47,20 @@ function SchedulerGridContent() {
   const [searchParams] = useSearchParams();
   const isTouch = useIsTouchDevice();
   const isMobile = useIsMobile();
+  const isMobileScheduler = useIsMobileScheduler();
+  const [mobileView, setMobileView] = useState<"list" | "grid">(() =>
+    (localStorage.getItem(MOBILE_VIEW_KEY) as "list" | "grid") || "list"
+  );
+  const [mobileSlot, setMobileSlot] = useState<MobileSlotTapPayload | null>(null);
+
+  const handleMobileViewChange = useCallback((view: "list" | "grid") => {
+    setMobileView(view);
+    localStorage.setItem(MOBILE_VIEW_KEY, view);
+  }, []);
+
+  const handleFreeSlotTap = useCallback((payload: MobileSlotTapPayload) => {
+    setMobileSlot(payload);
+  }, []);
   
   // Read initial date from URL params if present
   const initialDate = useMemo(() => {
@@ -329,6 +348,14 @@ function SchedulerGridContent() {
     clearSelection();
   }, [selectedDate, clearSelection]);
 
+  // Entering the phone layout must never keep a stale desktop selection alive
+  useEffect(() => {
+    if (isMobileScheduler) {
+      clearSelection();
+      setMobileSlot(null);
+    }
+  }, [isMobileScheduler, clearSelection]);
+
 
   // Scroll to instructor and highlight
   const scrollToInstructor = useCallback((instructorId: string) => {
@@ -557,7 +584,12 @@ function SchedulerGridContent() {
     );
   }
 
+  const selectedMobileInstructor = mobileSlot
+    ? instructors.find((i) => i.id === mobileSlot.instructorId)
+    : undefined;
+
   return (
+    <MobileSlotContext.Provider value={{ isMobileScheduler, onFreeSlotTap: handleFreeSlotTap }}>
     <DndKitProvider onBookingDrop={handleBookingDrop}>
       <div
         className={cn(
@@ -586,6 +618,9 @@ function SchedulerGridContent() {
             filters={filters}
             onFiltersChange={handleFiltersChange}
             compactStats={compactStats}
+            isMobileScheduler={isMobileScheduler}
+            mobileView={mobileView}
+            onMobileViewChange={handleMobileViewChange}
           />
         </div>
 
@@ -612,6 +647,18 @@ function SchedulerGridContent() {
             touchAction: "pan-x pan-y",
           }}
         >
+          {isMobileScheduler && mobileView === "list" ? (
+            <MobileSchedulerAgenda
+              instructors={filteredInstructors}
+              date={selectedDate}
+              bookings={filteredBookings}
+              absences={absences}
+              isLoading={isLoading}
+              highlightedInstructorId={highlightedInstructorId}
+              onFreeSlotTap={handleFreeSlotTap}
+            />
+          ) : (
+          <>
           {/* Sticky Time Header - with day column for multi-day views */}
           <StickyTimeHeader 
             slotWidth={SLOT_WIDTH} 
@@ -638,6 +685,8 @@ function SchedulerGridContent() {
             roleFilter={roleFilter}
             instructorColumnWidth={effectiveInstructorColumnWidth}
           />
+          </>
+          )}
         </div>
 
         {/* Legend - Compact (conditional) */}
@@ -709,8 +758,22 @@ function SchedulerGridContent() {
             isLoading={periodModification.isPending}
           />
         )}
+
+        {/* Mobile slot sheet: the only booking entry point below 768px */}
+        <MobileSlotSheet
+          slot={mobileSlot}
+          instructorName={
+            selectedMobileInstructor
+              ? `${selectedMobileInstructor.first_name} ${selectedMobileInstructor.last_name}`
+              : ""
+          }
+          bookings={bookings}
+          absences={absences}
+          onOpenChange={(open) => !open && setMobileSlot(null)}
+        />
       </div>
     </DndKitProvider>
+    </MobileSlotContext.Provider>
   );
 }
 
