@@ -448,7 +448,9 @@ const initialState: BookingWizardState = {
   internalNotes: "",
   instructorNotes: "",
   paymentMethod: null,
-  isPaid: false,
+  settlement: "pay_later",
+  billingPartnerId: null,
+
   paymentDueDate: null,
   discountPercent: 0,
   discountReason: "",
