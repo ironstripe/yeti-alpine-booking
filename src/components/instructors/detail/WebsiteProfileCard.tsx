@@ -26,6 +26,7 @@ interface Props {
   firstName: string;
   lastName: string;
   specialization: string | null;
+  avatarUrl?: string | null;
 }
 
 function suggestRoleLabel(specialization: string | null) {
