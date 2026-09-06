@@ -34,6 +34,8 @@ import {
   STATUS_OPTIONS,
 } from "@/lib/instructor-utils";
 import { RoleSelector, getDisciplineFromRoles, hasTeachingRole } from "./RoleSelector";
+import { Checkbox } from "@/components/ui/checkbox";
+import { DEFAULT_WEBSITE_TEASER, WEBSITE_TEASER_MAX } from "@/lib/website-profile";
 
 const instructorSchema = z.object({
   first_name: z.string().min(1, "Vorname ist erforderlich"),
@@ -52,6 +54,8 @@ const instructorSchema = z.object({
   iban: z.string().optional(),
   ahv_number: z.string().optional(),
   notes: z.string().optional(),
+  show_on_website: z.boolean().default(false),
+  website_teaser: z.string().max(WEBSITE_TEASER_MAX, `Maximal ${WEBSITE_TEASER_MAX} Zeichen`).optional(),
 });
 
 type InstructorFormData = z.infer<typeof instructorSchema>;
