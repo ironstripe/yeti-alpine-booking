@@ -78,3 +78,7 @@ verify_jwt = false
 [functions.test-intake-contract]
 verify_jwt = false
 
+[functions.get-public-instructors]
+verify_jwt = false
+
+

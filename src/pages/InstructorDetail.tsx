@@ -14,6 +14,8 @@ import { RolesCapabilitiesCard } from "@/components/instructors/detail/RolesCapa
 import { RecurringBlocksTab } from "@/components/instructor/RecurringBlocksTab";
 import { InstructorRentalsCard } from "@/components/instructors/detail/InstructorRentalsCard";
 import { EditInstructorModal } from "@/components/instructors/EditInstructorModal";
+import { WebsiteProfileCard } from "@/components/instructors/detail/WebsiteProfileCard";
+
 import { getSpecializationLabel } from "@/hooks/useInstructors";
 import { getLevelLabel } from "@/lib/instructor-utils";
 import { useUserRole } from "@/hooks/useUserRole";
@@ -176,8 +178,17 @@ export default function InstructorDetail() {
               currentType={instructor.instructor_type}
             />
           )}
+          {isAdminOrOffice && id && instructor && (
+            <WebsiteProfileCard
+              instructorId={id}
+              firstName={instructor.first_name}
+              lastName={instructor.last_name}
+              specialization={instructor.specialization}
+            />
+          )}
         </div>
       </div>
+
 
       {instructor && (
         <EditInstructorModal
