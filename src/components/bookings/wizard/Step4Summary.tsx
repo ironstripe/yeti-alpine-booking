@@ -171,7 +171,8 @@ export function Step4Summary({ onEditStep }: Step4SummaryProps) {
         const result = await createBooking.mutateAsync({
           ...state,
           paymentMethod,
-          isPaid,
+          settlement,
+          billingPartnerId,
           paymentDueDate,
           discountPercent: totalDiscount,
           discountReason: combinedReason,
@@ -179,6 +180,7 @@ export function Step4Summary({ onEditStep }: Step4SummaryProps) {
           sendCustomerWhatsApp,
           notifyInstructor,
         });
+
 
         setCreatedTicket({ id: result.ticketId, number: result.ticketNumber });
         setShowSuccess(true);
