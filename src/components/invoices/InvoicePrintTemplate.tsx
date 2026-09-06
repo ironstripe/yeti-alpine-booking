@@ -2,8 +2,11 @@ import { forwardRef } from "react";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import { QRPaymentSlip } from "./QRPaymentSlip";
+import { SwissQRPaymentPart } from "./SwissQRPaymentPart";
+import { BankTransferInstructions } from "./BankTransferInstructions";
 import { formatCurrency } from "@/lib/swiss-qr-utils";
 import { formatPhoneDisplay } from "@/lib/phone-utils";
+import type { PaymentSnapshot } from "@/lib/payments";
 
 interface InvoiceLineItem {
   description: string;
@@ -21,10 +24,14 @@ interface InvoicePrintTemplateProps {
     discount: number;
     total: number;
     currency?: string;
+    payment_snapshot?: PaymentSnapshot | null;
+    payment_presentation_type?: string | null;
+    is_legacy_payment?: boolean | null;
   };
   school: {
     name: string;
     street?: string;
+    house_number?: string;
     zip?: string;
     city?: string;
     country?: string;
@@ -39,6 +46,7 @@ interface InvoicePrintTemplateProps {
     first_name?: string;
     last_name: string;
     street?: string;
+    house_number?: string;
     zip?: string;
     city?: string;
     country?: string;
@@ -50,9 +58,27 @@ interface InvoicePrintTemplateProps {
 export const InvoicePrintTemplate = forwardRef<HTMLDivElement, InvoicePrintTemplateProps>(
   ({ invoice, school, customer, ticketNumber, lineItems }, ref) => {
     const customerName = [customer.first_name, customer.last_name].filter(Boolean).join(' ');
-    
+    const snapshot = invoice.payment_snapshot ?? null;
+    const presentation = snapshot?.presentation_type ?? invoice.payment_presentation_type ?? null;
+    const schoolStreet = [school.street, school.house_number].filter(Boolean).join(' ');
+    const customerStreet = [customer.street, customer.house_number].filter(Boolean).join(' ');
+
     return (
-      <div ref={ref} className="bg-white text-black p-8 max-w-[210mm] mx-auto print:p-0 print:max-w-none" style={{ fontFamily: 'Helvetica, Arial, sans-serif' }}>
+      <div
+        ref={ref}
+        className="bg-white text-black print:p-0"
+        style={{ fontFamily: 'Helvetica, Arial, sans-serif', width: '210mm', margin: '0 auto' }}
+      >
+        {/* Print rules: A4 pages, payment part never split across pages */}
+        <style>{`
+          @page { size: A4; margin: 0; }
+          @media print {
+            .invoice-body { padding: 15mm 15mm 5mm 15mm; }
+            .qr-bill { break-inside: avoid; page-break-inside: avoid; }
+          }
+        `}</style>
+
+        <div className="invoice-body p-8 print:p-0">
         {/* Header */}
         <div className="flex justify-between items-start mb-8">
           {/* Logo & School Info */}
@@ -63,7 +89,7 @@ export const InvoicePrintTemplate = forwardRef<HTMLDivElement, InvoicePrintTempl
               <h1 className="text-2xl font-bold">{school.name}</h1>
             )}
             <div className="text-sm text-gray-600">
-              {school.street && <p>{school.street}</p>}
+              {schoolStreet && <p>{schoolStreet}</p>}
               {school.zip && school.city && <p>{school.zip} {school.city}</p>}
               {school.phone && <p>Tel: {formatPhoneDisplay(school.phone)}</p>}
               {school.email && <p>{school.email}</p>}
@@ -104,7 +130,7 @@ export const InvoicePrintTemplate = forwardRef<HTMLDivElement, InvoicePrintTempl
           <p className="text-sm text-gray-600 mb-1">Rechnungsadresse:</p>
           <div className="text-base">
             <p className="font-medium">{customerName}</p>
-            {customer.street && <p>{customer.street}</p>}
+            {customerStreet && <p>{customerStreet}</p>}
             {customer.zip && customer.city && <p>{customer.zip} {customer.city}</p>}
             {customer.country && customer.country !== 'CH' && customer.country !== 'LI' && (
               <p>{customer.country}</p>
@@ -118,7 +144,7 @@ export const InvoicePrintTemplate = forwardRef<HTMLDivElement, InvoicePrintTempl
             <tr className="border-b-2 border-gray-300">
               <th className="text-left py-2 text-sm font-bold w-12">Pos</th>
               <th className="text-left py-2 text-sm font-bold">Beschreibung</th>
-              <th className="text-right py-2 text-sm font-bold w-32">Betrag CHF</th>
+              <th className="text-right py-2 text-sm font-bold w-32">Betrag {invoice.currency || 'CHF'}</th>
             </tr>
           </thead>
           <tbody>
@@ -141,58 +167,86 @@ export const InvoicePrintTemplate = forwardRef<HTMLDivElement, InvoicePrintTempl
             <tbody>
               <tr>
                 <td className="pr-8 py-1">Zwischensumme</td>
-                <td className="text-right py-1">CHF {formatCurrency(invoice.subtotal)}</td>
+                <td className="text-right py-1">{invoice.currency || 'CHF'} {formatCurrency(invoice.subtotal)}</td>
               </tr>
               {invoice.discount > 0 && (
                 <tr>
                   <td className="pr-8 py-1">Rabatt</td>
-                  <td className="text-right py-1 text-green-600">- CHF {formatCurrency(invoice.discount)}</td>
+                  <td className="text-right py-1 text-green-600">- {invoice.currency || 'CHF'} {formatCurrency(invoice.discount)}</td>
                 </tr>
               )}
               <tr className="border-t border-gray-300">
-                <td className="pr-8 py-2 font-bold text-base">TOTAL CHF</td>
+                <td className="pr-8 py-2 font-bold text-base">TOTAL {invoice.currency || 'CHF'}</td>
                 <td className="text-right py-2 font-bold text-base">{formatCurrency(invoice.total)}</td>
               </tr>
             </tbody>
           </table>
         </div>
 
-        {/* Payment Info */}
-        <div className="mb-4 text-sm">
-          <p className="font-bold mb-2">Zahlungsinformationen:</p>
-          {school.iban && <p>IBAN: {school.iban}</p>}
-          {school.bic && <p>BIC: {school.bic}</p>}
-          <p>Referenz: {invoice.invoice_number}</p>
+        {/* Non Swiss-QR payment instructions */}
+        {snapshot && (presentation === 'sepa_transfer' || presentation === 'international_transfer') && (
+          <BankTransferInstructions
+            snapshot={snapshot}
+            amount={invoice.total}
+            invoiceNumber={invoice.invoice_number}
+            dueDate={invoice.due_date}
+          />
+        )}
+
+        {snapshot && presentation === 'swiss_qr' && (
+          <p className="text-sm text-gray-600 mb-4">
+            Bitte verwenden Sie den untenstehenden QR-Zahlteil für die Zahlung mit Ihrer Banking-App.
+          </p>
+        )}
         </div>
 
-        <p className="text-sm text-gray-600 mb-4">
-          Bitte verwenden Sie den untenstehenden QR-Code für die einfache Zahlung mit Ihrer Banking-App.
-        </p>
+        {/* Swiss QR payment part — full width, never split */}
+        {snapshot && presentation === 'swiss_qr' && (
+          <>
+            <div className="border-t border-dashed border-black relative mt-6">
+              <span className="absolute -top-[2mm] left-2 bg-white px-1 text-[8pt]">✂</span>
+            </div>
+            <SwissQRPaymentPart
+              snapshot={snapshot}
+              amount={invoice.total}
+              debtor={{
+                name: customerName,
+                street: customer.street,
+                houseNumber: customer.house_number,
+                zip: customer.zip,
+                city: customer.city,
+              }}
+              additionalInfo={`Rechnung ${invoice.invoice_number}`}
+            />
+          </>
+        )}
 
-        {/* QR Payment Slip */}
-        {school.iban && (
-          <QRPaymentSlip
-            creditor={{
-              name: school.name,
-              street: school.street || '',
-              zip: school.zip || '',
-              city: school.city || '',
-              country: (school.country as 'LI' | 'CH') || 'LI',
-              iban: school.iban,
-              accountHolder: school.account_holder,
-            }}
-            debtor={{
-              name: customerName,
-              street: customer.street,
-              zip: customer.zip,
-              city: customer.city,
-              country: customer.country,
-            }}
-            amount={invoice.total}
-            currency="CHF"
-            reference={invoice.qr_reference}
-            message={`Rechnung ${invoice.invoice_number}`}
-          />
+        {/* Legacy invoices issued before payment profiles keep their original slip */}
+        {!snapshot && school.iban && (
+          <div className="invoice-body p-8 print:p-0">
+            <QRPaymentSlip
+              creditor={{
+                name: school.name,
+                street: schoolStreet || '',
+                zip: school.zip || '',
+                city: school.city || '',
+                country: (school.country as 'LI' | 'CH') || 'LI',
+                iban: school.iban,
+                accountHolder: school.account_holder,
+              }}
+              debtor={{
+                name: customerName,
+                street: customerStreet,
+                zip: customer.zip,
+                city: customer.city,
+                country: customer.country,
+              }}
+              amount={invoice.total}
+              currency="CHF"
+              reference={invoice.qr_reference}
+              message={`Rechnung ${invoice.invoice_number}`}
+            />
+          </div>
         )}
       </div>
     );
