@@ -471,6 +471,11 @@ export default function SettingsSchool() {
           </div>
         </form>
       </Form>
+
+      <div className="mt-6">
+        <PaymentProfilesSection />
+      </div>
     </SettingsLayout>
   );
 }
+
