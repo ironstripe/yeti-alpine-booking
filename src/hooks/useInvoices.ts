@@ -1,8 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { generateQRReference } from "@/lib/swiss-qr-utils";
-import { addDays } from "date-fns";
+import type { PaymentSnapshot, RoutingResult } from "@/lib/payments";
 
 export interface Invoice {
   id: string;
@@ -21,7 +20,17 @@ export interface Invoice {
   paid_at: string | null;
   pdf_url: string | null;
   created_at: string;
+  payment_profile_id?: string | null;
+  payment_presentation_type?: string | null;
+  payment_snapshot?: PaymentSnapshot | null;
+  payment_reference_type?: string | null;
+  payment_reference?: string | null;
+  payment_routing_reason?: string | null;
+  payment_profile_overridden?: boolean | null;
+  is_legacy_payment?: boolean | null;
+  issued_at?: string | null;
 }
+
 
 export interface InvoiceWithDetails extends Invoice {
   ticket?: {
