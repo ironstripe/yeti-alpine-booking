@@ -96,65 +96,81 @@ export function useInvoice(invoiceId: string | undefined) {
 
 interface CreateInvoiceInput {
   ticketId: string;
-  customerId: string;
+  customerId?: string | null;
+  billingPartnerId?: string | null;
   subtotal: number;
   discount?: number;
   total: number;
+  currency?: string;
   dueDays?: number;
+  overrideProfileId?: string | null;
+  overrideReason?: string | null;
+  allowAdditional?: boolean;
 }
 
+/**
+ * Issues an invoice through the server. Payment routing, reference generation
+ * and the immutable payment snapshot are decided by the backend, never here.
+ */
 export function useCreateInvoice() {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
     mutationFn: async (input: CreateInvoiceInput) => {
-      const dueDate = addDays(new Date(), input.dueDays || 14);
-      
-      // Generate a temporary reference - will be updated with actual invoice number
-      const tempRef = generateQRReference(`${Date.now()}`);
-      
-      // Use type assertion since we know the table exists
-      const { data, error } = await supabase
-        .from("invoices")
-        .insert([{
-          ticket_id: input.ticketId,
-          customer_id: input.customerId,
+      const { data, error } = await supabase.functions.invoke("issue-invoice", {
+        body: {
+          action: "issue",
+          ticketId: input.ticketId,
+          customerId: input.customerId ?? null,
+          billingPartnerId: input.billingPartnerId ?? null,
           subtotal: input.subtotal,
-          discount: input.discount || 0,
+          discount: input.discount ?? 0,
           total: input.total,
-          qr_reference: tempRef,
-          due_date: dueDate.toISOString().split('T')[0],
-          status: 'draft',
-        }] as any)
-        .select()
-        .single();
-      
+          currency: input.currency ?? "CHF",
+          dueDays: input.dueDays ?? 14,
+          overrideProfileId: input.overrideProfileId ?? null,
+          overrideReason: input.overrideReason ?? null,
+          allowAdditional: input.allowAdditional ?? false,
+        },
+      });
+
       if (error) throw error;
-      
-      // Update QR reference with actual invoice number
-      const qrReference = generateQRReference(data.invoice_number);
-      const { data: updatedInvoice, error: updateError } = await supabase
-        .from("invoices")
-        .update({ qr_reference: qrReference })
-        .eq("id", data.id)
-        .select()
-        .single();
-      
-      if (updateError) throw updateError;
-      
-      return updatedInvoice as Invoice;
+      if (!data?.ok) throw new Error(data?.error || "Rechnung konnte nicht erstellt werden");
+
+      return data.invoice as Invoice;
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
       queryClient.invalidateQueries({ queryKey: ["invoice", data.id] });
       toast.success(`Rechnung ${data.invoice_number} erstellt`);
     },
-    onError: (error) => {
+    onError: (error: Error) => {
       console.error("Failed to create invoice:", error);
-      toast.error("Fehler beim Erstellen der Rechnung");
+      toast.error(error.message || "Fehler beim Erstellen der Rechnung");
     },
   });
 }
+
+/** Shows which bank account and reference type an invoice would use, before issuing. */
+export function useInvoiceRoutingPreview() {
+  return useMutation({
+    mutationFn: async (input: {
+      ticketId: string;
+      customerId?: string | null;
+      billingPartnerId?: string | null;
+      currency?: string;
+      overrideProfileId?: string | null;
+      overrideReason?: string | null;
+    }) => {
+      const { data, error } = await supabase.functions.invoke("issue-invoice", {
+        body: { action: "preview", ...input },
+      });
+      if (error) throw error;
+      return data as RoutingResult & { ok: boolean; error?: string };
+    },
+  });
+}
+
 
 export function useUpdateInvoiceStatus() {
   const queryClient = useQueryClient();
