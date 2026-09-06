@@ -251,7 +251,7 @@ export function ParticipantCard({ participant, customerId }: ParticipantCardProp
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor={`notes_${participant.id}`}>Notizen</Label>
+            <Label htmlFor={`notes_${participant.id}`}>Interne Bemerkungen (nicht für Kunden sichtbar)</Label>
             <Textarea
               id={`notes_${participant.id}`}
               {...register("notes")}
