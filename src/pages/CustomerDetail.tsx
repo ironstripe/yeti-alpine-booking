@@ -90,7 +90,13 @@ export default function CustomerDetail() {
                 </Badge>
               )}
             </div>
-            <p className="text-muted-foreground">{customer.email}</p>
+            <p className="text-muted-foreground">
+              {customer.customer_number && (
+                <span className="font-mono mr-2">{customer.customer_number}</span>
+              )}
+              {customer.email}
+            </p>
+
           </div>
         </div>
         <div className="flex gap-2 pl-14 sm:pl-0">

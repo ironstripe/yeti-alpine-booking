@@ -15,7 +15,7 @@ export function CustomerSearchInput({
     <div className="relative w-full md:w-[400px]">
       <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
       <Input
-        placeholder="Suche nach Name, E-Mail oder Telefon..."
+        placeholder="Name, Kundennummer, E-Mail, Telefon oder Kind..."
         value={value}
         onChange={(e) => onChange(e.target.value)}
         className="pl-9 pr-9"

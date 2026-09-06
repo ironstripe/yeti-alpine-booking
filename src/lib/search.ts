@@ -1,12 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
+import { searchCustomersRpc, type CustomerSearchHit } from "@/hooks/useCustomerSearch";
 
-export interface CustomerSearchResult {
-  id: string;
-  first_name: string | null;
-  last_name: string;
-  email: string;
-  phone: string | null;
-}
+export type CustomerSearchResult = CustomerSearchHit;
 
 export interface BookingSearchResult {
   id: string;
@@ -15,18 +10,11 @@ export interface BookingSearchResult {
   customer_name: string;
 }
 
+/** Gemeinsamer Such-Vertrag – identisch zu Kundenliste, Assistent und Stundenplan. */
 export async function searchCustomers(query: string): Promise<CustomerSearchResult[]> {
-  const { data, error } = await supabase
-    .from("customers")
-    .select("id, first_name, last_name, email, phone")
-    .or(
-      `first_name.ilike.%${query}%,last_name.ilike.%${query}%,email.ilike.%${query}%,phone.ilike.%${query}%`
-    )
-    .limit(5);
-
-  if (error) throw error;
-  return data || [];
+  return searchCustomersRpc(query, 5);
 }
+
 
 export async function searchBookings(query: string): Promise<BookingSearchResult[]> {
   const { data, error } = await supabase

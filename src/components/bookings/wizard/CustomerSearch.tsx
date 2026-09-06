@@ -3,10 +3,15 @@ import { Search, User, Check, X, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { useCustomers, type CustomerWithCount } from "@/hooks/useCustomers";
-import { useDebounce } from "@/hooks/useDebounce";
-import { cn } from "@/lib/utils";
+import { supabase } from "@/integrations/supabase/client";
+import {
+  useCustomerSearch,
+  customerDisplayName,
+  MIN_SEARCH_LENGTH,
+  type CustomerSearchHit,
+} from "@/hooks/useCustomerSearch";
 import type { Tables } from "@/integrations/supabase/types";
+import { toast } from "sonner";
 
 interface CustomerSearchProps {
   selectedCustomer: Tables<"customers"> | null;
@@ -23,8 +28,8 @@ export function CustomerSearch({
 }: CustomerSearchProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [isOpen, setIsOpen] = useState(false);
-  const debouncedSearch = useDebounce(searchQuery, 300);
-  const { data: customers, isLoading } = useCustomers(debouncedSearch);
+  const [isSelecting, setIsSelecting] = useState(false);
+  const { data: customers = [], isLoading } = useCustomerSearch(searchQuery, 8);
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Close dropdown when clicking outside
@@ -38,33 +43,21 @@ export function CustomerSearch({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const handleSelect = (customer: CustomerWithCount) => {
-    // Convert CustomerWithCount to Tables<"customers"> - pass through all fields
-    const fullCustomer: Tables<"customers"> = {
-      id: customer.id,
-      customer_number: (customer as any).customer_number ?? null,
-      first_name: customer.first_name,
-      last_name: customer.last_name,
-      email: customer.email,
-      phone: customer.phone,
-      street: customer.street,
-      zip: customer.zip,
-      city: customer.city,
-      country: customer.country,
-      language: customer.language,
-      holiday_address: customer.holiday_address ?? "",
-      notes: customer.notes,
-      kulanz_score: customer.kulanz_score,
-      marketing_consent: customer.marketing_consent,
-      preferred_channel: customer.preferred_channel,
-      additional_phones: (customer.additional_phones ?? []) as Tables<"customers">["additional_phones"],
-      additional_emails: (customer.additional_emails ?? []) as Tables<"customers">["additional_emails"],
-      customer_type: customer.customer_type ?? "private",
-      organization_name: customer.organization_name,
-      billing_email: customer.billing_email,
-      created_at: customer.created_at,
-    };
-    onSelect(fullCustomer);
+  const handleSelect = async (hit: CustomerSearchHit) => {
+    setIsSelecting(true);
+    const { data, error } = await supabase
+      .from("customers")
+      .select("*")
+      .eq("id", hit.id)
+      .maybeSingle();
+    setIsSelecting(false);
+
+    if (error || !data) {
+      toast.error("Kunde konnte nicht geladen werden");
+      return;
+    }
+
+    onSelect(data);
     setSearchQuery("");
     setIsOpen(false);
   };
@@ -80,6 +73,11 @@ export function CustomerSearch({
             <div>
               <p className="font-medium">
                 {selectedCustomer.first_name} {selectedCustomer.last_name}
+                {selectedCustomer.customer_number && (
+                  <span className="ml-2 font-mono text-xs text-muted-foreground">
+                    {selectedCustomer.customer_number}
+                  </span>
+                )}
               </p>
               <p className="text-sm text-muted-foreground">
                 {selectedCustomer.email}
@@ -109,7 +107,7 @@ export function CustomerSearch({
       <div className="relative">
         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <Input
-          placeholder="Kunde suchen..."
+          placeholder="Name, Kundennummer, E-Mail, Telefon oder Teilnehmer..."
           value={searchQuery}
           onChange={(e) => {
             setSearchQuery(e.target.value);
@@ -123,6 +121,7 @@ export function CustomerSearch({
         />
         {searchQuery && (
           <button
+            type="button"
             onClick={() => {
               setSearchQuery("");
               setIsOpen(false);
@@ -137,15 +136,20 @@ export function CustomerSearch({
       {/* Dropdown results */}
       {isOpen && searchQuery.length > 0 && (
         <div className="absolute z-50 mt-1 w-full rounded-md border bg-popover shadow-lg">
-          {isLoading ? (
+          {searchQuery.trim().length < MIN_SEARCH_LENGTH ? (
+            <div className="p-4 text-center text-sm text-muted-foreground">
+              Mind. {MIN_SEARCH_LENGTH} Zeichen eingeben
+            </div>
+          ) : isLoading || isSelecting ? (
             <div className="flex items-center justify-center p-4">
               <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
             </div>
-          ) : customers && customers.length > 0 ? (
+          ) : customers.length > 0 ? (
             <ul className="max-h-60 overflow-auto py-1">
-              {customers.slice(0, 5).map((customer) => (
+              {customers.map((customer) => (
                 <li key={customer.id}>
                   <button
+                    type="button"
                     onClick={() => handleSelect(customer)}
                     className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-accent"
                   >
@@ -154,12 +158,17 @@ export function CustomerSearch({
                     </div>
                     <div className="flex-1 overflow-hidden">
                       <p className="truncate font-medium">
-                        {customer.first_name} {customer.last_name}
+                        {customerDisplayName(customer)}
+                        {customer.customer_number && (
+                          <span className="ml-2 font-mono text-xs text-muted-foreground">
+                            {customer.customer_number}
+                          </span>
+                        )}
                       </p>
                       <p className="truncate text-sm text-muted-foreground">
                         {customer.email}
-                        {customer.participant_count > 0 && (
-                          <> · {customer.participant_count} Teilnehmer</>
+                        {customer.match_reason && customer.match_reason !== "Namenstreffer" && (
+                          <> · {customer.match_reason}</>
                         )}
                       </p>
                     </div>

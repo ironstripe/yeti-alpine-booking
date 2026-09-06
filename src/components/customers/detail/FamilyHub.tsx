@@ -229,7 +229,7 @@ export function FamilyHub({
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="new_notes">Notizen</Label>
+                <Label htmlFor="new_notes">Interne Bemerkungen (nicht für Kunden sichtbar)</Label>
                 <Textarea
                   id="new_notes"
                   {...register("notes")}

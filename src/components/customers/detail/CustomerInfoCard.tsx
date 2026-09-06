@@ -300,7 +300,7 @@ export function CustomerInfoCard({ customer }: CustomerInfoCardProps) {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="notes">Notizen</Label>
+              <Label htmlFor="notes">Interne Bemerkungen (nicht für Kunden sichtbar)</Label>
               <Textarea
                 id="notes"
                 {...register("notes")}
@@ -430,11 +430,15 @@ export function CustomerInfoCard({ customer }: CustomerInfoCardProps) {
 
           {customer.notes && (
             <div className="pt-2 border-t">
+              <p className="text-xs font-medium text-muted-foreground">
+                Interne Bemerkungen (nicht für Kunden sichtbar)
+              </p>
               <p className="text-sm text-muted-foreground italic">
                 {customer.notes}
               </p>
             </div>
           )}
+
 
           <div className="pt-2 border-t text-xs text-muted-foreground">
             Erstellt am{" "}
