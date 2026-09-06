@@ -350,14 +350,37 @@ export function WebsiteProfileCard({ instructorId, firstName, lastName, speciali
           </div>
         </div>
 
+        <Separator />
+
+        {/* Checklist */}
+        <div className="rounded-lg border p-3 space-y-2">
+          <p className="text-sm font-medium">
+            {isLive
+              ? "Dieses Profil ist auf der Website sichtbar."
+              : "Noch nicht auf der Website sichtbar – erst nach dem Veröffentlichen."}
+          </p>
+          <ul className="space-y-1">
+            {checklist.map((c) => (
+              <li key={c.label} className="flex items-center gap-2 text-sm">
+                {c.ok ? (
+                  <Check className="h-4 w-4 text-primary shrink-0" />
+                ) : (
+                  <X className="h-4 w-4 text-destructive shrink-0" />
+                )}
+                <span className={c.ok ? "text-muted-foreground" : ""}>{c.label}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" onClick={saveDraft} disabled={save.isPending}>
-            Draft speichern
+            Zwischenspeichern
           </Button>
-          <Button onClick={publish} disabled={save.isPending}>
-            Profil veröffentlichen
+          <Button onClick={publish} disabled={save.isPending || !readyToPublish}>
+            {isLive ? "Änderungen veröffentlichen" : "Jetzt auf Website veröffentlichen"}
           </Button>
-          {profile.status === "published" && (
+          {isLive && (
             <Button variant="destructive" onClick={unpublish} disabled={save.isPending}>
               Von Website entfernen
             </Button>
