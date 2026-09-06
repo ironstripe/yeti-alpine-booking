@@ -78,6 +78,8 @@ import SettingsSystem from "./pages/SettingsSystem";
 import SetPassword from "./pages/SetPassword";
 import ResetPassword from "./pages/ResetPassword";
 import TestInstructorLogin from "./pages/TestInstructorLogin";
+import SettingsHotels from "./pages/SettingsHotels";
+import FinanceUnpaid from "./pages/FinanceUnpaid";
 import SettingsInventory from "./pages/SettingsInventory";
 import Rentals from "./pages/Rentals";
 import InstructorRentals from "./pages/InstructorRentals";
@@ -214,6 +216,8 @@ const AppRoutes = () => (
       <Route path="settings/ai" element={<SettingsAI />} />
       <Route path="settings/import" element={<SettingsDataImport />} />
       <Route path="settings/system" element={<SettingsSystem />} />
+      <Route path="settings/hotels" element={<SettingsHotels />} />
+      <Route path="finance/unpaid" element={<FinanceUnpaid />} />
       <Route path="settings/inventory" element={<SettingsInventory />} />
     </Route>
 

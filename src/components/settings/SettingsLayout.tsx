@@ -1,6 +1,6 @@
 import { ReactNode } from "react";
 import { NavLink, useLocation } from "react-router-dom";
-import { Building2, Package, DollarSign, CalendarDays, Users, Mail, Bell, Settings2, Brain, ClipboardList, Upload, Boxes } from "lucide-react";
+import { Building2, Package, DollarSign, CalendarDays, Users, Mail, Bell, Settings2, Brain, Hotel, ClipboardList, Upload, Boxes } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -9,6 +9,7 @@ const settingsNav = [
   { title: "Skischule", url: "/settings/school", icon: Building2 },
   { title: "Produkte", url: "/settings/products", icon: Package },
   { title: "Preise", url: "/settings/pricing", icon: DollarSign },
+  { title: "Hotels & Partner", url: "/settings/hotels", icon: Hotel },
   { title: "Saisons", url: "/settings/seasons", icon: CalendarDays },
   { title: "Tagesaufgaben", url: "/settings/daily-tasks", icon: ClipboardList },
   { title: "Inventar", url: "/settings/inventory", icon: Boxes },
