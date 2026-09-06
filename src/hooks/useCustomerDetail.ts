@@ -91,12 +91,34 @@ export function useCustomerDetail(customerId: string | undefined) {
   });
 }
 
+export interface TicketItemSummary {
+  id: string;
+  date: string;
+  end_date: string | null;
+  time_start: string | null;
+  time_end: string | null;
+  status: string | null;
+  meeting_point: string | null;
+  productName: string;
+  productType: string | null;
+  participantName: string | null;
+  instructorName: string | null;
+  lineTotal: number;
+}
+
 export interface Ticket {
   id: string;
   ticket_number: string;
   status: string | null;
   total_amount: number | null;
+  paid_amount: number | null;
+  payment_method: string | null;
+  payment_due_date: string | null;
   created_at: string;
+  items: TicketItemSummary[];
+  courseDateFrom: string | null;
+  courseDateTo: string | null;
+  isUpcoming: boolean;
 }
 
 export function useCustomerTickets(customerId: string | undefined) {
@@ -107,13 +129,66 @@ export function useCustomerTickets(customerId: string | undefined) {
 
       const { data, error } = await supabase
         .from("tickets")
-        .select("id, ticket_number, status, total_amount, created_at")
+        .select(
+          `id, ticket_number, status, total_amount, paid_amount, payment_method, payment_due_date, created_at,
+           ticket_items (
+             id, date, end_date, time_start, time_end, status, meeting_point, line_total,
+             products ( name, type ),
+             customer_participants ( first_name, last_name ),
+             instructors ( first_name, last_name )
+           )`
+        )
         .eq("customer_id", customerId)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
-      return data || [];
+
+      const today = new Date().toISOString().slice(0, 10);
+
+      return (data || []).map((t: any) => {
+        const items: TicketItemSummary[] = (t.ticket_items || [])
+          .map((i: any) => ({
+            id: i.id,
+            date: i.date,
+            end_date: i.end_date,
+            time_start: i.time_start,
+            time_end: i.time_end,
+            status: i.status,
+            meeting_point: i.meeting_point,
+            productName: i.products?.name || "Unbekanntes Produkt",
+            productType: i.products?.type || null,
+            participantName: i.customer_participants
+              ? `${i.customer_participants.first_name} ${i.customer_participants.last_name || ""}`.trim()
+              : null,
+            instructorName: i.instructors
+              ? `${i.instructors.first_name} ${i.instructors.last_name}`.trim()
+              : null,
+            lineTotal: Number(i.line_total || 0),
+          }))
+          .sort((a, b) => a.date.localeCompare(b.date));
+
+        const dates = items.map((i) => i.end_date || i.date).filter(Boolean);
+        const starts = items.map((i) => i.date).filter(Boolean);
+        const courseDateFrom = starts.length ? starts.slice().sort()[0] : null;
+        const courseDateTo = dates.length ? dates.slice().sort().reverse()[0] : null;
+
+        return {
+          id: t.id,
+          ticket_number: t.ticket_number,
+          status: t.status,
+          total_amount: t.total_amount,
+          paid_amount: t.paid_amount,
+          payment_method: t.payment_method,
+          payment_due_date: t.payment_due_date,
+          created_at: t.created_at,
+          items,
+          courseDateFrom,
+          courseDateTo,
+          isUpcoming: !!courseDateTo && courseDateTo >= today,
+        };
+      });
     },
     enabled: !!customerId,
   });
 }
+
