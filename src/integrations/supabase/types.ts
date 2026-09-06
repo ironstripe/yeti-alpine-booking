@@ -776,9 +776,13 @@ export type Database = {
           customer_id: string
           first_name: string
           id: string
+          is_archived: boolean
           last_name: string | null
           level_current_season: string | null
           level_last_season: string | null
+          merged_at: string | null
+          merged_by: string | null
+          merged_into_id: string | null
           notes: string | null
           self_assessed_ski_level: string | null
           self_assessed_snowboard_level: string | null
@@ -794,9 +798,13 @@ export type Database = {
           customer_id: string
           first_name: string
           id?: string
+          is_archived?: boolean
           last_name?: string | null
           level_current_season?: string | null
           level_last_season?: string | null
+          merged_at?: string | null
+          merged_by?: string | null
+          merged_into_id?: string | null
           notes?: string | null
           self_assessed_ski_level?: string | null
           self_assessed_snowboard_level?: string | null
@@ -812,9 +820,13 @@ export type Database = {
           customer_id?: string
           first_name?: string
           id?: string
+          is_archived?: boolean
           last_name?: string | null
           level_current_season?: string | null
           level_last_season?: string | null
+          merged_at?: string | null
+          merged_by?: string | null
+          merged_into_id?: string | null
           notes?: string | null
           self_assessed_ski_level?: string | null
           self_assessed_snowboard_level?: string | null
@@ -863,6 +875,13 @@ export type Database = {
             referencedRelation: "pending_booking_confirmations"
             referencedColumns: ["customer_id"]
           },
+          {
+            foreignKeyName: "customer_participants_merged_into_id_fkey"
+            columns: ["merged_into_id"]
+            isOneToOne: false
+            referencedRelation: "customer_participants"
+            referencedColumns: ["id"]
+          },
         ]
       }
       customers: {
@@ -879,10 +898,14 @@ export type Database = {
           first_name: string | null
           holiday_address: string
           id: string
+          is_archived: boolean
           kulanz_score: number | null
           language: string | null
           last_name: string
           marketing_consent: boolean | null
+          merged_at: string | null
+          merged_by: string | null
+          merged_into_id: string | null
           notes: string | null
           organization_name: string | null
           phone: string | null
@@ -903,10 +926,14 @@ export type Database = {
           first_name?: string | null
           holiday_address?: string
           id?: string
+          is_archived?: boolean
           kulanz_score?: number | null
           language?: string | null
           last_name: string
           marketing_consent?: boolean | null
+          merged_at?: string | null
+          merged_by?: string | null
+          merged_into_id?: string | null
           notes?: string | null
           organization_name?: string | null
           phone?: string | null
@@ -927,10 +954,14 @@ export type Database = {
           first_name?: string | null
           holiday_address?: string
           id?: string
+          is_archived?: boolean
           kulanz_score?: number | null
           language?: string | null
           last_name?: string
           marketing_consent?: boolean | null
+          merged_at?: string | null
+          merged_by?: string | null
+          merged_into_id?: string | null
           notes?: string | null
           organization_name?: string | null
           phone?: string | null
@@ -938,7 +969,22 @@ export type Database = {
           street?: string | null
           zip?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "customers_merged_into_id_fkey"
+            columns: ["merged_into_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customers_merged_into_id_fkey"
+            columns: ["merged_into_id"]
+            isOneToOne: false
+            referencedRelation: "pending_booking_confirmations"
+            referencedColumns: ["customer_id"]
+          },
+        ]
       }
       daily_reconciliations: {
         Row: {
@@ -1190,6 +1236,54 @@ export type Database = {
           trigger?: string
           updated_at?: string | null
           variables?: Json | null
+        }
+        Relationships: []
+      }
+      entity_merges: {
+        Row: {
+          created_at: string
+          entity_type: string
+          field_resolution: Json
+          id: string
+          performed_at: string
+          performed_by: string | null
+          relationship_summary: Json
+          rollback_until: string | null
+          rolled_back_at: string | null
+          rolled_back_by: string | null
+          source_id: string
+          target_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          entity_type: string
+          field_resolution?: Json
+          id?: string
+          performed_at?: string
+          performed_by?: string | null
+          relationship_summary?: Json
+          rollback_until?: string | null
+          rolled_back_at?: string | null
+          rolled_back_by?: string | null
+          source_id: string
+          target_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          entity_type?: string
+          field_resolution?: Json
+          id?: string
+          performed_at?: string
+          performed_by?: string | null
+          relationship_summary?: Json
+          rollback_until?: string | null
+          rolled_back_at?: string | null
+          rolled_back_by?: string | null
+          source_id?: string
+          target_id?: string
+          updated_at?: string
         }
         Relationships: []
       }
@@ -4605,6 +4699,19 @@ export type Database = {
         Returns: boolean
       }
       is_admin_or_office: { Args: { _user_id: string }; Returns: boolean }
+      merge_customers: {
+        Args: {
+          p_fields?: Json
+          p_participant_merges?: Json
+          p_source_id: string
+          p_target_id: string
+        }
+        Returns: Json
+      }
+      merge_participants: {
+        Args: { p_fields?: Json; p_source_id: string; p_target_id: string }
+        Returns: Json
+      }
       merge_training_groups:
         | {
             Args: {
@@ -4629,10 +4736,33 @@ export type Database = {
         Args: { p_enrollment_id: string; p_target_group_id: string }
         Returns: Json
       }
+      preview_customer_merge: {
+        Args: { p_source_id: string; p_target_id: string }
+        Returns: Json
+      }
       queue_confirmation_reminders: { Args: never; Returns: number }
       respond_to_participant_transfer: {
         Args: { p_request_id: string; p_response: string }
         Returns: Json
+      }
+      rollback_entity_merge: { Args: { p_merge_id: string }; Returns: Json }
+      search_customers: {
+        Args: { p_limit?: number; p_query: string }
+        Returns: {
+          city: string
+          country: string
+          customer_number: string
+          customer_type: string
+          email: string
+          first_name: string
+          id: string
+          last_name: string
+          match_rank: number
+          match_reason: string
+          organization_name: string
+          participant_names: string[]
+          phone: string
+        }[]
       }
       set_instructor_capabilities: {
         Args: { p_capability_ids: string[]; p_instructor_id: string }
@@ -4642,6 +4772,8 @@ export type Database = {
         Args: { p_new_groups: Json; p_source_group_id: string }
         Returns: Json
       }
+      yeti_digits: { Args: { t: string }; Returns: string }
+      yeti_normalize: { Args: { t: string }; Returns: string }
     }
     Enums: {
       app_role: "admin" | "office" | "teacher"
