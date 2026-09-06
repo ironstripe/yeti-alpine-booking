@@ -28,6 +28,7 @@ export function DaySlots({
   isPlanningMode = false,
 }: DaySlotsProps) {
   const { state } = useSchedulerSelection();
+  const { isMobileScheduler } = useMobileSlot();
   
   const absence = isInstructorAbsent(instructor.id, date, absences);
   const instructorBookings = bookings.filter(
@@ -75,7 +76,7 @@ export function DaySlots({
       ))}
 
       {/* Selection Overlays */}
-      {!absence && instructorSelections.map((selection) => (
+      {!absence && !isMobileScheduler && instructorSelections.map((selection) => (
         <SelectionOverlay
           key={selection.id}
           selection={selection}
