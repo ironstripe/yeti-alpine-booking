@@ -46,7 +46,9 @@ const statusMeta: Record<string, { label: string; variant: "secondary" | "defaul
   hidden: { label: "Versteckt", variant: "outline" },
 };
 
-export function WebsiteProfileCard({ instructorId, firstName, lastName, specialization }: Props) {
+export function WebsiteProfileCard({ instructorId, firstName, lastName, specialization, avatarUrl }: Props) {
+  // Regular profile picture as fallback when no dedicated website portrait exists.
+  const fallbackPortrait = avatarUrl ? avatarUrl.split("?")[0] : null;
   const { data: profile, isLoading } = useInstructorPublicProfile(instructorId);
   const save = useSaveInstructorPublicProfile(instructorId);
   const fileInputRef = useRef<HTMLInputElement>(null);
