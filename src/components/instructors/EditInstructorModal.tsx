@@ -23,6 +23,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Check, Loader2, Camera } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { DEFAULT_WEBSITE_TEASER, WEBSITE_TEASER_MAX } from "@/lib/website-profile";
 import { useUpdateInstructor } from "@/hooks/useUpdateInstructor";
 import { normalizePhoneNumber } from "@/lib/phone-utils";
 import {
@@ -74,6 +76,8 @@ const instructorSchema = z.object({
   iban: z.string().optional(),
   ahv_number: z.string().optional(),
   notes: z.string().optional(),
+  show_on_website: z.boolean().default(false),
+  website_teaser: z.string().max(WEBSITE_TEASER_MAX, `Maximal ${WEBSITE_TEASER_MAX} Zeichen`).optional(),
 });
 
 type InstructorFormData = z.infer<typeof instructorSchema>;
@@ -174,6 +178,8 @@ export function EditInstructorModal({
   const status = watch("status");
   const gender = watch("gender");
   const country = watch("country");
+  const showOnWebsite = watch("show_on_website");
+  const websiteTeaser = watch("website_teaser") ?? "";
   const isInstructor = hasTeachingRole(roles || []);
 
   // Reset form when modal opens or instructor changes
@@ -202,6 +208,8 @@ export function EditInstructorModal({
         country: instructor.country || "LI",
         bank_name: instructor.bank_name || "",
         notes: instructor.notes || "",
+        show_on_website: instructor.show_on_website ?? false,
+        website_teaser: instructor.website_teaser || DEFAULT_WEBSITE_TEASER,
       });
       setIbanValue(instructor.iban || "");
       setAhvValue(instructor.ahv_number || "");
@@ -233,6 +241,8 @@ export function EditInstructorModal({
       iban: ibanValue ? formatIBAN(ibanValue) : null,
       ahv_number: ahvValue ? formatAHVNumber(ahvValue) : null,
       notes: data.notes?.trim() || null,
+      show_on_website: data.show_on_website ?? false,
+      website_teaser: (data.website_teaser || DEFAULT_WEBSITE_TEASER).trim(),
     });
 
     onOpenChange(false);
@@ -298,6 +308,42 @@ export function EditInstructorModal({
                 />
               </div>
               <p className="text-xs text-muted-foreground">Klicken um Foto zu ändern</p>
+            </div>
+
+            <Separator />
+
+            {/* Website */}
+            <div className="space-y-4">
+              <h3 className="text-sm font-medium text-muted-foreground">Website</h3>
+              <div className="flex items-start gap-3">
+                <Checkbox
+                  id="show_on_website"
+                  checked={!!showOnWebsite}
+                  onCheckedChange={(v) => setValue("show_on_website", v === true)}
+                />
+                <div className="space-y-1">
+                  <Label htmlFor="show_on_website">Auf Website anzeigen</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Das Profil erscheint auf der Website, sobald ein Profilbild und eine
+                    Kurzbeschreibung vorhanden sind.
+                  </p>
+                </div>
+              </div>
+              {showOnWebsite && !avatarUrl && (
+                <p className="text-xs text-amber-600">
+                  Für die Anzeige auf der Website fehlt noch ein Profilbild.
+                </p>
+              )}
+              <div className="space-y-2">
+                <Label htmlFor="website_teaser">Kurzbeschreibung für die Website</Label>
+                <Textarea id="website_teaser" rows={3} maxLength={WEBSITE_TEASER_MAX} {...register("website_teaser")} />
+                <p className="text-xs text-muted-foreground text-right">
+                  {websiteTeaser.length}/{WEBSITE_TEASER_MAX}
+                </p>
+                {errors.website_teaser && (
+                  <p className="text-xs text-destructive">{errors.website_teaser.message}</p>
+                )}
+              </div>
             </div>
 
             <Separator />
