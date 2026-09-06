@@ -34,6 +34,10 @@ interface SchedulerHeaderProps {
   filters: SchedulerFilters;
   onFiltersChange: (filters: Partial<SchedulerFilters>) => void;
   compactStats?: { visible: number; total: number };
+  /** Mobile-only Liste/Raster switch */
+  isMobileScheduler?: boolean;
+  mobileView?: "list" | "grid";
+  onMobileViewChange?: (view: "list" | "grid") => void;
 }
 
 export function SchedulerHeader({
@@ -46,6 +50,9 @@ export function SchedulerHeader({
   filters,
   onFiltersChange,
   compactStats,
+  isMobileScheduler = false,
+  mobileView = "list",
+  onMobileViewChange,
 }: SchedulerHeaderProps) {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
@@ -110,7 +117,25 @@ export function SchedulerHeader({
 
         <div className="w-px h-6 bg-border hidden sm:block" />
 
+        {/* Mobile: Liste | Raster */}
+        {isMobileScheduler && (
+          <ToggleGroup
+            type="single"
+            value={mobileView}
+            onValueChange={(v) => v && onMobileViewChange?.(v as "list" | "grid")}
+            className="bg-muted rounded-md p-0.5"
+          >
+            <ToggleGroupItem value="list" className="px-3 h-9 text-xs data-[state=on]:bg-background">
+              Liste
+            </ToggleGroupItem>
+            <ToggleGroupItem value="grid" className="px-3 h-9 text-xs data-[state=on]:bg-background">
+              Raster
+            </ToggleGroupItem>
+          </ToggleGroup>
+        )}
+
         {/* Compact View Mode Toggle */}
+        {!(isMobileScheduler && mobileView === "list") && (
         <ToggleGroup 
           type="single" 
           value={viewMode} 
@@ -136,6 +161,7 @@ export function SchedulerHeader({
             Woche
           </ToggleGroupItem>
         </ToggleGroup>
+        )}
 
         {/* Spacer */}
         <div className="hidden md:block flex-1" />
