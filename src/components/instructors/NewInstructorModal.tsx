@@ -119,6 +119,8 @@ export function NewInstructorModal({ open, onOpenChange }: NewInstructorModalPro
         ahv_number: ahvValue ? formatAHVNumber(ahvValue) : null,
         notes: data.notes?.trim() || null,
         real_time_status: "unavailable",
+        show_on_website: data.show_on_website ?? false,
+        website_teaser: (data.website_teaser || DEFAULT_WEBSITE_TEASER).trim(),
       });
 
       toast.success("Skilehrer erfolgreich erstellt");
@@ -289,6 +291,42 @@ export function NewInstructorModal({ open, onOpenChange }: NewInstructorModalPro
                   )}
                 </div>
               )}
+            </div>
+
+            <Separator />
+
+            {/* Section 3b: Website */}
+            <div className="space-y-4">
+              <h3 className="text-sm font-medium text-muted-foreground">Website</h3>
+              <div className="flex items-start gap-3">
+                <Checkbox
+                  id="show_on_website"
+                  checked={showOnWebsite === true}
+                  onCheckedChange={(v) => setValue("show_on_website", v === true)}
+                />
+                <div className="space-y-1">
+                  <Label htmlFor="show_on_website">Auf Website anzeigen</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Das Profil erscheint auf der Website, sobald ein Profilbild und eine
+                    Kurzbeschreibung vorhanden sind.
+                  </p>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="website_teaser">Kurzbeschreibung für die Website</Label>
+                <Textarea
+                  id="website_teaser"
+                  rows={3}
+                  maxLength={WEBSITE_TEASER_MAX}
+                  {...register("website_teaser")}
+                />
+                <p className="text-xs text-muted-foreground text-right">
+                  {websiteTeaser.length}/{WEBSITE_TEASER_MAX}
+                </p>
+                {errors.website_teaser && (
+                  <p className="text-xs text-destructive">{errors.website_teaser.message}</p>
+                )}
+              </div>
             </div>
 
             <Separator />
