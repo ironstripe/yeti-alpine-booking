@@ -46,11 +46,11 @@ const TICKET_STATUS_CONFIG: Record<
 
 const PAYMENT_BADGE_VARIANT: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
   paid: "default",
-  partially_paid: "outline",
-  open: "secondary",
+  partial: "outline",
+  unpaid: "secondary",
   overdue: "destructive",
-  not_applicable: "secondary",
 };
+
 
 function formatDateRange(from: string | null, to: string | null): string {
   if (!from) return "Kein Kursdatum";
@@ -117,11 +117,11 @@ export function BookingHistoryCard({ tickets, isLoading, customerId }: BookingHi
               const paid = Number(ticket.paid_amount || 0);
               const outstanding = getOutstanding(total, paid);
               const paymentStatus = derivePaymentStatus({
-                ticketStatus: ticket.status,
                 totalAmount: total,
                 paidAmount: paid,
                 dueDate: ticket.payment_due_date,
               });
+
 
               const participants = Array.from(
                 new Set(ticket.items.map((i) => i.participantName).filter(Boolean))
