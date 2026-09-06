@@ -178,6 +178,8 @@ export function EditInstructorModal({
   const status = watch("status");
   const gender = watch("gender");
   const country = watch("country");
+  const showOnWebsite = watch("show_on_website");
+  const websiteTeaser = watch("website_teaser") ?? "";
   const isInstructor = hasTeachingRole(roles || []);
 
   // Reset form when modal opens or instructor changes
@@ -206,6 +208,8 @@ export function EditInstructorModal({
         country: instructor.country || "LI",
         bank_name: instructor.bank_name || "",
         notes: instructor.notes || "",
+        show_on_website: instructor.show_on_website ?? false,
+        website_teaser: instructor.website_teaser || DEFAULT_WEBSITE_TEASER,
       });
       setIbanValue(instructor.iban || "");
       setAhvValue(instructor.ahv_number || "");
@@ -237,6 +241,8 @@ export function EditInstructorModal({
       iban: ibanValue ? formatIBAN(ibanValue) : null,
       ahv_number: ahvValue ? formatAHVNumber(ahvValue) : null,
       notes: data.notes?.trim() || null,
+      show_on_website: data.show_on_website ?? false,
+      website_teaser: (data.website_teaser || DEFAULT_WEBSITE_TEASER).trim(),
     });
 
     onOpenChange(false);
