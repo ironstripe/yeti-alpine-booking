@@ -31,7 +31,7 @@ export function ReportQuickStats({ stats, isLoading }: ReportQuickStatsProps) {
 
   if (isLoading) {
     return (
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         {[1, 2, 3, 4].map((i) => (
           <Card key={i}>
             <CardContent className="pt-6">
@@ -48,9 +48,15 @@ export function ReportQuickStats({ stats, isLoading }: ReportQuickStatsProps) {
   const statCards = [
     {
       icon: "💰",
-      value: formatCurrency(stats?.totalRevenue || 0),
-      label: "Gesamtumsatz",
+      value: formatCurrency(stats?.receivedRevenue ?? stats?.totalRevenue ?? 0),
+      label: "Eingegangene Einnahmen",
       trend: stats?.revenueTrend || 0,
+    },
+    {
+      icon: "🧾",
+      value: formatCurrency(stats?.soldRevenue || 0),
+      label: "Verkaufte Einnahmen",
+      trend: 0,
     },
     {
       icon: "📋",
@@ -73,7 +79,7 @@ export function ReportQuickStats({ stats, isLoading }: ReportQuickStatsProps) {
   ];
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
       {statCards.map((stat, index) => (
         <Card key={index}>
           <CardContent className="pt-6">
