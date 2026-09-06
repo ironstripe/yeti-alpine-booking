@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { derivePaymentStatus } from "@/lib/finance";
 
 export interface TicketFilters {
   search: string;
@@ -43,6 +44,8 @@ export interface TicketWithDetails {
   total_amount: number | null;
   paid_amount: number | null;
   payment_method: string | null;
+  payment_due_date?: string | null;
+  billing_partner?: { id: string; name: string } | null;
   notes: string | null;
   internal_notes: string | null;
   source: string | null;
@@ -100,14 +103,12 @@ function computeTicketDetails(ticket: any): TicketWithDetails {
   );
 
   // Compute payment status
-  const totalAmount = ticket.total_amount || 0;
-  const paidAmount = ticket.paid_amount || 0;
-  let computedPaymentStatus: "paid" | "open" | "overdue" | "partial" = "open";
-  if (paidAmount >= totalAmount && totalAmount > 0) {
-    computedPaymentStatus = "paid";
-  } else if (paidAmount > 0 && paidAmount < totalAmount) {
-    computedPaymentStatus = "partial";
-  }
+  // Payment status is always DERIVED (amounts + due date), never stored as a free field
+  const computedPaymentStatus = derivePaymentStatus({
+    totalAmount: ticket.total_amount || 0,
+    paidAmount: ticket.paid_amount || 0,
+    dueDate: ticket.payment_due_date,
+  });
 
   // Get primary product (first item's product)
   const firstItem = items[0];
@@ -132,6 +133,10 @@ function computeTicketDetails(ticket: any): TicketWithDetails {
     total_amount: ticket.total_amount,
     paid_amount: ticket.paid_amount,
     payment_method: ticket.payment_method,
+    payment_due_date: ticket.payment_due_date ?? null,
+    billing_partner: ticket.billing_partner
+      ? { id: ticket.billing_partner.id, name: ticket.billing_partner.name }
+      : null,
     notes: ticket.notes,
     internal_notes: ticket.internal_notes,
     source: ticket.source ?? null,
@@ -174,6 +179,7 @@ export function useTickets(filters: TicketFilters) {
         .from("tickets")
         .select(`
           *,
+          billing_partner:billing_partners ( id, name ),
           customer:customers!tickets_customer_id_fkey (
             id,
             first_name,
