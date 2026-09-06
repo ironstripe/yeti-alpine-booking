@@ -2,7 +2,14 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { X, Clock, Ban, Building } from "lucide-react";
+import { X, Clock, Ban, Building, MoreHorizontal } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { useIsMobileScheduler } from "@/hooks/use-touch-device";
 import { useSchedulerSelection } from "@/contexts/SchedulerSelectionContext";
 import { AbsenceTypeDialog } from "./AbsenceTypeDialog";
 import { OfficeHoursDialog } from "./OfficeHoursDialog";
@@ -16,6 +23,7 @@ interface SelectionToolbarProps {
 export function SelectionToolbar({ className, bookings = [] }: SelectionToolbarProps) {
   const navigate = useNavigate();
   const { state, clearSelection, getTotalHours } = useSchedulerSelection();
+  const isMobileScheduler = useIsMobileScheduler();
   const [isAbsenceDialogOpen, setIsAbsenceDialogOpen] = useState(false);
   const [isOfficeHoursDialogOpen, setIsOfficeHoursDialogOpen] = useState(false);
 
@@ -78,6 +86,78 @@ export function SelectionToolbar({ className, bookings = [] }: SelectionToolbarP
     // Toolbar will hide automatically when selection is cleared
   };
 
+  const summary = (
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+      <span className="font-medium text-foreground">
+        {state.selections.length} {state.selections.length === 1 ? "Slot" : "Slots"} ausgewählt
+      </span>
+      <div className="flex items-center gap-1.5 text-muted-foreground">
+        <Clock className="h-4 w-4" />
+        <span>{totalHours}h</span>
+      </div>
+      {uniqueDates > 1 && (
+        <span className="text-xs text-muted-foreground">({uniqueDates} Tage)</span>
+      )}
+    </div>
+  );
+
+  if (isMobileScheduler) {
+    return (
+      <>
+        <div
+          className={cn(
+            "fixed inset-x-0 bottom-0 z-50 w-full max-w-full",
+            "border-t bg-background px-3 pt-3 shadow-lg",
+            "animate-in slide-in-from-bottom-4 duration-300",
+            className
+          )}
+          style={{ paddingBottom: "calc(12px + env(safe-area-inset-bottom))" }}
+        >
+          {summary}
+          <Button className="mt-3 min-h-12 w-full" onClick={handleBookSelected}>
+            Buchung erstellen
+          </Button>
+          <div className="mt-2 flex gap-2">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="min-h-11 flex-1">
+                  <MoreHorizontal className="mr-1 h-4 w-4" />
+                  Mehr
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" side="top" className="bg-popover">
+                <DropdownMenuItem onClick={handleMarkAbsence}>
+                  <Ban className="mr-2 h-4 w-4" />
+                  Abwesenheit
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleMarkOfficeHours}>
+                  <Building className="mr-2 h-4 w-4" />
+                  Bürodienst
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <Button variant="ghost" className="min-h-11 flex-1" onClick={clearSelection}>
+              <X className="mr-1 h-4 w-4" />
+              Abbrechen
+            </Button>
+          </div>
+        </div>
+
+        <AbsenceTypeDialog
+          open={isAbsenceDialogOpen}
+          onOpenChange={setIsAbsenceDialogOpen}
+          conflicts={getConflictingBookings()}
+          onSuccess={handleAbsenceSuccess}
+        />
+        <OfficeHoursDialog
+          open={isOfficeHoursDialogOpen}
+          onOpenChange={setIsOfficeHoursDialogOpen}
+          onSuccess={handleOfficeHoursSuccess}
+        />
+      </>
+    );
+  }
+
   return (
     <>
       <div
@@ -90,20 +170,7 @@ export function SelectionToolbar({ className, bookings = [] }: SelectionToolbarP
         )}
       >
         {/* Selection Info */}
-        <div className="flex items-center gap-4 text-sm">
-          <span className="font-medium text-foreground">
-            {state.selections.length} {state.selections.length === 1 ? "Slot" : "Slots"} ausgewählt
-          </span>
-          <div className="flex items-center gap-1.5 text-muted-foreground">
-            <Clock className="h-4 w-4" />
-            <span>{totalHours}h</span>
-          </div>
-          {uniqueDates > 1 && (
-            <span className="text-xs text-muted-foreground">
-              ({uniqueDates} Tage)
-            </span>
-          )}
-        </div>
+        {summary}
 
         {/* Divider */}
         <div className="h-6 w-px bg-border" />
