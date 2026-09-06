@@ -54,9 +54,11 @@ export function Step4Summary({ onEditStep }: Step4SummaryProps) {
   const updateBooking = useUpdateBooking();
 
   // Local state for Step 4 fields (not in context to keep it simpler)
-  const [paymentMethod, setPaymentMethod] = useState<"cash" | "card" | "twint" | "invoice" | null>(null);
-  const [isPaid, setIsPaid] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | null>(null);
+  const [settlement, setSettlement] = useState<SettlementChoice>("pay_later");
+  const [billingPartnerId, setBillingPartnerId] = useState<string | null>(null);
   const [paymentDueDate, setPaymentDueDate] = useState<string | null>(null);
+
   const [discountPercent, setDiscountPercent] = useState(0);
   const [discountReason, setDiscountReason] = useState("");
   const [sendCustomerEmail, setSendCustomerEmail] = useState(true);
