@@ -234,16 +234,19 @@ export function Step4Summary({ onEditStep }: Step4SummaryProps) {
 
       <Separator />
 
-      {/* Payment Method */}
+      {/* Payment */}
       <PaymentMethodSelection
         paymentMethod={paymentMethod}
-        isPaid={isPaid}
+        settlement={settlement}
+        billingPartnerId={billingPartnerId}
         paymentDueDate={paymentDueDate}
         onPaymentMethodChange={setPaymentMethod}
-        onIsPaidChange={setIsPaid}
+        onSettlementChange={setSettlement}
+        onBillingPartnerChange={setBillingPartnerId}
         onPaymentDueDateChange={setPaymentDueDate}
         firstCourseDate={firstCourseDate}
       />
+
 
       <Separator />
 
