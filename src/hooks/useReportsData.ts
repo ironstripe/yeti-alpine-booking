@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { isActiveItemStatus, sessionKey, minutesBetween } from "@/lib/finance";
 import { startOfWeek, endOfWeek, startOfMonth, endOfMonth, subDays, format, parseISO, differenceInMinutes } from "date-fns";
 
 export interface DateRange {
@@ -62,7 +63,12 @@ export interface CustomerOrigin {
 }
 
 export interface QuickStats {
+  /** Revenue actually received (payments + shop) */
   totalRevenue: number;
+  /** Revenue sold in the period (value of booked lessons + shop) */
+  soldRevenue: number;
+  /** Same as totalRevenue, named explicitly for the reports UI */
+  receivedRevenue: number;
   totalBookings: number;
   totalParticipants: number;
   totalHours: number;
@@ -333,7 +339,6 @@ export const useRevenueByCategory = (dateRange: DateRange) => {
           category: categoryLabels[category] || category,
           count: data.count,
           revenue: data.revenue,
-          trend: Math.floor(Math.random() * 20) - 5 // Mock trend
         }))
         .sort((a, b) => b.revenue - a.revenue);
 
