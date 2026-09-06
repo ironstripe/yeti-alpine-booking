@@ -8,7 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Globe, Upload, Trash2, Loader2 } from "lucide-react";
+import { Globe, Upload, Trash2, Loader2, Check, X } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -209,6 +209,16 @@ export function WebsiteProfileCard({ instructorId, firstName, lastName, speciali
   const meta = statusMeta[profile.status] ?? statusMeta.draft;
   const previewImage = localPreview ?? portraitUrl ?? fallbackPortrait;
 
+  const checklist = [
+    { label: "Anzeigename", ok: !!displayName.trim() },
+    { label: "Rollenbezeichnung", ok: !!roleLabel.trim() },
+    { label: "Website-Text", ok: !!teaser.trim() },
+    { label: "Bild (Porträt oder Profilbild)", ok: !!(portraitUrl || fallbackPortrait) },
+    { label: "Einwilligung zur Veröffentlichung", ok: consent },
+  ];
+  const readyToPublish = checklist.every((c) => c.ok);
+  const isLive = profile.status === "published";
+
   return (
     <Card>
       <CardHeader className="pb-3 flex flex-row items-center justify-between space-y-0">
@@ -243,7 +253,7 @@ export function WebsiteProfileCard({ instructorId, firstName, lastName, speciali
         </div>
 
         <div className="space-y-2">
-          <Label>Website-Portrait</Label>
+          <Label>Bild für die Website</Label>
           <div className="flex items-start gap-4">
             <div className="w-24 aspect-[4/5] rounded-md bg-muted overflow-hidden shrink-0">
               {previewImage && (
@@ -251,6 +261,13 @@ export function WebsiteProfileCard({ instructorId, firstName, lastName, speciali
               )}
             </div>
             <div className="space-y-2">
+              <Badge variant={portraitUrl ? "default" : fallbackPortrait ? "secondary" : "outline"}>
+                {portraitUrl
+                  ? "Eigenes Website-Bild"
+                  : fallbackPortrait
+                    ? "Profilbild wird verwendet (Standard)"
+                    : "Kein Bild vorhanden"}
+              </Badge>
               <input
                 ref={fileInputRef}
                 type="file"
@@ -271,25 +288,22 @@ export function WebsiteProfileCard({ instructorId, firstName, lastName, speciali
                   ) : (
                     <Upload className="h-4 w-4 mr-2" />
                   )}
-                  {portraitUrl ? "Ersetzen" : "Hochladen"}
+                  {portraitUrl ? "Anderes Bild wählen" : "Eigenes Bild wählen"}
                 </Button>
                 {portraitUrl && (
                   <Button type="button" variant="ghost" size="sm" onClick={removePortrait}>
                     <Trash2 className="h-4 w-4 mr-2" />
-                    Entfernen
+                    Zurück zum Profilbild
                   </Button>
                 )}
               </div>
               <p className="text-xs text-muted-foreground">
-                Empfohlen: hochformatiges, gut beleuchtetes Portrait. JPG, PNG oder WebP, max. 5 MB.
+                Standardmässig wird das Profilbild der Person genutzt. Nur das Büro kann das Bild
+                für die Website ändern – Lehrpersonen können das nicht.
               </p>
-              {!portraitUrl && (
-                <p className="text-xs text-muted-foreground">
-                  {fallbackPortrait
-                    ? "Kein eigenes Porträt hochgeladen – das Profilbild wird verwendet."
-                    : "Kein Profilbild vorhanden – bitte Porträt hochladen."}
-                </p>
-              )}
+              <p className="text-xs text-muted-foreground">
+                Empfohlen: hochformatig, gut beleuchtet. JPG, PNG oder WebP, max. 5 MB.
+              </p>
             </div>
           </div>
         </div>
@@ -336,14 +350,37 @@ export function WebsiteProfileCard({ instructorId, firstName, lastName, speciali
           </div>
         </div>
 
+        <Separator />
+
+        {/* Checklist */}
+        <div className="rounded-lg border p-3 space-y-2">
+          <p className="text-sm font-medium">
+            {isLive
+              ? "Dieses Profil ist auf der Website sichtbar."
+              : "Noch nicht auf der Website sichtbar – erst nach dem Veröffentlichen."}
+          </p>
+          <ul className="space-y-1">
+            {checklist.map((c) => (
+              <li key={c.label} className="flex items-center gap-2 text-sm">
+                {c.ok ? (
+                  <Check className="h-4 w-4 text-primary shrink-0" />
+                ) : (
+                  <X className="h-4 w-4 text-destructive shrink-0" />
+                )}
+                <span className={c.ok ? "text-muted-foreground" : ""}>{c.label}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" onClick={saveDraft} disabled={save.isPending}>
-            Draft speichern
+            Zwischenspeichern
           </Button>
-          <Button onClick={publish} disabled={save.isPending}>
-            Profil veröffentlichen
+          <Button onClick={publish} disabled={save.isPending || !readyToPublish}>
+            {isLive ? "Änderungen veröffentlichen" : "Jetzt auf Website veröffentlichen"}
           </Button>
-          {profile.status === "published" && (
+          {isLive && (
             <Button variant="destructive" onClick={unpublish} disabled={save.isPending}>
               Von Website entfernen
             </Button>
