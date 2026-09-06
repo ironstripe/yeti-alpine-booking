@@ -13,7 +13,7 @@ import {
 import { BookingDetailDialog } from "./BookingDetailDialog";
 import { OfficeHoursDetailDialog } from "./OfficeHoursDetailDialog";
 import { AlertTriangle, Building, Hourglass, Link2 } from "lucide-react";
-import { useIsTouchDevice } from "@/hooks/use-touch-device";
+import { useIsTouchDevice, useIsMobileScheduler } from "@/hooks/use-touch-device";
 
 const TAP_MOVE_THRESHOLD = 8; // px
 
@@ -27,6 +27,8 @@ interface BookingBarProps {
 export function BookingBar({ booking, slotWidth, instructorSpecialization, isPlanningMode = false }: BookingBarProps) {
   const navigate = useNavigate();
   const isTouch = useIsTouchDevice();
+  const isMobileScheduler = useIsMobileScheduler();
+  const dragDisabled = isTouch || isMobileScheduler;
   const swipedRef = useRef(false);
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
@@ -47,7 +49,7 @@ export function BookingBar({ booking, slotWidth, instructorSpecialization, isPla
       type: "booking",
       booking,
     },
-    disabled: !isPrivate || isTouch, // Only private lessons, mouse/keyboard only
+    disabled: !isPrivate || dragDisabled, // Only private lessons, mouse/keyboard only, never on phones
   });
 
   const { left, width } = calculateBarPosition(
@@ -114,7 +116,7 @@ export function BookingBar({ booking, slotWidth, instructorSpecialization, isPla
         <TooltipTrigger asChild>
           <div
             ref={setNodeRef}
-            {...(isPrivate && !isTouch ? { ...listeners, ...attributes } : {})}
+            {...(isPrivate && !dragDisabled ? { ...listeners, ...attributes } : {})}
             onClick={handleClick}
             onTouchStart={handleTouchStart}
             onTouchMove={handleTouchMove}
@@ -122,8 +124,8 @@ export function BookingBar({ booking, slotWidth, instructorSpecialization, isPla
               "absolute top-0.5 bottom-0.5 rounded border px-1.5 py-0.5 text-[10px] font-medium truncate",
               "flex items-center gap-0.5",
               barClasses,
-              isPrivate && !isTouch && "cursor-grab active:cursor-grabbing",
-              isTouch && "cursor-pointer touch-auto",
+              isPrivate && !dragDisabled && "cursor-grab active:cursor-grabbing",
+              dragDisabled && "cursor-pointer touch-auto",
               isDragging && "invisible opacity-0",
               !isPrivate && "cursor-pointer",
               // Planning mode: dim existing bookings
