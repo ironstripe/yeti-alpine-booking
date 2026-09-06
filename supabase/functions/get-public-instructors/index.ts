@@ -23,7 +23,7 @@ Deno.serve(async (req) => {
     const { data, error } = await supabase
       .from("instructor_public_profiles")
       .select(
-        "public_display_name, public_role_label, teaser_published, portrait_url, portrait_storage_path, sort_order, instructors!inner(status)",
+        "public_display_name, public_role_label, teaser_published, portrait_url, portrait_storage_path, sort_order, instructors!inner(status, avatar_url)",
       )
       .eq("status", "published")
       .eq("instructors.status", "active")
@@ -32,9 +32,17 @@ Deno.serve(async (req) => {
 
     if (error) throw new Error(error.message);
 
+    // Fall back to the instructor's regular profile picture (public bucket)
+    // when no dedicated website portrait was uploaded. Strip cache-busters.
+    const avatarFallback = (r: any): string | null => {
+      const url: string | null = r.instructors?.avatar_url ?? null;
+      if (!url) return null;
+      return url.split("?")[0];
+    };
+
     const rows = (data ?? []).filter((r: any) =>
       r.public_display_name && r.public_role_label && r.teaser_published &&
-      (r.portrait_url || r.portrait_storage_path)
+      (r.portrait_url || r.portrait_storage_path || avatarFallback(r))
     );
 
     const team = [] as Array<Record<string, string>>;
@@ -46,6 +54,7 @@ Deno.serve(async (req) => {
           .createSignedUrl(r.portrait_storage_path, SIGNED_URL_TTL);
         if (signed?.signedUrl) portraitUrl = signed.signedUrl;
       }
+      if (!portraitUrl) portraitUrl = avatarFallback(r);
       if (!portraitUrl) continue;
       team.push({
         display_name: r.public_display_name,

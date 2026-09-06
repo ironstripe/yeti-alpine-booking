@@ -26,6 +26,7 @@ interface Props {
   firstName: string;
   lastName: string;
   specialization: string | null;
+  avatarUrl?: string | null;
 }
 
 function suggestRoleLabel(specialization: string | null) {
@@ -45,7 +46,9 @@ const statusMeta: Record<string, { label: string; variant: "secondary" | "defaul
   hidden: { label: "Versteckt", variant: "outline" },
 };
 
-export function WebsiteProfileCard({ instructorId, firstName, lastName, specialization }: Props) {
+export function WebsiteProfileCard({ instructorId, firstName, lastName, specialization, avatarUrl }: Props) {
+  // Regular profile picture as fallback when no dedicated website portrait exists.
+  const fallbackPortrait = avatarUrl ? avatarUrl.split("?")[0] : null;
   const { data: profile, isLoading } = useInstructorPublicProfile(instructorId);
   const save = useSaveInstructorPublicProfile(instructorId);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -103,7 +106,7 @@ export function WebsiteProfileCard({ instructorId, firstName, lastName, speciali
     if (!displayName.trim()) missing.push("Anzeigename");
     if (!roleLabel.trim()) missing.push("Rollenbezeichnung");
     if (!teaser.trim()) missing.push("Teaser-Text");
-    if (!portraitUrl) missing.push("Portraitbild");
+    if (!portraitUrl && !fallbackPortrait) missing.push("Portraitbild");
     if (!consent) missing.push("Einwilligung zur Veröffentlichung");
     if (missing.length > 0) {
       toast.error("Veröffentlichen nicht möglich", {
@@ -204,7 +207,7 @@ export function WebsiteProfileCard({ instructorId, firstName, lastName, speciali
   }
 
   const meta = statusMeta[profile.status] ?? statusMeta.draft;
-  const previewImage = localPreview ?? portraitUrl;
+  const previewImage = localPreview ?? portraitUrl ?? fallbackPortrait;
 
   return (
     <Card>
@@ -280,6 +283,13 @@ export function WebsiteProfileCard({ instructorId, firstName, lastName, speciali
               <p className="text-xs text-muted-foreground">
                 Empfohlen: hochformatiges, gut beleuchtetes Portrait. JPG, PNG oder WebP, max. 5 MB.
               </p>
+              {!portraitUrl && (
+                <p className="text-xs text-muted-foreground">
+                  {fallbackPortrait
+                    ? "Kein eigenes Porträt hochgeladen – das Profilbild wird verwendet."
+                    : "Kein Profilbild vorhanden – bitte Porträt hochladen."}
+                </p>
+              )}
             </div>
           </div>
         </div>
