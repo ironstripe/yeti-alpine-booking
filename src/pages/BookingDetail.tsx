@@ -1,6 +1,7 @@
 import { useState, useRef } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useReactToPrint } from "react-to-print";
+import { getPaymentMethodLabel } from "@/lib/finance";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import {
@@ -85,6 +86,7 @@ const BookingDetail = () => {
         .select(`
           *,
           customer:customers(*),
+          billing_partner:billing_partners ( id, name ),
           items:ticket_items(
             *,
             product:products(*),
@@ -308,6 +310,24 @@ const BookingDetail = () => {
                   <p className="text-sm text-muted-foreground">Bezahlt</p>
                   <p className="font-medium">CHF {formatCurrency(ticket.paid_amount || 0)}</p>
                 </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Zahlungsart</p>
+                  <p className="font-medium">{getPaymentMethodLabel((ticket as any).payment_method)}</p>
+                </div>
+                {(ticket as any).billing_partner && (
+                  <div>
+                    <p className="text-sm text-muted-foreground">Abrechnung über Hotel</p>
+                    <p className="font-medium">{(ticket as any).billing_partner.name}</p>
+                  </div>
+                )}
+                {(ticket as any).payment_due_date && (
+                  <div>
+                    <p className="text-sm text-muted-foreground">Fällig am</p>
+                    <p className="font-medium">
+                      {format(new Date((ticket as any).payment_due_date), 'dd.MM.yyyy', { locale: de })}
+                    </p>
+                  </div>
+                )}
                 <div>
                   <p className="text-sm text-muted-foreground">Erstellt am</p>
                   <p className="font-medium">
