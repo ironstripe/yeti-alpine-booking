@@ -10,6 +10,8 @@ import { Separator } from "@/components/ui/separator";
 import { useBookingWizard, WizardStep } from "@/contexts/BookingWizardContext";
 import { useCreateBooking } from "@/hooks/useCreateBooking";
 import { useUpdateBooking, type NewParticipantItem, type TicketItemUpdate } from "@/hooks/useUpdateBooking";
+import type { PaymentMethod, SettlementChoice } from "@/lib/finance";
+
 
 import { BookingSummaryCards } from "./BookingSummaryCards";
 import { PriceBreakdown } from "./PriceBreakdown";
