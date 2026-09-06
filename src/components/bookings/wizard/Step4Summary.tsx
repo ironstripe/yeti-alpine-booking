@@ -107,6 +107,12 @@ export function Step4Summary({ onEditStep }: Step4SummaryProps) {
       return;
     }
 
+    if (!state.isEditMode && paymentMethod === "hotel" && !billingPartnerId) {
+      toast.error("Bitte wähle das Hotel, das die Rechnung übernimmt");
+      return;
+    }
+
+
     if (discountPercent > 0 && !discountReason.trim()) {
       toast.error("Bitte gib einen Grund für den Rabatt an");
       return;
