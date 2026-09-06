@@ -61,7 +61,7 @@ export function useInvoicesByTicket(ticketId: string | undefined) {
         .order("created_at", { ascending: false });
       
       if (error) throw error;
-      return data as Invoice[];
+      return data as unknown as Invoice[];
     },
     enabled: !!ticketId,
   });
@@ -88,7 +88,7 @@ export function useInvoice(invoiceId: string | undefined) {
         .single();
       
       if (error) throw error;
-      return data as InvoiceWithDetails;
+      return data as unknown as InvoiceWithDetails;
     },
     enabled: !!invoiceId,
   });
@@ -187,19 +187,19 @@ export function useUpdateInvoiceStatus() {
       sentAt?: string;
       paidAt?: string;
     }) => {
-      const updates: Partial<Invoice> = { status };
+      const updates: Record<string, unknown> = { status };
       if (sentAt) updates.sent_at = sentAt;
       if (paidAt) updates.paid_at = paidAt;
       
       const { data, error } = await supabase
         .from("invoices")
-        .update(updates)
+        .update(updates as never)
         .eq("id", invoiceId)
         .select()
         .single();
       
       if (error) throw error;
-      return data as Invoice;
+      return data as unknown as Invoice;
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
