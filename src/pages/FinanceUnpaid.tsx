@@ -97,7 +97,7 @@ export default function FinanceUnpaid() {
     setFilters((prev) => ({ ...prev, ...patch }));
 
   const handleExport = () => {
-    const csv = buildCsv(
+    const rowsForCsv: (string | number)[][] = [
       [
         "Buchungsnummer",
         "Kunde",
@@ -116,7 +116,7 @@ export default function FinanceUnpaid() {
         "Offen",
         "Guthaben",
       ],
-      filtered.map((row) => [
+      ...filtered.map((row) => [
         row.ticket_number,
         row.customer.name,
         row.customer.email || "",
@@ -133,10 +133,11 @@ export default function FinanceUnpaid() {
         row.paid_amount,
         row.outstanding,
         row.availableCredit,
-      ])
-    );
-    downloadCsv(`unbezahlte-kurse-${format(new Date(), "yyyy-MM-dd")}.csv`, csv);
+      ]),
+    ];
+    downloadCsv(`unbezahlte-kurse-${format(new Date(), "yyyy-MM-dd")}.csv`, rowsForCsv);
   };
+
 
   return (
     <div className="space-y-6">
