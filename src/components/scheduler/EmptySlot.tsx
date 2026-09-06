@@ -8,6 +8,8 @@ import { useDndKitDrag } from "@/contexts/DndKitDragContext";
 import type { SchedulerBooking, SchedulerAbsence } from "@/lib/scheduler-utils";
 import { toast } from "sonner";
 import { useIsTouchDevice } from "@/hooks/use-touch-device";
+import { useMobileSlot } from "./mobile/MobileSlotContext";
+import { OPERATIONAL_END_MINUTES } from "@/lib/scheduler-utils";
 
 const TAP_MOVE_THRESHOLD = 8; // px
 const TAP_MAX_DURATION = 600; // ms
@@ -43,6 +45,9 @@ export function EmptySlot({
 }: EmptySlotProps) {
   const navigate = useNavigate();
   const isTouch = useIsTouchDevice();
+  const { isMobileScheduler, onFreeSlotTap } = useMobileSlot();
+  // Below 768px the desktop selection workflow is never used.
+  const usesMobilePath = isMobileScheduler || isTouch;
   const tapRef = useRef<{ x: number; y: number; t: number; moved: boolean } | null>(null);
   const { 
     state, 
@@ -153,8 +158,8 @@ export function EmptySlot({
   }, [timeSlot]);
 
   const handleMouseDown = (e: React.MouseEvent) => {
-    // On touch devices the native scroll container owns the gesture.
-    if (isTouch) return;
+    // On phones / touch devices the native scroll container owns the gesture.
+    if (usesMobilePath) return;
     if (isBlocked || state.isResizing) return;
     e.preventDefault();
     e.stopPropagation(); // Prevent DndKit interference
@@ -241,14 +246,50 @@ export function EmptySlot({
   };
 
   const handleMouseUp = () => {
-    if (isTouch) return;
+    if (usesMobilePath) return;
     if (!state.drag.isDragging) return;
     endDrag(bookings, absences);
   };
 
   // --- Touch: distinguish tap from pan -------------------------------------
+  /** End of the contiguous free window that starts at this slot. */
+  const getFreeWindowEnd = useCallback(() => {
+    const start = timeToMinutes(timeSlot);
+    let end = OPERATIONAL_END_MINUTES;
+    for (const b of bookings) {
+      if (b.instructorId !== instructorId || b.date !== date) continue;
+      const bStart = timeToMinutes(b.timeStart);
+      if (bStart >= start && bStart < end) end = bStart;
+    }
+    for (const a of absences) {
+      if (a.instructorId !== instructorId) continue;
+      if (date < a.startDate || date > a.endDate) continue;
+      if (a.isFullDay || !a.timeStart) return start;
+      const aStart = timeToMinutes(a.timeStart);
+      if (aStart >= start && aStart < end) end = aStart;
+    }
+    return end;
+  }, [timeSlot, bookings, absences, instructorId, date]);
+
   const openBookingForSlot = useCallback(() => {
     if (isInvalidDropZone) return;
+
+    // Mobile path: open the slot sheet, never a desktop selection.
+    if (isMobileScheduler) {
+      const windowEnd = getFreeWindowEnd();
+      const startMin = timeToMinutes(timeSlot);
+      if (windowEnd - startMin < 60) {
+        toast.error("Zeitfenster zu kurz");
+        return;
+      }
+      onFreeSlotTap({
+        instructorId,
+        date,
+        startTime: timeSlot,
+        endTime: `${Math.floor(windowEnd / 60).toString().padStart(2, "0")}:${(windowEnd % 60).toString().padStart(2, "0")}`,
+      });
+      return;
+    }
 
     const endMinutes = timeToMinutes(timeSlot) + 60;
     const endTime = `${Math.floor(endMinutes / 60).toString().padStart(2, "0")}:${(endMinutes % 60).toString().padStart(2, "0")}`;
@@ -267,10 +308,10 @@ export function EmptySlot({
       ]),
     });
     navigate(`/bookings/new?${params.toString()}`);
-  }, [isInvalidDropZone, timeSlot, canSelectSlot, instructorId, date, bookings, absences, clearSelection, navigate]);
+  }, [isInvalidDropZone, timeSlot, canSelectSlot, instructorId, date, bookings, absences, clearSelection, navigate, isMobileScheduler, getFreeWindowEnd, onFreeSlotTap]);
 
   const handleTouchStart = (e: React.TouchEvent) => {
-    if (!isTouch) return;
+    if (!usesMobilePath) return;
     const t = e.touches[0];
     tapRef.current = { x: t.clientX, y: t.clientY, t: Date.now(), moved: false };
   };
@@ -303,7 +344,8 @@ export function EmptySlot({
       data-date={date}
       onMouseDown={handleMouseDown}
       onMouseUp={handleMouseUp}
-      onDoubleClick={isTouch ? undefined : handleDoubleClick}
+      onClick={isMobileScheduler && !isTouch ? openBookingForSlot : undefined}
+      onDoubleClick={usesMobilePath ? undefined : handleDoubleClick}
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
@@ -312,7 +354,7 @@ export function EmptySlot({
         "absolute top-0 bottom-0 border-r border-border",
         "transition-colors duration-100 select-none",
         // Touch devices: let the scroll container own the gesture
-        isTouch ? "touch-auto" : "touch-none",
+        usesMobilePath ? "touch-auto" : "touch-none",
         !isInvalidDropZone && !state.drag.isDragging && "cursor-pointer hover:bg-accent hover:border-border group",
         state.drag.isDragging && "cursor-crosshair",
         isInvalidDropZone && "cursor-not-allowed",
