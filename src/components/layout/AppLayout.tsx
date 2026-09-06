@@ -38,12 +38,12 @@ export function AppLayout({ children }: AppLayoutProps) {
   }
 
   return (
-    <div className="min-h-screen flex flex-col md:flex-row w-full bg-background">
+    <div className="h-[100dvh] min-h-0 flex flex-col md:flex-row w-full bg-background overflow-hidden">
       {/* Desktop Sidebar */}
       <AppSidebar />
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-h-screen md:min-h-0">
+      <div className="flex-1 flex flex-col min-h-0 min-w-0">
         {/* Mobile Header */}
         <MobileHeader />
 
