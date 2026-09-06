@@ -38,13 +38,19 @@ Deno.serve(async (req) => {
     if (error) throw new Error(error.message);
 
     const team = (data ?? [])
-      .filter((r: any) => (r.avatar_url ?? "").trim() !== "" && (r.website_teaser ?? "").trim() !== "")
-      .map((r: any) => ({
-        display_name: `${(r.first_name ?? "").trim()} ${(r.last_name ?? "").trim()}`.trim(),
-        role_label: roleLabel(r.specialization ?? null, r.roles ?? null),
-        teaser: (r.website_teaser as string).trim(),
-        portrait_url: (r.avatar_url as string).split("?")[0],
-      }));
+      .map((r: any) => {
+        const displayName = `${(r.first_name ?? "").trim()} ${(r.last_name ?? "").trim()}`.trim();
+        if (!displayName) return null;
+        const teaser = (r.website_teaser ?? "").trim();
+        const portraitUrl = (r.avatar_url ?? "").trim();
+        return {
+          display_name: displayName,
+          role_label: roleLabel(r.specialization ?? null, r.roles ?? null),
+          ...(teaser ? { teaser } : {}),
+          ...(portraitUrl ? { portrait_url: portraitUrl } : {}),
+        };
+      })
+      .filter(Boolean);
 
     console.log(`get-public-instructors: returned ${team.length} profiles`);
     return json({ success: true, team });
