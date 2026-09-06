@@ -180,7 +180,7 @@ export function MobileSlotSheet({
           </div>
 
           <Button
-            className="min-h-12 w-full"
+            className="sticky bottom-0 min-h-12 w-full shadow-lg"
             onClick={handleCreate}
             disabled={!startTime || durationOptions.length === 0}
           >
