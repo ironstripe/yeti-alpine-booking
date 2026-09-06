@@ -135,33 +135,51 @@ export type Database = {
       billing_partners: {
         Row: {
           address: string | null
+          address_review_required: boolean
           billing_email: string | null
+          city: string | null
+          country: string | null
           created_at: string
+          house_number: string | null
           id: string
           is_active: boolean
           name: string
           partner_type: string
+          street: string | null
           updated_at: string
+          zip: string | null
         }
         Insert: {
           address?: string | null
+          address_review_required?: boolean
           billing_email?: string | null
+          city?: string | null
+          country?: string | null
           created_at?: string
+          house_number?: string | null
           id?: string
           is_active?: boolean
           name: string
           partner_type?: string
+          street?: string | null
           updated_at?: string
+          zip?: string | null
         }
         Update: {
           address?: string | null
+          address_review_required?: boolean
           billing_email?: string | null
+          city?: string | null
+          country?: string | null
           created_at?: string
+          house_number?: string | null
           id?: string
           is_active?: boolean
           name?: string
           partner_type?: string
+          street?: string | null
           updated_at?: string
+          zip?: string | null
         }
         Relationships: []
       }
@@ -897,6 +915,7 @@ export type Database = {
           email: string
           first_name: string | null
           holiday_address: string
+          house_number: string | null
           id: string
           is_archived: boolean
           kulanz_score: number | null
@@ -925,6 +944,7 @@ export type Database = {
           email: string
           first_name?: string | null
           holiday_address?: string
+          house_number?: string | null
           id?: string
           is_archived?: boolean
           kulanz_score?: number | null
@@ -953,6 +973,7 @@ export type Database = {
           email?: string
           first_name?: string | null
           holiday_address?: string
+          house_number?: string | null
           id?: string
           is_archived?: boolean
           kulanz_score?: number | null
@@ -2488,7 +2509,19 @@ export type Database = {
           id: string
           invoice_date: string
           invoice_number: string
+          is_legacy_payment: boolean
+          issued_at: string | null
           paid_at: string | null
+          payment_override_by: string | null
+          payment_payload_version: string | null
+          payment_presentation_type: string | null
+          payment_profile_id: string | null
+          payment_profile_overridden: boolean
+          payment_profile_override_reason: string | null
+          payment_reference: string | null
+          payment_reference_type: string | null
+          payment_routing_reason: string | null
+          payment_snapshot: Json | null
           pdf_url: string | null
           qr_reference: string
           sent_at: string | null
@@ -2507,7 +2540,19 @@ export type Database = {
           id?: string
           invoice_date?: string
           invoice_number: string
+          is_legacy_payment?: boolean
+          issued_at?: string | null
           paid_at?: string | null
+          payment_override_by?: string | null
+          payment_payload_version?: string | null
+          payment_presentation_type?: string | null
+          payment_profile_id?: string | null
+          payment_profile_overridden?: boolean
+          payment_profile_override_reason?: string | null
+          payment_reference?: string | null
+          payment_reference_type?: string | null
+          payment_routing_reason?: string | null
+          payment_snapshot?: Json | null
           pdf_url?: string | null
           qr_reference: string
           sent_at?: string | null
@@ -2526,7 +2571,19 @@ export type Database = {
           id?: string
           invoice_date?: string
           invoice_number?: string
+          is_legacy_payment?: boolean
+          issued_at?: string | null
           paid_at?: string | null
+          payment_override_by?: string | null
+          payment_payload_version?: string | null
+          payment_presentation_type?: string | null
+          payment_profile_id?: string | null
+          payment_profile_overridden?: boolean
+          payment_profile_override_reason?: string | null
+          payment_reference?: string | null
+          payment_reference_type?: string | null
+          payment_routing_reason?: string | null
+          payment_snapshot?: Json | null
           pdf_url?: string | null
           qr_reference?: string
           sent_at?: string | null
@@ -2549,6 +2606,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "pending_booking_confirmations"
             referencedColumns: ["customer_id"]
+          },
+          {
+            foreignKeyName: "invoices_payment_profile_id_fkey"
+            columns: ["payment_profile_id"]
+            isOneToOne: false
+            referencedRelation: "payment_profiles"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "invoices_ticket_id_fkey"
@@ -2924,6 +2988,102 @@ export type Database = {
           },
         ]
       }
+      payment_profiles: {
+        Row: {
+          account_holder: string
+          account_holder_city: string
+          account_holder_country: string
+          account_holder_house_number: string | null
+          account_holder_street: string | null
+          account_holder_zip: string
+          account_type: string
+          bank_name: string | null
+          bic_swift: string | null
+          country_scope: string
+          created_at: string
+          created_by: string | null
+          currency: string
+          iban: string
+          id: string
+          is_active: boolean
+          is_archived: boolean
+          is_default: boolean
+          name: string
+          presentation_type: string
+          reference_type: string
+          updated_at: string
+          updated_by: string | null
+          valid_from: string | null
+          valid_until: string | null
+          validated_at: string | null
+          validated_by: string | null
+          validation_notes: string | null
+          validation_status: string
+        }
+        Insert: {
+          account_holder: string
+          account_holder_city: string
+          account_holder_country: string
+          account_holder_house_number?: string | null
+          account_holder_street?: string | null
+          account_holder_zip: string
+          account_type?: string
+          bank_name?: string | null
+          bic_swift?: string | null
+          country_scope: string
+          created_at?: string
+          created_by?: string | null
+          currency: string
+          iban: string
+          id?: string
+          is_active?: boolean
+          is_archived?: boolean
+          is_default?: boolean
+          name: string
+          presentation_type: string
+          reference_type: string
+          updated_at?: string
+          updated_by?: string | null
+          valid_from?: string | null
+          valid_until?: string | null
+          validated_at?: string | null
+          validated_by?: string | null
+          validation_notes?: string | null
+          validation_status?: string
+        }
+        Update: {
+          account_holder?: string
+          account_holder_city?: string
+          account_holder_country?: string
+          account_holder_house_number?: string | null
+          account_holder_street?: string | null
+          account_holder_zip?: string
+          account_type?: string
+          bank_name?: string | null
+          bic_swift?: string | null
+          country_scope?: string
+          created_at?: string
+          created_by?: string | null
+          currency?: string
+          iban?: string
+          id?: string
+          is_active?: boolean
+          is_archived?: boolean
+          is_default?: boolean
+          name?: string
+          presentation_type?: string
+          reference_type?: string
+          updated_at?: string
+          updated_by?: string | null
+          valid_from?: string | null
+          valid_until?: string | null
+          validated_at?: string | null
+          validated_by?: string | null
+          validation_notes?: string | null
+          validation_status?: string
+        }
+        Relationships: []
+      }
       payments: {
         Row: {
           amount: number
@@ -3266,6 +3426,7 @@ export type Database = {
           country: string | null
           created_at: string | null
           email: string | null
+          house_number: string | null
           iban: string | null
           id: string
           lesson_times: Json | null
@@ -3289,6 +3450,7 @@ export type Database = {
           country?: string | null
           created_at?: string | null
           email?: string | null
+          house_number?: string | null
           iban?: string | null
           id?: string
           lesson_times?: Json | null
@@ -3312,6 +3474,7 @@ export type Database = {
           country?: string | null
           created_at?: string | null
           email?: string | null
+          house_number?: string | null
           iban?: string | null
           id?: string
           lesson_times?: Json | null
