@@ -2,7 +2,14 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { X, Clock, Ban, Building } from "lucide-react";
+import { X, Clock, Ban, Building, MoreHorizontal } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { useIsMobileScheduler } from "@/hooks/use-touch-device";
 import { useSchedulerSelection } from "@/contexts/SchedulerSelectionContext";
 import { AbsenceTypeDialog } from "./AbsenceTypeDialog";
 import { OfficeHoursDialog } from "./OfficeHoursDialog";
@@ -16,6 +23,7 @@ interface SelectionToolbarProps {
 export function SelectionToolbar({ className, bookings = [] }: SelectionToolbarProps) {
   const navigate = useNavigate();
   const { state, clearSelection, getTotalHours } = useSchedulerSelection();
+  const isMobileScheduler = useIsMobileScheduler();
   const [isAbsenceDialogOpen, setIsAbsenceDialogOpen] = useState(false);
   const [isOfficeHoursDialogOpen, setIsOfficeHoursDialogOpen] = useState(false);
 
