@@ -277,6 +277,84 @@ export function ProductFormModal({ open, onOpenChange, product, seasonId }: Prod
                 )}
               />
 
+              {/* Reporting metadata for the Swiss Snowsports statistics */}
+              <div className="space-y-3 rounded-md border p-3">
+                <p className="text-sm font-medium">Statistik (Swiss Snowsports)</p>
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <FormField
+                    control={form.control}
+                    name="discipline"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Disziplin</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="unset">Nicht klassifiziert</SelectItem>
+                            <SelectItem value="ski">⛷️ Ski</SelectItem>
+                            <SelectItem value="snowboard">🏂 Snowboard</SelectItem>
+                            <SelectItem value="other">Andere</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="audience"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Zielgruppe</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="unset">Nicht klassifiziert</SelectItem>
+                            <SelectItem value="kids">Kinder</SelectItem>
+                            <SelectItem value="adults">Erwachsene</SelectItem>
+                            <SelectItem value="mixed">Gemischt</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="reporting_category"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Kursform</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="unset">Nicht klassifiziert</SelectItem>
+                            <SelectItem value="private">Privat</SelectItem>
+                            <SelectItem value="group">Gruppe</SelectItem>
+                            <SelectItem value="other">Andere</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              </div>
+
+
+
               {/* Age constraints - optional for all product types */}
               <div className="grid grid-cols-2 gap-4">
                 <FormField
