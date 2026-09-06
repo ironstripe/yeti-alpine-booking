@@ -14,7 +14,8 @@ import { RolesCapabilitiesCard } from "@/components/instructors/detail/RolesCapa
 import { RecurringBlocksTab } from "@/components/instructor/RecurringBlocksTab";
 import { InstructorRentalsCard } from "@/components/instructors/detail/InstructorRentalsCard";
 import { EditInstructorModal } from "@/components/instructors/EditInstructorModal";
-import { WebsiteProfileCard } from "@/components/instructors/detail/WebsiteProfileCard";
+import { Badge } from "@/components/ui/badge";
+import { Globe } from "lucide-react";
 
 import { getSpecializationLabel } from "@/hooks/useInstructors";
 import { getLevelLabel } from "@/lib/instructor-utils";
@@ -176,15 +177,6 @@ export default function InstructorDetail() {
             <RolesCapabilitiesCard
               instructorId={id}
               currentType={instructor.instructor_type}
-            />
-          )}
-          {isAdminOrOffice && id && instructor && (
-            <WebsiteProfileCard
-              instructorId={id}
-              firstName={instructor.first_name}
-              lastName={instructor.last_name}
-              specialization={instructor.specialization}
-              avatarUrl={instructor.avatar_url}
             />
           )}
         </div>
