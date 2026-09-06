@@ -1,21 +1,29 @@
 import { format, addDays } from "date-fns";
-import { de } from "date-fns/locale";
-import { Banknote, CreditCard, Smartphone, FileText, Calendar } from "lucide-react";
+import { Banknote, CreditCard, Smartphone, FileText, Calendar, Gift, Building2, AlertCircle } from "lucide-react";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-
-type PaymentMethod = "cash" | "card" | "twint" | "invoice";
+import { useBillingPartners } from "@/hooks/useBillingPartners";
+import { IMMEDIATE_PAYMENT_METHODS, PaymentMethod, SettlementChoice } from "@/lib/finance";
 
 interface PaymentMethodSelectionProps {
   paymentMethod: PaymentMethod | null;
-  isPaid: boolean;
+  settlement: SettlementChoice;
+  billingPartnerId: string | null;
   paymentDueDate: string | null;
   onPaymentMethodChange: (method: PaymentMethod) => void;
-  onIsPaidChange: (isPaid: boolean) => void;
+  onSettlementChange: (settlement: SettlementChoice) => void;
+  onBillingPartnerChange: (id: string | null) => void;
   onPaymentDueDateChange: (date: string | null) => void;
   firstCourseDate: string | null;
 }
@@ -24,19 +32,24 @@ const PAYMENT_OPTIONS: { id: PaymentMethod; label: string; icon: typeof Banknote
   { id: "cash", label: "Bar", icon: Banknote },
   { id: "card", label: "Karte", icon: CreditCard },
   { id: "twint", label: "TWINT", icon: Smartphone },
+  { id: "voucher", label: "Gutschein", icon: Gift },
   { id: "invoice", label: "Rechnung", icon: FileText },
+  { id: "hotel", label: "Hotel", icon: Building2 },
 ];
 
 export function PaymentMethodSelection({
   paymentMethod,
-  isPaid,
+  settlement,
+  billingPartnerId,
   paymentDueDate,
   onPaymentMethodChange,
-  onIsPaidChange,
+  onSettlementChange,
+  onBillingPartnerChange,
   onPaymentDueDateChange,
   firstCourseDate,
 }: PaymentMethodSelectionProps) {
-  // Calculate default due date (7 days before course start)
+  const { data: hotels = [] } = useBillingPartners({ activeOnly: true });
+
   const getDefaultDueDate = () => {
     if (!firstCourseDate) return format(addDays(new Date(), 7), "yyyy-MM-dd");
     const courseDate = new Date(firstCourseDate);
@@ -45,70 +58,139 @@ export function PaymentMethodSelection({
 
   const handlePaymentMethodChange = (method: PaymentMethod) => {
     onPaymentMethodChange(method);
-    // Set default due date for invoice
-    if (method === "invoice" && !paymentDueDate) {
-      onPaymentDueDateChange(getDefaultDueDate());
+
+    // Invoice and hotel billing always leave an open balance
+    if (method === "invoice" || method === "hotel") {
+      onSettlementChange("pay_later");
+      if (!paymentDueDate) onPaymentDueDateChange(getDefaultDueDate());
+    }
+    if (method !== "hotel") {
+      onBillingPartnerChange(null);
     }
   };
+
+  const immediateAllowed = IMMEDIATE_PAYMENT_METHODS.includes(paymentMethod as PaymentMethod);
+  const showDueDate = settlement === "pay_later";
 
   return (
     <Card>
       <CardHeader className="pb-2">
         <CardTitle className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
-          Zahlungsart
+          Zahlung
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-4">
-        <p className="text-sm text-muted-foreground">
-          Wie möchte der Kunde bezahlen?
-        </p>
+      <CardContent className="space-y-5">
+        <div className="space-y-3">
+          <p className="text-sm text-muted-foreground">Wie wird der Betrag beglichen?</p>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+            {PAYMENT_OPTIONS.map((option) => {
+              const Icon = option.icon;
+              const isSelected = paymentMethod === option.id;
 
-        {/* Payment Method Options */}
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-          {PAYMENT_OPTIONS.map((option) => {
-            const Icon = option.icon;
-            const isSelected = paymentMethod === option.id;
-
-            return (
-              <button
-                key={option.id}
-                type="button"
-                onClick={() => handlePaymentMethodChange(option.id)}
-                className={cn(
-                  "flex flex-col items-center gap-2 rounded-lg border p-4 transition-all",
-                  isSelected
-                    ? "border-primary bg-primary/5 ring-1 ring-primary"
-                    : "hover:border-primary/50"
-                )}
-              >
-                <Icon
+              return (
+                <button
+                  key={option.id}
+                  type="button"
+                  onClick={() => handlePaymentMethodChange(option.id)}
                   className={cn(
-                    "h-6 w-6",
-                    isSelected ? "text-primary" : "text-muted-foreground"
+                    "flex flex-col items-center gap-2 rounded-lg border p-4 transition-all",
+                    isSelected
+                      ? "border-primary bg-primary/5 ring-1 ring-primary"
+                      : "hover:border-primary/50"
                   )}
-                />
-                <span className={cn("text-sm font-medium", isSelected && "text-primary")}>
-                  {option.label}
+                >
+                  <Icon
+                    className={cn("h-6 w-6", isSelected ? "text-primary" : "text-muted-foreground")}
+                  />
+                  <span className={cn("text-sm font-medium", isSelected && "text-primary")}>
+                    {option.label}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Hotel selector */}
+        {paymentMethod === "hotel" && (
+          <div className="space-y-2 rounded-lg border p-4">
+            <Label htmlFor="billing-hotel">Rechnungshotel *</Label>
+            <Select
+              value={billingPartnerId ?? undefined}
+              onValueChange={(value) => onBillingPartnerChange(value)}
+            >
+              <SelectTrigger id="billing-hotel">
+                <SelectValue placeholder="Hotel auswählen" />
+              </SelectTrigger>
+              <SelectContent>
+                {hotels.map((hotel) => (
+                  <SelectItem key={hotel.id} value={hotel.id}>
+                    {hotel.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {hotels.length === 0 && (
+              <p className="flex items-center gap-2 text-xs text-destructive">
+                <AlertCircle className="h-3 w-3" />
+                Keine aktiven Hotels erfasst – bitte unter Einstellungen → Hotels anlegen.
+              </p>
+            )}
+            <p className="text-xs text-muted-foreground">
+              Der Kunde bleibt Inhaber der Buchung. Der offene Betrag wird dem Hotel zugeordnet und
+              bleibt offen, bis eine Zahlung erfasst wird.
+            </p>
+          </div>
+        )}
+
+        {/* Settlement choice */}
+        <div className="space-y-3">
+          <Label>Zahlungsstatus</Label>
+          <RadioGroup
+            value={settlement}
+            onValueChange={(value) => onSettlementChange(value as SettlementChoice)}
+            className="grid gap-2 sm:grid-cols-2"
+          >
+            <label
+              className={cn(
+                "flex cursor-pointer items-start gap-3 rounded-lg border p-4",
+                settlement === "paid_now" && "border-primary bg-primary/5"
+              )}
+            >
+              <RadioGroupItem value="paid_now" id="settle-now" disabled={!immediateAllowed} />
+              <span className="space-y-1">
+                <span className="block text-sm font-medium">Jetzt bezahlt</span>
+                <span className="block text-xs text-muted-foreground">
+                  Betrag wird sofort erfasst (Bar, Karte, TWINT oder Gutschein).
                 </span>
-              </button>
-            );
-          })}
+              </span>
+            </label>
+
+            <label
+              className={cn(
+                "flex cursor-pointer items-start gap-3 rounded-lg border p-4",
+                settlement === "pay_later" && "border-primary bg-primary/5"
+              )}
+            >
+              <RadioGroupItem value="pay_later" id="settle-later" />
+              <span className="space-y-1">
+                <span className="block text-sm font-medium">Offener Betrag / später bezahlen</span>
+                <span className="block text-xs text-muted-foreground">
+                  Buchung bleibt offen und erscheint in „Unbezahlte Kurse“.
+                </span>
+              </span>
+            </label>
+          </RadioGroup>
+
+          {!immediateAllowed && paymentMethod && (
+            <p className="text-xs text-muted-foreground">
+              Für Rechnung und Hotel bleibt der Betrag offen, bis eine Zahlung erfasst wird.
+            </p>
+          )}
         </div>
 
-        {/* Already Paid Checkbox */}
-        <div className="flex items-center gap-3 rounded-lg border p-4">
-          <Checkbox
-            id="is-paid"
-            checked={isPaid}
-            onCheckedChange={(checked) => onIsPaidChange(checked === true)}
-          />
-          <label htmlFor="is-paid" className="cursor-pointer text-sm">
-            Bereits bezahlt
-          </label>
-        </div>
-
-        {/* Payment Due Date (for invoice) */}
-        {paymentMethod === "invoice" && !isPaid && (
+        {/* Payment due date */}
+        {showDueDate && (
           <div className="space-y-2">
             <Label htmlFor="due-date">Zahlungsfrist</Label>
             <div className="flex items-center gap-2">
@@ -121,9 +203,7 @@ export function PaymentMethodSelection({
                 className="w-auto"
               />
               {firstCourseDate && (
-                <span className="text-xs text-muted-foreground">
-                  (7 Tage vor Kursbeginn)
-                </span>
+                <span className="text-xs text-muted-foreground">(7 Tage vor Kursbeginn)</span>
               )}
             </div>
           </div>
