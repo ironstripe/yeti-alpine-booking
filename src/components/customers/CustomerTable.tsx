@@ -25,6 +25,7 @@ export function CustomerTable({ customers }: CustomerTableProps) {
       <Table>
         <TableHeader>
           <TableRow>
+            <TableHead>Kundennr.</TableHead>
             <TableHead>Name</TableHead>
             <TableHead>E-Mail</TableHead>
             <TableHead>Telefon</TableHead>
@@ -39,9 +40,18 @@ export function CustomerTable({ customers }: CustomerTableProps) {
               className="cursor-pointer"
               onClick={() => navigate(`/customers/${customer.id}`)}
             >
-              <TableCell className="font-medium">
-                {customer.first_name} {customer.last_name}
+              <TableCell className="font-mono text-xs text-muted-foreground">
+                {customer.customer_number || "–"}
               </TableCell>
+              <TableCell className="font-medium">
+                <div>{customer.first_name} {customer.last_name}</div>
+                {customer.match_reason && customer.match_reason !== "Namenstreffer" && (
+                  <div className="text-xs font-normal text-muted-foreground">
+                    {customer.match_reason}
+                  </div>
+                )}
+              </TableCell>
+
               <TableCell>
                 <a
                   href={`mailto:${customer.email}`}
