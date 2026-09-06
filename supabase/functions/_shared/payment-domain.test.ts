@@ -18,10 +18,10 @@ import {
 } from "./payment-domain.ts";
 
 // Test IBANs (checksum-valid, fictional accounts).
-const QR_IBAN_LI = "LI6830172ABCDEFGHIJ2"; // placeholder replaced below
+const LI_QR_IBAN = "LI31301721234567890AB"; // QR-IID 30172 (LLB range)
 const CH_QR_IBAN = "CH4431999123000889012";
 const CH_NORMAL_IBAN = "CH9300762011623852957";
-const LI_NORMAL_IBAN = "LI2108800000021019826";
+const LI_NORMAL_IBAN = "LI21088100002324013AA";
 const DE_IBAN = "DE89370400440532013000";
 
 function profile(overrides: Partial<PaymentProfile> = {}): PaymentProfile {
@@ -324,5 +324,17 @@ describe("Swiss QR payload", () => {
 
   it("blocks incomplete creditor data", () => {
     expect(validateSwissQRPayloadInput({ ...payloadInput, creditorStreet: "" }).valid).toBe(false);
+  });
+});
+
+describe("bank-assigned QR-IBAN detection", () => {
+  it("detects a QR-IID 30172 account as QR-IBAN", () => {
+    const r = validateIBAN(LI_QR_IBAN);
+    expect(r.valid).toBe(true);
+    expect(r.accountType).toBe("qr_iban");
+    expect(r.qrIid).toBe("30172");
+  });
+  it("treats a normal LI IBAN as a normal account", () => {
+    expect(validateIBAN(LI_NORMAL_IBAN).accountType).toBe("iban");
   });
 });
