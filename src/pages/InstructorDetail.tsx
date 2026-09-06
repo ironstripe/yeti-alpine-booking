@@ -184,6 +184,7 @@ export default function InstructorDetail() {
               firstName={instructor.first_name}
               lastName={instructor.last_name}
               specialization={instructor.specialization}
+              avatarUrl={instructor.avatar_url}
             />
           )}
         </div>
