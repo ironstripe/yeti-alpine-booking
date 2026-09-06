@@ -6,6 +6,7 @@ import { EmptySlot } from "./EmptySlot";
 import { SelectionOverlay } from "./SelectionOverlay";
 import { useSchedulerSelection } from "@/contexts/SchedulerSelectionContext";
 import { isInstructorAbsent } from "@/lib/scheduler-utils";
+import { useMobileSlot } from "./mobile/MobileSlotContext";
 
 interface DaySlotsProps {
   instructor: SchedulerInstructor;
