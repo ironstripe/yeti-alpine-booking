@@ -84,12 +84,16 @@ export function NewInstructorModal({ open, onOpenChange }: NewInstructorModalPro
       roles: ["ski"],
       level: "",
       hourly_rate: undefined,
+      show_on_website: false,
+      website_teaser: DEFAULT_WEBSITE_TEASER,
     },
   });
 
   const roles = watch("roles");
   const level = watch("level");
   const status = watch("status");
+  const showOnWebsite = watch("show_on_website");
+  const websiteTeaser = watch("website_teaser") ?? "";
   const isInstructor = hasTeachingRole(roles || []);
 
   const onSubmit = async (data: InstructorFormData) => {
