@@ -9,15 +9,9 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { z } from "npm:zod@3.23.8";
 import { corsHeaders, checkApiKey, json } from "../_shared/intakeAuth.ts";
+import { issueInvoice } from "../_shared/invoice-service.ts";
 
-// Swiss QR reference (27 digits, Mod10 recursive check digit) — same rules as the admin UI.
-function generateQRReference(invoiceNumber: string): string {
-  const table = [0, 9, 4, 6, 8, 2, 7, 1, 3, 5];
-  const padded = invoiceNumber.replace(/\D/g, "").padStart(26, "0").slice(-26);
-  let carry = 0;
-  for (const char of padded) carry = table[(carry + parseInt(char, 10)) % 10];
-  return padded + String((10 - carry) % 10);
-}
+
 
 
 const Customer = z.object({
