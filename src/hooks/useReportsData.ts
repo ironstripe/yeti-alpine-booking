@@ -482,8 +482,11 @@ export const useInstructorStats = (dateRange: DateRange) => {
         .from("ticket_items")
         .select(`
           instructor_id,
+          date,
           time_start,
           time_end,
+          status,
+          actual_duration_minutes,
           product:products(type, duration_minutes)
         `)
         .gte("date", startDate)
@@ -492,20 +495,30 @@ export const useInstructorStats = (dateRange: DateRange) => {
 
       if (itemsError) throw itemsError;
 
-      // Calculate hours per instructor
+      // Hours per instructor, counted per UNIQUE session:
+      // several participants in the same slot must not multiply the taught hours.
       const instructorHoursMap = new Map<string, { private: number; group: number }>();
+      const countedSessions = new Set<string>();
 
-      ticketItems?.forEach(item => {
+      (ticketItems || []).forEach((item: any) => {
         if (!item.instructor_id) return;
-        
-        let hours = 0;
-        if (item.time_start && item.time_end) {
-          const start = parseISO(`2000-01-01T${item.time_start}`);
-          const end = parseISO(`2000-01-01T${item.time_end}`);
-          hours = differenceInMinutes(end, start) / 60;
-        } else if (item.product?.duration_minutes) {
-          hours = item.product.duration_minutes / 60;
-        }
+        if (!isActiveItemStatus(item.status)) return;
+
+        const key = sessionKey({
+          instructorId: item.instructor_id,
+          date: item.date,
+          timeStart: item.time_start,
+          timeEnd: item.time_end,
+        });
+        if (countedSessions.has(key)) return;
+        countedSessions.add(key);
+
+        const minutes =
+          item.actual_duration_minutes ??
+          (item.time_start && item.time_end
+            ? minutesBetween(item.time_start, item.time_end)
+            : item.product?.duration_minutes ?? 0);
+        const hours = (minutes || 0) / 60;
 
         const current = instructorHoursMap.get(item.instructor_id) || { private: 0, group: 0 };
         if (item.product?.type === "private_lesson") {
