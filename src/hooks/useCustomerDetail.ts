@@ -32,8 +32,10 @@ export interface CustomerContact {
 
 export interface CustomerDetail {
   id: string;
+  customer_number: string | null;
   first_name: string | null;
   last_name: string;
+
   email: string;
   phone: string | null;
   street: string | null;
