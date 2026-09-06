@@ -64,10 +64,10 @@ export function SchedulerHeader({
 
   return (
     <div className="flex flex-col border-b bg-card w-full">
-      <div className="flex items-center gap-2 px-3 py-2">
+      <div className="flex flex-wrap items-center gap-2 px-3 py-2">
         {/* Date Navigation Group */}
         <div className="flex items-center gap-1">
-          <Button variant="outline" size="icon" className="h-8 w-8" onClick={goToPreviousDay}>
+          <Button variant="outline" size="icon" className="h-11 w-11 md:h-8 md:w-8" onClick={goToPreviousDay}>
             <ChevronLeft className="h-4 w-4" />
           </Button>
 
@@ -75,7 +75,7 @@ export function SchedulerHeader({
             <PopoverTrigger asChild>
               <Button
                 variant="outline"
-                className="h-8 min-w-[90px] md:min-w-[110px] justify-start text-left font-normal px-2 text-xs"
+                className="h-11 md:h-8 min-w-[90px] md:min-w-[110px] justify-start text-left font-normal px-2 text-xs"
               >
                 <CalendarIcon className="mr-1.5 h-3.5 w-3.5 shrink-0" />
                 {format(date, isMobile ? "dd.MM." : "EEE, dd.MM.", { locale: de })}
@@ -93,14 +93,14 @@ export function SchedulerHeader({
             </PopoverContent>
           </Popover>
 
-          <Button variant="outline" size="icon" className="h-8 w-8" onClick={goToNextDay}>
+          <Button variant="outline" size="icon" className="h-11 w-11 md:h-8 md:w-8" onClick={goToNextDay}>
             <ChevronRight className="h-4 w-4" />
           </Button>
 
           <Button 
             variant="ghost" 
             size="icon" 
-            className="h-8 w-8" 
+            className="h-11 w-11 md:h-8 md:w-8" 
             onClick={goToToday}
             title="Heute"
           >
@@ -138,10 +138,10 @@ export function SchedulerHeader({
         </ToggleGroup>
 
         {/* Spacer */}
-        <div className="flex-1" />
+        <div className="hidden md:block flex-1" />
 
         {/* Right-aligned Actions */}
-        <div className="flex items-center gap-1.5">
+        <div className="flex flex-wrap items-center gap-1.5">
           {/* Universal Search */}
           <SchedulerSearchTrigger onClick={() => setSearchOpen(true)} />
 

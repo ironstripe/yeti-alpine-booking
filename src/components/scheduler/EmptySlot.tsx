@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useRef } from "react";
 import { useDroppable } from "@dnd-kit/core";
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
@@ -7,6 +7,10 @@ import { useSchedulerSelection } from "@/contexts/SchedulerSelectionContext";
 import { useDndKitDrag } from "@/contexts/DndKitDragContext";
 import type { SchedulerBooking, SchedulerAbsence } from "@/lib/scheduler-utils";
 import { toast } from "sonner";
+import { useIsTouchDevice } from "@/hooks/use-touch-device";
+
+const TAP_MOVE_THRESHOLD = 8; // px
+const TAP_MAX_DURATION = 600; // ms
 
 interface EmptySlotProps {
   instructorId: string;
@@ -38,6 +42,8 @@ export function EmptySlot({
   isPlanningMode = false,
 }: EmptySlotProps) {
   const navigate = useNavigate();
+  const isTouch = useIsTouchDevice();
+  const tapRef = useRef<{ x: number; y: number; t: number; moved: boolean } | null>(null);
   const { 
     state, 
     isSlotSelected, 
@@ -147,6 +153,8 @@ export function EmptySlot({
   }, [timeSlot]);
 
   const handleMouseDown = (e: React.MouseEvent) => {
+    // On touch devices the native scroll container owns the gesture.
+    if (isTouch) return;
     if (isBlocked || state.isResizing) return;
     e.preventDefault();
     e.stopPropagation(); // Prevent DndKit interference
@@ -233,8 +241,58 @@ export function EmptySlot({
   };
 
   const handleMouseUp = () => {
+    if (isTouch) return;
     if (!state.drag.isDragging) return;
     endDrag(bookings, absences);
+  };
+
+  // --- Touch: distinguish tap from pan -------------------------------------
+  const openBookingForSlot = useCallback(() => {
+    if (isInvalidDropZone) return;
+
+    const endMinutes = timeToMinutes(timeSlot) + 60;
+    const endTime = `${Math.floor(endMinutes / 60).toString().padStart(2, "0")}:${(endMinutes % 60).toString().padStart(2, "0")}`;
+
+    const validation = canSelectSlot(instructorId, date, timeSlot, endTime, bookings, absences);
+    if (!validation.valid) {
+      toast.error(validation.reason || "Slot nicht verfügbar");
+      return;
+    }
+
+    clearSelection();
+    const params = new URLSearchParams({
+      instructor: instructorId,
+      appointments: JSON.stringify([
+        { instructorId, date, startTime: timeSlot, durationMinutes: 60 },
+      ]),
+    });
+    navigate(`/bookings/new?${params.toString()}`);
+  }, [isInvalidDropZone, timeSlot, canSelectSlot, instructorId, date, bookings, absences, clearSelection, navigate]);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (!isTouch) return;
+    const t = e.touches[0];
+    tapRef.current = { x: t.clientX, y: t.clientY, t: Date.now(), moved: false };
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    const start = tapRef.current;
+    if (!start) return;
+    const t = e.touches[0];
+    if (
+      Math.abs(t.clientX - start.x) > TAP_MOVE_THRESHOLD ||
+      Math.abs(t.clientY - start.y) > TAP_MOVE_THRESHOLD
+    ) {
+      start.moved = true; // pan wins, native scrolling continues
+    }
+  };
+
+  const handleTouchEnd = () => {
+    const start = tapRef.current;
+    tapRef.current = null;
+    if (!start || start.moved) return;
+    if (Date.now() - start.t > TAP_MAX_DURATION) return;
+    openBookingForSlot();
   };
 
   return (
@@ -245,10 +303,16 @@ export function EmptySlot({
       data-date={date}
       onMouseDown={handleMouseDown}
       onMouseUp={handleMouseUp}
-      onDoubleClick={handleDoubleClick}
+      onDoubleClick={isTouch ? undefined : handleDoubleClick}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+      onTouchCancel={() => { tapRef.current = null; }}
       className={cn(
         "absolute top-0 bottom-0 border-r border-border",
-        "transition-colors duration-100 select-none touch-none",
+        "transition-colors duration-100 select-none",
+        // Touch devices: let the scroll container own the gesture
+        isTouch ? "touch-auto" : "touch-none",
         !isInvalidDropZone && !state.drag.isDragging && "cursor-pointer hover:bg-accent hover:border-border group",
         state.drag.isDragging && "cursor-crosshair",
         isInvalidDropZone && "cursor-not-allowed",

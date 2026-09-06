@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useDraggable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
@@ -13,6 +13,9 @@ import {
 import { BookingDetailDialog } from "./BookingDetailDialog";
 import { OfficeHoursDetailDialog } from "./OfficeHoursDetailDialog";
 import { AlertTriangle, Building, Hourglass, Link2 } from "lucide-react";
+import { useIsTouchDevice } from "@/hooks/use-touch-device";
+
+const TAP_MOVE_THRESHOLD = 8; // px
 
 interface BookingBarProps {
   booking: SchedulerBooking;
@@ -23,6 +26,9 @@ interface BookingBarProps {
 
 export function BookingBar({ booking, slotWidth, instructorSpecialization, isPlanningMode = false }: BookingBarProps) {
   const navigate = useNavigate();
+  const isTouch = useIsTouchDevice();
+  const swipedRef = useRef(false);
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [isOfficeDetailOpen, setIsOfficeDetailOpen] = useState(false);
   const isPrivate = booking.type === "private";
@@ -41,7 +47,7 @@ export function BookingBar({ booking, slotWidth, instructorSpecialization, isPla
       type: "booking",
       booking,
     },
-    disabled: !isPrivate, // Only private lessons can be dragged
+    disabled: !isPrivate || isTouch, // Only private lessons, mouse/keyboard only
   });
 
   const { left, width } = calculateBarPosition(
@@ -63,7 +69,29 @@ export function BookingBar({ booking, slotWidth, instructorSpecialization, isPla
     pointerEvents: isDragging ? 'none' : undefined,
   };
 
+  const handleTouchStart = (e: React.TouchEvent) => {
+    const t = e.touches[0];
+    touchStartRef.current = { x: t.clientX, y: t.clientY };
+    swipedRef.current = false;
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    const start = touchStartRef.current;
+    if (!start) return;
+    const t = e.touches[0];
+    if (
+      Math.abs(t.clientX - start.x) > TAP_MOVE_THRESHOLD ||
+      Math.abs(t.clientY - start.y) > TAP_MOVE_THRESHOLD
+    ) {
+      swipedRef.current = true; // gesture is a pan, suppress the synthetic click
+    }
+  };
+
   const handleClick = (e: React.MouseEvent) => {
+    if (swipedRef.current) {
+      swipedRef.current = false;
+      return;
+    }
     if (!isDragging) {
       e.stopPropagation();
       
@@ -86,13 +114,16 @@ export function BookingBar({ booking, slotWidth, instructorSpecialization, isPla
         <TooltipTrigger asChild>
           <div
             ref={setNodeRef}
-            {...(isPrivate ? { ...listeners, ...attributes } : {})}
+            {...(isPrivate && !isTouch ? { ...listeners, ...attributes } : {})}
             onClick={handleClick}
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
             className={cn(
               "absolute top-0.5 bottom-0.5 rounded border px-1.5 py-0.5 text-[10px] font-medium truncate",
               "flex items-center gap-0.5",
               barClasses,
-              isPrivate && "cursor-grab active:cursor-grabbing",
+              isPrivate && !isTouch && "cursor-grab active:cursor-grabbing",
+              isTouch && "cursor-pointer touch-auto",
               isDragging && "invisible opacity-0",
               !isPrivate && "cursor-pointer",
               // Planning mode: dim existing bookings

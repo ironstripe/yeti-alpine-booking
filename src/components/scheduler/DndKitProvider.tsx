@@ -2,7 +2,7 @@ import { ReactNode, useState, useCallback, useMemo } from "react";
 import {
   DndContext,
   DragOverlay,
-  PointerSensor,
+  MouseSensor,
   KeyboardSensor,
   useSensor,
   useSensors,
@@ -44,8 +44,10 @@ export function DndKitProvider({ children, onBookingDrop }: DndKitProviderProps)
   const [overSlot, setOverSlot] = useState<DropData | null>(null);
   const [lastInvalidAttempt, setLastInvalidAttempt] = useState<string | null>(null);
 
+  // MouseSensor (instead of PointerSensor) keeps drag & drop on mouse/trackpad
+  // only, so touch gestures are never captured and native scrolling wins.
   const sensors = useSensors(
-    useSensor(PointerSensor, {
+    useSensor(MouseSensor, {
       activationConstraint: {
         distance: 8, // 8px movement required before drag starts
       },
