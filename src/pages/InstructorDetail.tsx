@@ -14,6 +14,8 @@ import { RolesCapabilitiesCard } from "@/components/instructors/detail/RolesCapa
 import { RecurringBlocksTab } from "@/components/instructor/RecurringBlocksTab";
 import { InstructorRentalsCard } from "@/components/instructors/detail/InstructorRentalsCard";
 import { EditInstructorModal } from "@/components/instructors/EditInstructorModal";
+import { WebsiteProfileCard } from "@/components/instructors/detail/WebsiteProfileCard";
+
 import { getSpecializationLabel } from "@/hooks/useInstructors";
 import { getLevelLabel } from "@/lib/instructor-utils";
 import { useUserRole } from "@/hooks/useUserRole";
