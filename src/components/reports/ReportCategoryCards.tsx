@@ -1,7 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, TrendingUp, Users, BarChart3, ShoppingCart, Calendar } from "lucide-react";
+import { ArrowRight, TrendingUp, Users, BarChart3, ShoppingCart, Calendar, FileBarChart } from "lucide-react";
 
 interface ReportCategory {
   id: string;
@@ -39,6 +39,13 @@ const categories: ReportCategory[] = [
     description: "Segmente, Herkunft, Wiederkäufer",
     icon: <Users className="h-8 w-8" />,
     path: "/reports/customers",
+  },
+  {
+    id: "swiss-snowsports",
+    title: "Swiss Snowsports Bericht",
+    description: "Lektionen, Teilnehmer und Stunden nach Disziplin",
+    icon: <FileBarChart className="h-8 w-8" />,
+    path: "/reports/swiss-snowsports",
   },
   {
     id: "shop",
