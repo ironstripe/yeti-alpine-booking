@@ -209,6 +209,16 @@ export function WebsiteProfileCard({ instructorId, firstName, lastName, speciali
   const meta = statusMeta[profile.status] ?? statusMeta.draft;
   const previewImage = localPreview ?? portraitUrl ?? fallbackPortrait;
 
+  const checklist = [
+    { label: "Anzeigename", ok: !!displayName.trim() },
+    { label: "Rollenbezeichnung", ok: !!roleLabel.trim() },
+    { label: "Website-Text", ok: !!teaser.trim() },
+    { label: "Bild (Porträt oder Profilbild)", ok: !!(portraitUrl || fallbackPortrait) },
+    { label: "Einwilligung zur Veröffentlichung", ok: consent },
+  ];
+  const readyToPublish = checklist.every((c) => c.ok);
+  const isLive = profile.status === "published";
+
   return (
     <Card>
       <CardHeader className="pb-3 flex flex-row items-center justify-between space-y-0">
