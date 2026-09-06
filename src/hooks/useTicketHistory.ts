@@ -30,6 +30,8 @@ const EVENT_LABELS: Record<string, string> = {
   PAYMENT_RECORDED: "Zahlung erfasst",
   ITEM_ADDED: "Position hinzugefügt",
   ITEM_REMOVED: "Position entfernt",
+  PAYMENT_METHOD_CHANGED: "Zahlungsart festgelegt",
+  BILLING_PARTNER_CHANGED: "Hotelabrechnung geändert",
 };
 
 function formatEventDetails(event: TicketHistoryEvent): string {

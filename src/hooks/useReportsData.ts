@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { isActiveItemStatus, sessionKey, minutesBetween } from "@/lib/finance";
 import { startOfWeek, endOfWeek, startOfMonth, endOfMonth, subDays, format, parseISO, differenceInMinutes } from "date-fns";
 
 export interface DateRange {
@@ -62,7 +63,12 @@ export interface CustomerOrigin {
 }
 
 export interface QuickStats {
+  /** Revenue actually received (payments + shop) */
   totalRevenue: number;
+  /** Revenue sold in the period (value of booked lessons + shop) */
+  soldRevenue: number;
+  /** Same as totalRevenue, named explicitly for the reports UI */
+  receivedRevenue: number;
   totalBookings: number;
   totalParticipants: number;
   totalHours: number;
@@ -134,6 +140,95 @@ export const getDateRangePresets = (): { label: string; getValue: () => DateRang
   ];
 };
 
+interface PeriodTotals {
+  soldRevenue: number;
+  receivedRevenue: number;
+  bookings: number;
+  participants: number;
+  hours: number;
+}
+
+/** Percentage change, or 0 when there is no comparable base (never invented). */
+function trendPercent(current: number, previous: number): number {
+  if (!previous) return 0;
+  return Math.round(((current - previous) / previous) * 100);
+}
+
+async function loadPeriodTotals(startDate: string, endDate: string): Promise<PeriodTotals> {
+  const { data: ticketItems, error: itemsError } = await supabase
+    .from("ticket_items")
+    .select(`
+      id,
+      ticket_id,
+      date,
+      time_start,
+      time_end,
+      line_total,
+      status,
+      participant_id,
+      instructor_id,
+      actual_duration_minutes,
+      product:products(type, duration_minutes)
+    `)
+    .gte("date", startDate)
+    .lte("date", endDate);
+
+  if (itemsError) throw itemsError;
+
+  const activeItems = (ticketItems || []).filter((i: any) => isActiveItemStatus(i.status));
+
+  const { data: payments, error: paymentsError } = await supabase
+    .from("payments")
+    .select("amount, payment_date")
+    .gte("payment_date", startDate)
+    .lte("payment_date", endDate);
+
+  if (paymentsError) throw paymentsError;
+
+  const { data: shopTransactions, error: shopError } = await supabase
+    .from("shop_transactions")
+    .select("total, date")
+    .gte("date", startDate)
+    .lte("date", endDate);
+
+  if (shopError) throw shopError;
+
+  const shopRevenue = (shopTransactions || []).reduce((sum, t: any) => sum + (t.total || 0), 0);
+  const receivedRevenue =
+    (payments || []).reduce((sum, p: any) => sum + (p.amount || 0), 0) + shopRevenue;
+  const soldRevenue =
+    activeItems.reduce((sum: number, i: any) => sum + (i.line_total || 0), 0) + shopRevenue;
+
+  // Bookings = distinct tickets, not ticket lines
+  const bookings = new Set(activeItems.map((i: any) => i.ticket_id).filter(Boolean)).size;
+  const participants = new Set(
+    activeItems.map((i: any) => i.participant_id).filter(Boolean)
+  ).size;
+
+  // Hours = unique teaching sessions (same instructor, date and time = one session),
+  // never multiplied by the number of participants on that session.
+  const sessions = new Map<string, number>();
+  activeItems.forEach((item: any) => {
+    const key = sessionKey({
+      instructorId: item.instructor_id,
+      date: item.date,
+      timeStart: item.time_start,
+      timeEnd: item.time_end,
+    });
+    if (sessions.has(key)) return;
+    const minutes =
+      item.actual_duration_minutes ??
+      (item.time_start && item.time_end
+        ? minutesBetween(item.time_start, item.time_end)
+        : item.product?.duration_minutes ?? 0);
+    sessions.set(key, minutes || 0);
+  });
+
+  const hours = Array.from(sessions.values()).reduce((sum, m) => sum + m, 0) / 60;
+
+  return { soldRevenue, receivedRevenue, bookings, participants, hours };
+}
+
 // Quick stats for dashboard
 export const useQuickStats = (dateRange: DateRange) => {
   return useQuery({
@@ -142,78 +237,37 @@ export const useQuickStats = (dateRange: DateRange) => {
       const startDate = format(dateRange.start, "yyyy-MM-dd");
       const endDate = format(dateRange.end, "yyyy-MM-dd");
 
-      // Fetch ticket items for the date range
-      const { data: ticketItems, error: itemsError } = await supabase
-        .from("ticket_items")
-        .select(`
-          id,
-          date,
-          time_start,
-          time_end,
-          line_total,
-          participant_id,
-          product:products(type, duration_minutes)
-        `)
-        .gte("date", startDate)
-        .lte("date", endDate);
+      // Comparable previous period of identical length
+      const lengthDays = Math.max(
+        1,
+        Math.round((dateRange.end.getTime() - dateRange.start.getTime()) / 86400000) + 1
+      );
+      const prevEnd = subDays(dateRange.start, 1);
+      const prevStart = subDays(prevEnd, lengthDays - 1);
 
-      if (itemsError) throw itemsError;
+      const [current, previous] = await Promise.all([
+        loadPeriodTotals(startDate, endDate),
+        loadPeriodTotals(format(prevStart, "yyyy-MM-dd"), format(prevEnd, "yyyy-MM-dd")),
+      ]);
 
-      // Fetch payments for the date range
-      const { data: payments, error: paymentsError } = await supabase
-        .from("payments")
-        .select("amount, payment_date")
-        .gte("payment_date", startDate)
-        .lte("payment_date", endDate);
-
-      if (paymentsError) throw paymentsError;
-
-      // Fetch shop transactions
-      const { data: shopTransactions, error: shopError } = await supabase
-        .from("shop_transactions")
-        .select("total, date")
-        .gte("date", startDate)
-        .lte("date", endDate);
-
-      if (shopError) throw shopError;
-
-      // Calculate totals
-      const bookingRevenue = payments?.reduce((sum, p) => sum + (p.amount || 0), 0) || 0;
-      const shopRevenue = shopTransactions?.reduce((sum, t) => sum + (t.total || 0), 0) || 0;
-      const totalRevenue = bookingRevenue + shopRevenue;
-
-      const totalBookings = ticketItems?.length || 0;
-      const uniqueParticipants = new Set(ticketItems?.map(ti => ti.participant_id).filter(Boolean)).size;
-
-      // Calculate total hours
-      let totalHours = 0;
-      ticketItems?.forEach(item => {
-        if (item.time_start && item.time_end) {
-          const start = parseISO(`2000-01-01T${item.time_start}`);
-          const end = parseISO(`2000-01-01T${item.time_end}`);
-          totalHours += differenceInMinutes(end, start) / 60;
-        } else if (item.product?.duration_minutes) {
-          totalHours += item.product.duration_minutes / 60;
-        }
-      });
-
-      // For trends, we'd need to compare with previous period
-      // For now, return mock trends
       const stats: QuickStats = {
-        totalRevenue,
-        totalBookings,
-        totalParticipants: uniqueParticipants,
-        totalHours: Math.round(totalHours),
-        revenueTrend: 18,
-        bookingsTrend: 12,
-        participantsTrend: 15,
-        hoursTrend: 20
+        totalRevenue: current.receivedRevenue,
+        soldRevenue: current.soldRevenue,
+        receivedRevenue: current.receivedRevenue,
+        totalBookings: current.bookings,
+        totalParticipants: current.participants,
+        totalHours: Math.round(current.hours * 10) / 10,
+        revenueTrend: trendPercent(current.receivedRevenue, previous.receivedRevenue),
+        bookingsTrend: trendPercent(current.bookings, previous.bookings),
+        participantsTrend: trendPercent(current.participants, previous.participants),
+        hoursTrend: trendPercent(current.hours, previous.hours),
       };
 
       return stats;
     }
   });
 };
+
 
 // Revenue by category
 export const useRevenueByCategory = (dateRange: DateRange) => {
@@ -285,7 +339,6 @@ export const useRevenueByCategory = (dateRange: DateRange) => {
           category: categoryLabels[category] || category,
           count: data.count,
           revenue: data.revenue,
-          trend: Math.floor(Math.random() * 20) - 5 // Mock trend
         }))
         .sort((a, b) => b.revenue - a.revenue);
 
@@ -393,7 +446,8 @@ export const usePaymentMethodBreakdown = (dateRange: DateRange) => {
         card: "Karte",
         twint: "TWINT",
         invoice: "Rechnung",
-        voucher: "Gutschein"
+        voucher: "Gutschein",
+        hotel: "Hotel"
       };
 
       const results: PaymentMethodBreakdown[] = Array.from(methodMap.entries())
@@ -428,8 +482,11 @@ export const useInstructorStats = (dateRange: DateRange) => {
         .from("ticket_items")
         .select(`
           instructor_id,
+          date,
           time_start,
           time_end,
+          status,
+          actual_duration_minutes,
           product:products(type, duration_minutes)
         `)
         .gte("date", startDate)
@@ -438,20 +495,30 @@ export const useInstructorStats = (dateRange: DateRange) => {
 
       if (itemsError) throw itemsError;
 
-      // Calculate hours per instructor
+      // Hours per instructor, counted per UNIQUE session:
+      // several participants in the same slot must not multiply the taught hours.
       const instructorHoursMap = new Map<string, { private: number; group: number }>();
+      const countedSessions = new Set<string>();
 
-      ticketItems?.forEach(item => {
+      (ticketItems || []).forEach((item: any) => {
         if (!item.instructor_id) return;
-        
-        let hours = 0;
-        if (item.time_start && item.time_end) {
-          const start = parseISO(`2000-01-01T${item.time_start}`);
-          const end = parseISO(`2000-01-01T${item.time_end}`);
-          hours = differenceInMinutes(end, start) / 60;
-        } else if (item.product?.duration_minutes) {
-          hours = item.product.duration_minutes / 60;
-        }
+        if (!isActiveItemStatus(item.status)) return;
+
+        const key = sessionKey({
+          instructorId: item.instructor_id,
+          date: item.date,
+          timeStart: item.time_start,
+          timeEnd: item.time_end,
+        });
+        if (countedSessions.has(key)) return;
+        countedSessions.add(key);
+
+        const minutes =
+          item.actual_duration_minutes ??
+          (item.time_start && item.time_end
+            ? minutesBetween(item.time_start, item.time_end)
+            : item.product?.duration_minutes ?? 0);
+        const hours = (minutes || 0) / 60;
 
         const current = instructorHoursMap.get(item.instructor_id) || { private: 0, group: 0 };
         if (item.product?.type === "private_lesson") {

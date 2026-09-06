@@ -32,7 +32,10 @@ const PAYMENT_METHODS = [
   { value: "card", label: "Karte" },
   { value: "twint", label: "TWINT" },
   { value: "invoice", label: "Rechnung" },
+  { value: "voucher", label: "Gutschein" },
+  { value: "hotel", label: "Hotel" },
 ];
+
 
 export function PaymentModal({ ticket, onClose }: PaymentModalProps) {
   const remainingAmount = ticket 

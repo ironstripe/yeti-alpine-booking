@@ -301,8 +301,11 @@ export interface BookingWizardState {
   instructorNotes: string;
   
   // Step 4: Payment & Confirmation
-  paymentMethod: "cash" | "card" | "twint" | "invoice" | null;
-  isPaid: boolean;
+  paymentMethod: "cash" | "card" | "twint" | "voucher" | "invoice" | "hotel" | null;
+  /** "paid_now" creates a real payment record, "pay_later" leaves the balance open */
+  settlement: "paid_now" | "pay_later";
+  billingPartnerId: string | null;
+
   paymentDueDate: string | null;
   discountPercent: number;
   discountReason: string;
@@ -445,7 +448,9 @@ const initialState: BookingWizardState = {
   internalNotes: "",
   instructorNotes: "",
   paymentMethod: null,
-  isPaid: false,
+  settlement: "pay_later",
+  billingPartnerId: null,
+
   paymentDueDate: null,
   discountPercent: 0,
   discountReason: "",

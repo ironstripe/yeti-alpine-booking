@@ -2,6 +2,9 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { BookingWizardState } from "@/contexts/BookingWizardContext";
 import { createInitialComments } from "./useTicketComments";
+import { isImmediateMethod } from "@/lib/finance";
+import { logTicketEvent } from "@/lib/ticket-audit";
+
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import { 
@@ -184,6 +187,7 @@ export function useCreateBooking() {
       const totalAmount = baseTotal + lunchTotal - discountAmount;
 
       // Create ticket (without notes - they go to ticket_comments now)
+      // paid_amount is ALWAYS 0 here: it is only raised by persisted payment records below.
       const { data: ticket, error: ticketError } = await supabase
         .from("tickets")
         .insert({
@@ -191,8 +195,9 @@ export function useCreateBooking() {
           customer_id: state.customerId!,
           status: "confirmed",
           total_amount: totalAmount,
-          paid_amount: state.isPaid ? totalAmount : 0,
+          paid_amount: 0,
           payment_method: state.paymentMethod,
+          billing_partner_id: state.paymentMethod === "hotel" ? state.billingPartnerId : null,
           payment_due_date: state.paymentDueDate,
           notes: state.customerNotes || null,
           internal_notes: null, // Moved to ticket_comments
@@ -201,6 +206,47 @@ export function useCreateBooking() {
         .single();
 
       if (ticketError) throw ticketError;
+
+      // "Jetzt bezahlt": create a real payment record and derive paid_amount from it
+      const settlesImmediately =
+        state.settlement === "paid_now" &&
+        isImmediateMethod(state.paymentMethod) &&
+        totalAmount > 0;
+
+      if (settlesImmediately) {
+        const { data: authData } = await supabase.auth.getUser();
+
+        const { error: paymentError } = await supabase.from("payments").insert({
+          ticket_id: ticket.id,
+          amount: totalAmount,
+          payment_method: state.paymentMethod!,
+          payment_date: format(new Date(), "yyyy-MM-dd"),
+          status: "completed",
+          created_by: authData?.user?.id || null,
+        });
+
+        if (paymentError) throw paymentError;
+
+        const { error: paidUpdateError } = await supabase
+          .from("tickets")
+          .update({ paid_amount: totalAmount })
+          .eq("id", ticket.id);
+
+        if (paidUpdateError) throw paidUpdateError;
+
+        await logTicketEvent(ticket.id, "PAYMENT_RECORDED", {
+          amount: totalAmount,
+          payment_method: state.paymentMethod,
+          settlement: "paid_now",
+        });
+      }
+
+      await logTicketEvent(ticket.id, "PAYMENT_METHOD_CHANGED", {
+        payment_method: state.paymentMethod,
+        settlement: state.settlement,
+        billing_partner_id: state.paymentMethod === "hotel" ? state.billingPartnerId : null,
+      });
+
 
       // Create ticket items for each participant + date combination
       if (!productId) {

@@ -50,6 +50,7 @@ import ReportsRevenue from "./pages/ReportsRevenue";
 import ReportsInstructors from "./pages/ReportsInstructors";
 import ReportsBookings from "./pages/ReportsBookings";
 import ReportsCustomers from "./pages/ReportsCustomers";
+import ReportsSwissSnowsports from "./pages/ReportsSwissSnowsports";
 import InstructorDashboard from "./pages/InstructorDashboard";
 import InstructorSchedule from "./pages/InstructorSchedule";
 import InstructorAvailability from "./pages/InstructorAvailability";
@@ -78,6 +79,8 @@ import SettingsSystem from "./pages/SettingsSystem";
 import SetPassword from "./pages/SetPassword";
 import ResetPassword from "./pages/ResetPassword";
 import TestInstructorLogin from "./pages/TestInstructorLogin";
+import SettingsHotels from "./pages/SettingsHotels";
+import FinanceUnpaid from "./pages/FinanceUnpaid";
 import SettingsInventory from "./pages/SettingsInventory";
 import Rentals from "./pages/Rentals";
 import InstructorRentals from "./pages/InstructorRentals";
@@ -201,6 +204,7 @@ const AppRoutes = () => (
       <Route path="reports/instructors" element={<ReportsInstructors />} />
       <Route path="reports/bookings" element={<ReportsBookings />} />
       <Route path="reports/customers" element={<ReportsCustomers />} />
+      <Route path="reports/swiss-snowsports" element={<ReportsSwissSnowsports />} />
       <Route path="settings" element={<Settings />} />
       <Route path="settings/school" element={<SettingsSchool />} />
       <Route path="settings/products" element={<SettingsProducts />} />
@@ -214,6 +218,8 @@ const AppRoutes = () => (
       <Route path="settings/ai" element={<SettingsAI />} />
       <Route path="settings/import" element={<SettingsDataImport />} />
       <Route path="settings/system" element={<SettingsSystem />} />
+      <Route path="settings/hotels" element={<SettingsHotels />} />
+      <Route path="finance/unpaid" element={<FinanceUnpaid />} />
       <Route path="settings/inventory" element={<SettingsInventory />} />
     </Route>
 

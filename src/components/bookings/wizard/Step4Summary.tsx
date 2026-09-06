@@ -10,6 +10,8 @@ import { Separator } from "@/components/ui/separator";
 import { useBookingWizard, WizardStep } from "@/contexts/BookingWizardContext";
 import { useCreateBooking } from "@/hooks/useCreateBooking";
 import { useUpdateBooking, type NewParticipantItem, type TicketItemUpdate } from "@/hooks/useUpdateBooking";
+import type { PaymentMethod, SettlementChoice } from "@/lib/finance";
+
 
 import { BookingSummaryCards } from "./BookingSummaryCards";
 import { PriceBreakdown } from "./PriceBreakdown";
@@ -54,9 +56,11 @@ export function Step4Summary({ onEditStep }: Step4SummaryProps) {
   const updateBooking = useUpdateBooking();
 
   // Local state for Step 4 fields (not in context to keep it simpler)
-  const [paymentMethod, setPaymentMethod] = useState<"cash" | "card" | "twint" | "invoice" | null>(null);
-  const [isPaid, setIsPaid] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | null>(null);
+  const [settlement, setSettlement] = useState<SettlementChoice>("pay_later");
+  const [billingPartnerId, setBillingPartnerId] = useState<string | null>(null);
   const [paymentDueDate, setPaymentDueDate] = useState<string | null>(null);
+
   const [discountPercent, setDiscountPercent] = useState(0);
   const [discountReason, setDiscountReason] = useState("");
   const [sendCustomerEmail, setSendCustomerEmail] = useState(true);
@@ -102,6 +106,12 @@ export function Step4Summary({ onEditStep }: Step4SummaryProps) {
       toast.error("Bitte wähle eine Zahlungsart");
       return;
     }
+
+    if (!state.isEditMode && paymentMethod === "hotel" && !billingPartnerId) {
+      toast.error("Bitte wähle das Hotel, das die Rechnung übernimmt");
+      return;
+    }
+
 
     if (discountPercent > 0 && !discountReason.trim()) {
       toast.error("Bitte gib einen Grund für den Rabatt an");
@@ -167,7 +177,8 @@ export function Step4Summary({ onEditStep }: Step4SummaryProps) {
         const result = await createBooking.mutateAsync({
           ...state,
           paymentMethod,
-          isPaid,
+          settlement,
+          billingPartnerId,
           paymentDueDate,
           discountPercent: totalDiscount,
           discountReason: combinedReason,
@@ -175,6 +186,7 @@ export function Step4Summary({ onEditStep }: Step4SummaryProps) {
           sendCustomerWhatsApp,
           notifyInstructor,
         });
+
 
         setCreatedTicket({ id: result.ticketId, number: result.ticketNumber });
         setShowSuccess(true);
@@ -228,16 +240,19 @@ export function Step4Summary({ onEditStep }: Step4SummaryProps) {
 
       <Separator />
 
-      {/* Payment Method */}
+      {/* Payment */}
       <PaymentMethodSelection
         paymentMethod={paymentMethod}
-        isPaid={isPaid}
+        settlement={settlement}
+        billingPartnerId={billingPartnerId}
         paymentDueDate={paymentDueDate}
         onPaymentMethodChange={setPaymentMethod}
-        onIsPaidChange={setIsPaid}
+        onSettlementChange={setSettlement}
+        onBillingPartnerChange={setBillingPartnerId}
         onPaymentDueDateChange={setPaymentDueDate}
         firstCourseDate={firstCourseDate}
       />
+
 
       <Separator />
 

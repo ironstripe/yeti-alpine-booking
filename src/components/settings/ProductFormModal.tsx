@@ -56,6 +56,10 @@ const formSchema = z.object({
   max_age: z.coerce.number().min(0).optional().nullable(),
   is_active: z.boolean(),
   is_training_product: z.boolean(),
+  // Reporting metadata (Swiss Snowsports statistics)
+  discipline: z.enum(["ski", "snowboard", "other", "unset"]),
+  audience: z.enum(["kids", "adults", "mixed", "unset"]),
+  reporting_category: z.enum(["private", "group", "other", "unset"]),
   price_tiers: z.array(priceTierSchema),
 });
 
@@ -86,6 +90,9 @@ export function ProductFormModal({ open, onOpenChange, product, seasonId }: Prod
       max_age: null,
       is_active: true,
       is_training_product: false,
+      discipline: "unset",
+      audience: "unset",
+      reporting_category: "unset",
       price_tiers: getDefaultPriceTiers(),
     },
   });
@@ -120,6 +127,9 @@ export function ProductFormModal({ open, onOpenChange, product, seasonId }: Prod
         max_age: product.max_age ?? null,
         is_active: product.is_active ?? true,
         is_training_product: product.is_training_product ?? false,
+        discipline: ((product as any).discipline ?? "unset") as any,
+        audience: ((product as any).audience ?? "unset") as any,
+        reporting_category: ((product as any).reporting_category ?? "unset") as any,
         price_tiers: fullTiers,
       });
     } else {
@@ -135,6 +145,9 @@ export function ProductFormModal({ open, onOpenChange, product, seasonId }: Prod
         max_age: null,
         is_active: true,
         is_training_product: false,
+        discipline: "unset",
+        audience: "unset",
+        reporting_category: "unset",
         price_tiers: getDefaultPriceTiers(),
       });
     }
@@ -169,6 +182,9 @@ export function ProductFormModal({ open, onOpenChange, product, seasonId }: Prod
       max_age: data.max_age || null,
       is_active: data.is_active,
       is_training_product: data.is_training_product,
+      discipline: data.discipline === "unset" ? null : data.discipline,
+      audience: data.audience === "unset" ? null : data.audience,
+      reporting_category: data.reporting_category === "unset" ? null : data.reporting_category,
     };
 
     // Include season_id for new products
@@ -260,6 +276,84 @@ export function ProductFormModal({ open, onOpenChange, product, seasonId }: Prod
                   </FormItem>
                 )}
               />
+
+              {/* Reporting metadata for the Swiss Snowsports statistics */}
+              <div className="space-y-3 rounded-md border p-3">
+                <p className="text-sm font-medium">Statistik (Swiss Snowsports)</p>
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <FormField
+                    control={form.control}
+                    name="discipline"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Disziplin</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="unset">Nicht klassifiziert</SelectItem>
+                            <SelectItem value="ski">⛷️ Ski</SelectItem>
+                            <SelectItem value="snowboard">🏂 Snowboard</SelectItem>
+                            <SelectItem value="other">Andere</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="audience"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Zielgruppe</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="unset">Nicht klassifiziert</SelectItem>
+                            <SelectItem value="kids">Kinder</SelectItem>
+                            <SelectItem value="adults">Erwachsene</SelectItem>
+                            <SelectItem value="mixed">Gemischt</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="reporting_category"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Kursform</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="unset">Nicht klassifiziert</SelectItem>
+                            <SelectItem value="private">Privat</SelectItem>
+                            <SelectItem value="group">Gruppe</SelectItem>
+                            <SelectItem value="other">Andere</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              </div>
+
+
 
               {/* Age constraints - optional for all product types */}
               <div className="grid grid-cols-2 gap-4">
