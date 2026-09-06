@@ -104,11 +104,14 @@ function computeTicketDetails(ticket: any): TicketWithDetails {
 
   // Compute payment status
   // Payment status is always DERIVED (amounts + due date), never stored as a free field
-  const computedPaymentStatus = derivePaymentStatus({
+  const derived = derivePaymentStatus({
     totalAmount: ticket.total_amount || 0,
     paidAmount: ticket.paid_amount || 0,
     dueDate: ticket.payment_due_date,
   });
+  // The bookings list uses "open" as its label for an untouched balance
+  const computedPaymentStatus: "paid" | "open" | "overdue" | "partial" =
+    derived === "unpaid" ? "open" : derived;
 
   // Get primary product (first item's product)
   const firstItem = items[0];
