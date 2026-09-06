@@ -17,7 +17,7 @@ import { SelectionToolbar } from "./SelectionToolbar";
 import { SchedulerSelectionProvider, useSchedulerSelection } from "@/contexts/SchedulerSelectionContext";
 import { useUserRole } from "@/hooks/useUserRole";
 import { hasOverlap, getDaysForViewMode, generateDateRange, isWithinOperationalHours, type SchedulerBooking } from "@/lib/scheduler-utils";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, X } from "lucide-react";
 import { ColumnResizeHandle } from "./ColumnResizeHandle";
 import { 
   BookingChangeConfirmDialog, 
@@ -26,6 +26,8 @@ import {
 } from "@/components/bookings/BookingChangeConfirmDialog";
 import { PeriodModificationDialog, type PeriodModificationScope } from "./PeriodModificationDialog";
 import { usePeriodModification } from "@/hooks/usePeriodModification";
+import { useIsTouchDevice } from "@/hooks/use-touch-device";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 const SLOT_WIDTH = 100; // px per hour
 
@@ -38,6 +40,8 @@ const STORAGE_KEY = 'scheduler-instructor-col-width';
 function SchedulerGridContent() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const isTouch = useIsTouchDevice();
+  const isMobile = useIsMobile();
   
   // Read initial date from URL params if present
   const initialDate = useMemo(() => {
@@ -521,6 +525,21 @@ function SchedulerGridContent() {
     setPendingPeriodData(null);
   };
 
+  // Narrower (but readable) instructor column on small screens
+  const effectiveInstructorColumnWidth = isMobile
+    ? Math.min(instructorColumnWidth, 112)
+    : instructorColumnWidth;
+
+  // Lock the page behind the scheduler only while fullscreen is active
+  useEffect(() => {
+    if (!filters.isFullscreen) return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previous;
+    };
+  }, [filters.isFullscreen]);
+
   const instructorOptions = instructors.map((i) => ({
     id: i.id,
     name: `${i.first_name} ${i.last_name}`,
@@ -540,12 +559,23 @@ function SchedulerGridContent() {
 
   return (
     <DndKitProvider onBookingDrop={handleBookingDrop}>
-      <div className={cn(
-        "flex flex-col h-full bg-background",
-        isFullscreen && "fixed inset-0 z-50 overflow-auto"
-      )}>
+      <div
+        className={cn(
+          "flex flex-col h-full min-h-0 min-w-0 bg-background",
+          isFullscreen && "fixed inset-0 z-50 overflow-hidden"
+        )}
+        style={
+          isFullscreen
+            ? {
+                height: "100dvh",
+                paddingTop: "env(safe-area-inset-top)",
+                paddingBottom: "env(safe-area-inset-bottom)",
+              }
+            : undefined
+        }
+      >
         {/* Header with Date Navigation & Filters */}
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between shrink-0">
           <SchedulerHeader
             date={selectedDate}
             onDateChange={setSelectedDate}
@@ -560,12 +590,33 @@ function SchedulerGridContent() {
         </div>
 
         {/* Vertical Stacking Grid with Instructor Focus */}
-        <div ref={scrollContainerRef} className="flex-1 overflow-auto">
+        {isFullscreen && (
+          <button
+            type="button"
+            onClick={() => handleFiltersChange({ isFullscreen: false })}
+            aria-label="Vollbild schliessen"
+            className="absolute right-2 top-2 z-[60] flex h-11 w-11 items-center justify-center rounded-full border border-border bg-background/95 shadow-md"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        )}
+
+        {/* The single scheduler scroll container */}
+        <div
+          ref={scrollContainerRef}
+          className="flex-1 min-h-0 min-w-0"
+          style={{
+            overflow: "auto",
+            WebkitOverflowScrolling: "touch",
+            overscrollBehavior: "contain",
+            touchAction: "pan-x pan-y",
+          }}
+        >
           {/* Sticky Time Header - with day column for multi-day views */}
           <StickyTimeHeader 
             slotWidth={SLOT_WIDTH} 
             showDayColumn={visibleDates.length > 1}
-            instructorColumnWidth={instructorColumnWidth}
+            instructorColumnWidth={effectiveInstructorColumnWidth}
             onColumnResize={handleColumnResize}
             onResizeEnd={handleResizeEnd}
           />
@@ -585,7 +636,7 @@ function SchedulerGridContent() {
             instructorRefs={instructorRefs}
             isPlanningMode={isPlanningMode}
             roleFilter={roleFilter}
-            instructorColumnWidth={instructorColumnWidth}
+            instructorColumnWidth={effectiveInstructorColumnWidth}
           />
         </div>
 
