@@ -2806,6 +2806,8 @@ export type Database = {
           notes: string | null
           payment_date: string
           payment_method: string
+          reference: string | null
+          status: string
           ticket_id: string
         }
         Insert: {
@@ -2816,6 +2818,8 @@ export type Database = {
           notes?: string | null
           payment_date?: string
           payment_method: string
+          reference?: string | null
+          status?: string
           ticket_id: string
         }
         Update: {
@@ -2826,6 +2830,8 @@ export type Database = {
           notes?: string | null
           payment_date?: string
           payment_method?: string
+          reference?: string | null
+          status?: string
           ticket_id?: string
         }
         Relationships: [
@@ -3900,7 +3906,8 @@ export type Database = {
           camp_start_date: string | null
           created_at: string
           created_by: string | null
-          customer_id: string
+          customer_id: string | null
+          finalized_at: string | null
           id: string
           internal_notes: string | null
           is_initiator: boolean
@@ -3908,6 +3915,7 @@ export type Database = {
           notes: string | null
           notes_for_instructors: string | null
           paid_amount: number | null
+          participant_count: number | null
           payment_due_date: string | null
           payment_method: string | null
           reservation_expires_at: string | null
@@ -3928,7 +3936,8 @@ export type Database = {
           camp_start_date?: string | null
           created_at?: string
           created_by?: string | null
-          customer_id: string
+          customer_id?: string | null
+          finalized_at?: string | null
           id?: string
           internal_notes?: string | null
           is_initiator?: boolean
@@ -3936,6 +3945,7 @@ export type Database = {
           notes?: string | null
           notes_for_instructors?: string | null
           paid_amount?: number | null
+          participant_count?: number | null
           payment_due_date?: string | null
           payment_method?: string | null
           reservation_expires_at?: string | null
@@ -3956,7 +3966,8 @@ export type Database = {
           camp_start_date?: string | null
           created_at?: string
           created_by?: string | null
-          customer_id?: string
+          customer_id?: string | null
+          finalized_at?: string | null
           id?: string
           internal_notes?: string | null
           is_initiator?: boolean
@@ -3964,6 +3975,7 @@ export type Database = {
           notes?: string | null
           notes_for_instructors?: string | null
           paid_amount?: number | null
+          participant_count?: number | null
           payment_due_date?: string | null
           payment_method?: string | null
           reservation_expires_at?: string | null
@@ -4513,6 +4525,16 @@ export type Database = {
         Returns: number
       }
       expire_reservations: { Args: never; Returns: number }
+      finalize_provisional_reservation: {
+        Args: {
+          p_customer: Json
+          p_notes?: string
+          p_participants: Json
+          p_ticket_id: string
+          p_token: string
+        }
+        Returns: Json
+      }
       generate_group_course_instances_for_week: {
         Args: { p_week_start_date: string }
         Returns: Json

@@ -246,7 +246,10 @@ const BookingDetail = () => {
     <>
       <PageHeader
         title={`Buchung ${ticket.ticket_number}`}
-        description={`${ticket.customer?.first_name || ''} ${ticket.customer?.last_name || ''} · ${ticket.customer?.email || ''}`}
+        description={ticket.customer
+          ? `${ticket.customer.first_name || ''} ${ticket.customer.last_name || ''} · ${ticket.customer.email || ''}`
+          : 'Provisorische Reservierung – Kundendaten folgen bei der Bestätigung'}
+
         actions={
           <div className="flex items-center gap-2 flex-wrap">
             <BookingSourceBadge source={(ticket as any).source} />

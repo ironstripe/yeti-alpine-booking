@@ -137,13 +137,15 @@ function computeTicketDetails(ticket: any): TicketWithDetails {
     source: ticket.source ?? null,
     created_at: ticket.created_at,
     updated_at: ticket.updated_at,
+    // Website holds are anonymous until checkout — show a placeholder instead of a name
     customer: {
-      id: ticket.customer.id,
-      first_name: ticket.customer.first_name,
-      last_name: ticket.customer.last_name,
-      phone: ticket.customer.phone,
-      email: ticket.customer.email,
+      id: ticket.customer?.id ?? null,
+      first_name: ticket.customer?.first_name ?? "Provisorisch",
+      last_name: ticket.customer?.last_name ?? "(Website)",
+      phone: ticket.customer?.phone ?? null,
+      email: ticket.customer?.email ?? "",
     },
+
     items: items.map((item: any) => ({
       id: item.id,
       date: item.date,
