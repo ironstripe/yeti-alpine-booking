@@ -28,3 +28,12 @@ export function useMediaQuery(query: string): boolean {
 export function useIsTouchDevice(): boolean {
   return useMediaQuery("(pointer: coarse)");
 }
+
+/**
+ * Single source of truth for the phone-first scheduler layout.
+ * Viewport width decides the workflow; pointer capability only gates
+ * drag/resize interactions.
+ */
+export function useIsMobileScheduler(): boolean {
+  return useMediaQuery("(max-width: 767px)");
+}
