@@ -253,7 +253,7 @@ export function WebsiteProfileCard({ instructorId, firstName, lastName, speciali
         </div>
 
         <div className="space-y-2">
-          <Label>Website-Portrait</Label>
+          <Label>Bild für die Website</Label>
           <div className="flex items-start gap-4">
             <div className="w-24 aspect-[4/5] rounded-md bg-muted overflow-hidden shrink-0">
               {previewImage && (
@@ -261,6 +261,13 @@ export function WebsiteProfileCard({ instructorId, firstName, lastName, speciali
               )}
             </div>
             <div className="space-y-2">
+              <Badge variant={portraitUrl ? "default" : fallbackPortrait ? "secondary" : "outline"}>
+                {portraitUrl
+                  ? "Eigenes Website-Bild"
+                  : fallbackPortrait
+                    ? "Profilbild wird verwendet (Standard)"
+                    : "Kein Bild vorhanden"}
+              </Badge>
               <input
                 ref={fileInputRef}
                 type="file"
@@ -281,25 +288,22 @@ export function WebsiteProfileCard({ instructorId, firstName, lastName, speciali
                   ) : (
                     <Upload className="h-4 w-4 mr-2" />
                   )}
-                  {portraitUrl ? "Ersetzen" : "Hochladen"}
+                  {portraitUrl ? "Anderes Bild wählen" : "Eigenes Bild wählen"}
                 </Button>
                 {portraitUrl && (
                   <Button type="button" variant="ghost" size="sm" onClick={removePortrait}>
                     <Trash2 className="h-4 w-4 mr-2" />
-                    Entfernen
+                    Zurück zum Profilbild
                   </Button>
                 )}
               </div>
               <p className="text-xs text-muted-foreground">
-                Empfohlen: hochformatiges, gut beleuchtetes Portrait. JPG, PNG oder WebP, max. 5 MB.
+                Standardmässig wird das Profilbild der Person genutzt. Nur das Büro kann das Bild
+                für die Website ändern – Lehrpersonen können das nicht.
               </p>
-              {!portraitUrl && (
-                <p className="text-xs text-muted-foreground">
-                  {fallbackPortrait
-                    ? "Kein eigenes Porträt hochgeladen – das Profilbild wird verwendet."
-                    : "Kein Profilbild vorhanden – bitte Porträt hochladen."}
-                </p>
-              )}
+              <p className="text-xs text-muted-foreground">
+                Empfohlen: hochformatig, gut beleuchtet. JPG, PNG oder WebP, max. 5 MB.
+              </p>
             </div>
           </div>
         </div>
