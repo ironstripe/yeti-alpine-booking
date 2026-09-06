@@ -141,6 +141,22 @@ export default function InstructorDetail() {
             </p>
           </div>
 
+          {/* Website-Profil (kompakt) */}
+          {instructor.show_on_website && (
+            <div className="max-w-md space-y-2">
+              <Badge variant="secondary" className="gap-1">
+                <Globe className="h-3 w-3" />
+                Auf Website
+              </Badge>
+              {instructor.website_teaser && (
+                <p className="text-sm text-muted-foreground">{instructor.website_teaser}</p>
+              )}
+              {isAdminOrOffice && !instructor.avatar_url && (
+                <p className="text-xs text-amber-600">Website-Profil: Profilbild ergänzen</p>
+              )}
+            </div>
+          )}
+
           {/* Status Toggle */}
           <div className="pt-4">
             <StatusToggle
