@@ -184,8 +184,9 @@ export default function InstructorDetail() {
               specialization={instructor.specialization}
             />
           )}
-
+        </div>
       </div>
+
 
       {instructor && (
         <EditInstructorModal
