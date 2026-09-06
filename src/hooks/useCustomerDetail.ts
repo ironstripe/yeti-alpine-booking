@@ -82,7 +82,10 @@ export function useCustomerDetail(customerId: string | undefined) {
         ...data,
         additional_phones: data.additional_phones as { label: string; number: string }[] | null,
         additional_emails: data.additional_emails as { label: string; email: string }[] | null,
-        participants: (data.customer_participants || []) as Participant[],
+        participants: ((data.customer_participants || []) as any[]).filter(
+          (p) => !p.is_archived
+        ) as Participant[],
+
         customer_type: data.customer_type || 'private',
         organization_name: data.organization_name || null,
         billing_email: data.billing_email || null,
