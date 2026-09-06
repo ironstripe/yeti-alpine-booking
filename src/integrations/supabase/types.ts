@@ -2145,68 +2145,6 @@ export type Database = {
           },
         ]
       }
-      instructor_public_profiles: {
-        Row: {
-          created_at: string
-          id: string
-          instructor_id: string
-          photo_consent_confirmed_at: string | null
-          portrait_storage_path: string | null
-          portrait_url: string | null
-          public_display_name: string | null
-          public_role_label: string | null
-          published_at: string | null
-          published_by: string | null
-          sort_order: number
-          status: string
-          teaser_draft: string
-          teaser_published: string | null
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          instructor_id: string
-          photo_consent_confirmed_at?: string | null
-          portrait_storage_path?: string | null
-          portrait_url?: string | null
-          public_display_name?: string | null
-          public_role_label?: string | null
-          published_at?: string | null
-          published_by?: string | null
-          sort_order?: number
-          status?: string
-          teaser_draft?: string
-          teaser_published?: string | null
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          instructor_id?: string
-          photo_consent_confirmed_at?: string | null
-          portrait_storage_path?: string | null
-          portrait_url?: string | null
-          public_display_name?: string | null
-          public_role_label?: string | null
-          published_at?: string | null
-          published_by?: string | null
-          sort_order?: number
-          status?: string
-          teaser_draft?: string
-          teaser_published?: string | null
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "instructor_public_profiles_instructor_id_fkey"
-            columns: ["instructor_id"]
-            isOneToOne: true
-            referencedRelation: "instructors"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       instructor_recurring_blocks: {
         Row: {
           approved_at: string | null
@@ -2332,9 +2270,11 @@ export type Database = {
           real_time_status: string | null
           role: string | null
           roles: string[] | null
+          show_on_website: boolean
           specialization: string | null
           status: string | null
           street: string | null
+          website_teaser: string
           zip: string | null
         }
         Insert: {
@@ -2361,9 +2301,11 @@ export type Database = {
           real_time_status?: string | null
           role?: string | null
           roles?: string[] | null
+          show_on_website?: boolean
           specialization?: string | null
           status?: string | null
           street?: string | null
+          website_teaser?: string
           zip?: string | null
         }
         Update: {
@@ -2390,9 +2332,11 @@ export type Database = {
           real_time_status?: string | null
           role?: string | null
           roles?: string[] | null
+          show_on_website?: boolean
           specialization?: string | null
           status?: string | null
           street?: string | null
+          website_teaser?: string
           zip?: string | null
         }
         Relationships: []
