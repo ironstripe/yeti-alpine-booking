@@ -132,6 +132,39 @@ export type Database = {
         }
         Relationships: []
       }
+      billing_partners: {
+        Row: {
+          address: string | null
+          billing_email: string | null
+          created_at: string
+          id: string
+          is_active: boolean
+          name: string
+          partner_type: string
+          updated_at: string
+        }
+        Insert: {
+          address?: string | null
+          billing_email?: string | null
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name: string
+          partner_type?: string
+          updated_at?: string
+        }
+        Update: {
+          address?: string | null
+          billing_email?: string | null
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          partner_type?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       booking_cancellations: {
         Row: {
           amount_already_paid: number
@@ -2981,9 +3014,11 @@ export type Database = {
       }
       products: {
         Row: {
+          audience: string | null
           created_at: string
           currency: string | null
           description: string | null
+          discipline: string | null
           duration_minutes: number | null
           id: string
           is_active: boolean | null
@@ -2993,15 +3028,18 @@ export type Database = {
           name: string
           price: number
           pricing_type: string | null
+          reporting_category: string | null
           season_id: string
           sort_order: number | null
           type: string
           vat_rate: number | null
         }
         Insert: {
+          audience?: string | null
           created_at?: string
           currency?: string | null
           description?: string | null
+          discipline?: string | null
           duration_minutes?: number | null
           id?: string
           is_active?: boolean | null
@@ -3011,15 +3049,18 @@ export type Database = {
           name: string
           price: number
           pricing_type?: string | null
+          reporting_category?: string | null
           season_id: string
           sort_order?: number | null
           type: string
           vat_rate?: number | null
         }
         Update: {
+          audience?: string | null
           created_at?: string
           currency?: string | null
           description?: string | null
+          discipline?: string | null
           duration_minutes?: number | null
           id?: string
           is_active?: boolean | null
@@ -3029,6 +3070,7 @@ export type Database = {
           name?: string
           price?: number
           pricing_type?: string | null
+          reporting_category?: string | null
           season_id?: string
           sort_order?: number | null
           type?: string
@@ -3902,6 +3944,7 @@ export type Database = {
       }
       tickets: {
         Row: {
+          billing_partner_id: string | null
           camp_end_date: string | null
           camp_start_date: string | null
           created_at: string
@@ -3932,6 +3975,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          billing_partner_id?: string | null
           camp_end_date?: string | null
           camp_start_date?: string | null
           created_at?: string
@@ -3962,6 +4006,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          billing_partner_id?: string | null
           camp_end_date?: string | null
           camp_start_date?: string | null
           created_at?: string
@@ -3992,6 +4037,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "tickets_billing_partner_id_fkey"
+            columns: ["billing_partner_id"]
+            isOneToOne: false
+            referencedRelation: "billing_partners"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "tickets_customer_id_fkey"
             columns: ["customer_id"]
