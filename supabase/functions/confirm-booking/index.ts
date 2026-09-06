@@ -9,15 +9,9 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { z } from "npm:zod@3.23.8";
 import { corsHeaders, checkApiKey, json } from "../_shared/intakeAuth.ts";
+import { issueInvoice } from "../_shared/invoice-service.ts";
 
-// Swiss QR reference (27 digits, Mod10 recursive check digit) — same rules as the admin UI.
-function generateQRReference(invoiceNumber: string): string {
-  const table = [0, 9, 4, 6, 8, 2, 7, 1, 3, 5];
-  const padded = invoiceNumber.replace(/\D/g, "").padStart(26, "0").slice(-26);
-  let carry = 0;
-  for (const char of padded) carry = table[(carry + parseInt(char, 10)) % 10];
-  return padded + String((10 - carry) % 10);
-}
+
 
 
 const Customer = z.object({
@@ -205,25 +199,20 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     if (!invoice) {
-      const { data: created, error: iErr } = await supabase.from("invoices").insert({
-        ticket_id: ticket.id,
-        customer_id: customerId,
+      // Same server-side issuance path as the office UI: routing, reference and
+      // immutable payment snapshot all come from the shared invoice service.
+      const issued = await issueInvoice(supabase, {
+        ticketId: ticket.id,
+        customerId,
         subtotal: ticket.total_amount,
-        discount: 0,
         total: ticket.total_amount,
         currency: "CHF",
-        status: "open",
-        qr_reference: generateQRReference(String(Date.now())),
-        due_date: dueDate.toISOString().slice(0, 10),
-      }).select("id, invoice_number, due_date").single();
-      if (iErr) throw new Error(`invoice: ${iErr.message}`);
-      invoice = created;
-
-      // final QR reference is derived from the assigned invoice number
-      await supabase.from("invoices")
-        .update({ qr_reference: generateQRReference(created.invoice_number) })
-        .eq("id", created.id);
+        dueDays: 14,
+      });
+      if (!issued.ok) throw new Error(`invoice: ${issued.error}`);
+      invoice = issued.invoice as { id: string; invoice_number: string; due_date: string };
     }
+
 
 
     return json({

@@ -1,8 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { generateQRReference } from "@/lib/swiss-qr-utils";
-import { addDays } from "date-fns";
+import type { PaymentSnapshot, RoutingResult } from "@/lib/payments";
 
 export interface Invoice {
   id: string;
@@ -21,7 +20,17 @@ export interface Invoice {
   paid_at: string | null;
   pdf_url: string | null;
   created_at: string;
+  payment_profile_id?: string | null;
+  payment_presentation_type?: string | null;
+  payment_snapshot?: PaymentSnapshot | null;
+  payment_reference_type?: string | null;
+  payment_reference?: string | null;
+  payment_routing_reason?: string | null;
+  payment_profile_overridden?: boolean | null;
+  is_legacy_payment?: boolean | null;
+  issued_at?: string | null;
 }
+
 
 export interface InvoiceWithDetails extends Invoice {
   ticket?: {
@@ -52,7 +61,7 @@ export function useInvoicesByTicket(ticketId: string | undefined) {
         .order("created_at", { ascending: false });
       
       if (error) throw error;
-      return data as Invoice[];
+      return data as unknown as Invoice[];
     },
     enabled: !!ticketId,
   });
@@ -79,7 +88,7 @@ export function useInvoice(invoiceId: string | undefined) {
         .single();
       
       if (error) throw error;
-      return data as InvoiceWithDetails;
+      return data as unknown as InvoiceWithDetails;
     },
     enabled: !!invoiceId,
   });
@@ -87,65 +96,81 @@ export function useInvoice(invoiceId: string | undefined) {
 
 interface CreateInvoiceInput {
   ticketId: string;
-  customerId: string;
+  customerId?: string | null;
+  billingPartnerId?: string | null;
   subtotal: number;
   discount?: number;
   total: number;
+  currency?: string;
   dueDays?: number;
+  overrideProfileId?: string | null;
+  overrideReason?: string | null;
+  allowAdditional?: boolean;
 }
 
+/**
+ * Issues an invoice through the server. Payment routing, reference generation
+ * and the immutable payment snapshot are decided by the backend, never here.
+ */
 export function useCreateInvoice() {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
     mutationFn: async (input: CreateInvoiceInput) => {
-      const dueDate = addDays(new Date(), input.dueDays || 14);
-      
-      // Generate a temporary reference - will be updated with actual invoice number
-      const tempRef = generateQRReference(`${Date.now()}`);
-      
-      // Use type assertion since we know the table exists
-      const { data, error } = await supabase
-        .from("invoices")
-        .insert([{
-          ticket_id: input.ticketId,
-          customer_id: input.customerId,
+      const { data, error } = await supabase.functions.invoke("issue-invoice", {
+        body: {
+          action: "issue",
+          ticketId: input.ticketId,
+          customerId: input.customerId ?? null,
+          billingPartnerId: input.billingPartnerId ?? null,
           subtotal: input.subtotal,
-          discount: input.discount || 0,
+          discount: input.discount ?? 0,
           total: input.total,
-          qr_reference: tempRef,
-          due_date: dueDate.toISOString().split('T')[0],
-          status: 'draft',
-        }] as any)
-        .select()
-        .single();
-      
+          currency: input.currency ?? "CHF",
+          dueDays: input.dueDays ?? 14,
+          overrideProfileId: input.overrideProfileId ?? null,
+          overrideReason: input.overrideReason ?? null,
+          allowAdditional: input.allowAdditional ?? false,
+        },
+      });
+
       if (error) throw error;
-      
-      // Update QR reference with actual invoice number
-      const qrReference = generateQRReference(data.invoice_number);
-      const { data: updatedInvoice, error: updateError } = await supabase
-        .from("invoices")
-        .update({ qr_reference: qrReference })
-        .eq("id", data.id)
-        .select()
-        .single();
-      
-      if (updateError) throw updateError;
-      
-      return updatedInvoice as Invoice;
+      if (!data?.ok) throw new Error(data?.error || "Rechnung konnte nicht erstellt werden");
+
+      return data.invoice as Invoice;
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
       queryClient.invalidateQueries({ queryKey: ["invoice", data.id] });
       toast.success(`Rechnung ${data.invoice_number} erstellt`);
     },
-    onError: (error) => {
+    onError: (error: Error) => {
       console.error("Failed to create invoice:", error);
-      toast.error("Fehler beim Erstellen der Rechnung");
+      toast.error(error.message || "Fehler beim Erstellen der Rechnung");
     },
   });
 }
+
+/** Shows which bank account and reference type an invoice would use, before issuing. */
+export function useInvoiceRoutingPreview() {
+  return useMutation({
+    mutationFn: async (input: {
+      ticketId: string;
+      customerId?: string | null;
+      billingPartnerId?: string | null;
+      currency?: string;
+      overrideProfileId?: string | null;
+      overrideReason?: string | null;
+    }) => {
+      const { data, error } = await supabase.functions.invoke("issue-invoice", {
+        body: { action: "preview", ...input },
+      });
+      if (error) throw error;
+      return data as RoutingResult & { ok: boolean; error?: string };
+    },
+  });
+}
+
 
 export function useUpdateInvoiceStatus() {
   const queryClient = useQueryClient();
@@ -162,19 +187,19 @@ export function useUpdateInvoiceStatus() {
       sentAt?: string;
       paidAt?: string;
     }) => {
-      const updates: Partial<Invoice> = { status };
+      const updates: Record<string, unknown> = { status };
       if (sentAt) updates.sent_at = sentAt;
       if (paidAt) updates.paid_at = paidAt;
       
       const { data, error } = await supabase
         .from("invoices")
-        .update(updates)
+        .update(updates as never)
         .eq("id", invoiceId)
         .select()
         .single();
       
       if (error) throw error;
-      return data as Invoice;
+      return data as unknown as Invoice;
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
