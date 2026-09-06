@@ -10,7 +10,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -33,7 +32,7 @@ interface Props {
 
 const empty: PaymentProfileInput = {
   id: undefined,
-  profile_name: "",
+  name: "",
   bank_name: "",
   iban: "",
   bic_swift: "",
@@ -46,16 +45,21 @@ const empty: PaymentProfileInput = {
   currency: "CHF",
   country_scope: "CH_LI",
   reference_type: "QRR",
-  supports_swiss_qr: true,
+  presentation_type: "swiss_qr",
   is_default: false,
   is_active: false,
   is_archived: false,
   validation_status: "draft",
-  validation_notes: null,
   valid_from: null,
   valid_until: null,
-  notes: null,
 } as unknown as PaymentProfileInput;
+
+/** The presentation follows from scope, currency and account type — never chosen by hand. */
+function derivePresentation(values: PaymentProfileInput): PaymentProfileInput["presentation_type"] {
+  if (values.country_scope === "SEPA") return "sepa_transfer";
+  if (values.country_scope === "INTERNATIONAL") return "international_transfer";
+  return values.currency === "CHF" ? "swiss_qr" : "international_transfer";
+}
 
 export function PaymentProfileDialog({ open, onOpenChange, profile, initial }: Props) {
   const [values, setValues] = useState<PaymentProfileInput>(empty);
@@ -71,10 +75,14 @@ export function PaymentProfileDialog({ open, onOpenChange, profile, initial }: P
     setValues((v) => ({ ...v, [key]: value }));
 
   const ibanCheck = values.iban ? validateIBAN(values.iban) : null;
-  const check = validatePaymentProfile({ ...(values as unknown as PaymentProfile), id: values.id ?? "new" });
+  const check = validatePaymentProfile({
+    ...(values as unknown as PaymentProfile),
+    id: values.id ?? "new",
+    presentation_type: derivePresentation(values),
+  });
 
   const handleSave = async () => {
-    await save.mutateAsync(values);
+    await save.mutateAsync({ ...values, presentation_type: derivePresentation(values) });
     onOpenChange(false);
   };
 
@@ -94,8 +102,8 @@ export function PaymentProfileDialog({ open, onOpenChange, profile, initial }: P
             <div>
               <Label>Bezeichnung</Label>
               <Input
-                value={values.profile_name ?? ""}
-                onChange={(e) => set("profile_name", e.target.value)}
+                value={values.name ?? ""}
+                onChange={(e) => set("name", e.target.value)}
                 placeholder="z. B. LLB Hauptkonto CHF"
               />
             </div>
@@ -236,15 +244,6 @@ export function PaymentProfileDialog({ open, onOpenChange, profile, initial }: P
                 onChange={(e) => set("valid_until", e.target.value || null)}
               />
             </div>
-          </div>
-
-          <div>
-            <Label>Notizen</Label>
-            <Textarea
-              value={values.notes ?? ""}
-              onChange={(e) => set("notes", e.target.value || null)}
-              rows={2}
-            />
           </div>
 
           {check.valid ? (
