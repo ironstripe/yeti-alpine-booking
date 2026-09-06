@@ -446,7 +446,8 @@ export const usePaymentMethodBreakdown = (dateRange: DateRange) => {
         card: "Karte",
         twint: "TWINT",
         invoice: "Rechnung",
-        voucher: "Gutschein"
+        voucher: "Gutschein",
+        hotel: "Hotel"
       };
 
       const results: PaymentMethodBreakdown[] = Array.from(methodMap.entries())
