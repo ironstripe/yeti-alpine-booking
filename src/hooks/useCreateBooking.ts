@@ -2,6 +2,9 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { BookingWizardState } from "@/contexts/BookingWizardContext";
 import { createInitialComments } from "./useTicketComments";
+import { isImmediateMethod } from "@/lib/finance";
+import { logTicketEvent } from "@/lib/ticket-audit";
+
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import { 
