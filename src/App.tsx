@@ -50,6 +50,7 @@ import ReportsRevenue from "./pages/ReportsRevenue";
 import ReportsInstructors from "./pages/ReportsInstructors";
 import ReportsBookings from "./pages/ReportsBookings";
 import ReportsCustomers from "./pages/ReportsCustomers";
+import ReportsSwissSnowsports from "./pages/ReportsSwissSnowsports";
 import InstructorDashboard from "./pages/InstructorDashboard";
 import InstructorSchedule from "./pages/InstructorSchedule";
 import InstructorAvailability from "./pages/InstructorAvailability";
@@ -203,6 +204,7 @@ const AppRoutes = () => (
       <Route path="reports/instructors" element={<ReportsInstructors />} />
       <Route path="reports/bookings" element={<ReportsBookings />} />
       <Route path="reports/customers" element={<ReportsCustomers />} />
+      <Route path="reports/swiss-snowsports" element={<ReportsSwissSnowsports />} />
       <Route path="settings" element={<Settings />} />
       <Route path="settings/school" element={<SettingsSchool />} />
       <Route path="settings/products" element={<SettingsProducts />} />
