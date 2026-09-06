@@ -2,199 +2,85 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CreditCard, ChevronRight, AlertCircle } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
-import { format, parseISO, isPast, differenceInDays } from "date-fns";
+import { format, parseISO } from "date-fns";
 import { de } from "date-fns/locale";
 import { cn } from "@/lib/utils";
+import { useOutstandingCount } from "@/hooks/useOutstandingTickets";
+import { formatCHF, PAYMENT_STATUS_LABELS } from "@/lib/finance";
 
-interface PendingPayment {
-  id: string;
-  ticket_number: string;
-  total_amount: number;
-  paid_amount: number;
-  payment_due_date: string | null;
-  customer: {
-    first_name: string | null;
-    last_name: string;
-  };
-}
-
+/**
+ * Dashboard counter for open balances.
+ * Uses the exact same query as the "Unbezahlte Kurse" worklist,
+ * so counter and list can never disagree.
+ */
 export function PendingPaymentsCard() {
   const navigate = useNavigate();
+  const { count, totalOutstanding, rows, isLoading } = useOutstandingCount();
 
-  const { data: pendingPayments, isLoading } = useQuery({
-    queryKey: ["pending-payments"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("tickets")
-        .select(`
-          id,
-          ticket_number,
-          total_amount,
-          paid_amount,
-          payment_due_date,
-          customer:customers!tickets_customer_id_fkey (
-            first_name,
-            last_name
-          )
-        `)
-        .order("payment_due_date", { ascending: true, nullsFirst: false })
-        .limit(10);
-
-      if (error) throw error;
-
-      // Filter to only unpaid/partially paid
-      return (data || []).filter((ticket) => {
-        const remaining = (ticket.total_amount || 0) - (ticket.paid_amount || 0);
-        return remaining > 0;
-      }) as PendingPayment[];
-    },
-  });
-
-  const openCount = pendingPayments?.length || 0;
-
-  const getPaymentStatus = (dueDate: string | null) => {
-    if (!dueDate) return { isOverdue: false, isDueSoon: false, label: "" };
-    
-    const due = parseISO(dueDate);
-    const daysUntilDue = differenceInDays(due, new Date());
-    
-    if (isPast(due)) {
-      return { 
-        isOverdue: true, 
-        isDueSoon: false, 
-        label: "überfällig!" 
-      };
-    }
-    
-    if (daysUntilDue <= 3) {
-      return { 
-        isOverdue: false, 
-        isDueSoon: true, 
-        label: `in ${daysUntilDue} ${daysUntilDue === 1 ? "Tag" : "Tagen"}` 
-      };
-    }
-    
-    return { 
-      isOverdue: false, 
-      isDueSoon: false, 
-      label: format(due, "dd.MM.yyyy", { locale: de }) 
-    };
-  };
-
-  const handleRecordPayment = (ticketId: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    navigate(`/bookings?payment=${ticketId}`);
-  };
-
-  const handleRemind = (ticketId: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    console.log("Mahnung senden - MVP placeholder", ticketId);
-  };
+  const topRows = rows.slice(0, 5);
 
   return (
     <Card>
-      <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-medium flex items-center gap-2">
-          <CreditCard className="h-4 w-4" />
-          Zahlungen ausstehend
-          {openCount > 0 && (
-            <Badge variant="outline" className="ml-auto text-xs bg-amber-100 text-amber-800 border-amber-300">
-              {openCount} offen
-            </Badge>
-          )}
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <CardTitle className="flex items-center gap-2 text-base">
+          <CreditCard className="h-4 w-4 text-muted-foreground" />
+          Offene Zahlungen
+          {count > 0 && <Badge variant="secondary">{count}</Badge>}
         </CardTitle>
+        <Button variant="ghost" size="sm" onClick={() => navigate("/finance/unpaid")}>
+          Alle
+          <ChevronRight className="ml-1 h-4 w-4" />
+        </Button>
       </CardHeader>
-      <CardContent className="space-y-2">
-        {isLoading && (
-          <p className="text-xs text-muted-foreground">Laden...</p>
-        )}
-
-        {!isLoading && openCount === 0 && (
-          <p className="text-xs text-muted-foreground py-2">
-            Keine offenen Zahlungen
-          </p>
-        )}
-
-        {pendingPayments?.slice(0, 3).map((payment) => {
-          const remaining = (payment.total_amount || 0) - (payment.paid_amount || 0);
-          const { isOverdue, isDueSoon, label } = getPaymentStatus(payment.payment_due_date);
-          const customerName = `${payment.customer?.first_name || ""} ${payment.customer?.last_name || ""}`.trim();
-
-          return (
-            <div
-              key={payment.id}
-              className="flex items-start gap-2 p-2 rounded-md bg-muted/30 cursor-pointer hover:bg-muted/50 transition-colors"
-              onClick={() => navigate(`/bookings/${payment.id}`)}
-            >
-              <div className={cn(
-                "w-2 h-2 rounded-full mt-1.5 shrink-0",
-                isOverdue && "bg-destructive",
-                isDueSoon && !isOverdue && "bg-amber-500",
-                !isOverdue && !isDueSoon && "bg-muted-foreground"
-              )} />
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-mono text-muted-foreground">
-                    {payment.ticket_number}
-                  </span>
-                  <span className="text-sm font-medium truncate">
-                    {customerName}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <span className="font-medium text-foreground">
-                    CHF {remaining.toFixed(2)}
-                  </span>
-                  {payment.payment_due_date && (
-                    <>
-                      <span>•</span>
-                      <span className={cn(
-                        isOverdue && "text-destructive font-medium",
-                        isDueSoon && !isOverdue && "text-amber-600 font-medium"
-                      )}>
-                        Fällig: {label}
-                      </span>
-                    </>
-                  )}
-                </div>
-              </div>
-              <div className="flex gap-1">
-                {isOverdue && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 text-xs"
-                    onClick={(e) => handleRemind(payment.id, e)}
-                  >
-                    Mahnen
-                  </Button>
-                )}
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 text-xs"
-                  onClick={(e) => handleRecordPayment(payment.id, e)}
+      <CardContent className="space-y-3">
+        {isLoading ? (
+          <p className="text-sm text-muted-foreground">Wird geladen…</p>
+        ) : count === 0 ? (
+          <p className="text-sm text-muted-foreground">Alle Kurse sind bezahlt.</p>
+        ) : (
+          <>
+            <p className="text-sm text-muted-foreground">
+              Offener Betrag gesamt:{" "}
+              <span className="font-semibold text-foreground">{formatCHF(totalOutstanding)}</span>
+            </p>
+            <div className="space-y-2">
+              {topRows.map((row) => (
+                <button
+                  key={row.id}
+                  onClick={() => navigate(`/bookings/${row.id}`)}
+                  className="flex w-full items-center justify-between rounded-md border p-2 text-left transition-colors hover:bg-muted/50"
                 >
-                  Erfassen
-                </Button>
-              </div>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium">{row.customer.name}</p>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {row.ticket_number}
+                      {row.payment_due_date
+                        ? ` · fällig ${format(parseISO(row.payment_due_date), "dd.MM.yyyy", { locale: de })}`
+                        : ""}
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    {row.isOverdue && <AlertCircle className="h-4 w-4 text-destructive" />}
+                    <span
+                      className={cn(
+                        "text-sm font-semibold",
+                        row.isOverdue && "text-destructive"
+                      )}
+                    >
+                      {formatCHF(row.outstanding)}
+                    </span>
+                  </div>
+                </button>
+              ))}
             </div>
-          );
-        })}
-
-        {openCount > 3 && (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="w-full h-8 text-xs"
-            onClick={() => navigate("/bookings?paymentStatus=open")}
-          >
-            Alle {openCount} anzeigen
-            <ChevronRight className="h-3 w-3 ml-1" />
-          </Button>
+            {count > topRows.length && (
+              <p className="text-xs text-muted-foreground">
+                {count - topRows.length} weitere · Status:{" "}
+                {PAYMENT_STATUS_LABELS[topRows[0].paymentStatus]}
+              </p>
+            )}
+          </>
         )}
       </CardContent>
     </Card>
