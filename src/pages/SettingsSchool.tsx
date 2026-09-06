@@ -23,7 +23,9 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { useSchoolSettings, useUpdateSchoolSettings } from "@/hooks/useSchoolSettings";
+import { PaymentProfilesSection } from "@/components/settings/payments/PaymentProfilesSection";
 import { useEffect } from "react";
+
 
 const formSchema = z.object({
   name: z.string().min(1, "Name ist erforderlich"),
