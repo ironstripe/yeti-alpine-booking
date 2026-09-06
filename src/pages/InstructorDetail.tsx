@@ -176,7 +176,15 @@ export default function InstructorDetail() {
               currentType={instructor.instructor_type}
             />
           )}
-        </div>
+          {isAdminOrOffice && id && instructor && (
+            <WebsiteProfileCard
+              instructorId={id}
+              firstName={instructor.first_name}
+              lastName={instructor.last_name}
+              specialization={instructor.specialization}
+            />
+          )}
+
       </div>
 
       {instructor && (
