@@ -312,6 +312,42 @@ export function EditInstructorModal({
 
             <Separator />
 
+            {/* Website */}
+            <div className="space-y-4">
+              <h3 className="text-sm font-medium text-muted-foreground">Website</h3>
+              <div className="flex items-start gap-3">
+                <Checkbox
+                  id="show_on_website"
+                  checked={!!showOnWebsite}
+                  onCheckedChange={(v) => setValue("show_on_website", v === true)}
+                />
+                <div className="space-y-1">
+                  <Label htmlFor="show_on_website">Auf Website anzeigen</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Das Profil erscheint auf der Website, sobald ein Profilbild und eine
+                    Kurzbeschreibung vorhanden sind.
+                  </p>
+                </div>
+              </div>
+              {showOnWebsite && !avatarUrl && (
+                <p className="text-xs text-amber-600">
+                  Für die Anzeige auf der Website fehlt noch ein Profilbild.
+                </p>
+              )}
+              <div className="space-y-2">
+                <Label htmlFor="website_teaser">Kurzbeschreibung für die Website</Label>
+                <Textarea id="website_teaser" rows={3} maxLength={WEBSITE_TEASER_MAX} {...register("website_teaser")} />
+                <p className="text-xs text-muted-foreground text-right">
+                  {websiteTeaser.length}/{WEBSITE_TEASER_MAX}
+                </p>
+                {errors.website_teaser && (
+                  <p className="text-xs text-destructive">{errors.website_teaser.message}</p>
+                )}
+              </div>
+            </div>
+
+            <Separator />
+
             {/* Section 1: Personal Data */}
             <div className="space-y-4">
               <h3 className="text-sm font-medium text-muted-foreground">
