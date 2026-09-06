@@ -40,7 +40,6 @@ import {
 import {
   PAYMENT_METHOD_LABELS,
   PAYMENT_STATUS_LABELS,
-  buildCsv,
   downloadCsv,
   formatCHF,
   getPaymentMethodLabel,
