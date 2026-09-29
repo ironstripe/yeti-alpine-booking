@@ -179,7 +179,13 @@ Deno.serve(async (req) => {
       });
       check("status exposes matching invoice number", statusRes.status === 200 && statusRes.body?.invoice_number === invRow?.invoice_number, { status: statusRes.status, invoice_number: statusRes.body?.invoice_number, expected: invRow?.invoice_number });
       check("status exposes matching invoice due date", statusRes.status === 200 && statusRes.body?.invoice_due_date === invRow?.due_date, { invoice_due_date: statusRes.body?.invoice_due_date, expected: invRow?.due_date });
-      const statusKeys = Object.keys(statusRes.body ?? {});
+      const { data: statusCust } = await supabase.from("tickets").select("customer_id").eq("id", t1).single();
+      let expectedCustomerNumber: string | null = null;
+      if (statusCust?.customer_id) {
+        const { data: cust } = await supabase.from("customers").select("customer_number").eq("id", statusCust.customer_id).maybeSingle();
+        expectedCustomerNumber = cust?.customer_number ?? null;
+      }
+      check("status exposes matching customer_number", statusRes.status === 200 && statusRes.body?.customer_number === expectedCustomerNumber, { customer_number: statusRes.body?.customer_number, expected: expectedCustomerNumber });
       check("status exposes no raw invoice data", statusRes.status === 200 && !statusKeys.some((k) => ["qr_reference", "payment_snapshot", "payment_reference", "pdf_url"].includes(k)), statusKeys);
       const statusBadTok = await call("get-booking-status", { ticket_id: t1, reservation_token: "wrong-token" });
       check("status wrong token not found", statusBadTok.status === 404, statusBadTok);
