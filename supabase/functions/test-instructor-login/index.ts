@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { testFunctionsDisabled } from "../_shared/staffAuth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -16,6 +17,11 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
+
+  // Security P0.1: resets real user passwords — disabled unless explicitly enabled
+  const disabled = testFunctionsDisabled(corsHeaders);
+  if (disabled) return disabled;
+
 
   try {
     const { token } = await req.json();
