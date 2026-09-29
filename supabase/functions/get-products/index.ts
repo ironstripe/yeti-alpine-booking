@@ -59,6 +59,6 @@ Deno.serve(async (req) => {
     return json({ success: true, season, products: result });
   } catch (e) {
     console.error("get-products error:", e);
-    return json({ error: "Internal error", message: (e as Error).message }, 500);
+    return json({ error: "Internal error" }, 500);
   }
 });

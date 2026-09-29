@@ -166,7 +166,6 @@ Deno.serve(async (req) => {
           end: toHHMM(end),
           available: freeInstructors.length > 0,
           free_instructors: freeInstructors.length,
-          available_instructor_ids: freeInstructors,
         });
       }
       const weekday = new Date(d + "T12:00:00Z").getUTCDay(); // 0=Sun..6=Sat
@@ -190,7 +189,7 @@ Deno.serve(async (req) => {
     });
   } catch (e) {
     console.error("get-availability error:", e);
-    return json({ error: "Internal error", message: (e as Error).message }, 500);
+    return json({ error: "Internal error" }, 500);
   }
 });
 

@@ -103,6 +103,6 @@ Deno.serve(async (req) => {
     });
   } catch (e) {
     console.error("cancel-reservation error:", e);
-    return json({ error: "Internal error", message: (e as Error).message }, 500);
+    return json({ error: "Internal error" }, 500);
   }
 });

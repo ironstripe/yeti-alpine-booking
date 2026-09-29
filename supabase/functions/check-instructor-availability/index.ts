@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { requireRole } from "../_shared/staffAuth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -41,11 +42,14 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  // Office helper: staff only (verify_jwt=false, so authorize in code).
+  const auth = await requireRole(req, ["admin", "office"], corsHeaders);
+  if (auth instanceof Response) return auth;
+
   try {
     const body: AvailabilityRequest = await req.json();
     const { instructorName, requestedDates, requestedTime, isFlexible, requestedSpecialization } = body;
 
-    console.log("check-instructor-availability called:", JSON.stringify(body));
 
     if (!instructorName) {
       return new Response(
