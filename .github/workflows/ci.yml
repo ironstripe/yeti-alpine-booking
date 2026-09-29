@@ -40,7 +40,7 @@ jobs:
       - name: Package source reachability (diagnostic, non-gating)
         run: |
           echo "## Lovable package source reachability" >> "$GITHUB_STEP_SUMMARY"
-          for u in $(grep -o 'https://europe-west4-npm.pkg.dev[^"]*\.tgz' bun.lock); do
+          grep -o 'https://europe-west4-npm.pkg.dev[^"]*\.tgz' bun.lock | while read -r u; do
             code=$(curl -s -o /dev/null -w '%{http_code}' -L "$u" || echo "curl-error")
             echo "$code $u" | tee -a "$GITHUB_STEP_SUMMARY"
           done
