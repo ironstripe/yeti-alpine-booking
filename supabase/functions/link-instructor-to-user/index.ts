@@ -15,6 +15,11 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  // Security P0.1: assigns roles — only office/admin may call this
+  const auth = await requireRole(req, ["admin", "office"], corsHeaders);
+  if (auth instanceof Response) return auth;
+
+
   try {
     const { email, roles } = await req.json();
 
