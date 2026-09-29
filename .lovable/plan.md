@@ -83,6 +83,19 @@ Die Tests laufen mit echten Sessions für anon, einen Nutzer ohne Rolle, einen L
 - Lehrer: das eigene Lehrerportal läuft, der Zugriff auf eine fremde Lektion wird abgelehnt.
 - Büro: Scheduler, Buchung, Kapazitätsplanung, Kundensuche und Saison-Duplizieren funktionieren.
 
+### Testmatrix (Soll-Ergebnis nach Schritt 3)
+
+| Akteur | Business-Tabellen | RPCs mit erhöhten Rechten | Öffentliche Edge Functions | Lehrerportal |
+|---|---|---|---|---|
+| Anonym, ohne Schlüssel | abgelehnt | abgelehnt | nur mit Website-Key oder Token | – |
+| Öffentlicher App-Key | 0 Zeilen oder abgelehnt | abgelehnt | wie oben, App-Key allein reicht nicht | – |
+| Eingeloggt ohne Rolle | 0 Zeilen oder abgelehnt | abgelehnt | wie anon | – |
+| Lehrer A, eigene Daten | nur zugewiesene Zeilen | nur check_recurring_block_conflicts für sich selbst | wie anon | funktioniert |
+| Lehrer A, Daten von Lehrer B | 0 Zeilen, Schreiben abgelehnt | abgelehnt | – | – |
+| Office | voll | erlaubt | – | – |
+| Admin | voll | erlaubt | – | – |
+| Service-Rolle (nur Server) | voll | erlaubt, auch queue_confirmation_reminders | – | – |
+
 ## 5. Offene Produktentscheidungen
 - **F1:** Soll ein Lehrer im Portal Kollegen sehen, z. B. bei Transfers und Live-Planung? Wenn ja, nur Name und Foto.
 - **F2:** Welche Teilnehmerfelder braucht ein Lehrer: Notfallkontakt, Telefon der Eltern, Allergien?
