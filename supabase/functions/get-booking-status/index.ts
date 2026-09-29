@@ -50,6 +50,21 @@ Deno.serve(async (req) => {
       .eq("ticket_id", ticket.id)
       .order("date", { ascending: true });
 
+    // Server-side invoice lookup by ticket_id (caller input is never trusted).
+    let invoiceNumber: string | null = null;
+    let invoiceDueDate: string | null = null;
+    const { data: invoice } = await supabase
+      .from("invoices")
+      .select("invoice_number, due_date")
+      .eq("ticket_id", ticket.id)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (invoice) {
+      invoiceNumber = invoice.invoice_number ?? null;
+      invoiceDueDate = invoice.due_date ?? null;
+    }
+
     return json({
       success: true,
       ticket_number: ticket.ticket_number,
@@ -59,6 +74,8 @@ Deno.serve(async (req) => {
       paid_amount: ticket.paid_amount,
       payment_due_date: ticket.payment_due_date,
       reservation_expires_at: ticket.reservation_expires_at,
+      invoice_number: invoiceNumber,
+      invoice_due_date: invoiceDueDate,
       customer: ticket.customers,
       items: items ?? [],
     });
