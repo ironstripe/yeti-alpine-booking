@@ -168,6 +168,23 @@ Deno.serve(async (req) => {
       check("no duplicate invoice", invCount2 === 1, invCount2);
       check("no duplicate participants", partCount === 2, partCount);
       check("no duplicate items", itemCount === 2, itemCount);
+
+      // --- 9. get-booking-status invoice contract (Onepager retry flow) ---
+      const { data: invRow } = await supabase.from("invoices")
+        .select("invoice_number, due_date").eq("ticket_id", t1)
+        .order("created_at", { ascending: false }).order("id", { ascending: false })
+        .limit(1).maybeSingle();
+      const statusRes = await call("get-booking-status", {
+        ticket_id: t1, reservation_token: r1.body.reservation_token,
+      });
+      check("status exposes matching invoice number", statusRes.status === 200 && statusRes.body?.invoice_number === invRow?.invoice_number, { status: statusRes.status, invoice_number: statusRes.body?.invoice_number, expected: invRow?.invoice_number });
+      check("status exposes matching invoice due date", statusRes.status === 200 && statusRes.body?.invoice_due_date === invRow?.due_date, { invoice_due_date: statusRes.body?.invoice_due_date, expected: invRow?.due_date });
+      const statusKeys = Object.keys(statusRes.body ?? {});
+      check("status exposes no raw invoice data", statusRes.status === 200 && !statusKeys.some((k) => ["qr_reference", "payment_snapshot", "payment_reference", "pdf_url"].includes(k)), statusKeys);
+      const statusBadTok = await call("get-booking-status", { ticket_id: t1, reservation_token: "wrong-token" });
+      check("status wrong token not found", statusBadTok.status === 404, statusBadTok);
+      const statusNoTok = await call("get-booking-status", { ticket_id: t1 });
+      check("status missing token rejected", statusNoTok.status === 400, statusNoTok);
     }
 
     // --- 4/5. Online payment paths (existing customer reuse) ---

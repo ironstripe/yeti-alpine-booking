@@ -58,6 +58,7 @@ Deno.serve(async (req) => {
       .select("invoice_number, due_date")
       .eq("ticket_id", ticket.id)
       .order("created_at", { ascending: false })
+      .order("id", { ascending: false })
       .limit(1)
       .maybeSingle();
     if (invoice) {
