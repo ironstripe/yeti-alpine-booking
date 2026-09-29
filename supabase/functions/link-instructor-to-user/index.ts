@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { requireRole } from "../_shared/staffAuth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -13,6 +14,11 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
+
+  // Security P0.1: assigns roles — only office/admin may call this
+  const auth = await requireRole(req, ["admin", "office"], corsHeaders);
+  if (auth instanceof Response) return auth;
+
 
   try {
     const { email, roles } = await req.json();

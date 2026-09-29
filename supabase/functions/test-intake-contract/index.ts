@@ -4,6 +4,7 @@
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders, json } from "../_shared/intakeAuth.ts";
+import { testFunctionsDisabled } from "../_shared/staffAuth.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -75,7 +76,10 @@ async function reserve(productId: string, count: number, day: number, hour = 9) 
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
-  if (req.headers.get("x-api-key") !== API_KEY) return json({ error: "Unauthorized" }, 401);
+  // Security P0.1: creates real tickets — disabled unless explicitly enabled
+  const disabled = testFunctionsDisabled(corsHeaders);
+  if (disabled) return disabled;
+  if (!API_KEY || req.headers.get("x-api-key") !== API_KEY) return json({ error: "Unauthorized" }, 401);
 
   const { product_id } = await req.json().catch(() => ({ product_id: null as string | null }));
   if (!product_id) return json({ error: "product_id required" }, 400);
