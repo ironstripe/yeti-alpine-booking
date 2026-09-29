@@ -1,10 +1,10 @@
 // Automated integration tests for the public reservation/confirmation contract.
 // Creates temporary reservations against the live endpoints and cleans up afterwards.
-// Guarded by the intake API key.
+// Guarded by ALLOW_TEST_FUNCTIONS + the server-only YETI_TEST_SECRET (x-test-secret header).
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders, json } from "../_shared/intakeAuth.ts";
-import { requireRole, testFunctionsDisabled } from "../_shared/staffAuth.ts";
+import { requireTestSecret, testFunctionsDisabled } from "../_shared/staffAuth.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;

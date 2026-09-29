@@ -23,7 +23,7 @@ export async function requireRole(
   cors: Record<string, string> = baseCors,
 ): Promise<{ userId: string } | Response> {
   const authHeader = req.headers.get("Authorization") ?? "";
-  const token = authHeader.replace(/^Bearer\s+/i, "").trim();
+  const token = authHeader.replace(/^Bearer\s*/i, "").trim();
   if (!token) return deny("Unauthorized", 401, cors);
 
   const admin = createClient(
