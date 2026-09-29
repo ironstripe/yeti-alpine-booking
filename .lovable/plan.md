@@ -1,10 +1,10 @@
 # Plan: CI workflow revision — visible lint + package-source reachability test
 
-Builds on the already-added `.github/workflows/ci.yml` (never deploys, publishes, uses secrets, runs migrations or calls backend/test functions).
+The implementation creates exactly one new file, `.github/workflows/ci.yml`, written in full from this plan (no other files touched). The workflow never deploys, publishes, uses secrets, runs migrations or calls backend/test functions.
 
 ## 1. Path, triggers, privileges, setup
 
-- Single file: `.github/workflows/ci.yml` (unchanged path).
+- Single new file: `.github/workflows/ci.yml`. Any sandbox-only draft at that path is overwritten by the full content defined here.
 - Triggers: `pull_request`, `push` to `main`, `workflow_dispatch`.
 - Privileges: workflow-level `permissions: contents: read`; checkout with `persist-credentials: false`; no `secrets.*`, no environments, no caching, no artifacts.
 - Setup: `actions/setup-node` with `node-version-file: .nvmrc` (22), `oven-sh/setup-bun` with `bun-version: 1.3.3`; all actions pinned to commit SHAs.
