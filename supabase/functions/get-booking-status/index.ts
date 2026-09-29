@@ -66,6 +66,9 @@ Deno.serve(async (req) => {
       invoiceDueDate = invoice.due_date ?? null;
     }
 
+    // Top-level customer_number, derived solely from the ticket's customer relation.
+    const customerNumber: string | null = ticket.customers?.customer_number ?? null;
+
     return json({
       success: true,
       ticket_number: ticket.ticket_number,
@@ -77,6 +80,7 @@ Deno.serve(async (req) => {
       reservation_expires_at: ticket.reservation_expires_at,
       invoice_number: invoiceNumber,
       invoice_due_date: invoiceDueDate,
+      customer_number: customerNumber,
       customer: ticket.customers,
       items: items ?? [],
     });
