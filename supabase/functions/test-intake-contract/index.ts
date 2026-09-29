@@ -1,10 +1,10 @@
 // Automated integration tests for the public reservation/confirmation contract.
 // Creates temporary reservations against the live endpoints and cleans up afterwards.
-// Guarded by the intake API key.
+// Guarded by ALLOW_TEST_FUNCTIONS + the server-only YETI_TEST_SECRET (x-test-secret header).
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders, json } from "../_shared/intakeAuth.ts";
-import { requireRole, testFunctionsDisabled } from "../_shared/staffAuth.ts";
+import { requireTestSecret, testFunctionsDisabled } from "../_shared/staffAuth.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -77,12 +77,12 @@ async function reserve(productId: string, count: number, day: number, hour = 9) 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   // Security P0.1: creates real tickets — disabled unless explicitly enabled,
-  // and even in test mode only a verified admin session may call it.
+  // and even in test mode a separate server-only YETI_TEST_SECRET is required
+  // (never the intake key or the public app key).
   const disabled = testFunctionsDisabled(corsHeaders);
   if (disabled) return disabled;
-  const auth = await requireRole(req, ["admin"], corsHeaders);
-  if (auth instanceof Response) return auth;
-  if (!API_KEY || req.headers.get("x-api-key") !== API_KEY) return json({ error: "Unauthorized" }, 401);
+  const denied = requireTestSecret(req, corsHeaders);
+  if (denied) return denied;
 
   const { product_id } = await req.json().catch(() => ({ product_id: null as string | null }));
   if (!product_id) return json({ error: "product_id required" }, 400);

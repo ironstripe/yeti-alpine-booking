@@ -23,7 +23,7 @@ export async function requireRole(
   cors: Record<string, string> = baseCors,
 ): Promise<{ userId: string } | Response> {
   const authHeader = req.headers.get("Authorization") ?? "";
-  const token = authHeader.replace(/^Bearer\s+/i, "").trim();
+  const token = authHeader.replace(/^Bearer\s*/i, "").trim();
   if (!token) return deny("Unauthorized", 401, cors);
 
   const admin = createClient(
@@ -50,4 +50,31 @@ export async function requireRole(
 export function testFunctionsDisabled(cors: Record<string, string> = baseCors): Response | null {
   if (Deno.env.get("ALLOW_TEST_FUNCTIONS") === "true") return null;
   return deny("This test endpoint is disabled in this environment", 403, cors);
+}
+
+function safeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}
+
+/**
+ * Requires the server-only YETI_TEST_SECRET in the `x-test-secret` header.
+ * Rejects if the secret is unset, too short, or equal to the intake key or
+ * the public app key (those are not acceptable as a test secret).
+ */
+export function requireTestSecret(req: Request, cors: Record<string, string> = baseCors): Response | null {
+  const secret = Deno.env.get("YETI_TEST_SECRET") ?? "";
+  const forbidden = [
+    Deno.env.get("YETI_INTAKE_API_KEY"),
+    Deno.env.get("SUPABASE_ANON_KEY"),
+    Deno.env.get("SUPABASE_PUBLISHABLE_KEY"),
+  ].filter((v): v is string => !!v);
+  if (secret.length < 32 || forbidden.includes(secret)) {
+    return deny("Test secret not configured", 403, cors);
+  }
+  const provided = req.headers.get("x-test-secret") ?? "";
+  if (!provided || !safeEqual(provided, secret)) return deny("Unauthorized", 401, cors);
+  return null;
 }
