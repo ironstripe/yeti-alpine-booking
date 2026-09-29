@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { requireRole } from "../_shared/staffAuth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -135,14 +136,10 @@ serve(async (req) => {
   }
 
   try {
-    // Validate auth
-    const authHeader = req.headers.get("authorization");
-    if (!authHeader) {
-      return new Response(
-        JSON.stringify({ success: false, error: "Unauthorized" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
+    // Verified session + office/admin authorization
+    const auth = await requireRole(req, ["office", "admin"], corsHeaders);
+    if (auth instanceof Response) return auth;
+
 
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
