@@ -18,3 +18,6 @@
 - [x] Stage 4 (partial): Scheduler shows one block per appointment; moves via update_private_appointment
 - [ ] Explicit "Mehrfachauswahl" toggle + instructor names/time edit in the side list (Ctrl/Cmd+Click still the entry)
 - [ ] End-to-end test with an office login (blocked: no office account)
+
+## Phase 1 validation fix
+- [x] Live pa_price assertions in SQL test (section 0); parity test header corrected; run instructions in test file
