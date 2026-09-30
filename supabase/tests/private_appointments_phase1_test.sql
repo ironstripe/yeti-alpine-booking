@@ -1,20 +1,65 @@
 -- Private appointments Phase 1 SQL test.
 -- Runs as one DO block that ALWAYS ends with an exception, so every fixture is rolled back.
 -- Success = error message 'PA_PHASE1_ALL_PASSED'. Any other message = failure.
+--
+-- HOW TO RUN (repeatable): execute this whole file against the linked database with a role
+-- that may EXECUTE the service-role-only pa_* helpers (service_role / postgres), e.g. the
+-- Lovable Cloud SQL runner (run_sql) or:  psql "$PRIVILEGED_DB_URL" -f supabase/tests/private_appointments_phase1_test.sql
+-- The sandbox's read-only psql role cannot execute pa_* (permission denied) - that is expected.
+-- Nothing persists: the final RAISE rolls back every insert.
 DO $$
 DECLARE
   v_instr uuid; v_cust uuid; v_part1 uuid; v_part2 uuid; v_prod uuid;
   v_ticket uuid; v_ticket2 uuid; v_appt uuid; v_appt_past uuid; v_item uuid;
   v_future date := public.pa_business_today() + 400;
   v_counts_before bigint; v_counts_after bigint;
-  j jsonb; n int; ok boolean;
+  j jsonb; n int; ok boolean; v_p numeric; c record;
 BEGIN
+  -- 0. pa_price executed directly against the live rate table.
+  -- Current rules (private_lesson_rates): 09-10 75 off-peak, 10-12 85 peak, 12-14 75 off-peak,
+  -- 14-16 85 peak; +20 per extra person per hour; persons clamped to 1..4; whole hours only;
+  -- end <= start or NULL input => 0; an hour without a rate row adds 0 base.
+  -- Guard: fail loudly if the rate table changed, so expected values stay honest.
+  IF (SELECT string_agg(to_char(start_time,'HH24')||'-'||to_char(end_time,'HH24')||':'||rate_per_hour::int||':'||extra_person_rate::int, ',' ORDER BY start_time)
+      FROM public.private_lesson_rates) IS DISTINCT FROM '09-10:75:20,10-12:85:20,12-14:75:20,14-16:85:20' THEN
+    RAISE EXCEPTION 'FAIL 0: private_lesson_rates changed - update expected pa_price values';
+  END IF;
+  FOR c IN SELECT * FROM (VALUES
+    ('off-peak 1p',            '2027-01-15'::date, '09:00'::time, '10:00'::time, 1,    75::numeric),
+    ('off-peak afternoon 1p',  '2027-01-15', '12:00', '14:00', 1,    150),
+    ('peak 1p',                '2027-01-15', '10:00', '11:00', 1,    85),
+    ('peak 2h 1p',             '2027-01-15', '14:00', '16:00', 1,    170),
+    ('mixed 09-12 1p',         '2027-01-15', '09:00', '12:00', 1,    245),
+    ('high-season date same',  '2026-12-28', '10:00', '11:00', 1,    85),
+    ('multi 2p peak 1h',       '2027-01-15', '10:00', '11:00', 2,    105),
+    ('multi 3p peak 2h',       '2027-01-15', '10:00', '12:00', 3,    250),
+    ('multi 4p mixed 3h',      '2027-01-15', '09:00', '12:00', 4,    425),
+    ('clamp 5p -> 4p',         '2027-01-15', '10:00', '11:00', 5,    145),
+    ('clamp 9p -> 4p',         '2027-01-15', '10:00', '11:00', 9,    145),
+    ('clamp 0p -> 1p',         '2027-01-15', '10:00', '11:00', 0,    85),
+    ('clamp -3p -> 1p',        '2027-01-15', '10:00', '11:00', -3,   85),
+    ('null persons -> 1p',     '2027-01-15', '10:00', '11:00', NULL, 85),
+    ('zero duration',          '2027-01-15', '10:00', '10:00', 1,    0),
+    ('negative duration',      '2027-01-15', '12:00', '10:00', 2,    0),
+    ('no rate hour 08-09 1p',  '2027-01-15', '08:00', '09:00', 1,    0),
+    ('no rate hour 08-09 2p',  '2027-01-15', '08:00', '09:00', 2,    20)
+  ) AS t(label, d, s, e, p, expected) LOOP
+    v_p := public.pa_price(c.d, c.s, c.e, c.p);
+    IF v_p IS DISTINCT FROM c.expected THEN
+      RAISE EXCEPTION 'FAIL 0 pa_price %: expected % got %', c.label, c.expected, v_p;
+    END IF;
+  END LOOP;
+  IF public.pa_price(NULL, '10:00', '11:00', 1) <> 0 THEN RAISE EXCEPTION 'FAIL 0: null date'; END IF;
+  IF public.pa_price('2027-01-15', NULL, '11:00', 1) <> 0 THEN RAISE EXCEPTION 'FAIL 0: null start'; END IF;
+  IF public.pa_price('2027-01-15', '10:00', NULL, 1) <> 0 THEN RAISE EXCEPTION 'FAIL 0: null end'; END IF;
+
   SELECT id INTO v_instr FROM public.instructors ORDER BY created_at LIMIT 1;
   SELECT id INTO v_cust FROM public.customers ORDER BY created_at LIMIT 1;
   SELECT id INTO v_prod FROM public.products WHERE type = 'private' LIMIT 1;
   IF v_instr IS NULL OR v_cust IS NULL OR v_prod IS NULL THEN RAISE EXCEPTION 'FAIL: missing base fixtures'; END IF;
 
   SELECT (SELECT count(*) FROM public.ticket_items) + (SELECT count(*) FROM public.tickets) INTO v_counts_before;
+
 
   INSERT INTO public.customer_participants (customer_id, first_name, last_name, birth_date)
     VALUES (v_cust, 'PA', 'Test1', '2010-01-01') RETURNING id INTO v_part1;
