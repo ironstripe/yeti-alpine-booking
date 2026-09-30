@@ -1,5 +1,7 @@
 // Contract test for the deployed `private-appointments` endpoint. Synthetic input only; never writes data.
-// Run: deno test --allow-net --allow-env supabase/functions/private-appointments/contract.test.ts
+// Run (pure schema tests only, from any dir):
+//   deno test --node-modules-dir=none --no-check --allow-net --allow-env --filter schema supabase/functions/private-appointments/contract.test.ts
+// Run all (incl. live checks): deno test --allow-net --allow-env supabase/functions/private-appointments/contract.test.ts
 // Needs SUPABASE_URL + SUPABASE_ANON_KEY. Optional role tokens: PA_TEACHER_JWT, PA_NOROLE_JWT, PA_OFFICE_JWT.
 import { assert, assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import { publicBody, RequestSchema, statusFor } from "../_shared/privateAppointmentsContract.ts";
@@ -68,6 +70,8 @@ const validCreate = {
 Deno.test("schema: manual discount on create", () => {
   assert(RequestSchema.safeParse(validCreate).success, "no discount");
   assert(RequestSchema.safeParse({ ...validCreate, discount_percent: 0 }).success, "zero without reason");
+  // DB normalizes the reason to null for 0%; the schema only accepts it.
+  assert(RequestSchema.safeParse({ ...validCreate, discount_percent: 0, discount_reason: "Versehen" }).success, "zero with reason");
   assert(RequestSchema.safeParse({ ...validCreate, discount_percent: 10, discount_reason: "Stammkunde" }).success, "10% with reason");
   assert(RequestSchema.safeParse({ ...validCreate, discount_percent: 100, discount_reason: "Gutschrift" }).success, "100%");
   assert(!RequestSchema.safeParse({ ...validCreate, discount_percent: 10 }).success, "missing reason");
