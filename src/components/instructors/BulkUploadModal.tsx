@@ -476,6 +476,7 @@ export function BulkUploadModal({ open, onOpenChange }: BulkUploadModalProps) {
           </div>
         )}
       </DialogContent>
+      {isSuperAdmin && <BookingCornerPreviewDialog open={bcOpen} onOpenChange={setBcOpen} />}
     </Dialog>
   );
 }
