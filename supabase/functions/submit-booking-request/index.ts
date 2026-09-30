@@ -119,6 +119,13 @@ async function sendAcknowledgement(supabase: any, row: any) {
       .select("id")
       .single();
 
+    // Smoke-test guard: reserved, undeliverable test domain (RFC 2606) never reaches the provider.
+    if (String(c.email ?? "").toLowerCase().endsWith("@smoke.invalid")) {
+      if (log?.id) await supabase.from("email_logs").update({ status: "skipped_test" }).eq("id", log.id);
+      console.log("ack: skipped_test");
+      return;
+    }
+
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: {
