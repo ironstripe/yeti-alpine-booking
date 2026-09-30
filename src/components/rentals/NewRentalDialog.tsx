@@ -27,7 +27,11 @@ export function NewRentalDialog({ open, onOpenChange, preselectedInstructorId }:
   const { data: instructors } = useQuery({
     queryKey: ["instructors-list-rentals"],
     queryFn: async () => {
-      const { data, error } = await (supabase.from("instructors").select("id, first_name, last_name") as any).eq("is_active", true).order("last_name");
+      const { data, error } = await supabase
+        .from("instructors")
+        .select("id, first_name, last_name")
+        .eq("status", "active")
+        .order("last_name");
       if (error) throw error;
       return data as { id: string; first_name: string; last_name: string }[];
     },
