@@ -32,14 +32,14 @@ BEGIN
     IF SQLERRM <> 'photo_must_use_private_bucket' THEN RAISE; END IF;
   END;
 
-  -- period gating
-  IF NOT instructor_is_deployed(v_instr,'2027-01-10') THEN RAISE EXCEPTION 'FAIL inside window'; END IF;
-  IF instructor_is_deployed(v_instr,'2026-10-01') THEN RAISE EXCEPTION 'FAIL outside window'; END IF;
-  IF instructor_is_deployed(v_instr,'2021-01-10') THEN RAISE EXCEPTION 'FAIL historic'; END IF;
 
   -- super_admin: sees all five + photo object; staging never
   PERFORM set_config('request.jwt.claims', json_build_object('sub',v_super,'role','authenticated')::text, true);
   SET LOCAL ROLE authenticated;
+  -- period gating
+  IF NOT instructor_is_deployed(v_instr,'2027-01-10') THEN RAISE EXCEPTION 'FAIL inside window'; END IF;
+  IF instructor_is_deployed(v_instr,'2026-10-01') THEN RAISE EXCEPTION 'FAIL outside window'; END IF;
+  IF instructor_is_deployed(v_instr,'2021-01-10') THEN RAISE EXCEPTION 'FAIL historic'; END IF;
   FOREACH t IN ARRAY tbls LOOP
     EXECUTE format('SELECT count(*) FROM public.%I', t) INTO n;
     IF n < 1 THEN RAISE EXCEPTION 'FAIL super_admin cannot read %', t; END IF;
