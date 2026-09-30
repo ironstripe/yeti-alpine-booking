@@ -13,6 +13,7 @@ import { SchedulerHeader, type ViewMode } from "./SchedulerHeader";
 import { StickyTimeHeader } from "./StickyTimeHeader";
 import { InstructorFocusView } from "./InstructorFocusView";
 import { SelectionToolbar } from "./SelectionToolbar";
+import { MultiSelectToggle } from "./MultiSelectToggle";
 
 import { SchedulerSelectionProvider, useSchedulerSelection } from "@/contexts/SchedulerSelectionContext";
 import { useUserRole } from "@/hooks/useUserRole";
@@ -726,7 +727,8 @@ function SchedulerGridContent() {
           </div>
         )}
 
-        {/* Selection Toolbar */}
+        {/* Multi-date planning toggle + Selection Toolbar (summary/remove-only tray) */}
+        <MultiSelectToggle />
         <SelectionToolbar bookings={bookings} />
 
         {/* Booking Change Confirmation Dialog for Drag & Drop */}
