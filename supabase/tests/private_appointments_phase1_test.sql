@@ -5,7 +5,7 @@ DO $$
 DECLARE
   v_instr uuid; v_cust uuid; v_part1 uuid; v_part2 uuid; v_prod uuid;
   v_ticket uuid; v_ticket2 uuid; v_appt uuid; v_appt_past uuid; v_item uuid;
-  v_future date := public.pa_business_today() + 30;
+  v_future date := public.pa_business_today() + 400;
   v_counts_before bigint; v_counts_after bigint;
   j jsonb; n int; ok boolean;
 BEGIN
@@ -25,7 +25,7 @@ BEGIN
 
   -- 1. protection
   INSERT INTO public.private_appointments (ticket_id, date, time_start, time_end, instructor_id, status, instructor_confirmation)
-    VALUES (v_ticket, v_future, '07:00', '08:00', v_instr, 'scheduled', 'pending') RETURNING id INTO v_appt;
+    VALUES (v_ticket, v_future, '09:00', '10:00', v_instr, 'scheduled', 'pending') RETURNING id INTO v_appt;
   INSERT INTO public.private_appointments (ticket_id, date, time_start, time_end, instructor_id, status)
     VALUES (v_ticket, public.pa_business_today() - 1, '07:00', '08:00', v_instr, 'scheduled') RETURNING id INTO v_appt_past;
   j := public.pa_is_protected(v_appt);
@@ -48,15 +48,15 @@ BEGIN
   DELETE FROM public.invoices WHERE invoice_number = 'PA-TEST-INV';
 
   -- 2. conflicts
-  IF public.pa_slot_is_free(v_instr, v_future, '07:30', '08:30', NULL) THEN RAISE EXCEPTION 'FAIL 2a: appointment conflict missed'; END IF;
-  IF NOT public.pa_slot_is_free(v_instr, v_future, '07:30', '08:30', v_appt) THEN
+  IF public.pa_slot_is_free(v_instr, v_future, '09:30', '10:30', NULL) THEN RAISE EXCEPTION 'FAIL 2a: appointment conflict missed'; END IF;
+  IF NOT public.pa_slot_is_free(v_instr, v_future, '09:30', '10:30', v_appt) THEN
     -- could still conflict with real data; verify only the appointment kind is excluded
-    IF EXISTS (SELECT 1 FROM public.pa_slot_conflicts(v_instr, v_future, '07:30', '08:30', v_appt) WHERE ref_id = v_appt) THEN
+    IF EXISTS (SELECT 1 FROM public.pa_slot_conflicts(v_instr, v_future, '09:30', '10:30', v_appt) WHERE ref_id = v_appt) THEN
       RAISE EXCEPTION 'FAIL 2b: excluded appointment still conflicts';
     END IF;
   END IF;
-  IF NOT public.pa_slot_is_free(v_instr, v_future, '08:00', '09:00', v_appt)
-     AND EXISTS (SELECT 1 FROM public.pa_slot_conflicts(v_instr, v_future, '08:00', '09:00', NULL) WHERE ref_id = v_appt) THEN
+  IF NOT public.pa_slot_is_free(v_instr, v_future, '10:00', '11:00', v_appt)
+     AND EXISTS (SELECT 1 FROM public.pa_slot_conflicts(v_instr, v_future, '10:00', '11:00', NULL) WHERE ref_id = v_appt) THEN
     RAISE EXCEPTION 'FAIL 2c: touching end must not overlap';
   END IF;
   INSERT INTO public.instructor_absences (instructor_id, start_date, end_date, type, status, is_full_day)
@@ -72,7 +72,7 @@ BEGIN
 
   -- 3. guard trigger
   INSERT INTO public.ticket_items (ticket_id, product_id, date, time_start, time_end, unit_price, instructor_id, instructor_confirmation, appointment_id, item_type, status)
-    VALUES (v_ticket, v_prod, v_future, '07:00', '08:00', 85, v_instr, 'pending', v_appt, 'private', 'booked') RETURNING id INTO v_item;
+    VALUES (v_ticket, v_prod, v_future, '09:00', '10:00', 85, v_instr, 'pending', v_appt, 'private', 'booked') RETURNING id INTO v_item;
   ok := false;
   BEGIN
     UPDATE public.ticket_items SET instructor_confirmation = 'confirmed' WHERE id = v_item;
@@ -80,7 +80,7 @@ BEGIN
   IF NOT ok THEN RAISE EXCEPTION 'FAIL 3a: confirming line without confirmed appointment was allowed'; END IF;
   ok := false;
   BEGIN
-    UPDATE public.ticket_items SET time_start = '09:00', time_end = '10:00' WHERE id = v_item;
+    UPDATE public.ticket_items SET time_start = '11:00', time_end = '12:00' WHERE id = v_item;
   EXCEPTION WHEN check_violation THEN ok := true; END;
   IF NOT ok THEN RAISE EXCEPTION 'FAIL 3b: time drift allowed'; END IF;
   UPDATE public.private_appointments SET instructor_confirmation = 'confirmed' WHERE id = v_appt;
