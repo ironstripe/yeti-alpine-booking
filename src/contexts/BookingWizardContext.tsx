@@ -1110,11 +1110,30 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
         }
       }
 
-      // Check if multiple instructors are selected AND multiple participants exist
+      // A different instructor on a different day is a normal period plan.
+      // Only propose a participant split when two instructors teach SIMULTANEOUSLY
+      // (same date, overlapping time).
       const uniqueInstructorIds = [...instructorCounts.keys()];
       let privateGroupProposal = prev.privateGroupProposal;
+      const toMin = (t: string) => {
+        const [h, m] = t.split(":").map(Number);
+        return h * 60 + (m || 0);
+      };
+      const hasSimultaneousInstructors = sortedSlots.some((a, i) =>
+        sortedSlots.some(
+          (b, j) =>
+            j > i &&
+            a.date === b.date &&
+            a.instructorId !== b.instructorId &&
+            toMin(a.startTime) < toMin(b.endTime) &&
+            toMin(b.startTime) < toMin(a.endTime)
+        )
+      );
+      if (!hasSimultaneousInstructors && uniqueInstructorIds.length > 1) {
+        privateGroupProposal = null;
+      }
 
-      if (uniqueInstructorIds.length > 1 && prev.selectedParticipants.length > 1) {
+      if (hasSimultaneousInstructors && uniqueInstructorIds.length > 1 && prev.selectedParticipants.length > 1) {
         // Build a privateGroupProposal: split participants across instructors
         const participantIds = prev.selectedParticipants.map(p => p.id);
         const groups = uniqueInstructorIds.map((instrId, idx) => {
