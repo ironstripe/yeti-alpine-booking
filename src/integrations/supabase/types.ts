@@ -3307,6 +3307,7 @@ export type Database = {
           period_group_id: string | null
           price: number | null
           status: string
+          submission_key: string | null
           ticket_id: string
           time_end: string
           time_start: string
@@ -3324,6 +3325,7 @@ export type Database = {
           period_group_id?: string | null
           price?: number | null
           status?: string
+          submission_key?: string | null
           ticket_id: string
           time_end: string
           time_start: string
@@ -3341,6 +3343,7 @@ export type Database = {
           period_group_id?: string | null
           price?: number | null
           status?: string
+          submission_key?: string | null
           ticket_id?: string
           time_end?: string
           time_start?: string
@@ -5081,8 +5084,54 @@ export type Database = {
         Args: { p_enrollment_id: string; p_target_group_id: string }
         Returns: Json
       }
+      pa_apply_slot: {
+        Args: {
+          p_date: string
+          p_end: string
+          p_id: string
+          p_instr: string
+          p_start: string
+        }
+        Returns: Json
+      }
       pa_business_today: { Args: never; Returns: string }
+      pa_confirm_appointment: {
+        Args: {
+          p_action: string
+          p_actor?: string
+          p_appointment: string
+          p_instructor: string
+          p_reason: string
+        }
+        Returns: Json
+      }
+      pa_create_booking: { Args: { p: Json; p_actor: string }; Returns: Json }
+      pa_emit_change: {
+        Args: {
+          p_actor: string
+          p_change: string
+          p_details: Json
+          p_ids: string[]
+          p_ticket: string
+        }
+        Returns: undefined
+      }
       pa_is_protected: { Args: { p_appointment_id: string }; Returns: Json }
+      pa_move_appointment: {
+        Args: {
+          p_actor: string
+          p_date: string
+          p_end: string
+          p_id: string
+          p_instr: string
+          p_start: string
+        }
+        Returns: Json
+      }
+      pa_period_update: {
+        Args: { p_actor: string; p_changes: Json; p_group: string }
+        Returns: Json
+      }
       pa_price: {
         Args: {
           p_date: string
@@ -5092,6 +5141,7 @@ export type Database = {
         }
         Returns: number
       }
+      pa_recalc_ticket_total: { Args: { p_ticket: string }; Returns: number }
       pa_reconcile_report: {
         Args: never
         Returns: {
