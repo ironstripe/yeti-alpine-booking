@@ -55,12 +55,31 @@ export function usePeriodModification() {
         updatePayload.confirmation_reset_at = new Date().toISOString();
         updatePayload.confirmation_reset_reason = "single_day_change";
 
-        const { error } = await supabase
+        // Multi-date private lesson with a canonical appointment: move the whole
+        // appointment (all its participants) in one server-side step.
+        const { data: itemRow } = await supabase
           .from("ticket_items")
-          .update(updatePayload)
-          .eq("id", bookingId);
+          .select("appointment_id, date, time_start, time_end, instructor_id")
+          .eq("id", bookingId)
+          .maybeSingle();
 
-        if (error) throw error;
+        if (itemRow?.appointment_id) {
+          const { error } = await supabase.rpc("update_private_appointment", {
+            p_appointment_id: itemRow.appointment_id,
+            p_date: newDate ?? itemRow.date,
+            p_time_start: newTimeStart ?? itemRow.time_start!,
+            p_time_end: newTimeEnd ?? itemRow.time_end!,
+            p_instructor_id: newInstructorId ?? itemRow.instructor_id!,
+          });
+          if (error) throw error;
+        } else {
+          const { error } = await supabase
+            .from("ticket_items")
+            .update(updatePayload)
+            .eq("id", bookingId);
+
+          if (error) throw error;
+        }
 
         // Queue instructor notifications if instructor changed
         if (newInstructorId && oldInstructorId && newInstructorId !== oldInstructorId) {
@@ -94,6 +113,22 @@ export function usePeriodModification() {
           .eq("period_group_id", periodGroupId);
 
         if (error) throw error;
+
+        // Keep canonical appointments of this period in sync
+        const apptUpdate: Record<string, unknown> = {};
+        if (newTimeStart) apptUpdate.time_start = newTimeStart;
+        if (newTimeEnd) apptUpdate.time_end = newTimeEnd;
+        if (newInstructorId) {
+          apptUpdate.instructor_id = newInstructorId;
+          apptUpdate.instructor_confirmation = "pending";
+        }
+        if (Object.keys(apptUpdate).length > 0) {
+          const { error: apptError } = await supabase
+            .from("private_appointments")
+            .update(apptUpdate)
+            .eq("period_group_id", periodGroupId);
+          if (apptError) throw apptError;
+        }
 
         // Update period metadata base configuration
         if (newInstructorId || newTimeStart || newTimeEnd) {
