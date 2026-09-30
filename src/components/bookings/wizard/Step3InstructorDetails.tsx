@@ -24,6 +24,7 @@ export function Step3InstructorDetails() {
     setInternalNotes,
     setInstructorNotes,
     setDayInstructorOverride,
+    movePlannedDate,
     setDayTimeOverride,
     addTimeBlock,
     updateTimeBlock,
@@ -126,7 +127,8 @@ export function Step3InstructorDetails() {
               dayInstructorOverrides={state.dayInstructorOverrides}
               dayTimeOverrides={state.dayTimeOverrides}
               onInstructorChange={setDayInstructorOverride}
-              onTimeChange={(date, startTime, endTime, instructorId) => setDayTimeOverride(date, startTime, endTime)}
+              onDateChange={movePlannedDate}
+              onTimeChange={setDayTimeOverride}
               onAddTimeBlock={addTimeBlock}
               onUpdateTimeBlock={updateTimeBlock}
               onRemoveTimeBlock={removeTimeBlock}

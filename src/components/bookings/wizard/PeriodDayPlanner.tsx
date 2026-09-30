@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { format, parseISO } from "date-fns";
+import { format, parseISO, startOfDay } from "date-fns";
 import { de } from "date-fns/locale";
 import { Calendar, AlertTriangle, Plus, Trash2 } from "lucide-react";
 
@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Button } from "@/components/ui/button";
+import { EnhancedDatePicker } from "@/components/ui/enhanced-date-picker";
 
 import { useInstructors, getStatusConfig } from "@/hooks/useInstructors";
 import type { Tables } from "@/integrations/supabase/types";
@@ -32,6 +33,7 @@ interface PeriodDayPlannerProps {
   dayInstructorOverrides: Record<string, string | null>;
   dayTimeOverrides: Record<string, TimeBlock[]>;
   onInstructorChange: (date: string, instructorId: string | null) => void;
+  onDateChange: (date: string, newDate: string) => void;
   onTimeChange: (date: string, startTime: string, endTime: string, instructorId?: string | null) => void;
   onAddTimeBlock: (date: string, startTime: string, endTime: string, instructorId?: string | null) => void;
   onUpdateTimeBlock: (date: string, blockId: string, startTime: string, endTime: string, instructorId?: string | null) => void;
@@ -48,6 +50,7 @@ export function PeriodDayPlanner({
   dayInstructorOverrides,
   dayTimeOverrides,
   onInstructorChange,
+  onDateChange,
   onTimeChange,
   onAddTimeBlock,
   onUpdateTimeBlock,
@@ -264,6 +267,14 @@ export function PeriodDayPlanner({
                   
                   {/* Time Blocks */}
                   <div className="p-4 space-y-4">
+                    <div className="space-y-1.5">
+                      <span className="text-xs font-medium text-muted-foreground">Datum</span>
+                      <EnhancedDatePicker
+                        value={parseISO(date)}
+                        onChange={(value) => value && onDateChange(date, format(value, "yyyy-MM-dd"))}
+                        disabled={(value) => value < startOfDay(new Date()) || (format(value, "yyyy-MM-dd") !== date && selectedDates.includes(format(value, "yyyy-MM-dd")))}
+                      />
+                    </div>
                     {timeBlocks.map((block, blockIndex) => {
                       const blockInstructor = getBlockInstructor(date, block);
                       const { hasTimeOverride, hasInstructorOverride, isAdditionalBlock } = isBlockOverridden(date, block, blockIndex);

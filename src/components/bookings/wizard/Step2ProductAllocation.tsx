@@ -81,6 +81,7 @@ export function Step2ProductAllocation() {
     setSport,
     setDuration,
     setSelectedDates,
+    movePlannedDate,
     setTimeSlot,
     setIncludeLunch,
     setInstructor,
@@ -654,7 +655,8 @@ export function Step2ProductAllocation() {
                   dayInstructorOverrides={state.dayInstructorOverrides}
                   dayTimeOverrides={state.dayTimeOverrides}
                   onInstructorChange={setDayInstructorOverride}
-                  onTimeChange={(date, startTime, endTime) => setDayTimeOverride(date, startTime, endTime)}
+                  onDateChange={movePlannedDate}
+                  onTimeChange={setDayTimeOverride}
                   onAddTimeBlock={addTimeBlock}
                   onUpdateTimeBlock={updateTimeBlock}
                   onRemoveTimeBlock={removeTimeBlock}
