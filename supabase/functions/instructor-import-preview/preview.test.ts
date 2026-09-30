@@ -88,7 +88,7 @@ const y = (id: string, f: string, l: string, phone: string | null, extra: Partia
 
 Deno.test("match: link, candidate, review, create, yeti-only, similar spelling", async () => {
   const r = await parseImport(book([
-    prof("1"), prof("2"), prof("3"), prof("4", { Vorname: "Viktoria", Name: "Beispiel" }), prof("5"),
+    prof("1"), prof("2"), prof("3"), prof("4", { Vorname: "Viktoria", Name: "Beispiel" }), prof("5", { Vorname: "Neu", Name: "Andersson" }),
   ]), null, TODAY);
   const p = Object.fromEntries(r.profiles.map((x) => [x.sourceId, x]));
   const yeti = [
