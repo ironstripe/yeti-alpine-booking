@@ -86,11 +86,27 @@ BEGIN
   IF r2->>'error' <> 'conflict' THEN RAISE EXCEPTION 'FAIL 6a %', r2; END IF;
   IF (SELECT count(*) FROM public.private_appointments WHERE period_group_id = v_group AND instructor_id = i2) <> 1 THEN RAISE EXCEPTION 'FAIL 6b partial write'; END IF;
   IF (SELECT count(*) FROM public.ticket_history WHERE event_type = 'PRIVATE_APPOINTMENT_CHANGED') <> n THEN RAISE EXCEPTION 'FAIL 6c audit on failure'; END IF;
+  DELETE FROM public.instructor_absences WHERE instructor_id = i2 AND start_date = f+1 AND type = 'other';
   r2 := public.pa_period_update(v_group, jsonb_build_object('time_start','14:00','time_end','15:00'), NULL);
-  IF NOT coalesce((r2->>'ok')::boolean,false) OR jsonb_array_length(r2->'updated_ids') <> 2 OR jsonb_array_length(r2->'excluded') <> 1 THEN RAISE EXCEPTION 'FAIL 6d %', r2; END IF;
-  -- day f+2 i3 14-16 -> 14-15 fine; day f+1 i2 is absent but instructor unchanged... absence covers i2 on f+1
-  -- (absence was inserted for i2 on f+1, so that line must have conflicted) -> verify below
-  RAISE NOTICE '6d result %', r2;
+  IF NOT coalesce((r2->>'ok')::boolean,false) OR jsonb_array_length(r2->'updated_ids') <> 2 OR jsonb_array_length(r2->'excluded') <> 1
+     OR (r2->'excluded'->0->>'id')::uuid <> v_past THEN RAISE EXCEPTION 'FAIL 6d %', r2; END IF;
+  IF EXISTS (SELECT 1 FROM public.private_appointments WHERE id = v_past AND time_start = '14:00') THEN RAISE EXCEPTION 'FAIL 6e protected changed'; END IF;
+
+  -- 7. audit + event exactly once per successful change (create, move, period = 3; confirm = 1)
+  IF (SELECT count(*) FROM public.ticket_history WHERE event_type = 'PRIVATE_APPOINTMENT_CHANGED') - h_before <> 4
+     OR (SELECT count(*) FROM public.notification_queue WHERE notification_type = 'private_appointment_changed') - q_before <> 4 THEN
+    RAISE EXCEPTION 'FAIL 7 audit/event counts'; END IF;
+
+  -- 8. confirmation: assigned instructor ok (appt + line), other instructor refused
+  SELECT id INTO v_past FROM public.private_appointments WHERE ticket_id = v_ticket AND date = f+2;
+  r2 := public.pa_confirm_appointment(v_past, i1, 'confirm', NULL, NULL);
+  IF r2->>'error' <> 'forbidden' THEN RAISE EXCEPTION 'FAIL 8a %', r2; END IF;
+  r2 := public.pa_confirm_appointment(v_past, i3, 'confirm', NULL, NULL);
+  IF NOT coalesce((r2->>'ok')::boolean,false)
+     OR NOT EXISTS (SELECT 1 FROM public.private_appointments WHERE id = v_past AND instructor_confirmation = 'confirmed' AND confirmed_at IS NOT NULL)
+     OR NOT EXISTS (SELECT 1 FROM public.ticket_items WHERE appointment_id = v_past AND instructor_confirmation = 'confirmed') THEN RAISE EXCEPTION 'FAIL 8b %', r2; END IF;
+  r2 := public.pa_confirm_appointment(v_past, i3, 'decline', '', NULL);
+  IF r2->>'error' <> 'invalid' THEN RAISE EXCEPTION 'FAIL 8c decline needs reason'; END IF;
 
   RAISE EXCEPTION 'PA_PHASE2_ALL_PASSED';
 END $$;
