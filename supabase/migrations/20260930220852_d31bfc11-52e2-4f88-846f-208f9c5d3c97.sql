@@ -1,4 +1,3 @@
--- APPLIED 2026-09-30 via migration tool (owner-approved, unchanged below).
 -- Booking-Corner instructor import: PREREQUISITE (schema + RLS + private storage policies).
 -- NOT APPLIED. Awaiting owner approval. Must be live before any import/upload endpoint exists.
 -- Bucket `instructor-hr-photos` (private, 10MB) is created via the storage tool in the same
