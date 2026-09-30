@@ -10,7 +10,7 @@ DECLARE
 BEGIN
   SELECT user_id INTO v_super FROM user_roles WHERE role::text='super_admin' LIMIT 1;
   SELECT user_id INTO v_office FROM user_roles r WHERE role='office'
-    AND NOT EXISTS (SELECT 1 FROM user_roles x WHERE x.user_id=r.user_id AND x.role::text IN ('admin','super_admin')) LIMIT 1;
+    AND NOT EXISTS (SELECT 1 FROM user_roles x WHERE x.user_id=r.user_id AND x.role::text = 'super_admin') LIMIT 1;
   SELECT user_id INTO v_teacher FROM user_roles r WHERE role='teacher'
     AND NOT EXISTS (SELECT 1 FROM user_roles x WHERE x.user_id=r.user_id AND x.role::text IN ('admin','office','super_admin')) LIMIT 1;
   IF v_super IS NULL OR v_office IS NULL OR v_teacher IS NULL THEN RAISE EXCEPTION 'FAIL missing test users'; END IF;
@@ -52,7 +52,7 @@ BEGIN
   EXCEPTION WHEN insufficient_privilege THEN NULL; END;
   RESET ROLE;
 
-  -- office: HR/links/runs hidden; windows/photos visible
+  -- office (no pure office account exists; uses office+admin without super_admin): HR/links/runs hidden; windows visible
   PERFORM set_config('request.jwt.claims', json_build_object('sub',v_office,'role','authenticated')::text, true);
   SET LOCAL ROLE authenticated;
   SELECT count(*) INTO n FROM instructor_hr_private; IF n <> 0 THEN RAISE EXCEPTION 'FAIL office hr'; END IF;
