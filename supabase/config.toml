@@ -82,3 +82,6 @@ verify_jwt = false
 verify_jwt = false
 
 
+
+[functions.retry-booking-confirmation]
+verify_jwt = true

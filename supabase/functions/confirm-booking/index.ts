@@ -2,14 +2,20 @@
 // participant data, then apply the payment semantics.
 // - payment_method "online": requires a real payment_reference from the payment
 //   provider. Marks the booking confirmed + paid and records exactly one payment.
-// - payment_method "invoice": marks the booking invoice_pending and creates exactly
-//   one open invoice. The booking is NOT marked as paid.
+// - payment_method "invoice": binding immediately (status confirmed), exactly one
+//   open invoice, booking confirmation email sent server-side. NOT marked as paid.
+//   The invoice email is deliberately deferred (B+ Phase 1, Option A).
 // Prices, paid amounts, source and payment status supplied by the caller are ignored.
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { z } from "npm:zod@3.23.8";
 import { corsHeaders, checkApiKey, json } from "../_shared/intakeAuth.ts";
 import { issueInvoice } from "../_shared/invoice-service.ts";
+import { attemptConfirmation, ensureConfirmationDelivery } from "../_shared/bookingDelivery.ts";
+
+const GUEST_MESSAGE =
+  "Ihre Buchung ist verbindlich bestätigt. Die Rechnung mit Zahlungsinformationen erhalten Sie separat.";
+
 
 
 
@@ -87,7 +93,13 @@ Deno.serve(async (req) => {
 
     if (!["provisional", "payment_pending"].includes(ticket.status ?? "")) {
       if (["confirmed", "invoice_pending"].includes(ticket.status ?? "")) {
-        return json({ success: true, ticket_id: ticket.id, ticket_number: ticket.ticket_number, status: ticket.status, already_confirmed: true });
+        const { data: openInv } = await supabase
+          .from("invoices").select("id").eq("ticket_id", ticket.id).eq("status", "open").maybeSingle();
+        return json({
+          success: true, ticket_id: ticket.id, ticket_number: ticket.ticket_number, status: ticket.status,
+          already_confirmed: true,
+          ...(openInv ? { guest_message: GUEST_MESSAGE } : {}),
+        });
       }
       return json({ success: false, error: `Buchung kann im Status "${ticket.status}" nicht bestätigt werden.` }, 409);
     }
@@ -179,12 +191,12 @@ Deno.serve(async (req) => {
       });
     }
 
-    // invoice
+    // invoice: binding immediately (B+ Phase 1). Not paid; exactly one open invoice.
     const dueDate = new Date(now);
     dueDate.setDate(dueDate.getDate() + 14);
 
     const { error: tErr } = await supabase.from("tickets").update({
-      status: "invoice_pending",
+      status: "confirmed",
       payment_method: "invoice",
       payment_due_date: dueDate.toISOString().slice(0, 10),
       updated_at: now.toISOString(),
@@ -199,8 +211,6 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     if (!invoice) {
-      // Same server-side issuance path as the office UI: routing, reference and
-      // immutable payment snapshot all come from the shared invoice service.
       const issued = await issueInvoice(supabase, {
         ticketId: ticket.id,
         customerId,
@@ -213,18 +223,32 @@ Deno.serve(async (req) => {
       invoice = issued.invoice as { id: string; invoice_number: string; due_date: string };
     }
 
-
+    // Booking confirmation only; invoice email is intentionally deferred.
+    let confirmationStatus = "failed";
+    try {
+      const d = await ensureConfirmationDelivery(supabase, ticket.id, data.customer.email);
+      if (d) {
+        confirmationStatus = d.status === "pending"
+          ? await attemptConfirmation(supabase, d.id, { salutation: data.customer.salutation ?? "" })
+          : d.status;
+        if (confirmationStatus === "not_claimed") confirmationStatus = "sending";
+      }
+    } catch (e) {
+      console.error("confirmation delivery error:", (e as Error).message);
+    }
 
     return json({
       success: true,
       ticket_id: ticket.id,
       ticket_number: ticket.ticket_number,
       customer_id: customerId,
-      status: "invoice_pending",
+      status: "confirmed",
       payment_status: "invoice_open",
       invoice_number: invoice!.invoice_number,
       due_date: invoice!.due_date,
       total_amount: ticket.total_amount,
+      guest_message: GUEST_MESSAGE,
+      delivery: { booking_confirmation: confirmationStatus },
     });
   } catch (e) {
     console.error("confirm-booking error:", (e as Error).message);
