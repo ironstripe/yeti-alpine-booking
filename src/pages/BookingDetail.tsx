@@ -379,7 +379,8 @@ const BookingDetail = () => {
                     <Badge variant={latestInvoice.status === 'paid' ? 'default' : 'secondary'}>
                       {latestInvoice.status === 'paid' ? 'Bezahlt' : 
                        latestInvoice.status === 'sent' ? 'Gesendet' : 
-                       latestInvoice.status === 'overdue' ? 'Überfällig' : 'Entwurf'}
+                       latestInvoice.status === 'overdue' ? 'Überfällig' : 
+                       latestInvoice.status === 'open' ? 'Offen' : 'Entwurf'}
                     </Badge>
                     <Button 
                       variant="outline" 
