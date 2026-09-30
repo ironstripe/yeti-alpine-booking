@@ -10,7 +10,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { z } from "npm:zod@3.23.8";
 import { corsHeaders, checkApiKey, json } from "../_shared/intakeAuth.ts";
-import { issueInvoice } from "../_shared/invoice-service.ts";
+import { issueInvoiceThenConfirm } from "./invoiceStep.ts";
 import { attemptConfirmation, ensureConfirmationDelivery } from "../_shared/bookingDelivery.ts";
 
 const GUEST_MESSAGE =
@@ -192,36 +192,23 @@ Deno.serve(async (req) => {
     }
 
     // invoice: binding immediately (B+ Phase 1). Not paid; exactly one open invoice.
-    const dueDate = new Date(now);
-    dueDate.setDate(dueDate.getDate() + 14);
-
-    const { error: tErr } = await supabase.from("tickets").update({
-      status: "confirmed",
-      payment_method: "invoice",
-      payment_due_date: dueDate.toISOString().slice(0, 10),
-      updated_at: now.toISOString(),
-    }).eq("id", ticket.id);
-    if (tErr) throw new Error(tErr.message);
-
-    let { data: invoice } = await supabase
-      .from("invoices")
-      .select("id, invoice_number, due_date")
-      .eq("ticket_id", ticket.id)
-      .eq("status", "open")
-      .maybeSingle();
-
-    if (!invoice) {
-      const issued = await issueInvoice(supabase, {
-        ticketId: ticket.id,
-        customerId,
-        subtotal: ticket.total_amount,
-        total: ticket.total_amount,
-        currency: "CHF",
-        dueDays: 14,
-      });
-      if (!issued.ok) throw new Error(`invoice: ${issued.error}`);
-      invoice = issued.invoice as { id: string; invoice_number: string; due_date: string };
+    // Invoice first, then confirm; on failure the ticket stays retryable.
+    const step = await issueInvoiceThenConfirm(supabase, {
+      ticketId: ticket.id,
+      customerId,
+      total: ticket.total_amount,
+      now,
+    });
+    if (!step.ok) {
+      console.error("confirm-booking invoice step failed:", step.code, step.error);
+      return json({
+        success: false,
+        code: step.code,
+        error: "Die Buchung konnte gerade nicht abgeschlossen werden. Bitte versuchen Sie es erneut.",
+        reservation_expires_at: ticket.reservation_expires_at,
+      }, 503);
     }
+    const invoice = step.invoice;
 
     // Booking confirmation only; invoice email is intentionally deferred.
     let confirmationStatus = "failed";
