@@ -23,3 +23,4 @@
 - [x] Live pa_price assertions in SQL test (section 0); parity test header corrected; run instructions in test file
 - [x] Phase 2: private-appointments server step + transactions + confirmation (not published)
 - [ ] Phase 2 office/teacher/no-role live checks (blocked: no test logins)
+- [x] Phase 2 fix: advisory slot locks + DB-unique submission_key (2-session live proof pending: needs privileged DB URL)

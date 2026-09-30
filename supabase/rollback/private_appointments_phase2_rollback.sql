@@ -1,4 +1,4 @@
--- Rollback for private appointments Phase 2 (pa_phase2_tx + pa_phase2_fix_line_total).
+-- Rollback for private appointments Phase 2 (pa_phase2_tx + pa_phase2_fix_line_total + pa_phase2_slot_locks).
 -- Reviewed, NOT executed. Refuses to run once any appointment was created through Phase 2.
 -- Pair with removing the `private-appointments` function and the appointmentId branch of set-booking-confirmation.
 DO $$
@@ -7,6 +7,9 @@ BEGIN
     RAISE EXCEPTION 'Phase 2 rollback refused: appointments created via Phase 2 exist';
   END IF;
 END $$;
+-- pa_phase2_slot_locks
+DROP TABLE IF EXISTS public.private_appointment_submissions;
+DROP FUNCTION IF EXISTS public.pa_lock_slots(jsonb);
 DROP FUNCTION IF EXISTS public.pa_confirm_appointment(uuid, uuid, text, text, uuid);
 DROP FUNCTION IF EXISTS public.pa_period_update(uuid, jsonb, uuid);
 DROP FUNCTION IF EXISTS public.pa_move_appointment(uuid, date, time, time, uuid, uuid);

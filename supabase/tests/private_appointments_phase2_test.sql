@@ -108,5 +108,21 @@ BEGIN
   r2 := public.pa_confirm_appointment(v_past, i3, 'decline', '', NULL);
   IF r2->>'error' <> 'invalid' THEN RAISE EXCEPTION 'FAIL 8c decline needs reason'; END IF;
 
+  -- 9. DB idempotency guarantee: one submission row per key; a duplicate key is rejected by the PK
+  IF (SELECT count(*) FROM public.private_appointment_submissions WHERE submission_key = 'pa2-test-key-0001' AND ticket_id = v_ticket) <> 1 THEN
+    RAISE EXCEPTION 'FAIL 9a submission row'; END IF;
+  BEGIN
+    INSERT INTO public.private_appointment_submissions (submission_key, ticket_id) VALUES ('pa2-test-key-0001', v_ticket);
+    RAISE EXCEPTION 'FAIL 9b duplicate submission_key accepted';
+  EXCEPTION WHEN unique_violation THEN NULL;
+  END;
+  -- 10. slot lock helper: de-duplicates, tolerates empty input, holds xact-scoped advisory locks
+  PERFORM public.pa_lock_slots('[]'::jsonb);
+  PERFORM public.pa_lock_slots(jsonb_build_array(
+    jsonb_build_object('instructor_id', i2, 'date', f), jsonb_build_object('instructor_id', i1, 'date', f),
+    jsonb_build_object('instructor_id', i1, 'date', f)));
+  IF (SELECT count(*) FROM pg_locks WHERE locktype = 'advisory' AND pid = pg_backend_pid() AND mode = 'ExclusiveLock') < 2 THEN
+    RAISE EXCEPTION 'FAIL 10 advisory slot locks not held'; END IF;
+
   RAISE EXCEPTION 'PA_PHASE2_ALL_PASSED';
 END $$;
