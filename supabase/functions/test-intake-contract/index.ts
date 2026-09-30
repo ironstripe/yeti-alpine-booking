@@ -1,9 +1,10 @@
 // Automated integration tests for the public reservation/confirmation contract.
 // Creates temporary reservations against the live endpoints and cleans up afterwards.
-// Guarded by the intake API key.
+// Guarded by ALLOW_TEST_FUNCTIONS + the server-only YETI_TEST_SECRET (x-test-secret header).
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders, json } from "../_shared/intakeAuth.ts";
+import { requireTestSecret, testFunctionsDisabled } from "../_shared/staffAuth.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -75,7 +76,13 @@ async function reserve(productId: string, count: number, day: number, hour = 9) 
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
-  if (req.headers.get("x-api-key") !== API_KEY) return json({ error: "Unauthorized" }, 401);
+  // Security P0.1: creates real tickets — disabled unless explicitly enabled,
+  // and even in test mode a separate server-only YETI_TEST_SECRET is required
+  // (never the intake key or the public app key).
+  const disabled = testFunctionsDisabled(corsHeaders);
+  if (disabled) return disabled;
+  const denied = requireTestSecret(req, corsHeaders);
+  if (denied) return denied;
 
   const { product_id } = await req.json().catch(() => ({ product_id: null as string | null }));
   if (!product_id) return json({ error: "product_id required" }, 400);
@@ -161,6 +168,30 @@ Deno.serve(async (req) => {
       check("no duplicate invoice", invCount2 === 1, invCount2);
       check("no duplicate participants", partCount === 2, partCount);
       check("no duplicate items", itemCount === 2, itemCount);
+
+      // --- 9. get-booking-status invoice contract (Onepager retry flow) ---
+      const { data: invRow } = await supabase.from("invoices")
+        .select("invoice_number, due_date").eq("ticket_id", t1)
+        .order("created_at", { ascending: false }).order("id", { ascending: false })
+        .limit(1).maybeSingle();
+      const statusRes = await call("get-booking-status", {
+        ticket_id: t1, reservation_token: r1.body.reservation_token,
+      });
+      check("status exposes matching invoice number", statusRes.status === 200 && statusRes.body?.invoice_number === invRow?.invoice_number, { status: statusRes.status, invoice_number: statusRes.body?.invoice_number, expected: invRow?.invoice_number });
+      check("status exposes matching invoice due date", statusRes.status === 200 && statusRes.body?.invoice_due_date === invRow?.due_date, { invoice_due_date: statusRes.body?.invoice_due_date, expected: invRow?.due_date });
+      const { data: statusCust } = await supabase.from("tickets").select("customer_id").eq("id", t1).single();
+      let expectedCustomerNumber: string | null = null;
+      if (statusCust?.customer_id) {
+        const { data: cust } = await supabase.from("customers").select("customer_number").eq("id", statusCust.customer_id).maybeSingle();
+        expectedCustomerNumber = cust?.customer_number ?? null;
+      }
+      check("status exposes matching customer_number", statusRes.status === 200 && statusRes.body?.customer_number === expectedCustomerNumber, { customer_number: statusRes.body?.customer_number, expected: expectedCustomerNumber });
+      const statusKeys = Object.keys(statusRes.body ?? {});
+      check("status exposes no raw invoice data", statusRes.status === 200 && !statusKeys.some((k) => ["qr_reference", "payment_snapshot", "payment_reference", "pdf_url"].includes(k)), statusKeys);
+      const statusBadTok = await call("get-booking-status", { ticket_id: t1, reservation_token: "wrong-token" });
+      check("status wrong token not found", statusBadTok.status === 404, statusBadTok);
+      const statusNoTok = await call("get-booking-status", { ticket_id: t1 });
+      check("status missing token rejected", statusNoTok.status === 400, statusNoTok);
     }
 
     // --- 4/5. Online payment paths (existing customer reuse) ---

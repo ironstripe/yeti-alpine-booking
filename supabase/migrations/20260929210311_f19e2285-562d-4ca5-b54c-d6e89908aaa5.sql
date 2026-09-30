@@ -1,0 +1,1 @@
+ALTER FUNCTION public.check_recurring_block_conflicts(uuid, time, time, integer[], date, date) SET search_path = public;

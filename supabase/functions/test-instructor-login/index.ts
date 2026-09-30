@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { requireRole, testFunctionsDisabled } from "../_shared/staffAuth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -16,6 +17,15 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
+
+  // Security P0.1: resets real user passwords — disabled unless explicitly enabled,
+  // and even in test mode only a verified admin session may call it.
+  // Public token-based password resets are never allowed.
+  const disabled = testFunctionsDisabled(corsHeaders);
+  if (disabled) return disabled;
+  const auth = await requireRole(req, ["admin"], corsHeaders);
+  if (auth instanceof Response) return auth;
+
 
   try {
     const { token } = await req.json();

@@ -1,19 +1,16 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { BookingPortalLayout } from "@/components/booking-portal/BookingPortalLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { supabase } from "@/integrations/supabase/client";
-import { NotificationService } from "@/lib/notification-service";
-import { CheckCircle2, Clock, Calendar, Users, Phone, Mail, Home, FileText, XCircle, Loader2 } from "lucide-react";
+import { CheckCircle2, Clock, Calendar, Users, Phone, Mail, Home, FileText, XCircle } from "lucide-react";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import { cn } from "@/lib/utils";
-import { toast } from "sonner";
 
 interface BookingRequest {
-  id: string;
   request_number: string;
   status: string;
   type: string;
@@ -28,15 +25,12 @@ interface BookingRequest {
     birthDate: string;
   }>;
   customer_data: {
-    firstName: string;
     lastName: string;
-    email: string;
     salutation?: string;
   };
   estimated_price: number;
   voucher_code?: string;
   voucher_discount?: number;
-  converted_ticket_id?: string;
   created_at: string;
 }
 
@@ -78,41 +72,6 @@ export default function RequestConfirmation() {
   const [request, setRequest] = useState<BookingRequest | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [sendingEmail, setSendingEmail] = useState(false);
-  const emailSentRef = useRef(false);
-
-  const sendConfirmationEmail = async (req: BookingRequest) => {
-    if (emailSentRef.current) return;
-    emailSentRef.current = true;
-    
-    const customerName = `${req.customer_data.firstName} ${req.customer_data.lastName}`;
-    const productName = req.type === "private" 
-      ? `Privatstunde ${req.sport_type === "ski" ? "Ski" : "Snowboard"}`
-      : `Gruppenkurs ${req.sport_type === "ski" ? "Ski" : "Snowboard"}`;
-    
-    await NotificationService.bookingRequestReceived(
-      req.customer_data.email,
-      customerName,
-      req.request_number,
-      format(new Date(req.requested_date), "dd.MM.yyyy", { locale: de }),
-      productName
-    );
-  };
-
-  const resendEmail = async () => {
-    if (!request) return;
-    setSendingEmail(true);
-    
-    try {
-      emailSentRef.current = false;
-      await sendConfirmationEmail(request);
-      toast.success("E-Mail wurde erneut gesendet");
-    } catch (err) {
-      toast.error("E-Mail konnte nicht gesendet werden");
-    } finally {
-      setSendingEmail(false);
-    }
-  };
 
   useEffect(() => {
     async function fetchRequest() {
@@ -123,28 +82,17 @@ export default function RequestConfirmation() {
       }
 
       try {
-        const { data, error: fetchError } = await supabase
-          .from("booking_requests")
-          .select("*")
-          .eq("magic_token", token)
-          .single();
+        const { data, error: fetchError } = await supabase.functions.invoke("get-booking-request", {
+          body: { token },
+        });
+        if (fetchError || !data?.request_number) throw fetchError ?? new Error("not_found");
 
-        if (fetchError) throw fetchError;
-        
-        // Transform the data to match our interface
-        const transformedData: BookingRequest = {
+        setRequest({
           ...data,
-          participants_data: (data.participants_data as unknown as BookingRequest['participants_data']) || [],
-          customer_data: (data.customer_data as unknown as BookingRequest['customer_data']) || { firstName: '', lastName: '', email: '' },
-        };
-        setRequest(transformedData);
-
-        // Send confirmation email for new pending requests
-        if (transformedData.status === "pending") {
-          sendConfirmationEmail(transformedData);
-        }
-      } catch (err) {
-        console.error("Error fetching request:", err);
+          participants_data: data.participants ?? [],
+          customer_data: data.customer ?? { lastName: "" },
+        });
+      } catch {
         setError("Anfrage nicht gefunden");
       } finally {
         setLoading(false);
@@ -336,25 +284,6 @@ export default function RequestConfirmation() {
         </CardContent>
       </Card>
 
-      {/* Confirmation Email */}
-      <Card className="mb-6 bg-muted/50">
-        <CardContent className="p-4">
-          <div className="flex items-center gap-2 text-sm">
-            <Mail className="h-4 w-4" />
-            <span>Bestätigung gesendet an: {request.customer_data.email}</span>
-          </div>
-          <Button 
-            variant="link" 
-            size="sm" 
-            className="p-0 h-auto mt-1"
-            onClick={resendEmail}
-            disabled={sendingEmail}
-          >
-            {sendingEmail && <Loader2 className="h-3 w-3 mr-1 animate-spin" />}
-            Keine E-Mail erhalten? Erneut senden
-          </Button>
-        </CardContent>
-      </Card>
 
       {/* Contact */}
       <Card className="mb-6">
