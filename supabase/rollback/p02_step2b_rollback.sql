@@ -1,3 +1,6 @@
+-- FORBIDDEN: DO NOT RUN. Re-grants ALL TABLES + default privileges to anon (reopens PII).
+-- Withdrawn by the fail-closed P0.2 plan (2026-09-30). Kept only as historical record.
+DO $$ BEGIN RAISE EXCEPTION 'p02_step2b_rollback.sql is forbidden'; END $$;
 -- Rollback for P0.2 Step 2B: restores the exact pre-2B anon state
 -- (as established by migration 20260929215248).
 CREATE POLICY "Public can view conversations" ON public.conversations AS PERMISSIVE FOR SELECT TO anon USING (true);
