@@ -328,6 +328,82 @@ export type Database = {
           },
         ]
       }
+      booking_email_deliveries: {
+        Row: {
+          attempts: number
+          created_at: string
+          email_log_id: string | null
+          id: string
+          idempotency_key: string
+          kind: string
+          last_error: string | null
+          last_error_code: string | null
+          provider_message_id: string | null
+          recipient_email: string
+          sent_at: string | null
+          status: string
+          template_id: string | null
+          ticket_id: string
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          created_at?: string
+          email_log_id?: string | null
+          id?: string
+          idempotency_key: string
+          kind: string
+          last_error?: string | null
+          last_error_code?: string | null
+          provider_message_id?: string | null
+          recipient_email: string
+          sent_at?: string | null
+          status?: string
+          template_id?: string | null
+          ticket_id: string
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          created_at?: string
+          email_log_id?: string | null
+          id?: string
+          idempotency_key?: string
+          kind?: string
+          last_error?: string | null
+          last_error_code?: string | null
+          provider_message_id?: string | null
+          recipient_email?: string
+          sent_at?: string | null
+          status?: string
+          template_id?: string | null
+          ticket_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "booking_email_deliveries_email_log_id_fkey"
+            columns: ["email_log_id"]
+            isOneToOne: false
+            referencedRelation: "email_logs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "booking_email_deliveries_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "pending_booking_confirmations"
+            referencedColumns: ["ticket_id"]
+          },
+          {
+            foreignKeyName: "booking_email_deliveries_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "tickets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       booking_requests: {
         Row: {
           acknowledgement_sent_at: string | null
@@ -1165,6 +1241,7 @@ export type Database = {
           clicked_at: string | null
           created_at: string | null
           delivered_at: string | null
+          delivery_id: string | null
           error_message: string | null
           id: string
           metadata: Json | null
@@ -1183,6 +1260,7 @@ export type Database = {
           clicked_at?: string | null
           created_at?: string | null
           delivered_at?: string | null
+          delivery_id?: string | null
           error_message?: string | null
           id?: string
           metadata?: Json | null
@@ -1201,6 +1279,7 @@ export type Database = {
           clicked_at?: string | null
           created_at?: string | null
           delivered_at?: string | null
+          delivery_id?: string | null
           error_message?: string | null
           id?: string
           metadata?: Json | null
