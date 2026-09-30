@@ -1298,6 +1298,8 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
         // Populate per-day time fields for BookingTimeGrid and PeriodDayPlanner
         timeSelections,
         dayTimeOverrides,
+        dayInstructorOverrides,
+        privateGroupProposal: null, // per-day instructors are a period plan, not a split
         assignLater: false, // Instructor is already assigned from scheduler
       };
       // Keep the active cart item snapshot in sync so the prefill survives cart switches
