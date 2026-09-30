@@ -619,7 +619,7 @@ export function useCreateBooking() {
       const { data: insertedItems, error: itemsError } = await supabase
         .from("ticket_items")
         .insert(ticketItems)
-        .select("id, participant_id, date, item_type, product_id");
+        .select("id, participant_id, date, item_type, product_id, time_start, time_end, instructor_id, period_group_id, meeting_point");
 
       if (itemsError) throw itemsError;
 
@@ -682,6 +682,50 @@ export function useCreateBooking() {
           }
         }
       }
+
+      // ============ PRIVATE APPOINTMENTS (multi-date private lessons) ============
+      // One canonical appointment per real lesson (date + time + instructor);
+      // participant ticket_items link to it and stay the billing/attendance rows.
+      if (insertedItems) {
+        const periodItems = insertedItems.filter(
+          (ti) => ti.item_type === "private" && ti.period_group_id
+        );
+        if (periodItems.length > 0) {
+          const slotKey = (ti: (typeof periodItems)[number]) =>
+            `${ti.date}|${ti.time_start}|${ti.time_end}|${ti.instructor_id ?? "-"}`;
+          const slots = new Map<string, (typeof periodItems)>();
+          periodItems.forEach((ti) => slots.set(slotKey(ti), [...(slots.get(slotKey(ti)) || []), ti]));
+
+          const slotEntries = [...slots.values()];
+          const apptIds = slotEntries.map(() => crypto.randomUUID());
+          const { error: apptError } = await supabase
+            .from("private_appointments")
+            .insert(
+              slotEntries.map((items, idx) => ({
+                id: apptIds[idx],
+                ticket_id: ticket.id,
+                date: items[0].date,
+                time_start: items[0].time_start!,
+                time_end: items[0].time_end!,
+                instructor_id: items[0].instructor_id,
+                instructor_confirmation: items[0].instructor_id ? "pending" : null,
+                meeting_point: items[0].meeting_point,
+                period_group_id: items[0].period_group_id,
+              }))
+            );
+          if (apptError) throw apptError;
+
+          for (let i = 0; i < slotEntries.length; i++) {
+            const { error: linkError } = await supabase
+              .from("ticket_items")
+              .update({ appointment_id: apptIds[i] })
+              .in("id", slotEntries[i].map((ti) => ti.id));
+            if (linkError) throw linkError;
+          }
+        }
+      }
+
+
 
       // ============ GROUP COURSE ENROLLMENT ============
       // Handle participant-specific group enrollments (different groups per participant)

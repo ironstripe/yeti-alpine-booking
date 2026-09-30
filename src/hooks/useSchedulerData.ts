@@ -126,6 +126,7 @@ export function useSchedulerData({ startDate, endDate, instructorId }: UseSchedu
           participant_id,
           period_group_id,
           is_period_override,
+          appointment_id,
           tickets!inner (
             status,
             paid_amount,
@@ -361,8 +362,23 @@ export function useSchedulerData({ startDate, endDate, instructorId }: UseSchedu
     }
   }
 
+  // Collapse participant rows that belong to the same private appointment into one block
+  const appointmentNames = new Map<string, string[]>();
+  const seenAppointments = new Set<string>();
+  const collapsedStandalone = standaloneBookings.filter((b) => {
+    const apptId = (b as { appointment_id?: string | null }).appointment_id;
+    if (!apptId) return true;
+    const p = b.customer_participants as unknown as { first_name: string; last_name: string } | null;
+    if (p) appointmentNames.set(apptId, [...(appointmentNames.get(apptId) || []), `${p.first_name} ${p.last_name || ""}`.trim()]);
+    if (seenAppointments.has(apptId)) return false;
+    seenAppointments.add(apptId);
+    return true;
+  });
+
   // Process standalone bookings normally
-  const bookings: SchedulerBooking[] = standaloneBookings.map((b) => {
+  const bookings: SchedulerBooking[] = collapsedStandalone.map((b) => {
+    const appointmentId = (b as { appointment_id?: string | null }).appointment_id || undefined;
+    const apptNames = appointmentId ? appointmentNames.get(appointmentId) : undefined;
     const ticket = b.tickets as unknown as { status: string; paid_amount: number; total_amount: number; master_booking_id: string | null; source?: string | null; reservation_expires_at?: string | null };
     const participant = b.customer_participants as unknown as { first_name: string; last_name: string; sport: string | null } | null;
     
@@ -394,9 +410,13 @@ export function useSchedulerData({ startDate, endDate, instructorId }: UseSchedu
       type: "private" as const,
       isPaid: (ticket?.total_amount || 0) > 0 && (ticket?.paid_amount || 0) >= (ticket?.total_amount || 0),
       ticketId: b.ticket_id,
-      participantName: participant 
-        ? `${participant.first_name} ${participant.last_name || ""}`.trim()
-        : undefined,
+      participantName: apptNames && apptNames.length > 0
+        ? apptNames.join(", ")
+        : participant 
+          ? `${participant.first_name} ${participant.last_name || ""}`.trim()
+          : undefined,
+      appointmentId,
+      appointmentParticipantCount: apptNames?.length,
       status: b.status || "booked",
       ticketStatus: ticket?.status ?? null,
       isProvisional: ticket?.status === "provisional" || ticket?.status === "payment_pending",

@@ -5024,6 +5024,16 @@ export type Database = {
         Args: { p_new_groups: Json; p_source_group_id: string }
         Returns: Json
       }
+      update_private_appointment: {
+        Args: {
+          p_appointment_id: string
+          p_date: string
+          p_instructor_id: string
+          p_time_end: string
+          p_time_start: string
+        }
+        Returns: Json
+      }
       yeti_digits: { Args: { t: string }; Returns: string }
       yeti_normalize: { Args: { t: string }; Returns: string }
     }

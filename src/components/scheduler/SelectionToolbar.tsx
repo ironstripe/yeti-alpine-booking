@@ -22,7 +22,7 @@ interface SelectionToolbarProps {
 
 export function SelectionToolbar({ className, bookings = [] }: SelectionToolbarProps) {
   const navigate = useNavigate();
-  const { state, clearSelection, getTotalHours } = useSchedulerSelection();
+  const { state, clearSelection, getTotalHours, removeSelection } = useSchedulerSelection();
   const isMobileScheduler = useIsMobileScheduler();
   const [isAbsenceDialogOpen, setIsAbsenceDialogOpen] = useState(false);
   const [isOfficeHoursDialogOpen, setIsOfficeHoursDialogOpen] = useState(false);
@@ -55,15 +55,23 @@ export function SelectionToolbar({ className, bookings = [] }: SelectionToolbarP
   };
 
   const handleBookSelected = () => {
-    // Encode appointments as URL parameter
-    const appointments = state.selections.map((s) => ({
-      date: s.date,
-      startTime: s.startTime,
-      durationMinutes: s.durationMinutes,
-    }));
+    // Encode appointments (each with its own instructor) as URL parameter
+    const appointments = [...state.selections]
+      .sort((a, b) => a.date.localeCompare(b.date) || a.startTime.localeCompare(b.startTime))
+      .map((s) => ({
+        date: s.date,
+        startTime: s.startTime,
+        durationMinutes: s.durationMinutes,
+        instructorId: s.instructorId,
+      }));
+
+    // Base instructor = most frequent one (others become per-day overrides)
+    const counts = new Map<string, number>();
+    appointments.forEach((a) => counts.set(a.instructorId, (counts.get(a.instructorId) || 0) + 1));
+    const baseInstructor = [...counts.entries()].sort((a, b) => b[1] - a[1])[0][0];
 
     const params = new URLSearchParams({
-      instructor: state.teacherId!,
+      instructor: baseInstructor,
       appointments: JSON.stringify(appointments),
     });
 
@@ -85,6 +93,34 @@ export function SelectionToolbar({ className, bookings = [] }: SelectionToolbarP
   const handleOfficeHoursSuccess = () => {
     // Toolbar will hide automatically when selection is cleared
   };
+
+  const sortedSelections = [...state.selections].sort(
+    (a, b) => a.date.localeCompare(b.date) || a.startTime.localeCompare(b.startTime)
+  );
+  const plannedList = state.selections.length > 1 && (
+    <div className="mb-2 max-h-40 overflow-y-auto rounded-md border bg-muted/40 p-2 text-xs">
+      <div className="mb-1 font-medium text-foreground">Geplante Termine</div>
+      <ul className="space-y-1">
+        {sortedSelections.map((s) => (
+          <li key={s.id} className="flex items-center justify-between gap-3 text-muted-foreground">
+            <span>
+              {new Date(s.date).toLocaleDateString("de-CH", { weekday: "short", day: "2-digit", month: "2-digit" })}
+              {" · "}
+              {s.startTime}–{s.endTime}
+            </span>
+            <button
+              type="button"
+              aria-label="Termin entfernen"
+              onClick={() => removeSelection(s.id)}
+              className="rounded p-0.5 hover:bg-accent hover:text-foreground"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
 
   const summary = (
     <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
@@ -113,6 +149,7 @@ export function SelectionToolbar({ className, bookings = [] }: SelectionToolbarP
           )}
           style={{ paddingBottom: "calc(12px + env(safe-area-inset-bottom))" }}
         >
+          {plannedList}
           {summary}
           <Button className="mt-3 min-h-12 w-full" onClick={handleBookSelected}>
             Buchung erstellen
@@ -170,7 +207,10 @@ export function SelectionToolbar({ className, bookings = [] }: SelectionToolbarP
         )}
       >
         {/* Selection Info */}
-        {summary}
+        <div className="flex flex-col">
+          {plannedList}
+          {summary}
+        </div>
 
         {/* Divider */}
         <div className="h-6 w-px bg-border" />

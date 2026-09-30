@@ -10,6 +10,9 @@ export type InstructorColor = "red" | "yellow" | "light-blue" | "dark-blue";
 
 export interface SchedulerBooking {
   id: string;
+  /** Canonical private appointment (multi-date private lessons); block represents all its participants */
+  appointmentId?: string;
+  appointmentParticipantCount?: number;
   instructorId: string;
   date: string;
   timeStart: string;

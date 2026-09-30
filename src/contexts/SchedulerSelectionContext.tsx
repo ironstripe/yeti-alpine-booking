@@ -174,7 +174,8 @@ function validateSlotInternal(
 
   // Check for selection overlaps using passed state
   const hasSelectionOverlap = state.selections.some((s) => {
-    if (s.instructorId !== instructorId || s.date !== date) return false;
+    // One booking: no two lessons at the same time, regardless of instructor
+    if (s.date !== date) return false;
     const selStart = timeToMinutes(s.startTime);
     const selEnd = timeToMinutes(s.endTime);
     return startMinutes < selEnd && endMinutes > selStart;
@@ -269,20 +270,15 @@ export function SchedulerSelectionProvider({ children }: { children: ReactNode }
         return { valid: false, reason: "Zeitraum bereits belegt" };
       }
 
-      // Check for selection overlaps (same instructor, same date)
+      // Check for selection overlaps (one booking: no two lessons at the same time, any instructor)
       const hasSelectionOverlap = state.selections.some((s) => {
-        if (s.instructorId !== instructorId || s.date !== date) return false;
+        if (s.date !== date) return false;
         const selStart = timeToMinutes(s.startTime);
         const selEnd = timeToMinutes(s.endTime);
         return startMinutes < selEnd && endMinutes > selStart;
       });
       if (hasSelectionOverlap) {
         return { valid: false, reason: "Überschneidung mit anderer Auswahl" };
-      }
-
-      // Check if all selections are for the same teacher
-      if (state.teacherId && state.teacherId !== instructorId) {
-        return { valid: false, reason: "Nur ein Lehrer pro Buchung" };
       }
 
       return { valid: true };
@@ -292,11 +288,6 @@ export function SchedulerSelectionProvider({ children }: { children: ReactNode }
 
   const addSelection = useCallback(
     (slot: Omit<SlotSelection, "id">): boolean => {
-      // If selecting different teacher, reject
-      if (state.teacherId && state.teacherId !== slot.instructorId) {
-        return false;
-      }
-
       const newSelection: SlotSelection = {
         ...slot,
         id: generateSlotId(),
@@ -389,11 +380,6 @@ export function SchedulerSelectionProvider({ children }: { children: ReactNode }
 
   // Drag selection handlers
   const startDrag = useCallback((instructorId: string, date: string, startTime: string) => {
-    // Check if trying to select for different teacher
-    if (state.teacherId && state.teacherId !== instructorId) {
-      return;
-    }
-    
     setState((prev) => ({
       ...prev,
       drag: {
@@ -689,12 +675,6 @@ export function SchedulerSelectionProvider({ children }: { children: ReactNode }
             selections: newSelections,
             teacherId: newSelections.length === 0 ? null : prev.teacherId,
           };
-        }
-
-        // Check if trying to select for a different teacher
-        if (prev.teacherId && prev.teacherId !== slot.instructorId) {
-          result = { added: false, removed: false, error: "Nur ein Lehrer pro Buchung" };
-          return prev; // No change
         }
 
         // Validate the slot inline using passed state to avoid stale closures

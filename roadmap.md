@@ -12,5 +12,9 @@
 ## Private-lesson appointments (plan 2026-09-30)
 - [x] Stage 1: private_appointments table + ticket_items.appointment_id (additive)
 - [x] Stage 2: backfill dry run — 0 future private items, nothing to backfill
-- [ ] Stage 3: booking creation writes appointments + mirroring (blocked: user decisions 1–4)
-- [ ] Stage 4: Scheduler reads appointments (after Stage 3)
+
+
+- [x] Stage 3: multi-instructor selection → wizard hand-off; no participant split for different-day instructors; creation writes appointments + links items
+- [x] Stage 4 (partial): Scheduler shows one block per appointment; moves via update_private_appointment
+- [ ] Explicit "Mehrfachauswahl" toggle + instructor names/time edit in the side list (Ctrl/Cmd+Click still the entry)
+- [ ] End-to-end test with an office login (blocked: no office account)

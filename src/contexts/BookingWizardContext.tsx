@@ -26,6 +26,8 @@ export interface AppointmentSlot {
   date: string;
   startTime: string;
   durationMinutes: number;
+  /** Optional per-appointment instructor (multi-instructor period plans) */
+  instructorId?: string;
 }
 
 // Track original ticket items for edit mode
@@ -1110,11 +1112,30 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
         }
       }
 
-      // Check if multiple instructors are selected AND multiple participants exist
+      // A different instructor on a different day is a normal period plan.
+      // Only propose a participant split when two instructors teach SIMULTANEOUSLY
+      // (same date, overlapping time).
       const uniqueInstructorIds = [...instructorCounts.keys()];
       let privateGroupProposal = prev.privateGroupProposal;
+      const toMin = (t: string) => {
+        const [h, m] = t.split(":").map(Number);
+        return h * 60 + (m || 0);
+      };
+      const hasSimultaneousInstructors = sortedSlots.some((a, i) =>
+        sortedSlots.some(
+          (b, j) =>
+            j > i &&
+            a.date === b.date &&
+            a.instructorId !== b.instructorId &&
+            toMin(a.startTime) < toMin(b.endTime) &&
+            toMin(b.startTime) < toMin(a.endTime)
+        )
+      );
+      if (!hasSimultaneousInstructors && uniqueInstructorIds.length > 1) {
+        privateGroupProposal = null;
+      }
 
-      if (uniqueInstructorIds.length > 1 && prev.selectedParticipants.length > 1) {
+      if (hasSimultaneousInstructors && uniqueInstructorIds.length > 1 && prev.selectedParticipants.length > 1) {
         // Build a privateGroupProposal: split participants across instructors
         const participantIds = prev.selectedParticipants.map(p => p.id);
         const groups = uniqueInstructorIds.map((instrId, idx) => {
@@ -1218,32 +1239,46 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
     // Calculate dayTimeOverrides for appointments that differ from base (as TimeBlock arrays)
     const dayTimeOverrides: Record<string, TimeBlock[]> = {};
     
-    // Group time selections by date
-    const selectionsByDate = new Map<string, TimeSelection[]>();
-    for (const ts of timeSelections) {
+    // Group time selections by date (keep each appointment's own instructor)
+    const dayInstructorOverrides: Record<string, string | null> = {};
+    const selectionsByDate = new Map<string, Array<TimeSelection & { instructorId?: string }>>();
+    timeSelections.forEach((ts, idx) => {
       const existing = selectionsByDate.get(ts.date) || [];
-      selectionsByDate.set(ts.date, [...existing, ts]);
-    }
+      selectionsByDate.set(ts.date, [...existing, { ...ts, instructorId: appointments[idx]?.instructorId }]);
+    });
     
     // Build time blocks for each date
     for (const [date, selectionsOnDate] of selectionsByDate) {
       const blocks: TimeBlock[] = [];
       for (const ts of selectionsOnDate) {
-        // Only add if different from base time OR if multiple blocks on same day
+        const blockInstructorId =
+          ts.instructorId && ts.instructorId !== instructorId ? ts.instructorId : undefined;
+        // Add if different from base time/instructor OR if multiple blocks on same day
         if (
           selectionsOnDate.length > 1 ||
           ts.startTime !== baseStartTime ||
-          ts.endTime !== baseEndTime
+          ts.endTime !== baseEndTime ||
+          blockInstructorId
         ) {
           blocks.push({
             id: `tb-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
             startTime: ts.startTime,
             endTime: ts.endTime,
+            instructorId: blockInstructorId,
           });
         }
       }
       if (blocks.length > 0) {
         dayTimeOverrides[date] = blocks;
+      }
+      // Different instructor on a different day = normal period plan (no participant split)
+      const dayInstr = selectionsOnDate[0].instructorId;
+      if (
+        dayInstr &&
+        dayInstr !== instructorId &&
+        selectionsOnDate.every((s) => s.instructorId === dayInstr)
+      ) {
+        dayInstructorOverrides[date] = dayInstr;
       }
     }
     
@@ -1263,6 +1298,8 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
         // Populate per-day time fields for BookingTimeGrid and PeriodDayPlanner
         timeSelections,
         dayTimeOverrides,
+        dayInstructorOverrides,
+        privateGroupProposal: null, // per-day instructors are a period plan, not a split
         assignLater: false, // Instructor is already assigned from scheduler
       };
       // Keep the active cart item snapshot in sync so the prefill survives cart switches
