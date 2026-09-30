@@ -1,93 +1,112 @@
-# B+ Phase 1: Website-Buchungen auf Rechnung sofort verbindlich
+# B+ Phase 1: Website-Buchungen auf Rechnung sofort verbindlich (revidiert)
 
 ## Ziel
-Für `payment_method = "invoice"` gilt: Sobald der Gast `confirm-booking` erfolgreich abschliesst, ist die Buchung verbindlich. Core erstellt genau eine offene Rechnung und verschickt serverseitig automatisch zwei E-Mails: die Buchungsbestätigung und die Rechnung. Das Büro muss nichts freigeben, kann die Buchung aber später wie gewohnt bearbeiten.
+Bei `payment_method = "invoice"` wird die Buchung verbindlich, sobald der Gast `confirm-booking` erfolgreich abschliesst. Core erstellt dabei genau eine offene Rechnung und verschickt serverseitig zwei E-Mails: die Buchungsbestätigung und eine Rechnungsmitteilung. Eine Freigabe durch das Büro ist nicht nötig. Das Büro kann die Buchung später wie bisher bearbeiten.
 
 ## Ausgangslage (geprüft)
-- `confirm-booking` finalisiert Kunde und Teilnehmende über `finalize_provisional_reservation`. Danach setzt die Funktion den Status `invoice_pending`, erstellt über `issueInvoice` eine offene Rechnung und verschickt **keine** E-Mail.
-- E-Mails gehen heute direkt an Resend (`submit-booking-request`, `send-notification`) und werden in `email_logs` protokolliert. `email_logs` hat keine Verknüpfung zum Ticket oder zur Rechnung, nur `metadata`.
-- Aktive Vorlagen gibt es bereits: `booking.confirmed` („Buchungsbestätigung - {{ticket_number}}“) und `invoice.created` („Rechnung {{invoice.number}} …“).
-- `send-notification` läuft mit `verify_jwt = false` und bleibt unverändert. Der neue Weg ruft diese Funktion nicht auf.
+- `confirm-booking` finalisiert heute Kunde und Teilnehmende, setzt den Status `invoice_pending`, erstellt über `issueInvoice` eine offene Rechnung und verschickt keine E-Mail.
+- Die Vorlage `booking.confirmed` ist aktiv. Sie nutzt die Variablen `ticket_number`, `customer_salutation`, `customer_last_name`, `product_name`, `booking_date`, `booking_time` und `meeting_point`.
+- Die Vorlage `invoice.created` ist aktiv. Sie nutzt `invoice.number`, `invoice.total`, `invoice.due_date`, `customer.first_name`, `customer.last_name` und `school.name`. Ihr Text enthält **heute Zahlungsangaben** (Treffer auf IBAN/QR/Konto/Überweisung).
+- `send-notification` bleibt unverändert und wird nicht verwendet.
 
 ## Umfang
 
-**1. Verbindlicher Status**
-- Neue Rechnungsbuchungen aus `confirm-booking` bekommen `status = "confirmed"`, `payment_method = "invoice"` und ein Fälligkeitsdatum.
-- Das Geld gilt damit **nicht** als bezahlt: `paid_amount` bleibt unverändert, und die offene Rechnung zeigt, dass noch gezahlt werden muss.
-- Die Antwort an den Onepager meldet `status: "confirmed"`, `payment_status: "invoice_open"`, die Rechnungsnummer und das Fälligkeitsdatum.
-- Wiederholte Aufrufe liefern weiterhin `already_confirmed`. Das gilt auch für bestehende `invoice_pending`-Tickets, die nicht umgestellt werden.
-- Onlinezahlung, Ablauf und Stornierung von Reservationen bleiben unverändert.
+**1. Verbindlicher Status (nur neue Rechnungsbuchungen)**
+- `confirm-booking` setzt im Rechnungszweig `status = "confirmed"`, `payment_method = "invoice"` und das Fälligkeitsdatum. `paid_amount` bleibt unverändert, die offene Rechnung bleibt offen.
+- Die Antwort an den Onepager lautet `status: "confirmed"`, `payment_status: "invoice_open"`, dazu Rechnungsnummer und Fälligkeitsdatum.
+- Wiederholte Aufrufe ergeben weiterhin `already_confirmed`.
+- Bestehende `invoice_pending`-Tickets bleiben unverändert. Es gibt keine Umstellung und keine Nachsendung.
+- Onlinezahlung sowie Ablauf und Stornierung von Reservationen bleiben unverändert.
 
-**2. Dauerhaftes Versandprotokoll (Punkt 3, fortgesetzt)**
-Neue additive Tabelle `booking_email_deliveries`, verknüpft mit Ticket und Rechnung. Sie legt dauerhaft fest, dass pro Buchung jede Mail-Art genau einmal zugestellt wird, und hält jeden Versuch nachvollziehbar fest. `email_logs` bleibt als Protokoll pro Versandversuch bestehen und wird verknüpft.
+**2. Dauerhaftes Versandprotokoll**
+- Neue Tabelle `booking_email_deliveries` mit genau einem Eintrag pro Buchung und Mail-Art (`booking_confirmation`, `invoice`), verknüpft mit Ticket und Rechnung.
+- Jeder Eintrag hat einen eindeutigen `idempotency_key`.
+- Statuswechsel laufen atomar: `pending → sending → sent | failed`.
 
-**3. Serverseitiger Versand mit Wiederholung**
-- `confirm-booking` legt beide Versandeinträge an und versucht den Versand sofort.
-- Scheitert der Versand, bleibt die Buchung trotzdem erfolgreich. Der Eintrag bleibt dann `failed` und wird automatisch erneut versucht.
-- In dieser Phase gibt es keinen automatischen Zeitplan-Job. Fehlgeschlagene Mails bleiben `failed` (mit Fehlertext und Versuchszähler) und werden vom Büro per „Erneut senden“ ausgelöst, bis zu 5 Versuche.
+**3. Versand nur einmal und nur serverseitig**
+- `confirm-booking` legt beide Einträge an und versucht jeden genau einmal.
+- Scheitert der Versand, bleibt die Buchung trotzdem erfolgreich und der Eintrag steht auf `failed`.
+- Es gibt keine automatische Wiederholung, keinen Cron und keinen Worker.
 
-**4. Kleine Büro-Anzeige**
-- In der Buchungsdetailansicht erscheint eine Zeile „E-Mail-Versand“ mit dem Status von Bestätigung und Rechnung: gesendet, fehlgeschlagen oder ausstehend.
-- Dazu gibt es einen Knopf „Erneut senden“, nur für Büro und Admin.
-- Sonst ändert sich an den Buchungsschritten im Büro nichts.
+**4. Manuelles „Erneut senden“ nur für Büro/Admin**
+- In der Buchungsdetailansicht erscheint eine Zeile „E-Mail-Versand“ mit dem Status beider Mails und dem Fehlertext.
+- Der Knopf „Erneut senden“ ist nur für Büro und Admin sichtbar und nur bei `failed` aktiv.
+- Fehlt die Vorlage oder ist sie inaktiv bzw. nicht konform, bleibt der Knopf deaktiviert. Der Hinweis lautet dann „Vorlage fehlt oder ist nicht freigegeben“.
+
+**5. Inhalt der Mails**
+- **Bestätigung:** nur die dokumentierten Variablen der Vorlage `booking.confirmed`.
+- **Rechnung:** nur Rechnungsnummer, Gesamtbetrag, Fälligkeitsdatum sowie Name und Schule.
+- Nicht enthalten sind QR, IBAN, Zahlungsreferenz, Zahlungslink, PDF oder Zahlungsanweisungen.
 
 ## Nicht geändert
-Scheduler, Privatlektionen, Buchungsassistent und manuelle Abläufe im Büro, Inbox, Vermietung, Onlinezahlung, Ablauf und Stornierung von Reservationen, `send-notification`, `create-reservation`, Rechnungsmodell und `issueInvoice`. Der Onepager wird erst nach dieser Phase angepasst.
+Scheduler, Privatlektionen, der Buchungsassistent und manuelle Abläufe im Büro, Inbox, Vermietung, Onlinezahlung, Ablauf und Stornierung von Reservationen, `send-notification`, `create-reservation`, das Rechnungsmodell, `issueInvoice` und bestehende `invoice_pending`-Tickets. Den Onepager passe ich erst nach dieser Phase an.
 
 ## Technische Details
 
-**Migration (additiv, Rollback-Skript `supabase/rollback/bplus_phase1_rollback.sql`)**
+**Migration (additiv; Rollback in `supabase/rollback/bplus_phase1_rollback.sql`)**
 ```text
 booking_email_deliveries
-  id uuid pk, ticket_id uuid not null -> tickets, invoice_id uuid null -> invoices
+  id uuid pk
+  ticket_id uuid not null -> tickets
+  invoice_id uuid null -> invoices
   kind text not null check (kind in ('booking_confirmation','invoice'))
-  recipient_email text not null
+  idempotency_key text not null unique       -- 'ticket:<ticket_id>:<kind>'
   status text not null default 'pending'
-    check (status in ('pending','sending','sent','failed','skipped_test'))
-  attempts int not null default 0, next_attempt_at timestamptz default now()
-  last_error text, provider_message_id text, email_log_id uuid -> email_logs
-  sent_at timestamptz, created_at, updated_at
+    check (status in ('pending','sending','sent','failed'))
+  attempts int not null default 0
+  last_error_code text, last_error text
+  template_id uuid null, email_log_id uuid null -> email_logs
+  provider_message_id text, sent_at timestamptz
+  created_at, updated_at (Trigger update_updated_at_column)
   unique (ticket_id, kind)
 ```
-- Grants: `ALL` an service_role, `SELECT` an authenticated. RLS mit einer SELECT-Policy `is_admin_or_office(auth.uid())`. Kein anon-Zugriff, keine Schreibrechte für den Browser.
-- Neue Spalte `email_logs.delivery_id uuid null`, additiv.
+- Grants: `ALL` für `service_role`, `SELECT` für `authenticated`. RLS-Policy `SELECT` nur mit `is_admin_or_office(auth.uid())`. Kein Zugriff für anon, keine Schreibrechte aus dem Browser.
+- `email_logs` erhält die additive Spalte `delivery_id uuid null`.
 
-**Neue geteilte Datei `_shared/bookingDelivery.ts`**
-- `ensureDeliveries(ticket, invoice, email)`: legt beide Einträge mit `ON CONFLICT DO NOTHING` an.
-- `attemptDelivery(id)`:
-  - atomarer Claim `pending|failed → sending` mit `attempts < 5` und `next_attempt_at <= now()`;
-  - lädt die Vorlage (`booking.confirmed` bzw. `invoice.created`) und füllt sie HTML-escaped mit Serverdaten aus Ticket, Positionen, Rechnung und `payment_snapshot` (Betrag, Fälligkeit, Zahlungsreferenz/IBAN);
-  - Resend-Aufruf mit `Idempotency-Key: ticket-<id>-<kind>`, Absender wie bisher;
-  - `@smoke.invalid` ergibt `skipped_test`;
-  - schreibt die Zeile in `email_logs`;
-  - bei Erfolg `sent`; bei der Rechnung zusätzlich `invoices.sent_at`;
-  - bei Fehler `failed` mit Backoff 5, 15, 60 und 240 Minuten.
-- Keine PDF-Anlage. Die Rechnungsmail enthält die Zahlungsangaben aus dem unveränderlichen Snapshot.
+**Neues Shared-Modul `_shared/bookingDelivery.ts`**
+- `ensureDeliveries(ticketId, invoiceId)`: Insert mit `ON CONFLICT (idempotency_key) DO NOTHING`.
+- `attemptDelivery(id, {manual})`:
+  - Atomarer Claim `UPDATE … SET status='sending', attempts=attempts+1 WHERE id=$1 AND status IN ('pending'[, 'failed' nur bei manual]) RETURNING *`. Ohne Treffer gibt es keinen Versand.
+  - Vorlage per `trigger` laden. Fehlt sie oder ist sie inaktiv, wird `failed` mit `template_missing` gesetzt, ohne Fallback-Text.
+  - Konformitätsprüfung der Rechnungsvorlage: Enthält sie andere Variablen als die erlaubten oder Zahlungswörter (IBAN/QR/Konto/Überweisung/Zahlungslink), wird `failed` mit `template_not_compliant` gesetzt und nichts versendet.
+  - Variablen als flache Key/Value-Map, Werte HTML-escaped und ausschliesslich aus Serverdaten. Die Schlüssel entsprechen exakt den dokumentierten Platzhaltern, auch den Namen mit Punkt wie `invoice.number`. Unbekannte Platzhalter führen zu `failed`, mit Fehlercode `template_unknown_variable`.
+  - Resend-Aufruf mit `Idempotency-Key = idempotency_key` und dem bisherigen Absender. Pro Aufruf wird eine Zeile in `email_logs` geschrieben.
+  - Bei Erfolg wird `sent` gesetzt. Bei der Rechnung zusätzlich `invoices.sent_at`.
+  - Bei einem Fehler wird `failed` mit Code und Text gesetzt. Es gibt keine Zeitsteuerung und kein `next_attempt_at`.
 
-**`confirm-booking` (nur der Rechnungszweig)**
-- Status `confirmed` statt `invoice_pending`.
-- Nach der Rechnung werden `ensureDeliveries` und `attemptDelivery` für beide Einträge aufgerufen, jeweils mit try/catch, sodass die Buchungsantwort nie scheitert.
-- Die Antwort ergänzt `delivery: { booking_confirmation, invoice }` mit Statuswerten, ohne personenbezogene Daten.
+**`confirm-booking` (nur im Rechnungszweig)**
+- Setzt `confirmed` statt `invoice_pending`.
+- Nach der Rechnung laufen `ensureDeliveries` und je ein `attemptDelivery`, jeweils in einem eigenen try/catch. Ein Versandfehler lässt die Buchungsantwort nicht scheitern.
+- Die Antwort ergänzt `delivery: { booking_confirmation: status, invoice: status }` und enthält keine personenbezogenen Daten.
 
-**Neue Funktion `retry-booking-deliveries`** (`verify_jwt = false`, Autorisierung im Code)
-- Nur Aufruf aus dem Büro: `requireRole(['office','admin'])` mit einer `delivery_id`; versucht sofort erneut (Claim wie oben, max. 5 Versuche).
-- Kein pg_cron, kein `net.http_post`, kein Cron-Secret in dieser Phase.
+**Neue Funktion `retry-booking-delivery`**
+- `verify_jwt = true` in `supabase/config.toml`.
+- Zusätzlich im Code `requireRole(['office','admin'])`. Ohne Token gibt es 401, für Lehrperson oder Nutzer ohne Rolle 403.
+- Body `{ delivery_id: uuid }`, validiert mit zod.
+- Nur Einträge mit `failed` sind zulässig, sonst kommt 409. Liegt `template_missing` oder `template_not_compliant` weiterhin vor, gibt es 409 `template_not_configured`, ohne Statuswechsel.
+- Ruft `attemptDelivery(id, {manual:true})` mit demselben `idempotency_key` auf.
 
 **Frontend**
-- `BookingDetail.tsx` liest `booking_email_deliveries` (RLS: nur Büro) und ruft für „Erneut senden“ `supabase.functions.invoke('retry-booking-deliveries')` auf.
+- `BookingDetail.tsx` liest `booking_email_deliveries` (RLS: nur Büro) und ruft `supabase.functions.invoke('retry-booking-delivery')` auf.
+
+## Voraussetzung vor Versand der Rechnungsmail
+Die aktive Vorlage `invoice.created` enthält heute Zahlungsangaben und würde deshalb als `template_not_compliant` abgelehnt. Sie muss durch das Büro angepasst werden. Wahlweise passe ich nach deiner Freigabe den Vorlagentext an: nur noch Nummer, Betrag, Fälligkeit, Name und Schule. Bis dahin bleibt die Rechnungsmail `failed`, und „Erneut senden“ ist deaktiviert. Die Buchungsbestätigung ist davon nicht betroffen.
 
 ## Tests
-- **Deno-Unit:** Variablenbefüllung/Escaping, Backoff, Claim-Logik für einen schon gesendeten Eintrag (kein zweiter Versand).
-- **Staging-Matrix mit `@smoke.invalid` und synthetischen Daten**, ohne echten Versand:
-  - T1 Rechnungsbuchung ergibt `confirmed`, 1 offene Rechnung, 2 Einträge `skipped_test`.
-  - T2 Replay von `confirm-booking` ergibt `already_confirmed`, weiterhin 1 Rechnung und 2 Einträge.
-  - T3 Simulierter Provider-Fehler ergibt `failed` mit `next_attempt_at`; der Retry-Job sendet genau einmal.
-  - T4 Onlinezahlung ist unverändert: keine Einträge, keine Rechnung.
-  - T5 Abgelaufene Reservation ergibt 410, keine Einträge.
-  - T6 `retry-booking-deliveries` ohne Secret bzw. mit Lehrperson ergibt 401/403; Büro-Retry funktioniert.
-  - T7 anon/authenticated ohne Büro-Rolle kann `booking_email_deliveries` nicht lesen.
-- Build, Lint und bestehende Tests laufen. Nichts wird veröffentlicht.
+- **Deno-Unit:** flache Variablenbefüllung mit Escaping, unbekannte Variable → failed, fehlende oder inaktive Vorlage → failed ohne Fallback, Konformitätsprüfung, Claim verhindert Doppelversand.
+- **Staging** mit synthetischen Daten an eine von dir freigegebene Testadresse (ohne Freigabe kein Versand):
+  - T1: Eine Rechnungsbuchung ergibt `confirmed`, 1 offene Rechnung und 2 Einträge.
+  - T2: Ein Replay von `confirm-booking` ergibt `already_confirmed`, weiterhin 1 Rechnung und 2 Einträge ohne erneuten Versand.
+  - T3: Ist die Vorlage inaktiv, steht der Eintrag auf `failed` mit `template_missing`, und der Retry antwortet mit 409.
+  - T4: Ein Provider-Fehler ergibt `failed`. Der Retry durch das Büro sendet genau einmal. Ein paralleler Doppel-Retry sendet nur einmal.
+  - T5: Onlinezahlung ist unverändert, es entstehen keine Einträge.
+  - T6: Eine abgelaufene Reservation ergibt 410, es entstehen keine Einträge.
+  - T7: Retry ohne JWT ergibt 401, als Lehrperson oder Nutzer ohne Rolle 403.
+  - T8: anon oder Nutzer ohne Büro-Rolle können die Tabelle nicht lesen.
+  - T9: Ein bestehendes `invoice_pending`-Ticket bleibt unverändert.
+- Build, Lint und die bestehenden Tests laufen. Nichts wird veröffentlicht.
 
 ## Offene Punkte
-- Ein echter Zustelltest an eine reale Adresse braucht deine Freigabe.
-- Office-Klicktest ist blockiert, weil kein Büro-Login vorhanden ist.
+- Anpassung der Vorlage `invoice.created`: durch das Büro oder durch mich nach deiner Freigabe.
+- Testadresse für den Staging-Versand.
+- Ein Klicktest im Büro ist ohne Büro-Login nicht möglich.
