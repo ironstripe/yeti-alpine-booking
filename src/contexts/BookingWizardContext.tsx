@@ -1269,6 +1269,7 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
         miniSchedulerSelections: [], // Clear after applying
       };
     });
+    return null;
   };
 
   const prefillFromScheduler = async (instructorId: string, appointments: AppointmentSlot[]) => {
