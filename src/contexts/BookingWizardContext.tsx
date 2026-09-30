@@ -650,7 +650,13 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
 
   const setSelectedDates = (dates: string[]) => {
     setState((prev) => {
-      const newState = { ...prev, selectedDates: dates };
+      let newState = { ...prev, selectedDates: dates };
+      // Reconcile canonical private plan: drop blocks on removed dates (no orphans).
+      if (prev.appointments) {
+        const kept = prev.appointments.filter((a) => dates.includes(a.date));
+        const derived = deriveFromPlan(kept, prev.instructorId);
+        newState = { ...newState, ...derived, selectedDates: [...dates].sort(), appointments: kept };
+      }
       
       // Sync to participant bookings if in individual mode
       if (prev.useParticipantSpecificBooking && Object.keys(prev.participantBookings).length > 0) {
@@ -699,10 +705,30 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
       if (!appointments) {
         return { ...prev, appointments: null };
       }
-      // Also derive selectedDates from appointments
-      const dates = [...new Set(appointments.map((a) => a.date))];
-      return { ...prev, appointments, selectedDates: dates };
+      const list = sortPlan(appointments);
+      return { ...prev, ...deriveFromPlan(list, prev.instructorId), appointments: list };
     });
+  };
+
+  /** Only editor entry point for the canonical private plan. Invalid edits are rejected, draft kept. */
+  const updatePlannedAppointments = (next: AppointmentSlot[]): string | null => {
+    const error = validatePlan(next);
+    if (error) return error;
+    setState((prev) => {
+      const list = sortPlan(next);
+      const derived = deriveFromPlan(list, prev.instructorId);
+      // Keep dates that were picked but have no block yet (no invented defaults).
+      const keptEmpty = prev.selectedDates.filter(
+        (d) => !derived.selectedDates.includes(d) && prev.appointments?.some((a) => a.date === d) !== true
+      );
+      return {
+        ...prev,
+        ...derived,
+        selectedDates: [...derived.selectedDates, ...keptEmpty].sort(),
+        appointments: list,
+      };
+    });
+    return null;
   };
 
   const movePlannedDate = (fromDate: string, toDate: string) => {
@@ -1198,11 +1224,33 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
       // Clear base instructor when multi-group proposal is active
       const isMultiGroup = privateGroupProposal && privateGroupProposal.groups.length > 1;
 
+      if (!isMultiGroup) {
+        // Canonical plan: one record per merged real block, each with its own instructor.
+        const appointments: AppointmentSlot[] = sortPlan(
+          mergedRanges.map((r) => ({
+            date: r.date,
+            startTime: r.startTime,
+            durationMinutes: toMin(r.endTime) - toMin(r.startTime),
+            instructorId: r.instructorId,
+          }))
+        );
+        return {
+          ...prev,
+          ...deriveFromPlan(appointments, baseInstructorId),
+          appointments,
+          instructorId: baseInstructorId,
+          instructor: prev.instructor?.id === baseInstructorId ? prev.instructor : null,
+          privateGroupProposal,
+          miniSchedulerSelections: [],
+        };
+      }
+
       return {
         ...prev,
         selectedDates: dates,
-        instructorId: isMultiGroup ? null : baseInstructorId,
-        instructor: isMultiGroup ? null : prev.instructor,
+        appointments: null,
+        instructorId: null,
+        instructor: null,
         timeSlot: `${baseStartTime} - ${baseEndTime}`,
         duration,
         timeSelections,
