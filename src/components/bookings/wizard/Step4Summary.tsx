@@ -79,7 +79,7 @@ export function Step4Summary({ onEditStep }: Step4SummaryProps) {
     return check2x2hDiscount(state.duration, state.selectedDates, state.appointments);
   }, [state.productType, state.duration, state.selectedDates, state.appointments]);
 
-  // Mirrors useCreateBooking: private bookings saved via the server path do not accept discounts.
+  // Mirrors useCreateBooking: server-priced private path (manual discount only, no auto 2x2h).
   const usesServerPrivatePath =
     !state.isEditMode &&
     state.productType === "private" &&
@@ -240,14 +240,12 @@ export function Step4Summary({ onEditStep }: Step4SummaryProps) {
         autoDiscountReason={autoDiscountReason}
       />
 
-      {/* Discount — not offered on the server-priced private path (server rejects discounts there) */}
-      {!usesServerPrivatePath && (
-        <DiscountSection
-          discountPercent={discountPercent}
-          discountReason={discountReason}
-          onDiscountChange={handleDiscountChange}
-        />
-      )}
+      {/* Manual discount — on the private server path the server applies it to every appointment line */}
+      <DiscountSection
+        discountPercent={discountPercent}
+        discountReason={discountReason}
+        onDiscountChange={handleDiscountChange}
+      />
 
       <Separator />
 

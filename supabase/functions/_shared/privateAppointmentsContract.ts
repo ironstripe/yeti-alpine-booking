@@ -26,6 +26,8 @@ export const RequestSchema = z.discriminatedUnion("action", [
     notes: z.string().max(2000).optional(),
     appointments: z.array(slot).min(1).max(60),
     participants: z.array(participant).min(1).max(4),
+    discount_percent: z.number().min(0).max(100).optional(),
+    discount_reason: z.string().trim().max(500).optional(),
   }),
   z.object({
     action: z.literal("move"),
@@ -38,7 +40,12 @@ export const RequestSchema = z.discriminatedUnion("action", [
     changes: z.object({ time_start: time.optional(), time_end: time.optional(), instructor_id: uuid.optional() })
       .refine((c) => Object.keys(c).length > 0, "at least one change"),
   }),
-]);
+]).superRefine((v, ctx) => {
+  // A non-zero manual discount always needs a reason.
+  if (v.action === "create" && (v.discount_percent ?? 0) > 0 && !v.discount_reason) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["discount_reason"], message: "required when discount_percent > 0" });
+  }
+});
 export type PaRequest = z.infer<typeof RequestSchema>;
 
 /** Maps a DB function result ({ok} or {error}) to an HTTP status. */

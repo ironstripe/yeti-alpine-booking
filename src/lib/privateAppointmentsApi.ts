@@ -67,6 +67,7 @@ export interface PaSlot { date: string; time_start: string; time_end: string; in
 export const paCreate = (p: {
   submission_key: string; customer_id: string; product_id: string; notes?: string;
   appointments: PaSlot[]; participants: PaParticipant[];
+  discount_percent?: number; discount_reason?: string;
 }) => call<{ ticket_id: string; ticket_number: string; appointment_ids: string[]; total: number; replayed?: boolean }>(
   { action: "create", ...p },
 );
