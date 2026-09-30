@@ -26,7 +26,7 @@ import {
 } from "@/components/bookings/BookingChangeConfirmDialog";
 import { PeriodModificationDialog, type PeriodModificationScope } from "./PeriodModificationDialog";
 import { usePeriodModification } from "@/hooks/usePeriodModification";
-import { useIsTouchDevice, useIsMobileScheduler } from "@/hooks/use-touch-device";
+import { useIsMobileScheduler } from "@/hooks/use-touch-device";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { MobileSlotContext, type MobileSlotTapPayload } from "./mobile/MobileSlotContext";
 import { MobileSlotSheet } from "./mobile/MobileSlotSheet";
@@ -45,7 +45,6 @@ const STORAGE_KEY = 'scheduler-instructor-col-width';
 function SchedulerGridContent() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const isTouch = useIsTouchDevice();
   const isMobile = useIsMobile();
   const isMobileScheduler = useIsMobileScheduler();
   const [mobileView, setMobileView] = useState<"list" | "grid">(() =>
