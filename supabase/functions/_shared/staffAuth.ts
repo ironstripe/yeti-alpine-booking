@@ -19,7 +19,7 @@ function deny(message: string, status: number, cors: Record<string, string>) {
  */
 export async function requireRole(
   req: Request,
-  allowed: Array<"admin" | "office" | "teacher">,
+  allowed: Array<"admin" | "office" | "teacher" | "super_admin">,
   cors: Record<string, string> = baseCors,
 ): Promise<{ userId: string } | Response> {
   const authHeader = req.headers.get("Authorization") ?? "";
