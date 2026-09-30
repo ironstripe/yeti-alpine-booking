@@ -44,6 +44,7 @@ import { MiniSchedulerGrid } from "./MiniSchedulerGrid";
 import { SlotBookingPopover, type SlotBookingData } from "./SlotBookingPopover";
 import { GroupSelector } from "./GroupSelector";
 import { PeriodDayPlanner } from "./PeriodDayPlanner";
+import { PlannedAppointmentsCard } from "./PlannedAppointmentsCard";
 import { LunchSupervisionAddon } from "./LunchSupervisionAddon";
 import { ParticipantBookingCard } from "./ParticipantBookingCard";
 import {
@@ -645,8 +646,15 @@ export function Step2ProductAllocation() {
               </div>
             )}
 
-            {/* Period Day Planner - Show immediately for multi-day private lessons */}
-            {state.productType === "private" && state.selectedDates.length > 1 && (
+            {/* Canonical plan editor: the only editor once a private plan exists */}
+            {state.productType === "private" && state.appointments !== null && (
+              <div className="mt-3">
+                <PlannedAppointmentsCard />
+              </div>
+            )}
+
+            {/* Legacy Period Day Planner - only when no canonical plan exists */}
+            {state.productType === "private" && state.appointments === null && state.selectedDates.length > 1 && (
               <div className="mt-3">
                 <PeriodDayPlanner
                   selectedDates={state.selectedDates}

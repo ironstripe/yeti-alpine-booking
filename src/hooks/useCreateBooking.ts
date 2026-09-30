@@ -5,6 +5,7 @@ import { createInitialComments } from "./useTicketComments";
 import { isImmediateMethod } from "@/lib/finance";
 import { logTicketEvent } from "@/lib/ticket-audit";
 import { paCreate, type PaParticipant, type PaSlot } from "@/lib/privateAppointmentsApi";
+import { endOf, sortPlan, validatePlan } from "@/lib/privatePlan";
 
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
@@ -200,9 +201,27 @@ export function useCreateBooking() {
         if (state.includeLunch) throw new Error("Mittagessen kann bei Privatstunden noch nicht mitgebucht werden.");
         if (state.discountPercent) throw new Error("Rabatte auf Privatstunden sind in diesem Schritt noch nicht möglich.");
 
+        const appointments: PaSlot[] = [];
+        if (state.appointments) {
+          // Canonical plan: payload is built 1:1 from the real lessons, nothing reconstructed.
+          if (state.appointments.length === 0) throw new Error("Bitte mindestens einen Termin planen.");
+          const planError = validatePlan(state.appointments);
+          if (planError) throw new Error(planError);
+          for (const a of sortPlan(state.appointments)) {
+            if (!state.selectedDates.includes(a.date)) throw new Error(`Termin am ${a.date} gehört zu keinem gewählten Datum.`);
+            const instr = a.instructorId || state.instructorId;
+            if (!instr) throw new Error(`Bitte für ${a.date} ${a.startTime} eine Lehrperson wählen.`);
+            appointments.push({
+              date: a.date,
+              time_start: a.startTime.slice(0, 5),
+              time_end: endOf(a),
+              instructor_id: instr,
+              ...(state.meetingPoint ? { meeting_point: state.meetingPoint } : {}),
+            });
+          }
+        } else {
         const baseStart = state.timeSlot?.split(" - ")[0] || "10:00";
         const baseEnd = state.timeSlot?.split(" - ")[1] || "12:00";
-        const appointments: PaSlot[] = [];
         for (const dateStr of [...state.selectedDates].sort()) {
           const ts = state.timeSelections?.find((t) => t.date === dateStr);
           const dayInstr = state.dayInstructorOverrides?.[dateStr];
@@ -220,6 +239,7 @@ export function useCreateBooking() {
               ...(state.meetingPoint ? { meeting_point: state.meetingPoint } : {}),
             });
           }
+        }
         }
         const participants: PaParticipant[] = state.selectedParticipants.map((pt) =>
           pt.id.startsWith("guest-")
