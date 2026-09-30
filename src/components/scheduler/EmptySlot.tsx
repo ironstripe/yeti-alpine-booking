@@ -298,7 +298,7 @@ export function EmptySlot({
       ]),
     });
     navigate(`/bookings/new?${params.toString()}`);
-  }, [isInvalidDropZone, timeSlot, canSelectSlot, instructorId, date, bookings, absences, clearSelection, navigate, isMobileScheduler, getFreeWindowEnd, onFreeSlotTap]);
+  }, [isInvalidDropZone, timeSlot, canSelectSlot, instructorId, date, bookings, absences, navigate, isMobileScheduler, getFreeWindowEnd, onFreeSlotTap]);
 
   const handleTouchStart = (e: React.TouchEvent) => {
     if (!usesMobilePath) return;
