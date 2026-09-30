@@ -2169,6 +2169,213 @@ export type Database = {
           },
         ]
       }
+      instructor_deployment_windows: {
+        Row: {
+          created_at: string
+          id: string
+          import_run_id: string | null
+          instructor_id: string
+          source: string
+          valid_from: string
+          valid_until: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          import_run_id?: string | null
+          instructor_id: string
+          source: string
+          valid_from: string
+          valid_until: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          import_run_id?: string | null
+          instructor_id?: string
+          source?: string
+          valid_from?: string
+          valid_until?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "instructor_deployment_windows_import_run_id_fkey"
+            columns: ["import_run_id"]
+            isOneToOne: false
+            referencedRelation: "instructor_import_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "instructor_deployment_windows_instructor_id_fkey"
+            columns: ["instructor_id"]
+            isOneToOne: false
+            referencedRelation: "instructors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      instructor_hr_private: {
+        Row: {
+          ahv_raw: string | null
+          bank_raw: string | null
+          instructor_id: string
+          source_import_run_id: string | null
+          unresolved: Json
+          updated_at: string
+          wage_raw: string | null
+        }
+        Insert: {
+          ahv_raw?: string | null
+          bank_raw?: string | null
+          instructor_id: string
+          source_import_run_id?: string | null
+          unresolved?: Json
+          updated_at?: string
+          wage_raw?: string | null
+        }
+        Update: {
+          ahv_raw?: string | null
+          bank_raw?: string | null
+          instructor_id?: string
+          source_import_run_id?: string | null
+          unresolved?: Json
+          updated_at?: string
+          wage_raw?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "instructor_hr_private_instructor_id_fkey"
+            columns: ["instructor_id"]
+            isOneToOne: true
+            referencedRelation: "instructors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "instructor_hr_private_source_import_run_id_fkey"
+            columns: ["source_import_run_id"]
+            isOneToOne: false
+            referencedRelation: "instructor_import_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      instructor_import_runs: {
+        Row: {
+          applied_at: string | null
+          counts: Json
+          created_at: string
+          created_by: string
+          id: string
+          rollout: string
+          source_system: string
+          status: string
+          updated_at: string
+          xlsx_sha256: string
+          zip_sha256: string | null
+        }
+        Insert: {
+          applied_at?: string | null
+          counts?: Json
+          created_at?: string
+          created_by: string
+          id?: string
+          rollout: string
+          source_system: string
+          status?: string
+          updated_at?: string
+          xlsx_sha256: string
+          zip_sha256?: string | null
+        }
+        Update: {
+          applied_at?: string | null
+          counts?: Json
+          created_at?: string
+          created_by?: string
+          id?: string
+          rollout?: string
+          source_system?: string
+          status?: string
+          updated_at?: string
+          xlsx_sha256?: string
+          zip_sha256?: string | null
+        }
+        Relationships: []
+      }
+      instructor_import_staging: {
+        Row: {
+          batch_status: string
+          classification: string
+          confidence: string
+          created_at: string
+          decision: string | null
+          diff: Json
+          error: string | null
+          id: string
+          normalized: Json
+          photo: Json | null
+          private_payload: Json
+          reasons: string[]
+          run_id: string
+          source_checksum: string
+          source_id: string
+          target_instructor_id: string | null
+          windows: Json
+        }
+        Insert: {
+          batch_status?: string
+          classification: string
+          confidence: string
+          created_at?: string
+          decision?: string | null
+          diff?: Json
+          error?: string | null
+          id?: string
+          normalized: Json
+          photo?: Json | null
+          private_payload?: Json
+          reasons?: string[]
+          run_id: string
+          source_checksum: string
+          source_id: string
+          target_instructor_id?: string | null
+          windows?: Json
+        }
+        Update: {
+          batch_status?: string
+          classification?: string
+          confidence?: string
+          created_at?: string
+          decision?: string | null
+          diff?: Json
+          error?: string | null
+          id?: string
+          normalized?: Json
+          photo?: Json | null
+          private_payload?: Json
+          reasons?: string[]
+          run_id?: string
+          source_checksum?: string
+          source_id?: string
+          target_instructor_id?: string | null
+          windows?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "instructor_import_staging_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "instructor_import_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "instructor_import_staging_target_instructor_id_fkey"
+            columns: ["target_instructor_id"]
+            isOneToOne: false
+            referencedRelation: "instructors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       instructor_notification_queue: {
         Row: {
           created_at: string | null
@@ -2226,6 +2433,50 @@ export type Database = {
             columns: ["ticket_item_id"]
             isOneToOne: false
             referencedRelation: "ticket_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      instructor_photos: {
+        Row: {
+          created_at: string
+          height: number | null
+          id: string
+          instructor_id: string
+          is_current: boolean
+          origin: string
+          source_sha256: string | null
+          storage_path: string
+          width: number | null
+        }
+        Insert: {
+          created_at?: string
+          height?: number | null
+          id?: string
+          instructor_id: string
+          is_current?: boolean
+          origin: string
+          source_sha256?: string | null
+          storage_path: string
+          width?: number | null
+        }
+        Update: {
+          created_at?: string
+          height?: number | null
+          id?: string
+          instructor_id?: string
+          is_current?: boolean
+          origin?: string
+          source_sha256?: string | null
+          storage_path?: string
+          width?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "instructor_photos_instructor_id_fkey"
+            columns: ["instructor_id"]
+            isOneToOne: false
+            referencedRelation: "instructors"
             referencedColumns: ["id"]
           },
         ]
@@ -2298,6 +2549,57 @@ export type Database = {
           },
         ]
       }
+      instructor_source_links: {
+        Row: {
+          created_at: string
+          id: string
+          instructor_id: string
+          last_import_run_id: string | null
+          rollout: string
+          source_checksum: string
+          source_id: string
+          source_system: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          instructor_id: string
+          last_import_run_id?: string | null
+          rollout: string
+          source_checksum: string
+          source_id: string
+          source_system: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          instructor_id?: string
+          last_import_run_id?: string | null
+          rollout?: string
+          source_checksum?: string
+          source_id?: string
+          source_system?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "instructor_source_links_instructor_id_fkey"
+            columns: ["instructor_id"]
+            isOneToOne: false
+            referencedRelation: "instructors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "instructor_source_links_last_import_run_id_fkey"
+            columns: ["last_import_run_id"]
+            isOneToOne: false
+            referencedRelation: "instructor_import_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       instructor_test_tokens: {
         Row: {
           created_at: string | null
@@ -2339,11 +2641,11 @@ export type Database = {
           city: string | null
           country: string | null
           created_at: string
-          email: string
+          email: string | null
           entry_date: string | null
           first_name: string
           gender: string | null
-          hourly_rate: number
+          hourly_rate: number | null
           iban: string | null
           id: string
           instructor_type: Database["public"]["Enums"]["instructor_role_type"]
@@ -2351,7 +2653,7 @@ export type Database = {
           last_name: string
           level: string | null
           notes: string | null
-          phone: string
+          phone: string | null
           real_time_status: string | null
           role: string | null
           roles: string[] | null
@@ -2370,11 +2672,11 @@ export type Database = {
           city?: string | null
           country?: string | null
           created_at?: string
-          email: string
+          email?: string | null
           entry_date?: string | null
           first_name: string
           gender?: string | null
-          hourly_rate: number
+          hourly_rate?: number | null
           iban?: string | null
           id?: string
           instructor_type?: Database["public"]["Enums"]["instructor_role_type"]
@@ -2382,7 +2684,7 @@ export type Database = {
           last_name: string
           level?: string | null
           notes?: string | null
-          phone: string
+          phone?: string | null
           real_time_status?: string | null
           role?: string | null
           roles?: string[] | null
@@ -2401,11 +2703,11 @@ export type Database = {
           city?: string | null
           country?: string | null
           created_at?: string
-          email?: string
+          email?: string | null
           entry_date?: string | null
           first_name?: string
           gender?: string | null
-          hourly_rate?: number
+          hourly_rate?: number | null
           iban?: string | null
           id?: string
           instructor_type?: Database["public"]["Enums"]["instructor_role_type"]
@@ -2413,7 +2715,7 @@ export type Database = {
           last_name?: string
           level?: string | null
           notes?: string | null
-          phone?: string
+          phone?: string | null
           real_time_status?: string | null
           role?: string | null
           roles?: string[] | null
@@ -5158,7 +5460,12 @@ export type Database = {
         }
         Returns: boolean
       }
+      instructor_is_deployed: {
+        Args: { _date: string; _instructor_id: string }
+        Returns: boolean
+      }
       is_admin_or_office: { Args: { _user_id: string }; Returns: boolean }
+      is_super_admin: { Args: { _user_id: string }; Returns: boolean }
       merge_customers: {
         Args: {
           p_fields?: Json
@@ -5341,7 +5648,7 @@ export type Database = {
       yeti_normalize: { Args: { t: string }; Returns: string }
     }
     Enums: {
-      app_role: "admin" | "office" | "teacher"
+      app_role: "admin" | "office" | "teacher" | "super_admin"
       instructor_role_type: "teacher" | "assistant"
       inventory_condition: "Neu" | "Ok" | "Ausgebleicht" | "Ersetzen"
       inventory_item_status:
@@ -5487,7 +5794,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["admin", "office", "teacher"],
+      app_role: ["admin", "office", "teacher", "super_admin"],
       instructor_role_type: ["teacher", "assistant"],
       inventory_condition: ["Neu", "Ok", "Ausgebleicht", "Ersetzen"],
       inventory_item_status: [
