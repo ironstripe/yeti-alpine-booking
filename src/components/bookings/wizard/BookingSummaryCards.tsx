@@ -46,6 +46,12 @@ export function BookingSummaryCards({ onEditStep }: BookingSummaryCardsProps) {
   const { data: instructors = [] } = useInstructors();
 
   const getPrivateBlocks = (date: string) => {
+    if (state.appointments) {
+      // Canonical plan: exact per-block instructor IDs
+      return sortPlan(state.appointments.filter((a) => a.date === date)).map((a, i) => ({
+        id: `plan-${date}-${i}`, startTime: a.startTime, endTime: endOf(a), instructorId: a.instructorId ?? state.instructorId,
+      }));
+    }
     const [baseStart, baseEnd] = state.timeSlot?.split(" - ") || ["10:00", "12:00"];
     const overrides = state.dayTimeOverrides[date];
     return overrides?.length
