@@ -290,7 +290,7 @@ export function EmptySlot({
       return;
     }
 
-    clearSelection();
+    // Keep any existing planning draft; it is cleared only by Abbrechen/Escape or a successful booking.
     const params = new URLSearchParams({
       instructor: instructorId,
       appointments: JSON.stringify([
