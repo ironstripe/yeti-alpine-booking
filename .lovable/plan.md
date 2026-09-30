@@ -59,6 +59,19 @@ DB function, one transaction:
 - **Billing line:** `ticket_items` with `appointment_id` set, `participant_id = null` and `unit_price = line_total = appointment price`. Existing columns carry date, time and instructor, so today's Scheduler and instructor views keep working. Phase 1 confirms that `participant_id` is nullable today; if not, it adds a nullable change as the only compatibility change.
 - **Legacy data** (historic or ambiguous per-participant rows) stays read-only and untouched.
 
+## Guest participants (Option A)
+
+**Today (verified).** The Wizard gives a guest a temporary id `guest-<timestamp>` (`BookingWizardContext.tsx:609-618`). When the booking is saved, that participant is stored as `participant_id = null` (`useCreateBooking.ts:333, 359, 432, 559, 586, 793, 869`). Name and birth date are thrown away, so a guest cannot be identified afterwards and two guests are indistinguishable. No existing feature depends on guests *not* being saved, so the preferred approach does not contradict current behaviour.
+
+**Chosen approach.**
+- Inside the same create-booking transaction, every Wizard guest becomes a real `customer_participants` record under the booking's customer. It stores first name, last name, birth date, sport and level from the Wizard.
+- The mapping row then points to that new id. Every participant is therefore a real, identifiable person in the Scheduler, Booking Detail, attendance and notifications, with no special guest handling in any reader.
+- `private_appointment_participants.participant_id` is **NOT NULL**, with a foreign key to `customer_participants` and a unique constraint on (appointment_id, participant_id). An anonymous or duplicate mapping row is structurally impossible.
+- **Deterministic within one submit.** Each guest carries a client-generated `guest_key` (UUID) in the payload. The server function creates exactly one participant per `guest_key` and reuses it for every appointment in the booking. It rejects a payload that repeats a `guest_key` with different data.
+- **Idempotency.** A resubmit with the same `submission_key` returns the existing booking and creates no second set of guest participants.
+- **Duplicates across bookings.** A guest whose name and birth date match an existing participant of the same customer is linked to that participant instead of creating a new one. Otherwise a new one is created. Merging of near-duplicates stays with the existing merge tool.
+- **Fallback, only if persisting guests is later rejected as a product decision.** Add immutable snapshot fields to the mapping (`guest_first_name`, `guest_last_name`, `guest_birth_date`, `guest_key`) and a `source` column (`participant|guest`). A CHECK constraint then enforces either (`source='participant'` AND `participant_id` NOT NULL) or (`source='guest'` AND snapshot fields NOT NULL), plus uniqueness on (appointment_id, guest_key). This plan does not use it unless you choose it.
+
 ## Compatibility with existing readers (verified)
 - **Invoice issuing.** It does not read `ticket_items`; it uses ticket totals. No change.
 - **Reports** (`useReportsData.ts:599-615`). They sum `unit_price` per row, so one line per appointment gives the exact amount. No change.
@@ -90,6 +103,12 @@ DB function, one transaction:
 
 ## Tests
 - 3 participants × 4 days, 2 teachers, one day at a different time: 4 appointments, 4 lines, 12 mapping rows, each price from its own slot, and the ticket total equals the sum.
+- 1 existing participant + 2 guests with identical first names × 3 days:
+  - exactly 2 new participant records;
+  - 9 mapping rows, all with a non-null participant;
+  - all names visible in the Scheduler, Booking Detail and attendance;
+  - a resubmit creates nothing new;
+  - a repeated `guest_key` with different data is rejected.
 - Booking an occupied slot, or a race between two staff members: rejected, nothing written, and the draft is kept.
 - Moving onto a busy slot or into an absence: rejected, with no override.
 - Whole period where day 1 is past and day 2 has an issued invoice: only days 3–4 change, the dialog lists the 2 protected days, and only the changed days reset confirmation.
