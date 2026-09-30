@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { paMove, paPeriodUpdate } from "@/lib/privateAppointmentsApi";
 
 export type PeriodModificationScope = "single_day" | "entire_period";
 
@@ -64,14 +65,16 @@ export function usePeriodModification() {
           .maybeSingle();
 
         if (itemRow?.appointment_id) {
-          const { error } = await supabase.rpc("update_private_appointment", {
-            p_appointment_id: itemRow.appointment_id,
-            p_date: newDate ?? itemRow.date,
-            p_time_start: newTimeStart ?? itemRow.time_start!,
-            p_time_end: newTimeEnd ?? itemRow.time_end!,
-            p_instructor_id: newInstructorId ?? itemRow.instructor_id!,
+          // Server re-checks free slot + protection atomically; conflict = hard block.
+          const instr = newInstructorId ?? itemRow.instructor_id;
+          if (!instr) throw new Error("Bitte eine Lehrperson wählen.");
+          await paMove({
+            appointment_id: itemRow.appointment_id,
+            date: newDate ?? itemRow.date,
+            time_start: (newTimeStart ?? itemRow.time_start!).slice(0, 5),
+            time_end: (newTimeEnd ?? itemRow.time_end!).slice(0, 5),
+            instructor_id: instr,
           });
-          if (error) throw error;
         } else {
           const { error } = await supabase
             .from("ticket_items")
@@ -92,7 +95,25 @@ export function usePeriodModification() {
         }
 
       } else {
-        // Update ALL ticket_items in the period
+        // Canonical private appointments: only future editable ones change (server-side).
+        const { data: linked } = await supabase
+          .from("private_appointments")
+          .select("id")
+          .eq("period_group_id", periodGroupId)
+          .limit(1);
+        if (linked && linked.length > 0) {
+          const changes: { time_start?: string; time_end?: string; instructor_id?: string } = {};
+          if (newTimeStart) changes.time_start = newTimeStart.slice(0, 5);
+          if (newTimeEnd) changes.time_end = newTimeEnd.slice(0, 5);
+          if (newInstructorId) changes.instructor_id = newInstructorId;
+          const res = await paPeriodUpdate({ period_group_id: periodGroupId, changes });
+          if (res.excluded?.length) {
+            toast.info(`${res.excluded.length} geschützte Termine wurden nicht geändert`);
+          }
+          if (notifyCustomer) await sendCustomerNotification(params);
+          return { success: true };
+        }
+        // Legacy period (no canonical appointments): Update ALL ticket_items in the period
         const updatePayload: Record<string, unknown> = {};
         
         // For entire period, we only update time and instructor (not date)
@@ -113,22 +134,6 @@ export function usePeriodModification() {
           .eq("period_group_id", periodGroupId);
 
         if (error) throw error;
-
-        // Keep canonical appointments of this period in sync
-        const apptUpdate: Record<string, unknown> = {};
-        if (newTimeStart) apptUpdate.time_start = newTimeStart;
-        if (newTimeEnd) apptUpdate.time_end = newTimeEnd;
-        if (newInstructorId) {
-          apptUpdate.instructor_id = newInstructorId;
-          apptUpdate.instructor_confirmation = "pending";
-        }
-        if (Object.keys(apptUpdate).length > 0) {
-          const { error: apptError } = await supabase
-            .from("private_appointments")
-            .update(apptUpdate)
-            .eq("period_group_id", periodGroupId);
-          if (apptError) throw apptError;
-        }
 
         // Update period metadata base configuration
         if (newInstructorId || newTimeStart || newTimeEnd) {
