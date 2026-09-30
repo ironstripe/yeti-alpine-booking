@@ -3210,6 +3210,73 @@ export type Database = {
         }
         Relationships: []
       }
+      private_appointments: {
+        Row: {
+          created_at: string
+          date: string
+          id: string
+          instructor_confirmation: string | null
+          instructor_id: string | null
+          meeting_point: string | null
+          period_group_id: string | null
+          status: string
+          ticket_id: string
+          time_end: string
+          time_start: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          date: string
+          id?: string
+          instructor_confirmation?: string | null
+          instructor_id?: string | null
+          meeting_point?: string | null
+          period_group_id?: string | null
+          status?: string
+          ticket_id: string
+          time_end: string
+          time_start: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          date?: string
+          id?: string
+          instructor_confirmation?: string | null
+          instructor_id?: string | null
+          meeting_point?: string | null
+          period_group_id?: string | null
+          status?: string
+          ticket_id?: string
+          time_end?: string
+          time_start?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "private_appointments_instructor_id_fkey"
+            columns: ["instructor_id"]
+            isOneToOne: false
+            referencedRelation: "instructors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "private_appointments_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "pending_booking_confirmations"
+            referencedColumns: ["ticket_id"]
+          },
+          {
+            foreignKeyName: "private_appointments_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "tickets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       private_lesson_rates: {
         Row: {
           additional_person_rate: number | null
@@ -4043,6 +4110,7 @@ export type Database = {
       ticket_items: {
         Row: {
           actual_duration_minutes: number | null
+          appointment_id: string | null
           confirmation_reset_at: string | null
           confirmation_reset_reason: string | null
           created_at: string
@@ -4080,6 +4148,7 @@ export type Database = {
         }
         Insert: {
           actual_duration_minutes?: number | null
+          appointment_id?: string | null
           confirmation_reset_at?: string | null
           confirmation_reset_reason?: string | null
           created_at?: string
@@ -4117,6 +4186,7 @@ export type Database = {
         }
         Update: {
           actual_duration_minutes?: number | null
+          appointment_id?: string | null
           confirmation_reset_at?: string | null
           confirmation_reset_reason?: string | null
           created_at?: string
@@ -4153,6 +4223,13 @@ export type Database = {
           unit_price?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "ticket_items_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "private_appointments"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "ticket_items_instructor_id_fkey"
             columns: ["instructor_id"]
