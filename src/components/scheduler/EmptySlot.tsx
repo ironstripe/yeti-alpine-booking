@@ -7,7 +7,6 @@ import { useSchedulerSelection } from "@/contexts/SchedulerSelectionContext";
 import { useDndKitDrag } from "@/contexts/DndKitDragContext";
 import type { SchedulerBooking, SchedulerAbsence } from "@/lib/scheduler-utils";
 import { toast } from "sonner";
-import { useIsTouchDevice } from "@/hooks/use-touch-device";
 import { useMobileSlot } from "./mobile/MobileSlotContext";
 import { OPERATIONAL_END_MINUTES } from "@/lib/scheduler-utils";
 
@@ -44,10 +43,10 @@ export function EmptySlot({
   isPlanningMode = false,
 }: EmptySlotProps) {
   const navigate = useNavigate();
-  const isTouch = useIsTouchDevice();
   const { isMobileScheduler, onFreeSlotTap } = useMobileSlot();
-  // Below 768px the desktop selection workflow is never used.
-  const usesMobilePath = isMobileScheduler || isTouch;
+  // Only the viewport-based mobile scheduler disables desktop selection.
+  // A coarse pointer at desktop width must still support Ctrl/Cmd and right-click.
+  const usesMobilePath = isMobileScheduler;
   const tapRef = useRef<{ x: number; y: number; t: number; moved: boolean } | null>(null);
   const { 
     state, 
@@ -157,34 +156,51 @@ export function EmptySlot({
     return `${endHour.toString().padStart(2, "0")}:${endMinute.toString().padStart(2, "0")}`;
   }, [timeSlot]);
 
+  const toggleDesktopSlot = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const result = toggleSlotSelection(
+      {
+        instructorId,
+        date,
+        startTime: timeSlot,
+        endTime: getSlotEndTime(),
+        durationMinutes: 60,
+      },
+      bookings,
+      absences
+    );
+
+    if (result.error) {
+      toast.error(result.error);
+    }
+  };
+
   const handleMouseDown = (e: React.MouseEvent) => {
     // On phones / touch devices the native scroll container owns the gesture.
     if (usesMobilePath) return;
     if (isBlocked || state.isResizing) return;
+
+    // Right mouse-down must never reach DnD. Selection is toggled by contextmenu.
+    if (e.button === 2) {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+
+    if (e.button !== 0) return;
+
+    // Modifier clicks and the visible multi-select mode share one toggle path.
+    if (e.ctrlKey || e.metaKey || multiSelectMode) {
+      toggleDesktopSlot(e);
+      return;
+    }
+
     e.preventDefault();
     e.stopPropagation(); // Prevent DndKit interference
 
     const endTime = getSlotEndTime();
-
-    // Ctrl+Click (or Cmd+Click on Mac) for multi-select toggle
-    if (e.ctrlKey || e.metaKey || multiSelectMode) {
-      const result = toggleSlotSelection(
-        {
-          instructorId,
-          date,
-          startTime: timeSlot,
-          endTime,
-          durationMinutes: 60,
-        },
-        bookings,
-        absences
-      );
-      
-      if (result.error) {
-        toast.error(result.error);
-      }
-      return;
-    }
 
     // If clicking on existing selection, toggle it off
     if (isSelected && selection) {
@@ -208,6 +224,11 @@ export function EmptySlot({
 
     // Start drag selection
     startDrag(instructorId, date, timeSlot);
+  };
+
+  const handleContextMenu = (e: React.MouseEvent) => {
+    if (usesMobilePath) return;
+    toggleDesktopSlot(e);
   };
 
   // Double click = create booking directly with this slot prefilled
@@ -333,7 +354,8 @@ export function EmptySlot({
       data-date={date}
       onMouseDown={handleMouseDown}
       onMouseUp={handleMouseUp}
-      onClick={isMobileScheduler && !isTouch ? openBookingForSlot : undefined}
+      onContextMenu={handleContextMenu}
+      onClick={isMobileScheduler ? openBookingForSlot : undefined}
       onDoubleClick={usesMobilePath ? undefined : handleDoubleClick}
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
