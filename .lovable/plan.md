@@ -103,6 +103,12 @@ DB function, one transaction:
 
 ## Tests
 - 3 participants × 4 days, 2 teachers, one day at a different time: 4 appointments, 4 lines, 12 mapping rows, each price from its own slot, and the ticket total equals the sum.
+- 1 existing participant + 2 guests with identical first names × 3 days:
+  - exactly 2 new participant records;
+  - 9 mapping rows, all with a non-null participant;
+  - all names visible in the Scheduler, Booking Detail and attendance;
+  - a resubmit creates nothing new;
+  - a repeated `guest_key` with different data is rejected.
 - Booking an occupied slot, or a race between two staff members: rejected, nothing written, and the draft is kept.
 - Moving onto a busy slot or into an absence: rejected, with no override.
 - Whole period where day 1 is past and day 2 has an issued invoice: only days 3–4 change, the dialog lists the 2 protected days, and only the changed days reset confirmation.
