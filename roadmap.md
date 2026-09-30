@@ -16,7 +16,9 @@
 
 - [x] Stage 3: multi-instructor selection → wizard hand-off; no participant split for different-day instructors; creation writes appointments + links items
 - [x] Stage 4 (partial): Scheduler shows one block per appointment; moves via update_private_appointment
-- [ ] Explicit "Mehrfachauswahl" toggle + instructor names/time edit in the side list (Ctrl/Cmd+Click still the entry)
+- [x] Explicit "Mehrfachauswahl" toggle + instructor names in the summary/remove-only list (Ctrl/Cmd+Click remains available)
+- [x] Wizard planning step edits each private lesson's date, time and instructor
+- [x] Canonical private lessons render once in Scheduler and show mapped participants in Scheduler/detail views
 - [ ] End-to-end test with an office login (blocked: no office account)
 
 ## Phase 1 validation fix

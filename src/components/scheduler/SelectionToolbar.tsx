@@ -14,6 +14,7 @@ import { useSchedulerSelection } from "@/contexts/SchedulerSelectionContext";
 import { AbsenceTypeDialog } from "./AbsenceTypeDialog";
 import { OfficeHoursDialog } from "./OfficeHoursDialog";
 import type { SchedulerBooking } from "@/lib/scheduler-utils";
+import { useInstructors } from "@/hooks/useInstructors";
 
 interface SelectionToolbarProps {
   className?: string;
@@ -24,6 +25,7 @@ export function SelectionToolbar({ className, bookings = [] }: SelectionToolbarP
   const navigate = useNavigate();
   const { state, clearSelection, getTotalHours, removeSelection } = useSchedulerSelection();
   const isMobileScheduler = useIsMobileScheduler();
+  const { data: instructors = [] } = useInstructors();
   const [isAbsenceDialogOpen, setIsAbsenceDialogOpen] = useState(false);
   const [isOfficeHoursDialogOpen, setIsOfficeHoursDialogOpen] = useState(false);
 
@@ -107,15 +109,21 @@ export function SelectionToolbar({ className, bookings = [] }: SelectionToolbarP
               {new Date(s.date).toLocaleDateString("de-CH", { weekday: "short", day: "2-digit", month: "2-digit" })}
               {" · "}
               {s.startTime}–{s.endTime}
+              {` · ${(() => {
+                const instructor = instructors.find((item) => item.id === s.instructorId);
+                return instructor ? `${instructor.first_name} ${instructor.last_name}` : "Lehrperson";
+              })()}`}
             </span>
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="icon"
               aria-label="Termin entfernen"
               onClick={() => removeSelection(s.id)}
-              className="rounded p-0.5 hover:bg-accent hover:text-foreground"
+              className="h-6 w-6 shrink-0"
             >
               <X className="h-3 w-3" />
-            </button>
+            </Button>
           </li>
         ))}
       </ul>

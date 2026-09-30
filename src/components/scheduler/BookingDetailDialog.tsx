@@ -530,17 +530,26 @@ export function BookingDetailDialog({
                   </div>
                 )}
 
-                {/* Product & Participant */}
-                <div className="flex items-center gap-3">
+                {/* Product & Participants */}
+                <div className="flex items-start gap-3">
                   <User className="h-4 w-4 text-muted-foreground shrink-0" />
-                  <span>
+                  <div>
                     {booking.product?.name || "Privatstunde"}
-                    {booking.participant && (
-                      <span className="text-muted-foreground ml-1">
-                        ({booking.participant.firstName} {booking.participant.lastName || ""})
-                      </span>
+                    {booking.participants.length > 0 ? (
+                      <p className="text-sm text-muted-foreground">
+                        {booking.participants.map((participant) => `${participant.firstName} ${participant.lastName || ""}`.trim()).join(", ")}
+                      </p>
+                    ) : booking.participant ? (
+                      <p className="text-sm text-muted-foreground">
+                        {booking.participant.firstName} {booking.participant.lastName || ""}
+                      </p>
+                    ) : null}
+                    {booking.appointmentId && booking.participants.length > 0 && (
+                      <Badge variant="secondary" className="mt-1 text-xs">
+                        {booking.participants.length} {booking.participants.length === 1 ? "Teilnehmer" : "Teilnehmer"}
+                      </Badge>
                     )}
-                  </span>
+                  </div>
                 </div>
 
                 {/* Instructor */}
@@ -608,7 +617,7 @@ export function BookingDetailDialog({
                       <MapPin className="h-4 w-4 text-muted-foreground" />
                       Treffpunkt
                     </Label>
-                    <Select value={meetingPoint} onValueChange={setMeetingPoint}>
+                    <Select value={meetingPoint} onValueChange={setMeetingPoint} disabled={!!booking.appointmentId}>
                       <SelectTrigger>
                         <SelectValue placeholder="Treffpunkt auswählen" />
                       </SelectTrigger>
@@ -620,6 +629,9 @@ export function BookingDetailDialog({
                         ))}
                       </SelectContent>
                     </Select>
+                    {booking.appointmentId && (
+                      <p className="text-xs text-muted-foreground">Der Treffpunkt bleibt für den gesamten Termin unverändert.</p>
+                    )}
                   </div>
                 ) : (
                   <div className="flex items-center gap-3">

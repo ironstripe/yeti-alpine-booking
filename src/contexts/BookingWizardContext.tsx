@@ -350,6 +350,7 @@ interface BookingWizardContextType {
   setIncludeLunch: (include: boolean) => void;
   setNumberOfPersons: (count: number) => void;
   setAppointments: (appointments: AppointmentSlot[] | null) => void;
+  movePlannedDate: (fromDate: string, toDate: string) => void;
   // Group course setters
   setSelectedGroupId: (id: string | null) => void;
   setGroupCourseType: (type: "windel_wedelkurs" | "kids_village" | "standard" | null) => void;
@@ -701,6 +702,29 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
       // Also derive selectedDates from appointments
       const dates = [...new Set(appointments.map((a) => a.date))];
       return { ...prev, appointments, selectedDates: dates };
+    });
+  };
+
+  const movePlannedDate = (fromDate: string, toDate: string) => {
+    setState((prev) => {
+      if (fromDate === toDate || prev.selectedDates.includes(toDate)) return prev;
+      const moveKey = <T,>(source: Record<string, T>): Record<string, T> => {
+        if (!(fromDate in source)) return source;
+        const { [fromDate]: value, ...rest } = source;
+        return { ...rest, [toDate]: value };
+      };
+      return {
+        ...prev,
+        selectedDates: prev.selectedDates.map((date) => date === fromDate ? toDate : date).sort(),
+        appointments: prev.appointments?.map((appointment) =>
+          appointment.date === fromDate ? { ...appointment, date: toDate } : appointment
+        ) ?? null,
+        timeSelections: prev.timeSelections.map((selection) =>
+          selection.date === fromDate ? { ...selection, date: toDate } : selection
+        ),
+        dayInstructorOverrides: moveKey(prev.dayInstructorOverrides),
+        dayTimeOverrides: moveKey(prev.dayTimeOverrides),
+      };
     });
   };
 
@@ -1610,6 +1634,7 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
         setIncludeLunch,
         setNumberOfPersons,
         setAppointments,
+        movePlannedDate,
         setSelectedGroupId,
         setGroupCourseType,
         setLunchDaysForParticipant,

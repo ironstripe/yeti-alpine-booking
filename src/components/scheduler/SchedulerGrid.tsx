@@ -344,11 +344,6 @@ function SchedulerGridContent() {
     return bookings.filter(b => b.type === bookingTypeFilter);
   }, [bookings, bookingTypeFilter]);
 
-  // Clear selection when date changes
-  useEffect(() => {
-    clearSelection();
-  }, [selectedDate, clearSelection]);
-
   // Entering the phone layout must never keep a stale desktop selection alive
   useEffect(() => {
     if (isMobileScheduler) {
