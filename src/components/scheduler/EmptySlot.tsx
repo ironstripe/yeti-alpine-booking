@@ -187,19 +187,9 @@ export function EmptySlot({
       return;
     }
 
-    // Normal click: Clear any existing multi-selection and open booking wizard
-    if (state.selections.length > 0) {
-      clearSelection();
-    }
-
     // If clicking on existing selection, toggle it off
     if (isSelected && selection) {
       removeSelection(selection.id);
-      return;
-    }
-
-    // Check if this teacher is valid (same as existing or none selected)
-    if (state.teacherId && state.teacherId !== instructorId) {
       return;
     }
 
@@ -236,7 +226,6 @@ export function EmptySlot({
       return;
     }
 
-    clearSelection();
     const params = new URLSearchParams({
       instructor: instructorId,
       appointments: JSON.stringify([

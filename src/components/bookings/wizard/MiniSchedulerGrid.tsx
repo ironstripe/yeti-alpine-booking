@@ -4,6 +4,8 @@ import { de } from "date-fns/locale";
 import { Star, Check, AlertTriangle, Users, MapPin, RefreshCw, CheckCircle2 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useSchedulerData } from "@/hooks/useSchedulerData";
@@ -53,6 +55,7 @@ export function MiniSchedulerGrid({
     date: string;
     hour: number;
   } | null>(null);
+  const [multiSelectMode, setMultiSelectMode] = useState(false);
 
   // Drag selection state
   const [dragState, setDragState] = useState<{
@@ -439,6 +442,18 @@ export function MiniSchedulerGrid({
   return (
     <TooltipProvider>
       <div className="space-y-1">
+        <div className="flex flex-wrap items-center gap-2 border-y border-border py-2 text-xs">
+          <Switch
+            id="wizard-multi-select-mode"
+            checked={multiSelectMode}
+            onCheckedChange={setMultiSelectMode}
+            aria-label="Mehrere Termine auswählen"
+          />
+          <Label htmlFor="wizard-multi-select-mode" className="cursor-pointer text-xs font-medium">
+            Mehrere Termine auswählen
+          </Label>
+          <span className="text-muted-foreground">oder Strg/⌘ + Klick</span>
+        </div>
         {/* Compact header with ranking legend */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
@@ -599,6 +614,16 @@ export function MiniSchedulerGrid({
                                   onMouseDown={(e) => {
                                     e.preventDefault();
                                     e.stopPropagation();
+                                    if (available && onMultiSelectToggle && (multiSelectMode || e.ctrlKey || e.metaKey)) {
+                                      onMultiSelectToggle({
+                                        instructorId: instructor.id,
+                                        instructorName: `${instructor.first_name} ${instructor.last_name}`,
+                                        date: dateStr,
+                                        startTime: `${hour.toString().padStart(2, "0")}:00`,
+                                        endTime: `${(hour + 1).toString().padStart(2, "0")}:00`,
+                                      });
+                                      return;
+                                    }
                                     if (available) {
                                       setDragState({
                                         instructorId: instructor.id,
@@ -633,8 +658,7 @@ export function MiniSchedulerGrid({
                                       
                                       // Check if the entire range is available
                                       if (isDragRangeAvailable()) {
-                                        if (onMultiSelectToggle) {
-                                          // Always toggle into multi-select (no Ctrl required)
+                                        if (onMultiSelectToggle && multiSelectMode) {
                                           onMultiSelectToggle({
                                             instructorId: instructor.id,
                                             instructorName: `${instructor.first_name} ${instructor.last_name}`,
@@ -644,7 +668,7 @@ export function MiniSchedulerGrid({
                                           });
                                           // Also update selected instructor
                                           onSlotSelect(instructor, dateStr, dragTimeStart, dragTimeEnd);
-                                        } else {
+                                        } else if (!multiSelectMode) {
                                           onSlotSelect(instructor, dateStr, dragTimeStart, dragTimeEnd);
                                         }
                                       }
