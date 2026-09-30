@@ -21,3 +21,4 @@
 
 ## Phase 1 validation fix
 - [x] Live pa_price assertions in SQL test (section 0); parity test header corrected; run instructions in test file
+- [ ] Phase 2 plan only (private-appointments server step) — awaiting approval
