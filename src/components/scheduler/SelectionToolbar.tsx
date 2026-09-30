@@ -55,15 +55,23 @@ export function SelectionToolbar({ className, bookings = [] }: SelectionToolbarP
   };
 
   const handleBookSelected = () => {
-    // Encode appointments as URL parameter
-    const appointments = state.selections.map((s) => ({
-      date: s.date,
-      startTime: s.startTime,
-      durationMinutes: s.durationMinutes,
-    }));
+    // Encode appointments (each with its own instructor) as URL parameter
+    const appointments = [...state.selections]
+      .sort((a, b) => a.date.localeCompare(b.date) || a.startTime.localeCompare(b.startTime))
+      .map((s) => ({
+        date: s.date,
+        startTime: s.startTime,
+        durationMinutes: s.durationMinutes,
+        instructorId: s.instructorId,
+      }));
+
+    // Base instructor = most frequent one (others become per-day overrides)
+    const counts = new Map<string, number>();
+    appointments.forEach((a) => counts.set(a.instructorId, (counts.get(a.instructorId) || 0) + 1));
+    const baseInstructor = [...counts.entries()].sort((a, b) => b[1] - a[1])[0][0];
 
     const params = new URLSearchParams({
-      instructor: state.teacherId!,
+      instructor: baseInstructor,
       appointments: JSON.stringify(appointments),
     });
 
