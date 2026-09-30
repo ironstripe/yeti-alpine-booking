@@ -114,12 +114,17 @@ export function Step3InstructorDetails() {
           )}
           
           {/* Per-day planning for multi-day private lessons - collapsed as review option */}
-          {isMultiDayPrivate && !state.assignLater && (
+          {state.productType === "private" && state.appointments !== null && (
+            <div className="text-xs text-muted-foreground mb-2">
+              Die geplanten Termine werden im Planungsschritt unter „Geplante Termine“ bearbeitet.
+            </div>
+          )}
+          {isMultiDayPrivate && !state.assignLater && state.appointments === null && (
             <div className="text-xs text-muted-foreground mb-2">
               Die Tagesübersicht wurde in Schritt 2 konfiguriert. Änderungen können hier weiterhin vorgenommen werden.
             </div>
           )}
-          {isMultiDayPrivate && !state.assignLater && (
+          {isMultiDayPrivate && !state.assignLater && state.appointments === null && (
             <PeriodDayPlanner
               selectedDates={state.selectedDates}
               baseInstructor={state.instructor}
