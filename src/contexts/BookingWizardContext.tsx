@@ -274,6 +274,8 @@ export interface BookingWizardState {
   
   // New: Variable appointments (from scheduler multi-slot selection)
   appointments: AppointmentSlot[] | null;
+  /** Canonical plan exactly as taken over from the Scheduler (null = no prefill). */
+  schedulerPrefillPlan?: AppointmentSlot[] | null;
   
   // NEW: Participant-specific booking mode
   useParticipantSpecificBooking: boolean;
@@ -1379,6 +1381,7 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
         instructor,
         ...deriveFromPlan(canonical, instructorId),
         appointments: canonical,
+        schedulerPrefillPlan: canonical,
         productType: "private" as const,
         privateGroupProposal: null, // per-day instructors are a period plan, not a split
         assignLater: false, // Instructor is already assigned from scheduler
@@ -1400,6 +1403,7 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
       const next = {
         ...prev,
         appointments: null,
+        schedulerPrefillPlan: null,
         selectedDates: [],
         timeSelections: [],
         dayTimeOverrides: {},
