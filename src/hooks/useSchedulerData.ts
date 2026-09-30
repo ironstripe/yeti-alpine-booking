@@ -567,7 +567,7 @@ export function useSchedulerData({ startDate, endDate, instructorId }: UseSchedu
       absencesQuery.isLoading ||
       recurringBlocksQuery.isLoading ||
       officeBlocksQuery.isLoading ||
-      periodMetadataQuery.isLoading,
+      periodMetadataQuery.isLoading ||
       appointmentParticipantsQuery.isLoading,
     error: 
       instructorsQuery.error || 
@@ -576,7 +576,7 @@ export function useSchedulerData({ startDate, endDate, instructorId }: UseSchedu
       absencesQuery.error ||
       recurringBlocksQuery.error ||
       officeBlocksQuery.error ||
-      periodMetadataQuery.error,
+      periodMetadataQuery.error ||
       appointmentParticipantsQuery.error,
     refetch: () => {
       instructorsQuery.refetch();

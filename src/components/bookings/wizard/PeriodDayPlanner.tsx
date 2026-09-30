@@ -273,6 +273,8 @@ export function PeriodDayPlanner({
                         value={parseISO(date)}
                         onChange={(value) => value && onDateChange(date, format(value, "yyyy-MM-dd"))}
                         disabled={(value) => value < startOfDay(new Date()) || (format(value, "yyyy-MM-dd") !== date && selectedDates.includes(format(value, "yyyy-MM-dd")))}
+                        minYear={new Date().getFullYear()}
+                        maxYear={new Date().getFullYear() + 5}
                       />
                     </div>
                     {timeBlocks.map((block, blockIndex) => {
