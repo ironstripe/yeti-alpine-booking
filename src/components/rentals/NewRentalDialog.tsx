@@ -33,7 +33,7 @@ export function NewRentalDialog({ open, onOpenChange, preselectedInstructorId }:
         .eq("status", "active")
         .order("last_name");
       if (error) throw error;
-      return data as { id: string; first_name: string; last_name: string }[];
+      return data;
     },
   });
   const { data: items } = useInventoryItems();
@@ -50,7 +50,7 @@ export function NewRentalDialog({ open, onOpenChange, preselectedInstructorId }:
     (i) => !selectedItemIds.includes(i.id) && (
       i.name.toLowerCase().includes(search.toLowerCase()) ||
       i.inventory_number?.toLowerCase().includes(search.toLowerCase()) ||
-      (i.category as any)?.name?.toLowerCase().includes(search.toLowerCase())
+      i.category?.name?.toLowerCase().includes(search.toLowerCase())
     )
   );
 

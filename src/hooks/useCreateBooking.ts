@@ -199,7 +199,10 @@ export function useCreateBooking() {
       if (usesServerPrivatePath) {
         if (!productId) throw new Error("Kein Privatstunden-Produkt konfiguriert");
         if (state.includeLunch) throw new Error("Mittagessen kann bei Privatstunden noch nicht mitgebucht werden.");
-        if (state.discountPercent) throw new Error("Rabatte auf Privatstunden sind in diesem Schritt noch nicht möglich.");
+        const discountPercent = Number(state.discountPercent) || 0;
+        const discountReason = (state.discountReason || "").trim();
+        if (discountPercent < 0 || discountPercent > 100) throw new Error("Rabatt muss zwischen 0 und 100 % liegen.");
+        if (discountPercent > 0 && !discountReason) throw new Error("Bitte gib einen Grund für den Rabatt an");
 
         const appointments: PaSlot[] = [];
         if (state.appointments) {
@@ -258,6 +261,7 @@ export function useCreateBooking() {
           ...(state.customerNotes ? { notes: state.customerNotes } : {}),
           appointments,
           participants,
+          ...(discountPercent > 0 ? { discount_percent: discountPercent, discount_reason: discountReason } : {}),
         };
         // Same payload in this browser session => same key => server replays, never duplicates.
         const fp = "yeti.pa.submit." + JSON.stringify(payload);
