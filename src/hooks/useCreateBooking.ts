@@ -697,10 +697,12 @@ export function useCreateBooking() {
           periodItems.forEach((ti) => slots.set(slotKey(ti), [...(slots.get(slotKey(ti)) || []), ti]));
 
           const slotEntries = [...slots.values()];
-          const { data: appts, error: apptError } = await supabase
+          const apptIds = slotEntries.map(() => crypto.randomUUID());
+          const { error: apptError } = await supabase
             .from("private_appointments")
             .insert(
-              slotEntries.map((items) => ({
+              slotEntries.map((items, idx) => ({
+                id: apptIds[idx],
                 ticket_id: ticket.id,
                 date: items[0].date,
                 time_start: items[0].time_start!,
@@ -710,14 +712,13 @@ export function useCreateBooking() {
                 meeting_point: items[0].meeting_point,
                 period_group_id: items[0].period_group_id,
               }))
-            )
-            .select("id");
+            );
           if (apptError) throw apptError;
 
           for (let i = 0; i < slotEntries.length; i++) {
             const { error: linkError } = await supabase
               .from("ticket_items")
-              .update({ appointment_id: appts![i].id })
+              .update({ appointment_id: apptIds[i] })
               .in("id", slotEntries[i].map((ti) => ti.id));
             if (linkError) throw linkError;
           }
