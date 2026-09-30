@@ -116,8 +116,8 @@ export function BookingCornerPreviewDialog({ open, onOpenChange }: { open: boole
                         <div className="text-xs text-muted-foreground">{r.confidence} · {r.reasons.join(", ")}</div>
                       </td>
                       <td className="p-1">{r.target?.name ?? "—"}</td>
-                      <td className="p-1">{r.window ? `${r.window.from} – ${r.window.until}` : "—"}{r.window && !r.has_current_window && <div className="text-xs text-muted-foreground">vergangen</div>}</td>
-                      <td className="p-1">{r.has_photo ? "Ja" : "—"}</td>
+                      <td className="p-1">{r.window ? `${r.window.from} – ${r.window.until}` : "—"}{r.window && !r.has_current_window && <div className="text-xs text-muted-foreground">ausserhalb Saison</div>}</td>
+                      <td className="p-1">{r.has_photo ? (r.photo_verified ? "Ja, geprüft" : "Ja, ungeprüft") : "—"}</td>
                       <td className="p-1">{r.missing.join(", ") || "—"}</td>
                       <td className="p-1 text-xs">{r.diff.map((d) => <div key={d.field}>{d.field}: {d.yeti ?? "—"} → {d.source ?? "—"}</div>)}</td>
                     </tr>
