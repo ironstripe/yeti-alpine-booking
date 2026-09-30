@@ -1054,7 +1054,7 @@ export function Step2ProductAllocation() {
                     return null;
                   })()}
                   <span className="text-xs text-muted-foreground">
-                    (Ctrl+Klick für weitere)
+                    Mit „Mehrere Termine auswählen“ oder Strg/⌘ + Klick hinzufügen
                   </span>
                 </div>
                 <div className="flex gap-2">
