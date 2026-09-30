@@ -35,6 +35,7 @@
 ## Booking-Corner Lehrer-Import (Admin-Dry-Run)
 - [x] Prerequisite migration applied (schema + RLS + private storage policy); super_admin only ivo@ivo.ch
 - [x] Private bucket `instructor-hr-photos` created (10 MB)
-- [ ] Preview/apply functions, UI tab, tests (blocked: exact XLSX column headers needed)
+- [x] Dry-run preview (function + super_admin dialog + synthetic parser/matching tests + RLS test)
+- [ ] Real-file dry-run by owner, then separate Apply step (waiting: owner runs preview with real files)
 - [ ] Christoph FreeSurf account (blocked: identity clarification)
 - [ ] Public Team candidate list (after verified real import)

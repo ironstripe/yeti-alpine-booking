@@ -33,7 +33,9 @@ export function useUserRole(): UserRoleState {
         return [];
       }
 
-      return data.map((r) => r.role as AppRole);
+      // super_admin is an HR-import permission, not a portal role: never offer it as a switchable role.
+      const known: AppRole[] = ["admin", "office", "teacher"];
+      return data.map((r) => r.role as string).filter((r): r is AppRole => known.includes(r as AppRole));
     },
     enabled: !!user?.id,
   });
