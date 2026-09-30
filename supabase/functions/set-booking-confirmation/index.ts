@@ -7,7 +7,8 @@ const corsHeaders = {
 };
 
 interface SetBookingConfirmationRequest {
-  ticketItemId: string;
+  ticketItemId?: string;
+  appointmentId?: string;
   action: "confirm" | "decline";
   reason?: string;
 }
@@ -29,11 +30,17 @@ serve(async (req) => {
     }
 
     // 2. Parse and validate request body
-    const { ticketItemId, action, reason } = await req.json() as SetBookingConfirmationRequest;
+    const { ticketItemId, appointmentId, action, reason } = await req.json() as SetBookingConfirmationRequest;
 
-    if (!ticketItemId) {
+    if (!ticketItemId && !appointmentId) {
       return new Response(
         JSON.stringify({ success: false, error: "Missing ticketItemId" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    if (appointmentId && !/^[0-9a-f-]{36}$/i.test(appointmentId)) {
+      return new Response(
+        JSON.stringify({ success: false, error: "Invalid appointmentId" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -94,6 +101,26 @@ serve(async (req) => {
         JSON.stringify({ success: false, error: "You are not registered as an instructor" }),
         { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
+    }
+
+    // 5b. Private appointment path: one transaction confirms the appointment and its mirrored line.
+    if (appointmentId) {
+      const { data: r, error: rpcError } = await supabaseAdmin.rpc("pa_confirm_appointment", {
+        p_appointment: appointmentId, p_instructor: instructor.id, p_action: action,
+        p_reason: reason ?? null, p_actor: user.id,
+      });
+      if (rpcError || !r) {
+        console.error("pa_confirm_appointment failed:", rpcError?.code);
+        return new Response(JSON.stringify({ success: false, error: "Failed to update booking" }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+      const res = r as { ok?: boolean; error?: string };
+      const status = res.ok ? 200 : res.error === "not_found" ? 404 : res.error === "forbidden" ? 403 : 400;
+      const error = res.ok ? undefined
+        : status === 404 ? "Booking not found"
+        : status === 403 ? "You are not assigned to this booking" : "Invalid request";
+      return new Response(JSON.stringify(res.ok ? { success: true } : { success: false, error }),
+        { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     // 6. Fetch ticket_item and verify instructor is assigned
