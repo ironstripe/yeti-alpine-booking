@@ -666,8 +666,6 @@ export function MiniSchedulerGrid({
                                             startTime: dragTimeStart,
                                             endTime: dragTimeEnd,
                                           });
-                                          // Also update selected instructor
-                                          onSlotSelect(instructor, dateStr, dragTimeStart, dragTimeEnd);
                                         } else if (!multiSelectMode) {
                                           onSlotSelect(instructor, dateStr, dragTimeStart, dragTimeEnd);
                                         }

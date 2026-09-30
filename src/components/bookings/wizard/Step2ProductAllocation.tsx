@@ -1032,10 +1032,10 @@ export function Step2ProductAllocation() {
             
             {/* Multi-select action bar */}
             {state.miniSchedulerSelections.length > 0 && (
-              <div className="mt-3 flex items-center justify-between gap-2 rounded-lg border border-primary bg-primary/5 p-3">
+              <div className="mt-3 space-y-3 rounded-lg border border-primary bg-primary/5 p-3">
                 <div className="flex items-center gap-2 flex-wrap">
                   <Badge variant="secondary" className="bg-primary/20 text-primary">
-                    {state.miniSchedulerSelections.length} Slots ausgewählt
+                    {state.miniSchedulerSelections.length} {state.miniSchedulerSelections.length === 1 ? "Termin" : "Termine"} ausgewählt
                   </Badge>
                   {(() => {
                     const instrMap = new Map<string, { name: string; count: number }>();
@@ -1057,7 +1057,40 @@ export function Step2ProductAllocation() {
                     Mit „Mehrere Termine auswählen“ oder Strg/⌘ + Klick hinzufügen
                   </span>
                 </div>
-                <div className="flex gap-2">
+                <div className="divide-y divide-border rounded-md border border-border bg-background">
+                  {[...state.miniSchedulerSelections]
+                    .sort((a, b) => `${a.date} ${a.startTime}`.localeCompare(`${b.date} ${b.startTime}`))
+                    .map((slot) => (
+                      <div key={slot.id} className="flex items-center justify-between gap-3 px-3 py-2 text-xs">
+                        <div className="min-w-0">
+                          <span className="font-medium">
+                            {format(parseISO(slot.date), "EEE, dd.MM.yyyy", { locale: de })}
+                          </span>
+                          <span className="text-muted-foreground">
+                            {` · ${slot.startTime}–${slot.endTime} · ${slot.instructorName}`}
+                          </span>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 shrink-0"
+                          aria-label={`Termin ${slot.date} ${slot.startTime} entfernen`}
+                          title="Termin entfernen"
+                          onClick={() => toggleMiniSchedulerSlot({
+                            instructorId: slot.instructorId,
+                            instructorName: slot.instructorName,
+                            date: slot.date,
+                            startTime: slot.startTime,
+                            endTime: slot.endTime,
+                          })}
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    ))}
+                </div>
+                <div className="flex justify-end gap-2">
                   <Button
                     variant="ghost"
                     size="sm"
