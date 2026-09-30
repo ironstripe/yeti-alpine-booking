@@ -330,6 +330,7 @@ export type Database = {
       }
       booking_requests: {
         Row: {
+          acknowledgement_sent_at: string | null
           converted_ticket_id: string | null
           created_at: string
           customer_data: Json
@@ -350,11 +351,13 @@ export type Database = {
           source: string
           sport_type: string
           status: string
+          submission_key: string | null
           type: string
           voucher_code: string | null
           voucher_discount: number | null
         }
         Insert: {
+          acknowledgement_sent_at?: string | null
           converted_ticket_id?: string | null
           created_at?: string
           customer_data?: Json
@@ -375,11 +378,13 @@ export type Database = {
           source?: string
           sport_type: string
           status?: string
+          submission_key?: string | null
           type: string
           voucher_code?: string | null
           voucher_discount?: number | null
         }
         Update: {
+          acknowledgement_sent_at?: string | null
           converted_ticket_id?: string | null
           created_at?: string
           customer_data?: Json
@@ -400,6 +405,7 @@ export type Database = {
           source?: string
           sport_type?: string
           status?: string
+          submission_key?: string | null
           type?: string
           voucher_code?: string | null
           voucher_discount?: number | null
