@@ -91,7 +91,9 @@ export function classify(profiles: SourceProfile[], yeti: YetiInstructor[], link
     const similar = yeti.filter((y) => {
       if (linkedYeti.has(y.id)) return false;
       const k = fullName(y.first_name, y.last_name);
-      return k !== key && levenshtein(k, key) <= 2 && normName(y.last_name) === normName(p.lastName) || (k !== key && levenshtein(k, key) === 1);
+      if (k === key) return false;
+      if (levenshtein(k, key) <= 1) return true;
+      return normName(y.last_name) === normName(p.lastName) && levenshtein(normName(y.first_name), normName(p.firstName)) <= 2;
     });
     if (similar.length) {
       similar.forEach((y) => touched.add(y.id));
