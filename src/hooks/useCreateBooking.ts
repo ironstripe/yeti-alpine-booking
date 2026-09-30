@@ -4,6 +4,7 @@ import type { BookingWizardState } from "@/contexts/BookingWizardContext";
 import { createInitialComments } from "./useTicketComments";
 import { isImmediateMethod } from "@/lib/finance";
 import { logTicketEvent } from "@/lib/ticket-audit";
+import { paCreate, type PaParticipant, type PaSlot } from "@/lib/privateAppointmentsApi";
 
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
@@ -185,6 +186,96 @@ export function useCreateBooking() {
       // Apply discount
       const discountAmount = (baseTotal + lunchTotal) * (state.discountPercent / 100);
       const totalAmount = baseTotal + lunchTotal - discountAmount;
+
+      // ============ PRIVATE LESSONS: canonical server path ============
+      // One appointment per real lesson, one commercial line priced by the server,
+      // free-slot hard block. The legacy participant×day×block loop is not used.
+      const usesServerPrivatePath =
+        state.productType === "private" &&
+        !(state.useParticipantSpecificBooking && Object.keys(state.participantBookings).length > 0) &&
+        !(state.privateGroupProposal && state.privateGroupProposal.groups.length > 1);
+
+      if (usesServerPrivatePath) {
+        if (!productId) throw new Error("Kein Privatstunden-Produkt konfiguriert");
+        if (state.includeLunch) throw new Error("Mittagessen kann bei Privatstunden noch nicht mitgebucht werden.");
+        if (state.discountPercent) throw new Error("Rabatte auf Privatstunden sind in diesem Schritt noch nicht möglich.");
+
+        const baseStart = state.timeSlot?.split(" - ")[0] || "10:00";
+        const baseEnd = state.timeSlot?.split(" - ")[1] || "12:00";
+        const appointments: PaSlot[] = [];
+        for (const dateStr of [...state.selectedDates].sort()) {
+          const ts = state.timeSelections?.find((t) => t.date === dateStr);
+          const dayInstr = state.dayInstructorOverrides?.[dateStr];
+          const blocks = state.dayTimeOverrides?.[dateStr]?.length
+            ? state.dayTimeOverrides[dateStr]
+            : [{ startTime: ts?.startTime || baseStart, endTime: ts?.endTime || baseEnd, instructorId: undefined as string | null | undefined }];
+          for (const b of blocks) {
+            const instr = b.instructorId !== undefined ? b.instructorId : dayInstr !== undefined ? dayInstr : state.instructorId;
+            if (!instr) throw new Error(`Bitte für ${dateStr} eine Lehrperson wählen.`);
+            appointments.push({
+              date: dateStr,
+              time_start: b.startTime.slice(0, 5),
+              time_end: b.endTime.slice(0, 5),
+              instructor_id: instr,
+              ...(state.meetingPoint ? { meeting_point: state.meetingPoint } : {}),
+            });
+          }
+        }
+        const participants: PaParticipant[] = state.selectedParticipants.map((pt) =>
+          pt.id.startsWith("guest-")
+            ? {
+                guest_key: pt.id,
+                first_name: pt.first_name,
+                ...(pt.last_name ? { last_name: pt.last_name } : {}),
+                birth_date: pt.birth_date,
+                ...(pt.sport === "ski" || pt.sport === "snowboard" ? { sport: pt.sport } : {}),
+              }
+            : { participant_id: pt.id },
+        );
+        const payload = {
+          customer_id: state.customerId!,
+          product_id: productId,
+          ...(state.customerNotes ? { notes: state.customerNotes } : {}),
+          appointments,
+          participants,
+        };
+        // Same payload in this browser session => same key => server replays, never duplicates.
+        const fp = "yeti.pa.submit." + JSON.stringify(payload);
+        let submissionKey = sessionStorage.getItem(fp);
+        if (!submissionKey) { submissionKey = crypto.randomUUID(); sessionStorage.setItem(fp, submissionKey); }
+
+        const created = await paCreate({ submission_key: submissionKey, ...payload });
+        const total = Number(created.total) || 0;
+
+        if (!created.replayed) {
+          await supabase.from("tickets").update({
+            payment_method: state.paymentMethod,
+            billing_partner_id: state.paymentMethod === "hotel" ? state.billingPartnerId : null,
+            payment_due_date: state.paymentDueDate,
+          }).eq("id", created.ticket_id);
+
+          if (state.settlement === "paid_now" && isImmediateMethod(state.paymentMethod) && total > 0) {
+            const { error: payErr } = await supabase.from("payments").insert({
+              ticket_id: created.ticket_id,
+              amount: total,
+              payment_method: state.paymentMethod!,
+              payment_date: format(new Date(), "yyyy-MM-dd"),
+              status: "completed",
+              created_by: user.id,
+            });
+            if (payErr) throw payErr;
+            await supabase.from("tickets").update({ paid_amount: total }).eq("id", created.ticket_id);
+            await logTicketEvent(created.ticket_id, "PAYMENT_RECORDED", { amount: total, payment_method: state.paymentMethod, settlement: "paid_now" });
+          }
+          await createInitialComments(created.ticket_id, state.internalNotes, state.instructorNotes, user.id, user.email?.split("@")[0] || "System");
+          if (state.conversationId) {
+            await supabase.from("conversations").update({ related_ticket_id: created.ticket_id, status: "processed" }).eq("id", state.conversationId);
+          }
+        }
+        sessionStorage.removeItem(fp);
+        try { sessionStorage.removeItem("yeti.scheduler.planningDraft.v1"); } catch { /* ignore */ }
+        return { ticketId: created.ticket_id, ticketNumber: created.ticket_number };
+      }
 
       // Create ticket (without notes - they go to ticket_comments now)
       // paid_amount is ALWAYS 0 here: it is only raised by persisted payment records below.
