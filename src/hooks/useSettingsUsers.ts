@@ -60,6 +60,8 @@ export function useSettingsUsers() {
         if (!rolesMap.has(role.user_id)) {
           rolesMap.set(role.user_id, []);
         }
+        // super_admin (HR import permission) is not a manageable portal role here.
+        if ((role.role as string) === "super_admin") continue;
         rolesMap.get(role.user_id)!.push(role.role as AppRole);
       }
 
@@ -67,7 +69,7 @@ export function useSettingsUsers() {
       const resultList: UserWithRole[] = [];
 
       for (const instructor of instructors || []) {
-        const authUser = authUserByEmail.get(instructor.email.toLowerCase());
+        const authUser = (instructor.email ? authUserByEmail.get(instructor.email.toLowerCase()) : undefined);
         
         resultList.push({
           user_id: authUser?.id || null,
