@@ -5081,6 +5081,53 @@ export type Database = {
         Args: { p_enrollment_id: string; p_target_group_id: string }
         Returns: Json
       }
+      pa_business_today: { Args: never; Returns: string }
+      pa_is_protected: { Args: { p_appointment_id: string }; Returns: Json }
+      pa_price: {
+        Args: {
+          p_date: string
+          p_end: string
+          p_persons: number
+          p_start: string
+        }
+        Returns: number
+      }
+      pa_reconcile_report: {
+        Args: never
+        Returns: {
+          item_total_after: number
+          item_total_before: number
+          planned_action: string
+          skip_reason: string
+          ticket_id: string
+          ticket_total: number
+        }[]
+      }
+      pa_slot_conflicts: {
+        Args: {
+          p_date: string
+          p_end: string
+          p_exclude_appointment?: string
+          p_instructor: string
+          p_start: string
+        }
+        Returns: {
+          kind: string
+          ref_id: string
+          time_end: string
+          time_start: string
+        }[]
+      }
+      pa_slot_is_free: {
+        Args: {
+          p_date: string
+          p_end: string
+          p_exclude_appointment?: string
+          p_instructor: string
+          p_start: string
+        }
+        Returns: boolean
+      }
       preview_customer_merge: {
         Args: { p_source_id: string; p_target_id: string }
         Returns: Json
