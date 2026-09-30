@@ -92,3 +92,12 @@ Actions:
 - Delivery worker: `supabase/functions/private-appointment-notify/index.ts`, which reads `private_appointment_changed` events. Email comes first, and the events stay channel-neutral.
 - Tests: `supabase/tests/private_appointments_phase4_test.sql` (skip reasons, mismatch = no change, invoiced booking untouched, exact undo) and `supabase/functions/private-appointment-notify/notify.test.ts`.
 - Undo: `supabase/rollback/private_appointments_phase4_rollback.sql`.
+
+
+## Phase 3 correction (2026-09-30, client-only)
+- Canonical plan: when `state.appointments` exists for a private booking it is the single list of real lessons (date, start, duration, per-block instructorId). selectedDates/timeSelections/overrides are derived display state only.
+- `Geplante Termine` card is the only editor (initially expanded); client validation 09:00–16:00, end > start, no same-day overlap regardless of instructor; invalid edits keep the draft.
+- `paCreate` payload is built 1:1 from the canonical list. Different instructors on different dates stay one booking; simultaneous selections are rejected (no participant split). Old manual flow unchanged when no plan exists.
+- Final confirmation is read-only; price preview sums every canonical block; final persistence and pricing remain server-authoritative.
+- Scheduler draft `yeti.scheduler.planningDraft.v1` is cleared only after a successful `paCreate` (or explicit Abbrechen/Escape).
+- Out of scope: migrations, Edge Functions, security, group, payments, publishing.
