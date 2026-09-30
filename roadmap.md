@@ -31,3 +31,8 @@
 - [x] Phase 2: private-appointments server step + transactions + confirmation (not published)
 - [ ] Phase 2 office/teacher/no-role live checks (blocked: no test logins)
 - [x] Phase 2 fix: advisory slot locks + DB-unique submission_key (2-session live proof pending: needs privileged DB URL)
+
+## Booking-Corner Lehrer-Import (Admin-Dry-Run)
+- [ ] Prerequisite migration: schema + RLS + private photo bucket policies in ONE phase, no super_admin assignment, non-destructive rollback (waiting: owner approval)
+- [ ] Private bucket `instructor-hr-photos` creation (same phase, after approval)
+- [ ] Preview/apply functions, UI tab, tests (after prerequisite is live)
