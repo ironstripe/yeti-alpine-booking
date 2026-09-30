@@ -1,0 +1,1 @@
+ALTER FUNCTION public.update_private_appointment(uuid, date, time, time, uuid) SECURITY INVOKER;
