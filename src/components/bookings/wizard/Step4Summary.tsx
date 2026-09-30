@@ -93,7 +93,7 @@ export function Step4Summary({ onEditStep }: Step4SummaryProps) {
   const warnings = useMemo<BookingWarning[]>(() => {
     const result: BookingWarning[] = [];
 
-    if (qualifiesFor2x2hDiscount) {
+    if (autoDiscountPercent > 0) {
       result.push({
         id: "2x2h-discount",
         type: "info",
@@ -103,7 +103,7 @@ export function Step4Summary({ onEditStep }: Step4SummaryProps) {
     }
 
     return result;
-  }, [qualifiesFor2x2hDiscount]);
+  }, [autoDiscountPercent]);
 
   const handleDiscountChange = (percent: number, reason: string) => {
     setDiscountPercent(percent);
