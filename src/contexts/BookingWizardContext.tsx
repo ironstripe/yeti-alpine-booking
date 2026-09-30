@@ -667,12 +667,14 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
 
   const setSelectedDates = (dates: string[]) => {
     setState((prev) => {
-      let newState = { ...prev, selectedDates: dates };
+      const sameDates = new Set(dates).size === new Set(prev.selectedDates).size &&
+        dates.every((d) => prev.selectedDates.includes(d));
+      let newState = { ...prev, selectedDates: dates, schedulerPrefill: sameDates ? prev.schedulerPrefill : null };
       // Reconcile canonical private plan: drop blocks on removed dates (no orphans).
       if (prev.appointments) {
         const kept = prev.appointments.filter((a) => dates.includes(a.date));
         const derived = deriveFromPlan(kept, prev.instructorId);
-        newState = { ...newState, ...derived, selectedDates: [...dates].sort(), appointments: kept };
+        newState = { ...newState, ...derived, selectedDates: [...dates].sort(), appointments: kept, schedulerPrefill: newState.schedulerPrefill };
       }
       
       // Sync to participant bookings if in individual mode
@@ -743,6 +745,7 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
         ...derived,
         selectedDates: [...derived.selectedDates, ...keptEmpty].sort(),
         appointments: list,
+        schedulerPrefill: null, // validated user edit
       };
     });
     return null;
@@ -767,6 +770,7 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
         ),
         dayInstructorOverrides: moveKey(prev.dayInstructorOverrides),
         dayTimeOverrides: moveKey(prev.dayTimeOverrides),
+        schedulerPrefill: null, // real change (no-op returns early above)
       };
     });
   };
@@ -1265,6 +1269,7 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
           instructor: prev.instructor?.id === baseInstructorId ? prev.instructor : null,
           privateGroupProposal,
           miniSchedulerSelections: [],
+          schedulerPrefill: null, // user replaced the plan
         };
       }
 
@@ -1281,6 +1286,7 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
         dayInstructorOverrides,
         privateGroupProposal,
         miniSchedulerSelections: [], // Clear after applying
+        schedulerPrefill: null,
       };
     });
     return null;

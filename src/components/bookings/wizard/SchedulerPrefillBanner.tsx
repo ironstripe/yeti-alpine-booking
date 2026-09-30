@@ -23,9 +23,12 @@ function planKey(plan: AppointmentSlot[]): string {
 export function SchedulerPrefillBanner() {
   const { state, clearSchedulerPrefill } = useBookingWizard();
 
-  const appointments = state.appointments;
-  const origin = state.schedulerPrefill?.plan;
-  if (!appointments || appointments.length === 0 || !origin || origin.length === 0) return null;
+  // Explicit provenance is the only proof of a Scheduler prefill;
+  // `appointments` is only the current plan to display.
+  if (!state.schedulerPrefill) return null;
+  const appointments = state.appointments ?? [];
+  if (appointments.length === 0) return null;
+  const origin = state.schedulerPrefill.plan;
 
   const modified = planKey(origin) !== planKey(appointments);
   const dates = [...new Set(appointments.map((a) => a.date))].sort();
