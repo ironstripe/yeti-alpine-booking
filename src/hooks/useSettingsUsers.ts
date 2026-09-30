@@ -84,7 +84,7 @@ export function useSettingsUsers() {
         
         // Mark this auth user as processed
         if (authUser) {
-          authUserByEmail.delete(instructor.email.toLowerCase());
+          if (instructor.email) authUserByEmail.delete(instructor.email.toLowerCase());
         }
       }
 
