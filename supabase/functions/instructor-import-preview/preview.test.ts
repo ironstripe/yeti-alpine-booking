@@ -21,7 +21,7 @@ function book(profiles: P[], assignments: P[] = [], opts: { dropSheet?: string; 
   return new Uint8Array(XLSX.write(wb, { type: "array", bookType: "xlsx" }));
 }
 const prof = (id: string, extra: P = {}): P => ({
-  BookingCorner_ID: id, Archiviert: "Falsch", Name: "Muster" + id, Vorname: "Test", "Mobile CH (07...)": "079 000 00 " + id.padStart(2, "0"),
+  BookingCorner_ID: id, Archiviert: "Falsch", Name: "Muster" + "abcdefghij"[Number(id)], Vorname: "Test", "Mobile CH (07...)": "079 000 00 " + id.padStart(2, "0"),
   Email: `t${id}@example.invalid`, "Aktiv von": "01.12.2026", "Aktiv bis": "15.04.2027", "Sichtbar auf Ihre Website": "Falsch",
   "Lohn pro Stunde/Monat (CHF)": "35/40 alt", Bank: "Synth Bank", "Kontonummer/IBAN": "CH00 SYNTH", "AHV Nummer / PEID": "756.0000.0000.00",
   Bilddatei: `${id}.jpg`, Jackennummer: "J" + id, ...extra,
@@ -92,9 +92,9 @@ Deno.test("match: link, candidate, review, create, yeti-only, similar spelling",
   ]), null, TODAY);
   const p = Object.fromEntries(r.profiles.map((x) => [x.sourceId, x]));
   const yeti = [
-    y("L", "Test", "Muster1", "000"),                       // linked
-    y("C", "Test", "Muster2", "+41 79 000 00 02"),          // name + phone -> candidate
-    y("R", "Test", "Muster3", "079 111 11 11"),             // name, phone differs -> review
+    y("L", "Test", "Musterb", "000"),                       // linked
+    y("C", "Test", "Musterc", "+41 79 000 00 02"),          // name + phone -> candidate
+    y("R", "Test", "Musterd", "079 111 11 11"),             // name, phone differs -> review
     y("V", "Victoria", "Beispiel", "079 000 00 04"),        // similar spelling -> review
     y("O", "Nur", "Yeti", null),                            // yeti-only
   ];
@@ -125,7 +125,7 @@ Deno.test("reimport: identical file with all links yields zero creates", async (
 Deno.test("diff: missing source values never overwrite YETI values", async () => {
   const r = await parseImport(book([prof("1", { Email: null })]), null, TODAY);
   const links = [{ source_id: "1", instructor_id: "A", source_checksum: "old" }];
-  const { results } = classify(r.profiles, [y("A", "Test", "Muster1", "079 000 00 01", { email: "keep@example.invalid" })], links);
+  const { results } = classify(r.profiles, [y("A", "Test", "Musterb", "079 000 00 01", { email: "keep@example.invalid" })], links);
   assertEquals(results[0].classification, "update");
   assert(!results[0].diff.some((d) => d.field === "email"));
 });
