@@ -26,6 +26,8 @@ export interface AppointmentSlot {
   date: string;
   startTime: string;
   durationMinutes: number;
+  /** Optional per-appointment instructor (multi-instructor period plans) */
+  instructorId?: string;
 }
 
 // Track original ticket items for edit mode
@@ -1237,32 +1239,46 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
     // Calculate dayTimeOverrides for appointments that differ from base (as TimeBlock arrays)
     const dayTimeOverrides: Record<string, TimeBlock[]> = {};
     
-    // Group time selections by date
-    const selectionsByDate = new Map<string, TimeSelection[]>();
-    for (const ts of timeSelections) {
+    // Group time selections by date (keep each appointment's own instructor)
+    const dayInstructorOverrides: Record<string, string | null> = {};
+    const selectionsByDate = new Map<string, Array<TimeSelection & { instructorId?: string }>>();
+    timeSelections.forEach((ts, idx) => {
       const existing = selectionsByDate.get(ts.date) || [];
-      selectionsByDate.set(ts.date, [...existing, ts]);
-    }
+      selectionsByDate.set(ts.date, [...existing, { ...ts, instructorId: appointments[idx]?.instructorId }]);
+    });
     
     // Build time blocks for each date
     for (const [date, selectionsOnDate] of selectionsByDate) {
       const blocks: TimeBlock[] = [];
       for (const ts of selectionsOnDate) {
-        // Only add if different from base time OR if multiple blocks on same day
+        const blockInstructorId =
+          ts.instructorId && ts.instructorId !== instructorId ? ts.instructorId : undefined;
+        // Add if different from base time/instructor OR if multiple blocks on same day
         if (
           selectionsOnDate.length > 1 ||
           ts.startTime !== baseStartTime ||
-          ts.endTime !== baseEndTime
+          ts.endTime !== baseEndTime ||
+          blockInstructorId
         ) {
           blocks.push({
             id: `tb-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
             startTime: ts.startTime,
             endTime: ts.endTime,
+            instructorId: blockInstructorId,
           });
         }
       }
       if (blocks.length > 0) {
         dayTimeOverrides[date] = blocks;
+      }
+      // Different instructor on a different day = normal period plan (no participant split)
+      const dayInstr = selectionsOnDate[0].instructorId;
+      if (
+        dayInstr &&
+        dayInstr !== instructorId &&
+        selectionsOnDate.every((s) => s.instructorId === dayInstr)
+      ) {
+        dayInstructorOverrides[date] = dayInstr;
       }
     }
     
