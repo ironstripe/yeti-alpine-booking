@@ -1,6 +1,7 @@
 import { CalendarCheck, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { showSchedulerPrefillBanner } from "@/lib/privatePlan";
 import { useBookingWizard, type AppointmentSlot } from "@/contexts/BookingWizardContext";
 
 function formatDate(date: string): string {
@@ -25,9 +26,8 @@ export function SchedulerPrefillBanner() {
 
   // Explicit provenance is the only proof of a Scheduler prefill;
   // `appointments` is only the current plan to display.
-  if (!state.schedulerPrefill) return null;
+  if (!state.schedulerPrefill || !showSchedulerPrefillBanner(state.schedulerPrefill, state.appointments)) return null;
   const appointments = state.appointments ?? [];
-  if (appointments.length === 0) return null;
   const origin = state.schedulerPrefill.plan;
 
   const modified = planKey(origin) !== planKey(appointments);

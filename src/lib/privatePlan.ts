@@ -66,3 +66,17 @@ export function deriveFromPlan(list: AppointmentSlot[], baseInstructorId: string
     duration: base ? base.durationMinutes / 60 : null,
   };
 }
+
+/** True only if the set of dates really differs (order/duplicates ignored). */
+export function dateSetChanged(prev: string[], next: string[]): boolean {
+  const a = new Set(prev), b = new Set(next);
+  return a.size !== b.size || [...b].some((d) => !a.has(d));
+}
+
+/** Banner visibility: explicit provenance is required; a plan alone is never proof. */
+export function showSchedulerPrefillBanner(
+  provenance: unknown | null | undefined,
+  appointments: AppointmentSlot[] | null | undefined,
+): boolean {
+  return !!provenance && !!appointments && appointments.length > 0;
+}

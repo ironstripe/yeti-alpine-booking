@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useCallback, ReactNode } from "react";
 import type { Tables } from "@/integrations/supabase/types";
 import { supabase } from "@/integrations/supabase/client";
-import { deriveFromPlan, sortPlan, toMin, validatePlan } from "@/lib/privatePlan";
+import { dateSetChanged, deriveFromPlan, sortPlan, toMin, validatePlan } from "@/lib/privatePlan";
 
 export type WizardStep = 1 | 2 | 3;
 
@@ -667,9 +667,7 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
 
   const setSelectedDates = (dates: string[]) => {
     setState((prev) => {
-      const sameDates = new Set(dates).size === new Set(prev.selectedDates).size &&
-        dates.every((d) => prev.selectedDates.includes(d));
-      let newState = { ...prev, selectedDates: dates, schedulerPrefill: sameDates ? prev.schedulerPrefill : null };
+      let newState = { ...prev, selectedDates: dates, schedulerPrefill: dateSetChanged(prev.selectedDates, dates) ? null : prev.schedulerPrefill };
       // Reconcile canonical private plan: drop blocks on removed dates (no orphans).
       if (prev.appointments) {
         const kept = prev.appointments.filter((a) => dates.includes(a.date));
