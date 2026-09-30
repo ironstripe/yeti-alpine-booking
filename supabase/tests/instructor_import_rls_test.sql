@@ -1,7 +1,7 @@
 -- RLS test for Booking-Corner import tables and private portrait bucket. Synthetic rows only; always rolled back.
 -- Run: psql "$PRIVILEGED_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/instructor_import_rls_test.sql
--- Success = final line "RLS_ALL_PASSED" printed as NOTICE, then ROLLBACK.
-BEGIN;
+-- Success = the only output is ERROR 'RLS_ALL_PASSED' (intentional; the DO block raises so everything is rolled back). Any 'FAIL ...' names the broken check.
+
 DO $$
 DECLARE
   v_instr uuid; v_run uuid; v_super uuid; v_office uuid; v_teacher uuid; n int;
@@ -83,6 +83,6 @@ BEGIN
   SELECT count(*) INTO n FROM storage.objects WHERE bucket_id='instructor-hr-photos'; IF n <> 0 THEN RAISE EXCEPTION 'FAIL anon photo'; END IF;
   RESET ROLE;
 
-  RAISE NOTICE 'RLS_ALL_PASSED';
+  RAISE EXCEPTION 'RLS_ALL_PASSED';
 END $$;
-ROLLBACK;
+
