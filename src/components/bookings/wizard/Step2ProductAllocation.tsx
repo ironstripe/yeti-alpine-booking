@@ -1,3 +1,4 @@
+import { toast } from "sonner";
 import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format, parseISO, differenceInYears } from "date-fns";
@@ -495,34 +496,8 @@ export function Step2ProductAllocation() {
 
   // Handle applying the multi-selection to the wizard state
   const handleApplyMultiSelection = async () => {
-    // Capture instructor IDs before clearing selections
-    const instrIds = [...new Set(state.miniSchedulerSelections.map(s => s.instructorId))];
-    
-    applyMiniSchedulerSelection();
-    
-    // If multi-instructor, fetch instructor objects to populate group proposal
-    if (instrIds.length > 1 && state.selectedParticipants.length > 1) {
-      try {
-        const { data: instructors } = await supabase
-          .from("instructors")
-          .select("*")
-          .in("id", instrIds);
-        
-        if (instructors) {
-          // Update group proposal with fetched instructor objects
-          for (const instr of instructors) {
-            setGroupInstructor(
-              `mini-group-${instrIds.indexOf(instr.id) + 1}`,
-              instr
-            );
-          }
-        }
-      } catch (err) {
-        console.error("Failed to fetch instructors for group proposal:", err);
-      }
-    }
-    
-    setTimeout(() => {}, 0);
+    const err = applyMiniSchedulerSelection();
+    if (err) toast.error(err); // selection is kept
   };
 
   const isGroupCourse = state.productType === "group";
