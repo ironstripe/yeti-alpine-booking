@@ -3210,8 +3210,94 @@ export type Database = {
         }
         Relationships: []
       }
+      private_appointment_backfill_log: {
+        Row: {
+          action: string
+          created_at: string
+          id: string
+          old_appointment_id: string | null
+          old_ticket_total: number | null
+          old_unit_price: number | null
+          run_id: string
+          ticket_id: string
+          ticket_item_id: string | null
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          id?: string
+          old_appointment_id?: string | null
+          old_ticket_total?: number | null
+          old_unit_price?: number | null
+          run_id: string
+          ticket_id: string
+          ticket_item_id?: string | null
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          id?: string
+          old_appointment_id?: string | null
+          old_ticket_total?: number | null
+          old_unit_price?: number | null
+          run_id?: string
+          ticket_id?: string
+          ticket_item_id?: string | null
+        }
+        Relationships: []
+      }
+      private_appointment_participants: {
+        Row: {
+          appointment_id: string
+          attendance: string | null
+          attendance_at: string | null
+          attendance_by: string | null
+          created_at: string
+          id: string
+          participant_id: string
+          updated_at: string
+        }
+        Insert: {
+          appointment_id: string
+          attendance?: string | null
+          attendance_at?: string | null
+          attendance_by?: string | null
+          created_at?: string
+          id?: string
+          participant_id: string
+          updated_at?: string
+        }
+        Update: {
+          appointment_id?: string
+          attendance?: string | null
+          attendance_at?: string | null
+          attendance_by?: string | null
+          created_at?: string
+          id?: string
+          participant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "private_appointment_participants_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "private_appointments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "private_appointment_participants_participant_id_fkey"
+            columns: ["participant_id"]
+            isOneToOne: false
+            referencedRelation: "customer_participants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       private_appointments: {
         Row: {
+          confirmed_at: string | null
+          confirmed_by: string | null
           created_at: string
           date: string
           id: string
@@ -3219,6 +3305,7 @@ export type Database = {
           instructor_id: string | null
           meeting_point: string | null
           period_group_id: string | null
+          price: number | null
           status: string
           ticket_id: string
           time_end: string
@@ -3226,6 +3313,8 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          confirmed_at?: string | null
+          confirmed_by?: string | null
           created_at?: string
           date: string
           id?: string
@@ -3233,6 +3322,7 @@ export type Database = {
           instructor_id?: string | null
           meeting_point?: string | null
           period_group_id?: string | null
+          price?: number | null
           status?: string
           ticket_id: string
           time_end: string
@@ -3240,6 +3330,8 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          confirmed_at?: string | null
+          confirmed_by?: string | null
           created_at?: string
           date?: string
           id?: string
@@ -3247,6 +3339,7 @@ export type Database = {
           instructor_id?: string | null
           meeting_point?: string | null
           period_group_id?: string | null
+          price?: number | null
           status?: string
           ticket_id?: string
           time_end?: string
