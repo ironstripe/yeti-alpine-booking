@@ -26,7 +26,7 @@ export function BookingEmailDeliveryCard({ ticketId }: { ticketId: string }) {
   const { data: delivery } = useQuery({
     queryKey: ["booking-email-delivery", ticketId],
     queryFn: async () => {
-      // deno-lint-ignore no-explicit-any
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data } = await (supabase as any)
         .from("booking_email_deliveries")
         .select("id, status, last_error_code, last_error")
