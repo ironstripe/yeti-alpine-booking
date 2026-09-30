@@ -58,7 +58,6 @@ export function EmptySlot({
     endDrag,
     shiftClickSelect,
     toggleSlotSelection,
-    clearSelection,
     canSelectSlot,
     multiSelectMode,
   } = useSchedulerSelection();
