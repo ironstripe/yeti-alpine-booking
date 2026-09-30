@@ -60,6 +60,7 @@ export function EmptySlot({
     toggleSlotSelection,
     clearSelection,
     canSelectSlot,
+    multiSelectMode,
   } = useSchedulerSelection();
 
   const { activeDragBookingId } = useDndKitDrag();
@@ -167,7 +168,7 @@ export function EmptySlot({
     const endTime = getSlotEndTime();
 
     // Ctrl+Click (or Cmd+Click on Mac) for multi-select toggle
-    if (e.ctrlKey || e.metaKey) {
+    if (e.ctrlKey || e.metaKey || multiSelectMode) {
       const result = toggleSlotSelection(
         {
           instructorId,

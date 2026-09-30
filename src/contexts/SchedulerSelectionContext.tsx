@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback, ReactNode } from "react";
+import { createContext, useContext, useState, useCallback, useEffect, ReactNode } from "react";
 import type { SchedulerBooking, SchedulerAbsence } from "@/lib/scheduler-utils";
 import { OPERATIONAL_START_MINUTES, OPERATIONAL_END_MINUTES } from "@/lib/scheduler-utils";
 
@@ -75,6 +75,26 @@ interface SchedulerSelectionContextType {
     bookings: SchedulerBooking[],
     absences: SchedulerAbsence[]
   ) => { added: boolean; removed: boolean; error?: string };
+  /** Visible "Mehrere Termine auswählen" mode: plain click toggles like Ctrl/Cmd+Click. */
+  multiSelectMode: boolean;
+  setMultiSelectMode: (on: boolean) => void;
+}
+
+// Planning draft survives day/view navigation, Wizard back-navigation and single-slot conflicts.
+const DRAFT_KEY = "yeti.scheduler.planningDraft.v1";
+function loadDraft(): { selections: SlotSelection[]; multiSelectMode: boolean } {
+  try {
+    const raw = sessionStorage.getItem(DRAFT_KEY);
+    if (!raw) return { selections: [], multiSelectMode: false };
+    const d = JSON.parse(raw);
+    const today = new Date().toISOString().slice(0, 10);
+    const selections = Array.isArray(d.selections)
+      ? (d.selections as SlotSelection[]).filter((s) => s && typeof s.date === "string" && s.date >= today)
+      : [];
+    return { selections, multiSelectMode: !!d.multiSelectMode };
+  } catch {
+    return { selections: [], multiSelectMode: false };
+  }
 }
 
 const SchedulerSelectionContext = createContext<SchedulerSelectionContextType | null>(null);
@@ -198,14 +218,24 @@ const initialDragState: DragState = {
 };
 
 export function SchedulerSelectionProvider({ children }: { children: ReactNode }) {
+  const [initialDraft] = useState(loadDraft);
   const [state, setState] = useState<SelectionState>({
-    teacherId: null,
-    selections: [],
+    teacherId: initialDraft.selections[0]?.instructorId ?? null,
+    selections: initialDraft.selections,
     isResizing: false,
     activeResizeId: null,
     drag: initialDragState,
     anchorSlot: null,
   });
+  const [multiSelectMode, setMultiSelectMode] = useState(initialDraft.multiSelectMode);
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ selections: state.selections, multiSelectMode }));
+    } catch {
+      /* storage unavailable: draft stays in memory only */
+    }
+  }, [state.selections, multiSelectMode]);
 
   const canSelectSlot = useCallback(
     (
@@ -729,6 +759,8 @@ export function SchedulerSelectionProvider({ children }: { children: ReactNode }
         cancelDrag,
         shiftClickSelect,
         toggleSlotSelection,
+        multiSelectMode,
+        setMultiSelectMode,
       }}
     >
       {children}
