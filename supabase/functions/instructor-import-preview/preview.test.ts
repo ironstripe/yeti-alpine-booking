@@ -139,12 +139,12 @@ async function entry(id: string, file: string, bytes: Uint8Array, over: Record<s
 
 Deno.test("manifest: valid → verified; metadata files not rejected", async () => {
   const man = [await entry("1", "1.jpg", JPEG), await entry("2", "2.jpg", JPEG2)];
-  const z = zipSync({ "1.jpg": JPEG, "2.jpg": JPEG2, "bildzuordnung.json": enc(man), "pruefergebnis.json": enc({ ok: true }), "readme.txt": enc("x") });
+  const z = zipSync({ "1.jpg": JPEG, "2.jpg": JPEG2, "bildzuordnung.json": enc(man), "pruefergebnis.json": enc({ ok: true }), "readme.txt": enc("x"), "IMPORT_README.txt": enc("y"), "notes.txt": enc("z") });
   const r = await parseImport(book([prof("1"), prof("2")]), z, SEASON);
   assertEquals(r.photos.filter((p) => p.verified).length, 2);
   assertEquals(r.photoIssues, []);
-  assertEquals(r.zipRejected, []);
-  assertEquals(r.zipMetadata.sort(), ["bildzuordnung.json", "pruefergebnis.json", "readme.txt"]);
+  assertEquals(r.zipRejected, ["not_jpeg_name"]); // unknown notes.txt still rejected
+  assertEquals(r.zipMetadata.sort(), ["bildzuordnung.json", "import_readme.txt", "pruefergebnis.json", "readme.txt"]);
   assertEquals(r.manifestEntries, 2);
 });
 
@@ -184,4 +184,11 @@ Deno.test("season: explicit overlap, missing dates never block profile", async (
   const r = await parseImport(book([prof("1", { "Aktiv von": null, "Aktiv bis": null }), prof("2", { "Aktiv von": "01.01.2026", "Aktiv bis": "30.11.2026" })]), null, SEASON);
   assertEquals(r.profiles.length, 2);
   assertEquals(r.profiles.map((p) => p.hasCurrentWindow), [false, false]);
+});
+
+Deno.test("zip: IMPORT_README.txt is metadata, but unsafe paths with that name are still rejected", async () => {
+  const z = zipSync({ "IMPORT_README.txt": new TextEncoder().encode("x"), "a/../IMPORT_README.txt": new TextEncoder().encode("x") });
+  const r = await parseImport(book([prof("1")]), z, SEASON);
+  assertEquals(r.zipMetadata, ["import_readme.txt"]);
+  assertEquals(r.zipRejected, ["unsafe_path"]);
 });

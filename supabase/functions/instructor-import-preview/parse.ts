@@ -53,7 +53,7 @@ export type PhotoInfo = { sourceId: string; entry: string; sha256: string; size:
 export type Season = { name: string; start: string; end: string };
 export type PhotoIssue = { sourceId: string | null; code: string };
 /** Known companion metadata files inside the photo ZIP; never counted as rejected images. */
-export const ZIP_METADATA = new Set(["bildzuordnung.json", "pruefergebnis.json", "readme", "readme.txt", "readme.md"]);
+export const ZIP_METADATA = new Set(["bildzuordnung.json", "pruefergebnis.json", "readme", "readme.txt", "readme.md", "import_readme.txt"]);
 export const MANIFEST_NAME = "bildzuordnung.json";
 const MANIFEST_MAX_BYTES = 5 * 1024 * 1024;
 export type ParseResult = {
