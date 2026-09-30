@@ -59,3 +59,25 @@ for (const f of ["pa_create_booking", "pa_move_appointment", "pa_period_update",
     assert(r.status === 401 || r.status === 403 || r.status === 404, `${f} returned ${r.status}`);
   }});
 }
+
+const validCreate = {
+  action: "create", submission_key: "disc-test-0001", customer_id: crypto.randomUUID(), product_id: crypto.randomUUID(),
+  appointments: [{ date: "2030-01-10", time_start: "10:00", time_end: "12:00", instructor_id: crypto.randomUUID() }],
+  participants: [{ participant_id: crypto.randomUUID() }],
+};
+Deno.test("schema: manual discount on create", () => {
+  assert(RequestSchema.safeParse(validCreate).success, "no discount");
+  assert(RequestSchema.safeParse({ ...validCreate, discount_percent: 0 }).success, "zero without reason");
+  assert(RequestSchema.safeParse({ ...validCreate, discount_percent: 10, discount_reason: "Stammkunde" }).success, "10% with reason");
+  assert(RequestSchema.safeParse({ ...validCreate, discount_percent: 100, discount_reason: "Gutschrift" }).success, "100%");
+  assert(!RequestSchema.safeParse({ ...validCreate, discount_percent: 10 }).success, "missing reason");
+  assert(!RequestSchema.safeParse({ ...validCreate, discount_percent: 10, discount_reason: "   " }).success, "blank reason");
+  assert(!RequestSchema.safeParse({ ...validCreate, discount_percent: -1, discount_reason: "x" }).success, "negative");
+  assert(!RequestSchema.safeParse({ ...validCreate, discount_percent: 100.5, discount_reason: "x" }).success, ">100");
+  assert(!RequestSchema.safeParse({ ...validCreate, discount_percent: Infinity, discount_reason: "x" }).success, "infinite");
+  assert(!RequestSchema.safeParse({ ...validCreate, discount_percent: NaN, discount_reason: "x" }).success, "NaN");
+  assert(!RequestSchema.safeParse({ ...validCreate, discount_percent: "10", discount_reason: "x" }).success, "string");
+  assert(!RequestSchema.safeParse({ ...validCreate, discount_percent: 10, discount_reason: "x".repeat(501) }).success, "long reason");
+  const trimmed = RequestSchema.safeParse({ ...validCreate, discount_percent: 10, discount_reason: "  Stammkunde " });
+  assert(trimmed.success && trimmed.data.action === "create" && trimmed.data.discount_reason === "Stammkunde", "trimmed");
+});
