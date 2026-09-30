@@ -81,10 +81,12 @@ Deno.serve(async (req) => {
   const { data: run, error: runErr } = await sb.from("instructor_import_runs").insert({
     source_system: SOURCE_SYSTEM, rollout: ROLLOUT, status: "preview",
     xlsx_sha256: await sha256Hex(xlsx), zip_sha256: zip ? await sha256Hex(zip) : null,
-    counts, created_by: auth.userId,
+    counts: { ...counts, season, photo_issue_list: parsed.photoIssues }, created_by: auth.userId,
   }).select("id").single();
   if (runErr || !run) { console.error("preview_run_insert_failed"); return json({ error: "run_failed" }, 500); }
 
+  const issuesBy = new Map<string, string[]>();
+  for (const i of parsed.photoIssues) if (i.sourceId) issuesBy.set(i.sourceId, [...(issuesBy.get(i.sourceId) ?? []), i.code]);
   const pById = new Map(parsed.profiles.map((p) => [p.sourceId, p]));
   const staging = results.map((r) => {
     const p = pById.get(r.sourceId)!;
@@ -92,7 +94,7 @@ Deno.serve(async (req) => {
     return {
       run_id: run.id, source_id: r.sourceId, classification: r.classification, confidence: r.confidence,
       target_instructor_id: r.targetInstructorId, source_checksum: checksum, normalized,
-      private_payload: priv, windows: window ? [window] : [], photo: photoBy.get(r.sourceId) ?? null,
+      private_payload: priv, windows: window ? [window] : [], photo: photoBy.get(r.sourceId) ? { ...photoBy.get(r.sourceId)!, issues: issuesBy.get(r.sourceId) ?? [] } : null,
       diff: r.diff, reasons: r.reasons,
     };
   });

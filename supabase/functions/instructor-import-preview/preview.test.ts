@@ -6,7 +6,7 @@ import { zipSync } from "npm:fflate@0.8.2";
 import { parseImport, PROFILE_HEADERS, ASSIGNMENT_HEADERS, isSafeZipPath, parseBool, normHeader } from "./parse.ts";
 import { classify, type YetiInstructor } from "./match.ts";
 
-const TODAY = "2026-09-30";
+const TODAY = { name: "Winter 26/27", start: "2026-12-01", end: "2027-04-15" };
 const JPEG = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3, 4]);
 
 type P = Record<string, unknown>;
