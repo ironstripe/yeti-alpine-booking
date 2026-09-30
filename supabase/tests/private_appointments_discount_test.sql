@@ -33,7 +33,7 @@ BEGIN
   SELECT (SELECT count(*) FROM public.tickets)+(SELECT count(*) FROM public.ticket_items)+(SELECT count(*) FROM public.private_appointments) INTO c_after;
   IF c_after <> c_before THEN RAISE EXCEPTION 'FAIL 1f rejected requests wrote rows'; END IF;
 
-  -- 2. 10% on two appointments: undiscounted unit_price from pa_price, discount on every line, exact total
+  -- 2. 10% on a 3-day booking: undiscounted unit_price from pa_price, discount on every line, total = sum(line_total)
   r := public.pa_create_booking(jsonb_build_object('submission_key','pa-disc-ok-0001','customer_id',v_cust,'product_id',v_prod,
     'participants',v_parts,'discount_percent',10,'discount_reason','  Stammkunde ',
     'appointments', jsonb_build_array(
