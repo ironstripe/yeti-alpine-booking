@@ -8,6 +8,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useBookingWizard } from "@/contexts/BookingWizardContext";
+import { format, parseISO } from "date-fns";
+import { de } from "date-fns/locale";
+import { endOf, sortPlan } from "@/lib/privatePlan";
 import { usePrivateLessonRates, useHighSeasonPeriods } from "@/hooks/usePrivateLessonRates";
 import { useProducts, ProductWithTiers } from "@/hooks/useProducts";
 import { calculatePrice, formatPriceCHF } from "@/lib/pricing-utils";
@@ -219,6 +222,18 @@ export function PriceBreakdown({
     return groupPrices;
   }, [isMultiGroup, state.privateGroupProposal, state.selectedDates, state.timeSlot, rates, highSeasonPeriods, daysCount]);
 
+  // Canonical plan: price every real block by its own date/time and participant count
+  const canonicalParticipants = state.selectedParticipants.length || state.numberOfPersons;
+  const canonicalBlocks = useMemo(() => {
+    if (productType !== "private" || !state.appointments) return null;
+    return sortPlan(state.appointments).map((a) => {
+      const end = endOf(a);
+      const price = calculatePrivateLessonPrice(new Date(a.date), a.startTime, end, canonicalParticipants, rates, highSeasonPeriods);
+      return { key: `${a.date}-${a.startTime}`, date: a.date, start: a.startTime, end, total: price.totalPrice, isHighSeason: price.isHighSeason };
+    });
+  }, [productType, state.appointments, canonicalParticipants, rates, highSeasonPeriods]);
+  const canonicalTotal = canonicalBlocks?.reduce((sum, b) => sum + b.total, 0) ?? 0;
+
   // Private lesson pricing
   let unitPrice = 0;
   let productName = "";
@@ -289,6 +304,7 @@ export function PriceBreakdown({
   // Calculate totals based on product type
   const courseTotal = productType === "group" 
     ? groupCourseCalculation.totalCoursePrice 
+    : canonicalBlocks ? canonicalTotal
     : (productType === "private" && multiGroupPricing 
       ? multiGroupPricing.reduce((sum, g) => sum + g.totalForAllDays, 0)
       : (productType === "private" ? unitPrice * daysCount : 0));
@@ -401,8 +417,26 @@ export function PriceBreakdown({
             </>
           )}
 
-          {/* Private lesson - Single group */}
-          {productType === "private" && !isMultiGroup && (
+          {/* Private lesson - canonical plan: one line per real lesson */}
+          {canonicalBlocks && (
+            <div className="space-y-1">
+              <p className="font-medium">
+                Privatstunden · {canonicalBlocks.length} Termin{canonicalBlocks.length === 1 ? "" : "e"} · {canonicalParticipants} Person{canonicalParticipants === 1 ? "" : "en"}
+              </p>
+              {canonicalBlocks.map((b) => (
+                <div key={b.key} className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">
+                    {format(parseISO(b.date), "EEE d. MMM", { locale: de })}, {b.start}–{b.end}
+                    {b.isHighSeason ? " · Hochsaison" : ""}
+                  </span>
+                  <span>{formatCurrency(b.total)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Private lesson - Single group (legacy manual flow) */}
+          {productType === "private" && !isMultiGroup && !canonicalBlocks && (
             <div className="flex justify-between">
               <div>
                 <p className="font-medium">{productName}</p>
@@ -438,7 +472,7 @@ export function PriceBreakdown({
           )}
 
           {/* High season badge for private lessons */}
-          {productType === "private" && !isMultiGroup && privateLessonPrice?.isHighSeason && (
+          {productType === "private" && !isMultiGroup && !canonicalBlocks && privateLessonPrice?.isHighSeason && (
             <Badge variant="secondary" className="bg-blue-100 text-blue-800">
               Hochsaison
             </Badge>
@@ -529,6 +563,11 @@ export function PriceBreakdown({
           <span>{formatCurrency(total)}</span>
         </div>
         <p className="text-xs text-muted-foreground">(inkl. MwSt.)</p>
+        {canonicalBlocks && (
+          <p className="text-xs text-muted-foreground">
+            Vorschau. Gespeicherte Termine und der verbindliche Preis werden beim Buchen vom Server berechnet.
+          </p>
+        )}
       </CardContent>
     </Card>
   );
