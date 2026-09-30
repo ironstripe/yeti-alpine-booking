@@ -1,5 +1,7 @@
-// Parity: SQL public.pa_price must equal the frontend calculatePrivateLessonPrice
-// for every grid case. Fixture generated from the live DB rates (see fixture header).
+// Snapshot parity: the frontend calculatePrivateLessonPrice vs. a CACHED JSON fixture of
+// pa_price outputs captured once from the database. This test does NOT execute SQL and uses
+// hard-coded rates; it cannot prove live SQL/UI parity on its own. Live pa_price behaviour is
+// asserted in supabase/tests/private_appointments_phase1_test.sql (section 0).
 import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import { calculatePrivateLessonPrice } from "../../../src/lib/pricing/private-lesson-pricing.ts";
 
