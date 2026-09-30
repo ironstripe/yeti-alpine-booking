@@ -1,89 +1,76 @@
-# Consolidated plan: multi-date private lessons on canonical appointments
+# Phase 2 only: `private-appointments` server step and atomic operations
 
-This one plan covers the whole scheduling request: goal, constraints 1–9, pricing, protection, guests, payroll, the server boundary, the multi-select screens, migration and rollback, and the build phases. Phase 1 is live but not published. Nothing below gets built until you approve it.
+Scope: the server step, database transactions, the instructor confirmation extension, the audit record, the notification event, and contract tests. Not included: Scheduler, Wizard or other screens, the browser hooks, running a backfill, and publishing. Phase 1 objects are reused unchanged.
 
-## 1. Goal
-One private booking (one `ticket`) can hold several future lessons on different days. Each lesson has its own date, start and end time, and instructor. Each real lesson exists exactly once as a `private_appointments` row. That row is what the Scheduler, pricing, confirmation, payroll and notifications all work from. Tickets, invoices, group courses, checkout, payments, office shifts and legacy single private lessons stay as they are.
+## What gets built
+1. **One office/admin server step**, `private-appointments`. It checks the caller with the existing `requireRole(["office","admin"])`, validates input, then calls one database transaction per action.
+2. **Transactional database functions.** They run only for the server (service role only, no browser access). Each one:
+   - locks the lessons and ticket involved;
+   - checks for a free slot (`pa_slot_is_free`) and for protection (`pa_is_protected`);
+   - writes the lesson, its single commercial line (`pa_price`) and the recalculated ticket total;
+   - resets only the confirmations it affects;
+   - writes one `ticket_history` audit row and one channel-neutral `notification_queue` event (status `pending`).
 
-## 2. Non-negotiable rules (as agreed)
-1. Existing booking flows stay the same unless the new path strictly needs a change.
-2. A booking is one ticket. Several `ticket_items` never mean several bookings.
-3. A real lesson exists once, even with several participants. Participants are stored in `private_appointment_participants`.
-4. Each lesson is priced once, from its real date, time and participant count. The group price is never multiplied by the number of people. The ticket total is exactly the sum of the lesson lines.
-5. New bookings may only use free slots. Moving a lesson requires a fully free target slot. There is no way to override a conflict.
-6. Whole-period actions change only future lessons that can still be edited. Protected lessons are listed as exclusions. Historical correction is a separate future process.
-7. A Scheduler change resets only the confirmations it affects. It records an audit entry and one channel-neutral communication event. Email, WhatsApp or voice delivery happens later, outside the transaction, and scheduling rules are not repeated per channel.
-8. All visible text is German, using the existing React/Tailwind/shadcn patterns.
-9. All staff changes go through the existing staff-authorized server step (`requireRole` office/admin). There is no new public access and no weaker access rules.
+   Sending the notification is not part of Phase 2.
+3. **Instructor confirmation for lessons** in `set-booking-confirmation`. A new input `appointmentId` accepts or declines a lesson, but only by the instructor assigned to it. It sets the lesson and its linked line together, which the Phase 1 guard requires. The current `ticketItemId` input is unchanged.
 
-## 3. Data model (Phase 1, live)
-- `private_appointments`: one row per real lesson. It holds ticket_id, date, times, instructor_id, status (scheduled/booked/completed/cancelled), price, instructor_confirmation, confirmed_at/by, meeting_point, period_group_id.
-- `private_appointment_participants`: appointment + participant (required), attendance present/absent.
-- `ticket_items.appointment_id`: exactly one commercial line per lesson (participant_id null, unit_price = the lesson price).
-- `private_appointment_backfill_log`: server-only record of state before any backfill, used for rollback.
-- Server-only helpers: `pa_business_today`, `pa_price`, `pa_is_protected`, `pa_slot_conflicts`, `pa_slot_is_free`, `pa_reconcile_report`.
-- Guard trigger `trg_pa_ticket_item_guard`: a linked line must match its lesson and can only be confirmed through a confirmed lesson.
-
-## 4. Pricing
-`pa_price` is the only price used when saving. It follows the rate for each whole hour, adds 20 per extra person per hour, and counts 1–4 people (fewer or more are clamped to that range). Zero or invalid lengths cost 0. The app's price function is used only for preview. The live SQL test checks that `pa_price` matches the current rates.
-
-## 5. Protection
-A lesson is protected when its local business date is before today, OR its status is completed, OR the ticket's invoice is issued (issued_at set, or status other than draft/cancelled/void). Protected lessons are never changed and are reported back as `{id, reasons[]}`.
-
-## 6. Guests
-When a booking is created, each wizard guest is saved as a real `customer_participants` record in the same transaction. Each guest gets a `guest_key` from the client, so one key always gives exactly one participant. A resubmit with the same submission key creates nothing new. A guest whose name and birth date match an existing participant of the same customer is linked to that participant instead of duplicated.
-
-## 7. Payroll and confirmation
-Hours count once per lesson line, and only when the instructor confirmed that lesson. Confirmation happens only through `set-booking-confirmation`, which checks the instructor's own session and is extended for lessons. Moving a lesson or changing its instructor resets its confirmation to pending. Attendance is recorded per participant and never creates hours. A confirmed lesson counts even if every participant was absent (24h rule).
-
-## 8. Server step (Edge Function `private-appointments`, office/admin)
-| Action | Payload | Success | Conflict | Protected | Auth |
+## Contract (`POST /private-appointments`, body `{action, ...}`)
+| Action | Required payload | Success 200 | Conflict 409 | Protected 423 | Auth |
 |---|---|---|---|---|---|
-| `create` | customer, submission_key, appointments[{date,start,end,instructor_id}], participants[{participant_id or guest}] | `{ticket_id, appointment_ids, total}` | `409 {conflicts:[{index,date,kind,ref_id}]}` | n/a | `401/403` |
-| `move` | appointment_id, date, start, end, instructor_id | `{appointment, confirmation_reset}` | `409 {conflicts}` | `423 {excluded:[{id,reasons}]}` | `401/403` |
-| `period_update` | period_group_id, changes | `{updated_ids, excluded:[{id,reasons}]}` | `409` per day | listed in excluded | `401/403` |
-| `set_participants` | appointment_id, participants[] | `{appointment, price}` | n/a | `423` | `401/403` |
-| `cancel` | appointment_ids[] | `{cancelled_ids, excluded}` | n/a | `423` | `401/403` |
+| `create` | `submission_key`, `customer_id`, `appointments[{date,time_start,time_end,instructor_id}]` (at least 1, all future), `participants[{participant_id} or {guest_key,first_name,last_name,birth_date}]` (at least 1) | `{ticket_id, ticket_number, appointment_ids[], total}`; a repeat of the same `submission_key` returns the same result and writes nothing | `{conflicts:[{index,date,kind,ref_id}]}`, nothing written | n/a | 401 no/invalid session, 403 not office/admin |
+| `move` | `appointment_id`, `date`, `time_start`, `time_end`, `instructor_id` | `{appointment, price, confirmation_reset:boolean}` | `{conflicts:[{date,kind,ref_id}]}` | `{excluded:[{id,reasons[]}]}` | same |
+| `period_update` | `period_group_id`, `changes{time_start?,time_end?,instructor_id?}` | `{updated_ids[], excluded:[{id,reasons[]}]}` (only future, editable lessons) | `{conflicts:[{appointment_id,date,kind,ref_id}]}`, all or nothing | shown in `excluded` | same |
 
-Each action runs as one database transaction: lock, check free slot, write lesson + commercial line + ticket total, reset only the affected confirmations, write the audit entry, then insert a notification event (`notification_queue`). Delivery happens outside the transaction.
+- 400 means the input failed validation, with field errors.
+- 404 is a generic "not found".
+- 500 never passes database error text back to the caller.
+- A wizard guest becomes a `customer_participants` record exactly once per `guest_key`. If the name and birth date match an existing participant of the same customer, that participant is reused instead.
 
-## 9. Screens (German)
-- Scheduler and the wizard's mini-scheduler: a visible "Mehrere Termine auswählen" toggle, plus Ctrl/Cmd+Click.
-- A saved draft that survives Scheduler navigation, going back in the wizard, and conflicts.
-- The tray can only remove selections.
-- The wizard's planning step edits the date, time and instructor for each day. A different instructor on each day is normal and never splits participants into groups.
-- The Scheduler shows one block per lesson, with participants listed inside.
+## Exact files
+New:
+- `supabase/migrations/<ts>_pa_phase2_tx.sql` (the timestamp is set by the tool; a header comment gives the logical name). It adds:
+  - `pa_create_booking(jsonb)`, `pa_move_appointment(...)`, `pa_period_update(...)`, `pa_confirm_appointment(p_appointment uuid, p_instructor uuid, p_action text, p_reason text)`
+  - a `submission_key` column on `private_appointments`, plus a unique index per ticket (additive)
+  - EXECUTE granted to service_role only, and taken away from PUBLIC, anon and authenticated
+- `supabase/functions/private-appointments/index.ts`
+- `supabase/functions/_shared/privateAppointmentsContract.ts` (input schema and response shapes)
+- `supabase/functions/private-appointments/contract.test.ts`
+- `supabase/tests/private_appointments_phase2_test.sql` (one transaction that ends by rolling everything back, like Phase 1)
+- `supabase/rollback/private_appointments_phase2_rollback.sql` (removes the new functions, index and column; refuses to run if any lesson uses `submission_key`)
 
-## 10. Existing code that must move (found in this review)
-Earlier stages added direct browser writes that break rule 9:
-- `useCreateBooking.ts:702` inserts into `private_appointments` directly.
-- `usePeriodModification.ts:67/127` calls `update_private_appointment` and writes `private_appointments` directly. Nobody is currently allowed to run `update_private_appointment`, so that path already fails.
+Changed:
+- `supabase/functions/set-booking-confirmation/index.ts`: adds the `appointmentId` branch only.
+- `AGENTS.md`: one rule, "private-lesson changes go only through the `private-appointments` step".
 
-There are 0 lessons stored, so no data is affected. In Phase 2 both paths move behind the server step.
+## Acceptance tests
+SQL test (as service role, everything rolled back):
+1. `create` with 3 days and 3 instructors, 3 participants (1 guest): gives 3 lessons, 3 lines each at `pa_price` for 3 people, a ticket total equal to the sum, 3 mappings and 1 new participant.
+2. The same `submission_key` again: nothing new is written.
+3. `create` where one day conflicts: `conflicts[index]` is returned and 0 rows are written.
+4. `move` to a free slot: the lesson and its line move together, the price is recalculated, and the confirmation goes back to pending if the time, date or instructor changed.
+5. `move` to an occupied slot: a conflict is returned and nothing changes. `move` of a protected lesson: `excluded` with the reasons.
+6. `period_update` with 1 past and 2 future lessons: 2 updated and 1 excluded as `past`. If one future day conflicts: none updated.
+7. Every successful change writes exactly one `ticket_history` row and one `notification_queue` event. Failed changes write neither.
+8. `pa_confirm_appointment`: the assigned instructor can confirm, and the lesson and line both become confirmed. Another instructor is refused.
+9. Row counts are unchanged after the rollback.
 
-## 11. Migration, backfill, rollback
-- Only additive changes. The dry run (`pa_reconcile_report`) comes first and shows each ticket's before/after total with a skip reason.
-- Backfill only lessons that are future, unambiguous, scheduled and not invoiced. Any mismatch means no change.
-- Before-values are recorded in the backfill log. Historic or ambiguous legacy rows stay read-only.
-- Today: 4 legacy bookings, all past, so there is nothing to backfill.
-- Phase 1 rollback: `supabase/rollback/private_appointments_phase1_rollback.sql`. Each later phase gets its own rollback.
+Contract test (Deno, against the deployed step, synthetic data only):
+- 401 without a session, 401 with the public key only, and 403 for a teacher or a signed-in user without a role.
+- 400 for invalid input, and every response matches its documented shape.
+- A direct call from the browser (anon or authenticated) to any `pa_*` function is refused.
 
-## 12. Build phases (each approved separately)
-1. **Done:** schema, helpers, guard, access rules, rollback, SQL test and price tests.
-2. **Server step and confirmation:**
-   - `supabase/functions/private-appointments/index.ts` + `_shared/privateAppointments.ts`
-   - migration `pa_phase2_tx_functions` (transactional create/move/period/cancel, service-role only)
-   - `set-booking-confirmation` extended with `confirm_private_appointment`
-   - move `useCreateBooking` and `usePeriodModification` onto the server step
-   - tests `private-appointments/index.test.ts`, `supabase/tests/private_appointments_phase2_test.sql`
-3. **Screens:** multi-select toggle, saved draft, tray, wizard planning step, Scheduler blocks and exclusion notice.
-4. **Backfill and notifications:** dry-run report review, then (only if you confirm) backfill of qualifying lessons; delivery worker reads events; payroll view reads lesson lines.
+`set-booking-confirmation`:
+- The existing ticket-line path is unchanged (regression).
+- The new lesson path only works for the assigned instructor.
 
-## 13. Acceptance per phase
-- Build passes, tests pass, access checks run anonymously and as each role, and counts are compared before and after.
-- No publishing without your explicit release confirmation.
-- Every check is run once end to end with an office login. We don't have one yet, and that is an open blocker.
+Access and linter:
+- No new grants for anon or signed-in users.
+- The security linter shows no new findings.
 
-## Open questions before any build
-- Phase 2 needs an office test login for the end-to-end check.
-- Constraint 9 was cut off mid-sentence. Section 8 assumes it means "the existing `requireRole` office/admin Edge Function pattern".
+## Not included
+- The browser hooks (`useCreateBooking`, `usePeriodModification`) keep writing directly until the screens phase. The new step exists alongside them.
+- No backfill, no notification sending, no publish.
+
+## Open points
+- The office end-to-end check needs an office test login. The contract tests use test sessions with office, teacher and no role.
+- The notification event type will be named `private_appointment_changed`, with the payload `{appointment_ids, change, actor}`. Tell me if you want a different name.
