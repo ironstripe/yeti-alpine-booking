@@ -15,6 +15,11 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  // verify_jwt is disabled for this function, so every privileged action must
+  // verify the caller explicitly before reading input or using service-role access.
+  const authorization = await requireRole(req, ["admin"], corsHeaders);
+  if (authorization instanceof Response) return authorization;
+
   try {
     const { email, roles } = await req.json();
 
