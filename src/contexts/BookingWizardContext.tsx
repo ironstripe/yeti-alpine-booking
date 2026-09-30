@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useCallback, ReactNode } from "react";
 import type { Tables } from "@/integrations/supabase/types";
 import { supabase } from "@/integrations/supabase/client";
-import { deriveFromPlan, sortPlan, toMin, validatePlan } from "@/lib/privatePlan";
+import { dateSetChanged, deriveFromPlan, sortPlan, toMin, validatePlan } from "@/lib/privatePlan";
 
 export type WizardStep = 1 | 2 | 3;
 
