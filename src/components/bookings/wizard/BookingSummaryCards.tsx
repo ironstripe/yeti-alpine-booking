@@ -1,4 +1,5 @@
 import { format } from "date-fns";
+import { endOf, sortPlan } from "@/lib/privatePlan";
 import { de } from "date-fns/locale";
 import { User, Users, Calendar, MapPin, MessageSquare, GraduationCap, UtensilsCrossed, Leaf } from "lucide-react";
 
