@@ -20,7 +20,7 @@ BEGIN
   -- 14-16 85 peak; +20 per extra person per hour; persons clamped to 1..4; whole hours only;
   -- end <= start or NULL input => 0; an hour without a rate row adds 0 base.
   -- Guard: fail loudly if the rate table changed, so expected values stay honest.
-  IF (SELECT string_agg(to_char(start_time,'HH24')||'-'||to_char(end_time,'HH24')||':'||rate_per_hour::int||':'||extra_person_rate::int, ',' ORDER BY start_time)
+  IF (SELECT string_agg(to_char(start_time,'HH24')||'-'||to_char(end_time,'HH24')||':'||rate_per_hour::int||':'||additional_person_rate::int, ',' ORDER BY start_time)
       FROM public.private_lesson_rates) IS DISTINCT FROM '09-10:75:20,10-12:85:20,12-14:75:20,14-16:85:20' THEN
     RAISE EXCEPTION 'FAIL 0: private_lesson_rates changed - update expected pa_price values';
   END IF;
