@@ -7,7 +7,7 @@ export function MultiSelectToggle() {
   const { multiSelectMode, setMultiSelectMode, state } = useSchedulerSelection();
 
   return (
-    <div className="flex items-center gap-2 border-t border-border px-3 py-2 text-xs">
+    <div className="flex items-center gap-2 whitespace-nowrap text-xs">
       <Switch
         id="multi-select-mode"
         checked={multiSelectMode}
@@ -15,10 +15,10 @@ export function MultiSelectToggle() {
         aria-label="Mehrere Termine auswählen"
       />
       <Label htmlFor="multi-select-mode" className="text-xs font-medium cursor-pointer">
-        Mehrere Termine auswählen
+        Mehrfachauswahl
       </Label>
       <span className="text-muted-foreground">
-        <span className="hidden sm:inline">oder Strg/⌘ + Klick</span>
+        <span>Strg/⌘ + Klick oder rechte Maustaste</span>
         {state.selections.length > 0 && ` · ${state.selections.length} ausgewählt`}
       </span>
     </div>

@@ -20,6 +20,7 @@ import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { SchedulerSearchDialog, SchedulerSearchTrigger } from "./SchedulerSearchDialog";
 import { SchedulerSettingsMenu, type SchedulerFilters } from "./SchedulerSettingsMenu";
+import { MultiSelectToggle } from "./MultiSelectToggle";
 
 export type ViewMode = "daily" | "3days" | "weekly" | "period";
 
@@ -168,6 +169,8 @@ export function SchedulerHeader({
 
         {/* Right-aligned Actions */}
         <div className="flex flex-wrap items-center gap-1.5">
+          {!isMobileScheduler && <MultiSelectToggle />}
+
           {/* Universal Search */}
           <SchedulerSearchTrigger onClick={() => setSearchOpen(true)} />
 
