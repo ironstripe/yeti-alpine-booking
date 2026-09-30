@@ -24,7 +24,7 @@ export function SchedulerPrefillBanner() {
   const { state, clearSchedulerPrefill } = useBookingWizard();
 
   const appointments = state.appointments;
-  const origin = state.schedulerPrefillPlan;
+  const origin = state.schedulerPrefill?.plan;
   if (!appointments || appointments.length === 0 || !origin || origin.length === 0) return null;
 
   const modified = planKey(origin) !== planKey(appointments);
