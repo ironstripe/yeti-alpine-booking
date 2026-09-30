@@ -24,6 +24,7 @@
 - [x] Different instructors on different dates = one booking; simultaneous picks rejected, never participant split
 - [x] Final price preview sums every canonical block (date/time/participants); server-authoritative note; draft cleared only after successful paCreate
 - [ ] End-to-end test with an office login (blocked: no office account)
+- [ ] Desktop Scheduler: move the labelled multi-select switch into the always-visible top controls, add right-click/Ctrl/Cmd slot toggling, and keep the mobile cutoff strictly below 768px
 
 ## Phase 1 validation fix
 - [x] Live pa_price assertions in SQL test (section 0); parity test header corrected; run instructions in test file
