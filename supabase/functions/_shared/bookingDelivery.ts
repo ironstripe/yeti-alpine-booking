@@ -108,11 +108,6 @@ export async function attemptConfirmation(
   opts: { manual?: boolean; salutation?: string } = {},
 ): Promise<string> {
   const allowed = opts.manual ? ["failed"] : ["pending"];
-  const { data: rows } = await sb
-    .rpc("noop_placeholder_never_called")
-    .then(() => ({ data: null }))
-    .catch(() => ({ data: null }));
-  void rows;
 
   // Atomic claim: only one caller moves the row into 'sending'.
   const { data: current } = await sb
