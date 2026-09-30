@@ -52,6 +52,7 @@ import { SharedLessonWizard } from "@/components/bookings/SharedLessonWizard";
 import { useSharedLessonData } from "@/hooks/useSharedLesson";
 import { formatCurrency } from "@/lib/swiss-qr-utils";
 import { BookingEmailDeliveryCard } from "@/components/bookings/BookingEmailDeliveryCard";
+import { OnlinePaymentStatusCard } from "@/components/bookings/OnlinePaymentStatusCard";
 
 const BookingDetail = () => {
   const { id } = useParams<{ id: string }>();
@@ -357,6 +358,8 @@ const BookingDetail = () => {
           </Card>
 
           {id && <BookingEmailDeliveryCard ticketId={id} />}
+
+          {id && <OnlinePaymentStatusCard ticketId={id} />}
 
           {/* Invoice Section */}
           {latestInvoice && (

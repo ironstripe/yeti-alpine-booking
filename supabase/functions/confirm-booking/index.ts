@@ -1,24 +1,31 @@
 // Public endpoint: finalize a provisional reservation with the real customer and
 // participant data, then apply the payment semantics.
-// - payment_method "online": requires a real payment_reference from the payment
-//   provider. Marks the booking confirmed + paid and records exactly one payment.
+//
+// - payment_method "online": the payment must be verified server-side. The caller
+//   passes the provider session id (`payment_session_id`) that
+//   create-payment-session returned; the amount and currency are checked against
+//   the stored ticket and the provider state. A raw client-supplied
+//   `payment_reference` is never trusted (B+ Phase 2) — such a call is rejected
+//   with 402 instead of marking the booking paid.
 // - payment_method "invoice": binding immediately (status confirmed), exactly one
-//   open invoice, booking confirmation email sent server-side. NOT marked as paid.
-//   The invoice email is deliberately deferred (B+ Phase 1, Option A).
+//   open invoice, booking confirmation and invoice e-mail (with the Swiss QR
+//   payment part) sent server-side. NOT marked as paid.
 // Prices, paid amounts, source and payment status supplied by the caller are ignored.
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { z } from "npm:zod@3.23.8";
 import { corsHeaders, checkApiKey, json } from "../_shared/intakeAuth.ts";
 import { issueInvoiceThenConfirm } from "./invoiceStep.ts";
-import { attemptConfirmation, ensureConfirmationDelivery } from "../_shared/bookingDelivery.ts";
+import {
+  attemptConfirmation,
+  ensureConfirmationDelivery,
+  sendConfirmationIfPossible,
+} from "../_shared/bookingDelivery.ts";
+import { attemptInvoiceDelivery, ensureInvoiceDelivery } from "../_shared/invoiceDelivery.ts";
+import { verifyOnlinePayment } from "../_shared/paymentSessions.ts";
 
 const GUEST_MESSAGE =
-  "Ihre Buchung ist verbindlich bestätigt. Die Rechnung mit Zahlungsinformationen erhalten Sie separat.";
-
-
-
-
+  "Ihre Buchung ist verbindlich bestätigt. Die Rechnung mit QR-Zahlungsteil haben wir Ihnen per E-Mail zugestellt.";
 
 const Customer = z.object({
   salutation: z.string().trim().max(20).optional(),
@@ -44,6 +51,9 @@ const Payload = z.object({
   ticket_id: z.string().uuid(),
   reservation_token: z.string().min(8).max(128),
   payment_method: z.enum(["online", "invoice"]),
+  /** Provider session id from create-payment-session (required for "online"). */
+  payment_session_id: z.string().trim().min(6).max(200).optional(),
+  /** Legacy field; treated as a session id and verified, never trusted blindly. */
   payment_reference: z.string().trim().min(1).max(200).optional(),
   payment_failed: z.boolean().optional(),
   customer: Customer.optional(),
@@ -84,6 +94,8 @@ Deno.serve(async (req) => {
     const now = new Date();
     const expired = !!ticket.reservation_expires_at && new Date(ticket.reservation_expires_at) < now;
 
+    // A paid reservation stays valid until its extended hold ends; the provider
+    // state is the authority for whether the payment arrived.
     if (ticket.status === "expired" || expired) {
       if (!expired) {
         await supabase.from("tickets").update({ status: "expired", updated_at: now.toISOString() }).eq("id", ticket.id);
@@ -115,14 +127,30 @@ Deno.serve(async (req) => {
       }, 402);
     }
 
-    // Online payments require a real provider reference before anything is finalized.
-    if (data.payment_method === "online" && !data.payment_reference) {
-      return json({
-        success: false,
-        code: "payment_reference_required",
-        error: "payment_reference ist für Onlinezahlungen erforderlich.",
-        reservation_expires_at: ticket.reservation_expires_at,
-      }, 400);
+    // Online payments are only accepted with a server-verified provider session.
+    let verifiedSessionId: string | null = null;
+    let verifiedPaymentReference: string | null = null;
+    if (data.payment_method === "online") {
+      const sessionId = data.payment_session_id ?? data.payment_reference ?? null;
+      if (!sessionId) {
+        return json({
+          success: false,
+          code: "payment_session_required",
+          error: "payment_session_id ist für Onlinezahlungen erforderlich.",
+          reservation_expires_at: ticket.reservation_expires_at,
+        }, 400);
+      }
+      const verification = await verifyOnlinePayment(supabase, { ticketId: ticket.id, sessionId, now });
+      if (!verification.ok) {
+        return json({
+          success: false,
+          code: verification.code ?? "payment_not_verified",
+          error: verification.error ?? "Die Zahlung konnte nicht bestätigt werden.",
+          reservation_expires_at: ticket.reservation_expires_at,
+        }, 402);
+      }
+      verifiedSessionId = sessionId;
+      verifiedPaymentReference = verification.sessionRow?.provider_payment_intent_id ?? sessionId;
     }
 
     if (!data.customer || !data.participants) {
@@ -160,11 +188,12 @@ Deno.serve(async (req) => {
       }).eq("id", ticket.id);
       if (error) throw new Error(error.message);
 
+      // The payment row is written by the verified session; never by the caller.
       const { data: existingPayment } = await supabase
         .from("payments")
         .select("id")
         .eq("ticket_id", ticket.id)
-        .eq("reference", data.payment_reference!)
+        .eq("reference", verifiedPaymentReference!)
         .maybeSingle();
 
       if (!existingPayment) {
@@ -173,12 +202,22 @@ Deno.serve(async (req) => {
           amount: ticket.total_amount,
           payment_method: "online",
           payment_date: now.toISOString().slice(0, 10),
-          reference: data.payment_reference,
+          reference: verifiedPaymentReference,
           status: "completed",
+          notes: `Zahlungsprovider Session ${verifiedSessionId}`,
         });
         if (pErr) console.error("payment insert failed:", pErr.message);
       }
 
+      // Confirmation e-mail is part of the B+ flow for paid bookings as well.
+      let confirmationStatus = "failed";
+      try {
+        confirmationStatus = await sendConfirmationIfPossible(supabase, ticket.id, {
+          salutation: data.customer.salutation ?? "",
+        });
+      } catch (e) {
+        console.error("confirmation delivery error:", (e as Error).message);
+      }
 
       return json({
         success: true,
@@ -188,6 +227,8 @@ Deno.serve(async (req) => {
         status: "confirmed",
         payment_status: "paid",
         total_amount: ticket.total_amount,
+        payment_reference: verifiedPaymentReference,
+        delivery: { booking_confirmation: confirmationStatus },
       });
     }
 
@@ -210,7 +251,7 @@ Deno.serve(async (req) => {
     }
     const invoice = step.invoice;
 
-    // Booking confirmation only; invoice email is intentionally deferred.
+    // Booking confirmation for every invoice booking.
     let confirmationStatus = "failed";
     try {
       const d = await ensureConfirmationDelivery(supabase, ticket.id, data.customer.email);
@@ -224,6 +265,23 @@ Deno.serve(async (req) => {
       console.error("confirmation delivery error:", (e as Error).message);
     }
 
+    // Invoice e-mail with the Swiss QR payment part (B+ Phase 2). A failure never
+    // invalidates the binding booking; the office sees and can retry it.
+    let invoiceStatus = "failed";
+    try {
+      const d = await ensureInvoiceDelivery(supabase, {
+        invoiceId: invoice!.id,
+        ticketId: ticket.id,
+        email: data.customer.email,
+      });
+      if (d) {
+        invoiceStatus = d.status === "pending" ? await attemptInvoiceDelivery(supabase, d.id) : d.status;
+        if (invoiceStatus === "not_claimed") invoiceStatus = "sending";
+      }
+    } catch (e) {
+      console.error("invoice delivery error:", (e as Error).message);
+    }
+
     return json({
       success: true,
       ticket_id: ticket.id,
@@ -235,7 +293,7 @@ Deno.serve(async (req) => {
       due_date: invoice!.due_date,
       total_amount: ticket.total_amount,
       guest_message: GUEST_MESSAGE,
-      delivery: { booking_confirmation: confirmationStatus },
+      delivery: { booking_confirmation: confirmationStatus, invoice: invoiceStatus },
     });
   } catch (e) {
     console.error("confirm-booking error:", (e as Error).message);

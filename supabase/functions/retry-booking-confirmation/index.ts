@@ -1,8 +1,17 @@
-// Office/admin-only manual retry of a failed booking confirmation email.
+// Office/admin-only manual retry of a failed booking e-mail delivery.
+// Handles both delivery kinds of the B+ booking flow:
+//   - `booking_confirmation` (B+ Phase 1)
+//   - `invoice` (B+ Phase 2, invoice with Swiss QR payment part)
+//
+// The endpoint name is kept for compatibility with the existing office UI; the
+// body stays `{ delivery_id }`. Nothing is ever sent twice: the delivery row is
+// claimed atomically and only a `failed` row can be retried.
+
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { z } from "npm:zod@3.23.8";
 import { requireRole } from "../_shared/staffAuth.ts";
 import { activeConfirmationTemplate, attemptConfirmation } from "../_shared/bookingDelivery.ts";
+import { activeInvoiceTemplate, attemptInvoiceDelivery } from "../_shared/invoiceDelivery.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -28,12 +37,21 @@ Deno.serve(async (req) => {
 
   const sb = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
   const { data: d } = await sb.from("booking_email_deliveries")
-    .select("id, status").eq("id", parsed.data.delivery_id).maybeSingle();
+    .select("id, status, kind").eq("id", parsed.data.delivery_id).maybeSingle();
   if (!d) return json({ error: "not_found" }, 404);
   if (d.status !== "failed") return json({ error: "not_failed", status: d.status }, 409);
-  if (!(await activeConfirmationTemplate(sb))) return json({ error: "template_not_configured" }, 409);
 
+  const kind = d.kind ?? "booking_confirmation";
+
+  if (kind === "invoice") {
+    if (!(await activeInvoiceTemplate(sb))) return json({ error: "template_not_configured" }, 409);
+    const result = await attemptInvoiceDelivery(sb, d.id, { manual: true });
+    if (result === "not_claimed") return json({ error: "already_in_progress" }, 409);
+    return json({ success: result === "sent", status: result, kind });
+  }
+
+  if (!(await activeConfirmationTemplate(sb))) return json({ error: "template_not_configured" }, 409);
   const result = await attemptConfirmation(sb, d.id, { manual: true });
   if (result === "not_claimed") return json({ error: "already_in_progress" }, 409);
-  return json({ success: result === "sent", status: result });
+  return json({ success: result === "sent", status: result, kind });
 });

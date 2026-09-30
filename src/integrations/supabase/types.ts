@@ -3079,6 +3079,66 @@ export type Database = {
           },
         ]
       }
+      payment_events: {
+        Row: {
+          event_type: string
+          id: string
+          outcome: string | null
+          payment_session_id: string | null
+          payload: Json
+          processed_at: string | null
+          processing_error: string | null
+          provider: string
+          provider_event_id: string
+          provider_session_id: string | null
+          received_at: string
+          ticket_id: string | null
+        }
+        Insert: {
+          event_type: string
+          id?: string
+          outcome?: string | null
+          payment_session_id?: string | null
+          payload?: Json
+          processed_at?: string | null
+          processing_error?: string | null
+          provider?: string
+          provider_event_id: string
+          provider_session_id?: string | null
+          received_at?: string
+          ticket_id?: string | null
+        }
+        Update: {
+          event_type?: string
+          id?: string
+          outcome?: string | null
+          payment_session_id?: string | null
+          payload?: Json
+          processed_at?: string | null
+          processing_error?: string | null
+          provider?: string
+          provider_event_id?: string
+          provider_session_id?: string | null
+          received_at?: string
+          ticket_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_events_payment_session_id_fkey"
+            columns: ["payment_session_id"]
+            isOneToOne: false
+            referencedRelation: "payment_sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_events_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "tickets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       payment_profiles: {
         Row: {
           account_holder: string
@@ -3288,6 +3348,75 @@ export type Database = {
           valid_until?: string | null
         }
         Relationships: []
+      }
+      payment_sessions: {
+        Row: {
+          amount: number
+          checkout_url: string | null
+          consumed_at: string | null
+          created_at: string
+          currency: string
+          expires_at: string | null
+          id: string
+          metadata: Json
+          payment_id: string | null
+          provider: string
+          provider_payment_intent_id: string | null
+          provider_session_id: string
+          status: string
+          ticket_id: string
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          checkout_url?: string | null
+          consumed_at?: string | null
+          created_at?: string
+          currency: string
+          expires_at?: string | null
+          id?: string
+          metadata?: Json
+          payment_id?: string | null
+          provider?: string
+          provider_payment_intent_id?: string | null
+          provider_session_id: string
+          status?: string
+          ticket_id: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          checkout_url?: string | null
+          consumed_at?: string | null
+          created_at?: string
+          currency?: string
+          expires_at?: string | null
+          id?: string
+          metadata?: Json
+          payment_id?: string | null
+          provider?: string
+          provider_payment_intent_id?: string | null
+          provider_session_id?: string
+          status?: string
+          ticket_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_sessions_payment_id_fkey"
+            columns: ["payment_id"]
+            isOneToOne: false
+            referencedRelation: "payments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_sessions_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "tickets"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       private_appointment_backfill_log: {
         Row: {

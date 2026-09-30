@@ -85,3 +85,13 @@ verify_jwt = false
 
 [functions.retry-booking-confirmation]
 verify_jwt = true
+
+# B+ Phase 2: online payments (website flow).
+# create-payment-session: public, authenticated with x-api-key in code.
+# webhook-payment: public by necessity (Stripe cannot send a Supabase JWT);
+# authentication is the Stripe signature check against STRIPE_WEBHOOK_SECRET.
+[functions.create-payment-session]
+verify_jwt = false
+
+[functions.webhook-payment]
+verify_jwt = false
