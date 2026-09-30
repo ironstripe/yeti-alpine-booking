@@ -344,15 +344,6 @@ function SchedulerGridContent() {
     return bookings.filter(b => b.type === bookingTypeFilter);
   }, [bookings, bookingTypeFilter]);
 
-  // Entering the phone layout must never keep a stale desktop selection alive
-  useEffect(() => {
-    if (isMobileScheduler) {
-      clearSelection();
-      setMobileSlot(null);
-    }
-  }, [isMobileScheduler, clearSelection]);
-
-
   // Scroll to instructor and highlight
   const scrollToInstructor = useCallback((instructorId: string) => {
     requestAnimationFrame(() => {

@@ -11,7 +11,7 @@ import { calculateAge, getAgeDisplay, getLevelLabel } from "@/lib/participant-ut
 import { formatPhoneDisplay } from "@/lib/phone-utils";
 import { getLevelLabel as getInstructorLevel } from "@/lib/instructor-utils";
 import { getSpecializationLabel } from "@/hooks/useInstructors";
-import { InlineTimeBlockEditor } from "./InlineTimeBlockEditor";
+import { useInstructors } from "@/hooks/useInstructors";
 
 // Helper to format dates as short day names
 const formatDayNames = (dates: string[]): string => {
@@ -43,6 +43,20 @@ const LANGUAGE_LABELS: Record<string, string> = {
 
 export function BookingSummaryCards({ onEditStep }: BookingSummaryCardsProps) {
   const { state } = useBookingWizard();
+  const { data: instructors = [] } = useInstructors();
+
+  const getPrivateBlocks = (date: string) => {
+    const [baseStart, baseEnd] = state.timeSlot?.split(" - ") || ["10:00", "12:00"];
+    const overrides = state.dayTimeOverrides[date];
+    return overrides?.length
+      ? overrides
+      : [{ id: `base-${date}`, startTime: baseStart, endTime: baseEnd, instructorId: state.dayInstructorOverrides[date] ?? state.instructorId }];
+  };
+
+  const getInstructorName = (instructorId: string | null | undefined) => {
+    const instructor = instructors.find((item) => item.id === instructorId);
+    return instructor ? `${instructor.first_name} ${instructor.last_name}` : "Wird später zugewiesen";
+  };
 
   return (
     <div className="space-y-4">
@@ -170,12 +184,15 @@ export function BookingSummaryCards({ onEditStep }: BookingSummaryCardsProps) {
                     </div>
                     
                     {state.productType === "private" ? (
-                      <InlineTimeBlockEditor
-                        dateStr={dateStr}
-                        baseStartTime={baseStart}
-                        baseEndTime={baseEnd}
-                        duration={state.duration}
-                      />
+                      <div className="ml-6 space-y-1 text-sm text-muted-foreground">
+                        {getPrivateBlocks(dateStr).map((block) => (
+                          <div key={block.id} className="flex flex-wrap items-center gap-x-2">
+                            <span>{block.startTime}–{block.endTime}</span>
+                            <span aria-hidden="true">·</span>
+                            <span>{getInstructorName(block.instructorId ?? state.dayInstructorOverrides[dateStr] ?? state.instructorId)}</span>
+                          </div>
+                        ))}
+                      </div>
                     ) : (
                       state.timeSlot && (
                         <div className="ml-6 text-sm text-muted-foreground">
