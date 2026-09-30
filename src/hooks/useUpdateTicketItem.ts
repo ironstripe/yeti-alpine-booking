@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { isBookingEditable } from "@/lib/booking-utils";
+import { paMove } from "@/lib/privateAppointmentsApi";
 
 interface UpdateTicketItemParams {
   ticketItemId: string;
@@ -38,7 +39,7 @@ export function useUpdateTicketItem() {
       // Fetch current ticket item to validate existing date
       const { data: currentItem, error: fetchError } = await supabase
         .from("ticket_items")
-        .select("date")
+        .select("appointment_id, date, time_start, time_end, instructor_id")
         .eq("id", ticketItemId)
         .single();
 
@@ -49,16 +50,33 @@ export function useUpdateTicketItem() {
         throw new Error("Vergangene Buchungen können nicht bearbeitet werden.");
       }
 
+      const hasScheduleChange = instructorId !== undefined || timeStart !== undefined || timeEnd !== undefined || date !== undefined;
+      if (currentItem.appointment_id && hasScheduleChange) {
+        const targetInstructor = instructorId !== undefined ? instructorId : currentItem.instructor_id;
+        if (!targetInstructor) throw new Error("Bitte eine Lehrperson wählen.");
+        await paMove({
+          appointment_id: currentItem.appointment_id,
+          date: date ?? currentItem.date,
+          time_start: (timeStart ?? currentItem.time_start ?? "").slice(0, 5),
+          time_end: (timeEnd ?? currentItem.time_end ?? "").slice(0, 5),
+          instructor_id: targetInstructor,
+        });
+      }
+
       const updates: Record<string, unknown> = {};
       
-      if (instructorId !== undefined) updates.instructor_id = instructorId;
-      if (timeStart !== undefined) updates.time_start = timeStart;
-      if (timeEnd !== undefined) updates.time_end = timeEnd;
-      if (date !== undefined) updates.date = date;
-      if (meetingPoint !== undefined) updates.meeting_point = meetingPoint;
+      if (!currentItem.appointment_id) {
+        if (instructorId !== undefined) updates.instructor_id = instructorId;
+        if (timeStart !== undefined) updates.time_start = timeStart;
+        if (timeEnd !== undefined) updates.time_end = timeEnd;
+        if (date !== undefined) updates.date = date;
+        if (meetingPoint !== undefined) updates.meeting_point = meetingPoint;
+      }
       if (internalNotes !== undefined) updates.internal_notes = internalNotes;
       if (instructorNotes !== undefined) updates.instructor_notes = instructorNotes;
       if (participantId !== undefined) updates.participant_id = participantId;
+
+      if (Object.keys(updates).length === 0) return currentItem;
 
       const { data, error } = await supabase
         .from("ticket_items")

@@ -177,6 +177,21 @@ export function useSchedulerData({ startDate, endDate, instructorId }: UseSchedu
     enabled: bookingsQuery.isSuccess,
   });
 
+  const appointmentParticipantsQuery = useQuery({
+    queryKey: ["scheduler-appointment-participants", startDateStr, endDateStr],
+    queryFn: async () => {
+      const appointmentIds = [...new Set((bookingsQuery.data || []).map((item) => item.appointment_id).filter((value): value is string => !!value))];
+      if (appointmentIds.length === 0) return [];
+      const { data, error } = await supabase
+        .from("private_appointment_participants")
+        .select("appointment_id, participant:customer_participants(first_name, last_name, sport)")
+        .in("appointment_id", appointmentIds);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: bookingsQuery.isSuccess,
+  });
+
   // Fetch group course instances for the date range
   const groupInstancesQuery = useQuery({
     queryKey: ["scheduler-group-instances", startDateStr, endDateStr],
@@ -364,12 +379,20 @@ export function useSchedulerData({ startDate, endDate, instructorId }: UseSchedu
 
   // Collapse participant rows that belong to the same private appointment into one block
   const appointmentNames = new Map<string, string[]>();
+  const appointmentSports = new Map<string, string | null>();
+  for (const link of appointmentParticipantsQuery.data || []) {
+    const participant = link.participant as unknown as { first_name: string; last_name: string | null; sport: string | null } | null;
+    if (!participant) continue;
+    appointmentNames.set(link.appointment_id, [
+      ...(appointmentNames.get(link.appointment_id) || []),
+      `${participant.first_name} ${participant.last_name || ""}`.trim(),
+    ]);
+    if (!appointmentSports.has(link.appointment_id)) appointmentSports.set(link.appointment_id, participant.sport);
+  }
   const seenAppointments = new Set<string>();
   const collapsedStandalone = standaloneBookings.filter((b) => {
     const apptId = (b as { appointment_id?: string | null }).appointment_id;
     if (!apptId) return true;
-    const p = b.customer_participants as unknown as { first_name: string; last_name: string } | null;
-    if (p) appointmentNames.set(apptId, [...(appointmentNames.get(apptId) || []), `${p.first_name} ${p.last_name || ""}`.trim()]);
     if (seenAppointments.has(apptId)) return false;
     seenAppointments.add(apptId);
     return true;
@@ -422,7 +445,7 @@ export function useSchedulerData({ startDate, endDate, instructorId }: UseSchedu
       isProvisional: ticket?.status === "provisional" || ticket?.status === "payment_pending",
       reservationExpiresAt: ticket?.reservation_expires_at ?? null,
       source: ticket?.source ?? null,
-      participantSport: participant?.sport || null,
+      participantSport: appointmentId ? appointmentSports.get(appointmentId) || null : participant?.sport || null,
       isPartOfPeriod: !!b.period_group_id,
       periodGroupId: b.period_group_id || undefined,
       periodStartDate: periodMeta?.start_date || undefined,
@@ -545,6 +568,7 @@ export function useSchedulerData({ startDate, endDate, instructorId }: UseSchedu
       recurringBlocksQuery.isLoading ||
       officeBlocksQuery.isLoading ||
       periodMetadataQuery.isLoading,
+      appointmentParticipantsQuery.isLoading,
     error: 
       instructorsQuery.error || 
       bookingsQuery.error || 
@@ -553,6 +577,7 @@ export function useSchedulerData({ startDate, endDate, instructorId }: UseSchedu
       recurringBlocksQuery.error ||
       officeBlocksQuery.error ||
       periodMetadataQuery.error,
+      appointmentParticipantsQuery.error,
     refetch: () => {
       instructorsQuery.refetch();
       bookingsQuery.refetch();
@@ -561,6 +586,7 @@ export function useSchedulerData({ startDate, endDate, instructorId }: UseSchedu
       recurringBlocksQuery.refetch();
       officeBlocksQuery.refetch();
       periodMetadataQuery.refetch();
+      appointmentParticipantsQuery.refetch();
     },
   };
 }

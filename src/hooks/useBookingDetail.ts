@@ -13,6 +13,12 @@ export interface BookingDetail {
   instructorNotes: string | null;
   instructorId: string | null;
   participantId: string | null;
+  appointmentId: string | null;
+  participants: {
+    id: string;
+    firstName: string;
+    lastName: string | null;
+  }[];
   product: {
     id: string;
     name: string;
@@ -66,6 +72,7 @@ export function useBookingDetail(ticketItemId: string | null) {
           instructor_notes,
           instructor_id,
           participant_id,
+          appointment_id,
           products (
             id,
             name,
@@ -104,6 +111,19 @@ export function useBookingDetail(ticketItemId: string | null) {
       if (error) throw error;
       if (!data) return null;
 
+      let appointmentParticipants: BookingDetail["participants"] = [];
+      if (data.appointment_id) {
+        const { data: links, error: linksError } = await supabase
+          .from("private_appointment_participants")
+          .select("participant:customer_participants(id, first_name, last_name)")
+          .eq("appointment_id", data.appointment_id);
+        if (linksError) throw linksError;
+        appointmentParticipants = (links || []).flatMap((link) => {
+          const participant = link.participant as unknown as { id: string; first_name: string; last_name: string | null } | null;
+          return participant ? [{ id: participant.id, firstName: participant.first_name, lastName: participant.last_name }] : [];
+        });
+      }
+
       const ticket = data.tickets as {
         id: string;
         ticket_number: string;
@@ -132,6 +152,8 @@ export function useBookingDetail(ticketItemId: string | null) {
         instructorNotes: data.instructor_notes,
         instructorId: data.instructor_id,
         participantId: data.participant_id,
+        appointmentId: data.appointment_id,
+        participants: appointmentParticipants,
         product: data.products ? {
           id: data.products.id,
           name: data.products.name,
