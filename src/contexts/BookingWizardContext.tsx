@@ -667,9 +667,7 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
 
   const setSelectedDates = (dates: string[]) => {
     setState((prev) => {
-      const sameDates = new Set(dates).size === new Set(prev.selectedDates).size &&
-        dates.every((d) => prev.selectedDates.includes(d));
-      let newState = { ...prev, selectedDates: dates, schedulerPrefill: sameDates ? prev.schedulerPrefill : null };
+      let newState = { ...prev, selectedDates: dates, schedulerPrefill: dateSetChanged(prev.selectedDates, dates) ? null : prev.schedulerPrefill };
       // Reconcile canonical private plan: drop blocks on removed dates (no orphans).
       if (prev.appointments) {
         const kept = prev.appointments.filter((a) => dates.includes(a.date));
