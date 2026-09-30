@@ -24,7 +24,7 @@ Neue additive Tabelle `booking_email_deliveries`, verknüpft mit Ticket und Rech
 **3. Serverseitiger Versand mit Wiederholung**
 - `confirm-booking` legt beide Versandeinträge an und versucht den Versand sofort.
 - Scheitert der Versand, bleibt die Buchung trotzdem erfolgreich. Der Eintrag bleibt dann `failed` und wird automatisch erneut versucht.
-- Ein geplanter Server-Job versucht fehlgeschlagene Mails bis zu 5-mal mit wachsendem Abstand erneut. Danach steht der Eintrag auf `failed`, und das Büro sieht das.
+- In dieser Phase gibt es keinen automatischen Zeitplan-Job. Fehlgeschlagene Mails bleiben `failed` (mit Fehlertext und Versuchszähler) und werden vom Büro per „Erneut senden“ ausgelöst, bis zu 5 Versuche.
 
 **4. Kleine Büro-Anzeige**
 - In der Buchungsdetailansicht erscheint eine Zeile „E-Mail-Versand“ mit dem Status von Bestätigung und Rechnung: gesendet, fehlgeschlagen oder ausstehend.
@@ -70,9 +70,8 @@ booking_email_deliveries
 - Die Antwort ergänzt `delivery: { booking_confirmation, invoice }` mit Statuswerten, ohne personenbezogene Daten.
 
 **Neue Funktion `retry-booking-deliveries`** (`verify_jwt = false`, Autorisierung im Code)
-- Aufruf durch den Cron-Job: Header mit neuem Secret `DELIVERY_CRON_SECRET`.
-- Aufruf aus dem Büro: `requireRole(['office','admin'])` mit einer `delivery_id`. Das setzt `attempts` zurück und versucht sofort erneut.
-- pg_cron alle 5 Minuten per `net.http_post`. Das Einrichten erfolgt über run_sql, nicht als Migration.
+- Nur Aufruf aus dem Büro: `requireRole(['office','admin'])` mit einer `delivery_id`; versucht sofort erneut (Claim wie oben, max. 5 Versuche).
+- Kein pg_cron, kein `net.http_post`, kein Cron-Secret in dieser Phase.
 
 **Frontend**
 - `BookingDetail.tsx` liest `booking_email_deliveries` (RLS: nur Büro) und ruft für „Erneut senden“ `supabase.functions.invoke('retry-booking-deliveries')` auf.
