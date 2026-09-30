@@ -174,7 +174,8 @@ function validateSlotInternal(
 
   // Check for selection overlaps using passed state
   const hasSelectionOverlap = state.selections.some((s) => {
-    if (s.instructorId !== instructorId || s.date !== date) return false;
+    // One booking: no two lessons at the same time, regardless of instructor
+    if (s.date !== date) return false;
     const selStart = timeToMinutes(s.startTime);
     const selEnd = timeToMinutes(s.endTime);
     return startMinutes < selEnd && endMinutes > selStart;
