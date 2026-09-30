@@ -9,6 +9,7 @@ import type { SchedulerBooking, SchedulerAbsence } from "@/lib/scheduler-utils";
 import { toast } from "sonner";
 import { useMobileSlot } from "./mobile/MobileSlotContext";
 import { OPERATIONAL_END_MINUTES } from "@/lib/scheduler-utils";
+import { getDesktopSlotIntent } from "@/lib/schedulerSlotInput";
 
 const TAP_MOVE_THRESHOLD = 8; // px
 const TAP_MAX_DURATION = 600; // ms
@@ -180,19 +181,28 @@ export function EmptySlot({
   const handleMouseDown = (e: React.MouseEvent) => {
     // On phones / touch devices the native scroll container owns the gesture.
     if (usesMobilePath) return;
-    if (isBlocked || state.isResizing) return;
+    if (state.isResizing) return;
 
-    // Right mouse-down must never reach DnD. Selection is toggled by contextmenu.
-    if (e.button === 2) {
+    const intent = getDesktopSlotIntent({
+      isMobile: usesMobilePath,
+      isEligible: !isInvalidDropZone,
+      button: e.button,
+      ctrlKey: e.ctrlKey,
+      metaKey: e.metaKey,
+      multiSelectMode,
+    });
+
+    // An eligible right mouse-down must never reach DnD. Contextmenu performs the toggle.
+    if (e.button === 2 && intent === "toggle") {
       e.preventDefault();
       e.stopPropagation();
       return;
     }
 
-    if (e.button !== 0) return;
+    if (intent === "none") return;
 
     // Modifier clicks and the visible multi-select mode share one toggle path.
-    if (e.ctrlKey || e.metaKey || multiSelectMode) {
+    if (intent === "toggle") {
       toggleDesktopSlot(e);
       return;
     }
@@ -227,7 +237,12 @@ export function EmptySlot({
   };
 
   const handleContextMenu = (e: React.MouseEvent) => {
-    if (usesMobilePath) return;
+    const intent = getDesktopSlotIntent({
+      isMobile: usesMobilePath,
+      isEligible: !isInvalidDropZone,
+      button: 2,
+    });
+    if (intent !== "toggle") return;
     toggleDesktopSlot(e);
   };
 
@@ -355,7 +370,6 @@ export function EmptySlot({
       onMouseDown={handleMouseDown}
       onMouseUp={handleMouseUp}
       onContextMenu={handleContextMenu}
-      onClick={isMobileScheduler ? openBookingForSlot : undefined}
       onDoubleClick={usesMobilePath ? undefined : handleDoubleClick}
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
