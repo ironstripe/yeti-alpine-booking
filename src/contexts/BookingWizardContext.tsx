@@ -31,6 +31,13 @@ export interface AppointmentSlot {
   instructorId?: string;
 }
 
+/** Where the active cart item's plan was originally taken from. */
+export interface SchedulerPrefillProvenance {
+  source: "scheduler";
+  /** Canonical plan exactly as established from the Scheduler selection. */
+  plan: AppointmentSlot[];
+}
+
 // Track original ticket items for edit mode
 export interface OriginalTicketItem {
   id: string;
@@ -118,6 +125,7 @@ export interface CartItem {
   lunchSelections: Record<string, string[]>;
   vegetarianSelections: Record<string, boolean>;
   appointments: AppointmentSlot[] | null;
+  schedulerPrefill: SchedulerPrefillProvenance | null;
   useParticipantSpecificBooking: boolean;
   participantBookings: Record<string, ParticipantBookingDetails>;
   dayInstructorOverrides: Record<string, string | null>;
@@ -151,6 +159,7 @@ export function createEmptyCartItem(): CartItem {
     lunchSelections: {},
     vegetarianSelections: {},
     appointments: null,
+    schedulerPrefill: null,
     useParticipantSpecificBooking: false,
     participantBookings: {},
     dayInstructorOverrides: {},
@@ -186,6 +195,7 @@ function extractCartItemFromState(state: BookingWizardState, itemId: string): Ca
     lunchSelections: state.lunchSelections,
     vegetarianSelections: state.vegetarianSelections,
     appointments: state.appointments,
+    schedulerPrefill: state.schedulerPrefill,
     useParticipantSpecificBooking: state.useParticipantSpecificBooking,
     participantBookings: state.participantBookings,
     dayInstructorOverrides: state.dayInstructorOverrides,
@@ -220,6 +230,7 @@ function applyCartItemToState(item: CartItem): Partial<BookingWizardState> {
     lunchSelections: item.lunchSelections,
     vegetarianSelections: item.vegetarianSelections,
     appointments: item.appointments,
+    schedulerPrefill: item.schedulerPrefill,
     useParticipantSpecificBooking: item.useParticipantSpecificBooking,
     participantBookings: item.participantBookings,
     dayInstructorOverrides: item.dayInstructorOverrides,
@@ -274,8 +285,8 @@ export interface BookingWizardState {
   
   // New: Variable appointments (from scheduler multi-slot selection)
   appointments: AppointmentSlot[] | null;
-  /** Canonical plan exactly as taken over from the Scheduler (null = no prefill). */
-  schedulerPrefillPlan?: AppointmentSlot[] | null;
+  /** Explicit provenance: set only by prefillFromScheduler, cleared by discard. */
+  schedulerPrefill: SchedulerPrefillProvenance | null;
   
   // NEW: Participant-specific booking mode
   useParticipantSpecificBooking: boolean;
@@ -433,6 +444,7 @@ const initialState: BookingWizardState = {
   lunchSelections: {},
   vegetarianSelections: {},
   appointments: null,
+  schedulerPrefill: null,
   // NEW: Participant-specific booking defaults
   useParticipantSpecificBooking: false,
   participantBookings: {},
@@ -1381,7 +1393,7 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
         instructor,
         ...deriveFromPlan(canonical, instructorId),
         appointments: canonical,
-        schedulerPrefillPlan: canonical,
+        schedulerPrefill: { source: "scheduler" as const, plan: canonical },
         productType: "private" as const,
         privateGroupProposal: null, // per-day instructors are a period plan, not a split
         assignLater: false, // Instructor is already assigned from scheduler
@@ -1403,7 +1415,7 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
       const next = {
         ...prev,
         appointments: null,
-        schedulerPrefillPlan: null,
+        schedulerPrefill: null,
         selectedDates: [],
         timeSelections: [],
         dayTimeOverrides: {},
