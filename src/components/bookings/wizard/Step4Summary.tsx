@@ -79,8 +79,15 @@ export function Step4Summary({ onEditStep }: Step4SummaryProps) {
     return check2x2hDiscount(state.duration, state.selectedDates, state.appointments);
   }, [state.productType, state.duration, state.selectedDates, state.appointments]);
 
-  const autoDiscountPercent = qualifiesFor2x2hDiscount ? 10 : 0;
-  const autoDiscountReason = qualifiesFor2x2hDiscount ? "2x2h Tagesrabatt" : undefined;
+  // Mirrors useCreateBooking: private bookings saved via the server path do not accept discounts.
+  const usesServerPrivatePath =
+    !state.isEditMode &&
+    state.productType === "private" &&
+    !(state.useParticipantSpecificBooking && Object.keys(state.participantBookings).length > 0) &&
+    !(state.privateGroupProposal && state.privateGroupProposal.groups.length > 1);
+
+  const autoDiscountPercent = qualifiesFor2x2hDiscount && !usesServerPrivatePath ? 10 : 0;
+  const autoDiscountReason = autoDiscountPercent > 0 ? "2x2h Tagesrabatt" : undefined;
 
   // Build warnings for summary
   const warnings = useMemo<BookingWarning[]>(() => {
@@ -233,12 +240,14 @@ export function Step4Summary({ onEditStep }: Step4SummaryProps) {
         autoDiscountReason={autoDiscountReason}
       />
 
-      {/* Discount */}
-      <DiscountSection
-        discountPercent={discountPercent}
-        discountReason={discountReason}
-        onDiscountChange={handleDiscountChange}
-      />
+      {/* Discount — not offered on the server-priced private path (server rejects discounts there) */}
+      {!usesServerPrivatePath && (
+        <DiscountSection
+          discountPercent={discountPercent}
+          discountReason={discountReason}
+          onDiscountChange={handleDiscountChange}
+        />
+      )}
 
       <Separator />
 
