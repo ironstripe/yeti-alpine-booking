@@ -26,7 +26,7 @@ export const RequestSchema = z.discriminatedUnion("action", [
     notes: z.string().max(2000).optional(),
     appointments: z.array(slot).min(1).max(60),
     participants: z.array(participant).min(1).max(4),
-    discount_percent: z.number().min(0).max(100).optional(),
+    discount_percent: z.number().finite().min(0).max(100).optional(),
     discount_reason: z.string().trim().max(500).optional(),
   }),
   z.object({
