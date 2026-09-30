@@ -49,7 +49,13 @@ export type SourceProfile = {
   private: { wage_raw: string | null; bank_raw: string | null; ahv_raw: string | null; unresolved: Record<string, unknown> };
   checksum: string;
 };
-export type PhotoInfo = { sourceId: string; entry: string; sha256: string; size: number };
+export type PhotoInfo = { sourceId: string; entry: string; sha256: string; size: number; verified: boolean };
+export type Season = { name: string; start: string; end: string };
+export type PhotoIssue = { sourceId: string | null; code: string };
+/** Known companion metadata files inside the photo ZIP; never counted as rejected images. */
+export const ZIP_METADATA = new Set(["bildzuordnung.json", "pruefergebnis.json", "readme", "readme.txt", "readme.md"]);
+export const MANIFEST_NAME = "bildzuordnung.json";
+const MANIFEST_MAX_BYTES = 5 * 1024 * 1024;
 export type ParseResult = {
   errors: string[];
   warnings: string[];
@@ -63,6 +69,10 @@ export type ParseResult = {
   photoMissing: string[];
   zipRejected: string[];
   zipUnused: number;
+  zipMetadata: string[];
+  manifestEntries: number;
+  photoIssues: PhotoIssue[];
+  season: Season;
 };
 
 export const normHeader = (s: unknown) => String(s ?? "").replace(/\s+/g, " ").trim();
@@ -104,7 +114,10 @@ export function normPhone(v: string | null): string | null {
 }
 
 async function sha256Hex(data: Uint8Array | string): Promise<string> {
-  const bytes = typeof data === "string" ? new TextEncoder().encode(data) : data;
+  const src = typeof data === "string" ? new TextEncoder().encode(data) : data;
+  // Copy into a fresh ArrayBuffer-backed view (full bytes, same digest) so it satisfies BufferSource typing.
+  const bytes = new Uint8Array(new ArrayBuffer(src.byteLength));
+  bytes.set(src);
   const h = await crypto.subtle.digest("SHA-256", bytes);
   return Array.from(new Uint8Array(h)).map((b) => b.toString(16).padStart(2, "0")).join("");
 }
@@ -122,10 +135,28 @@ export function isSafeZipPath(name: string): boolean {
 const baseName = (p: string) => p.split("/").pop()!.toLowerCase();
 const isJpeg = (b: Uint8Array) => b.length > 3 && b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff;
 
-export async function parseImport(xlsxBytes: Uint8Array, zipBytes: Uint8Array | null, today: string): Promise<ParseResult> {
+/** Window overlaps the season range (inclusive ISO dates). */
+export const overlapsSeason = (w: Window | null, s: Season) => !!w && w.from <= s.end && w.until >= s.start;
+
+type ManifestEntry = { id: string; file: string; sha: string; bytes: number | null };
+export function parseManifest(bytes: Uint8Array): ManifestEntry[] | null {
+  try {
+    const j = JSON.parse(new TextDecoder().decode(bytes));
+    const arr: unknown[] = Array.isArray(j) ? j : (Object.values(j ?? {}).find(Array.isArray) as unknown[] | undefined) ?? [];
+    if (!arr.length) return null;
+    return arr.map((e) => {
+      const o = (e ?? {}) as Record<string, unknown>;
+      const b = Number(o.Bytes);
+      return { id: str(o.BookingCorner_ID) ?? "", file: str(o.Bilddatei) ?? "", sha: (str(o.SHA256) ?? "").toLowerCase(), bytes: Number.isFinite(b) ? b : null };
+    });
+  } catch { return null; }
+}
+
+export async function parseImport(xlsxBytes: Uint8Array, zipBytes: Uint8Array | null, season: Season): Promise<ParseResult> {
   const r: ParseResult = {
     errors: [], warnings: [], profiles: [], archivedCount: 0, assignmentRows: 0, assignmentOrphans: 0,
     explicitAbsenceDates: 0, notes: [], photos: [], photoMissing: [], zipRejected: [], zipUnused: 0,
+    zipMetadata: [], manifestEntries: 0, photoIssues: [], season,
   };
   if (xlsxBytes.length > LIMITS.xlsxBytes) { r.errors.push("xlsx_too_large"); return r; }
   if (!(xlsxBytes[0] === 0x50 && xlsxBytes[1] === 0x4b)) { r.errors.push("xlsx_invalid_format"); return r; }
@@ -182,7 +213,7 @@ export async function parseImport(xlsxBytes: Uint8Array, zipBytes: Uint8Array | 
       gender: w === true ? "female" : w === false ? "male" : null,
       sourceWebsiteVisible: parseBool(get("Sichtbar auf Ihre Website")),
       window,
-      hasCurrentWindow: !!window && window.until >= today,
+      hasCurrentWindow: overlapsSeason(window, season),
       photoFile: str(get("Bilddatei")),
       private: {
         wage_raw: str(get("Lohn pro Stunde/Monat (CHF)")),
@@ -216,7 +247,8 @@ export async function parseImport(xlsxBytes: Uint8Array, zipBytes: Uint8Array | 
 
   // Photos
   const wanted = new Map<string, string>(); // basename -> sourceId
-  for (const p of r.profiles) if (p.photoFile) wanted.set(baseName(p.photoFile), p.sourceId);
+  const excelFile = new Map<string, string>(); // sourceId -> Excel Bilddatei basename
+  for (const p of r.profiles) if (p.photoFile) { wanted.set(baseName(p.photoFile), p.sourceId); excelFile.set(p.sourceId, baseName(p.photoFile)); }
   if (zipBytes) {
     if (zipBytes.length > LIMITS.zipBytes) { r.errors.push("zip_too_large"); return r; }
     let total = 0;
@@ -227,6 +259,13 @@ export async function parseImport(xlsxBytes: Uint8Array, zipBytes: Uint8Array | 
           if (f.name.endsWith("/")) return false;
           if (!isSafeZipPath(f.name)) { r.zipRejected.push("unsafe_path"); return false; }
           if (baseName(f.name).startsWith(".") || f.name.startsWith("__MACOSX/")) return false;
+          if (ZIP_METADATA.has(baseName(f.name))) {
+            r.zipMetadata.push(baseName(f.name));
+            // Only the manifest is decompressed (bounded); other metadata is recognised, not read.
+            if (baseName(f.name) !== MANIFEST_NAME) return false;
+            if (f.originalSize > MANIFEST_MAX_BYTES) { r.zipRejected.push("manifest_too_large"); return false; }
+            return true;
+          }
           if (!/\.jpe?g$/i.test(f.name)) { r.zipRejected.push("not_jpeg_name"); return false; }
           if (f.originalSize > LIMITS.imageBytes) { r.zipRejected.push("image_too_large"); return false; }
           total += f.originalSize;
@@ -235,14 +274,50 @@ export async function parseImport(xlsxBytes: Uint8Array, zipBytes: Uint8Array | 
         },
       });
     } catch { r.errors.push("zip_unreadable"); return r; }
+
+    const manifestKeys = Object.keys(files).filter((n) => baseName(n) === MANIFEST_NAME);
+    let manifest: Map<string, ManifestEntry> | null = null;
+    if (manifestKeys.length !== 1) r.photoIssues.push({ sourceId: null, code: manifestKeys.length ? "manifest_duplicate_file" : "manifest_missing" });
+    else {
+      const entries = parseManifest(files[manifestKeys[0]]);
+      if (!entries) r.photoIssues.push({ sourceId: null, code: "manifest_invalid" });
+      else {
+        r.manifestEntries = entries.length;
+        manifest = new Map();
+        const dup = new Set<string>();
+        for (const e of entries) {
+          if (!e.id) { r.photoIssues.push({ sourceId: null, code: "manifest_entry_without_id" }); continue; }
+          if (manifest.has(e.id)) dup.add(e.id); else manifest.set(e.id, e);
+        }
+        for (const id of dup) if (excelFile.has(id)) r.photoIssues.push({ sourceId: id, code: "manifest_duplicate_id" });
+        for (const id of dup) manifest.delete(id);
+      }
+    }
+    for (const n of manifestKeys) delete files[n];
+
     const used = new Set<string>();
     for (const [name, bytes] of Object.entries(files)) {
       if (!isJpeg(bytes)) { r.zipRejected.push("not_jpeg_content"); continue; }
       const sid = wanted.get(baseName(name));
       if (!sid || used.has(sid)) { r.zipUnused++; continue; }
       used.add(sid);
-      r.photos.push({ sourceId: sid, entry: name, sha256: await sha256Hex(bytes), size: bytes.length });
+      const sha = await sha256Hex(bytes);
+      const issues: string[] = [];
+      if (manifest) {
+        const m = manifest.get(sid);
+        if (!m) issues.push("manifest_entry_missing");
+        else {
+          if (baseName(m.file) !== excelFile.get(sid)) issues.push("manifest_excel_file_mismatch");
+          if (baseName(m.file) !== baseName(name)) issues.push("manifest_zip_path_mismatch");
+          if (m.sha !== sha) issues.push("sha256_mismatch");
+          if (m.bytes !== null && m.bytes !== bytes.length) issues.push("size_mismatch");
+        }
+      }
+      for (const code of issues) r.photoIssues.push({ sourceId: sid, code });
+      r.photos.push({ sourceId: sid, entry: name, sha256: sha, size: bytes.length, verified: !!manifest && issues.length === 0 });
     }
+    // Excel names a photo, manifest lists it, but the ZIP lacks the file.
+    if (manifest) for (const [sid] of excelFile) if (!used.has(sid) && manifest.has(sid)) r.photoIssues.push({ sourceId: sid, code: "zip_file_missing" });
   }
   const withPhoto = new Set(r.photos.map((p) => p.sourceId));
   r.photoMissing = r.profiles.filter((p) => !withPhoto.has(p.sourceId)).map((p) => p.sourceId);
