@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useCallback, ReactNode } from "react";
 import type { Tables } from "@/integrations/supabase/types";
 import { supabase } from "@/integrations/supabase/client";
+import { deriveFromPlan, sortPlan, toMin, validatePlan } from "@/lib/privatePlan";
 
 export type WizardStep = 1 | 2 | 3;
 
@@ -351,6 +352,8 @@ interface BookingWizardContextType {
   setNumberOfPersons: (count: number) => void;
   setAppointments: (appointments: AppointmentSlot[] | null) => void;
   movePlannedDate: (fromDate: string, toDate: string) => void;
+  /** Replace the canonical private plan; returns a German error (and keeps the draft) if invalid. */
+  updatePlannedAppointments: (next: AppointmentSlot[]) => string | null;
   // Group course setters
   setSelectedGroupId: (id: string | null) => void;
   setGroupCourseType: (type: "windel_wedelkurs" | "kids_village" | "standard" | null) => void;
@@ -1357,20 +1360,19 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
     const timeSlot = baseAppt ? `${baseStartTime} - ${baseEndTime}` : null;
     const duration = baseDuration / 60;
     
+    void timeSlot; void duration; void dayTimeOverrides; void dayInstructorOverrides; void timeSelections; void dates;
+    // Canonical plan: every real block keeps date/start/duration/instructorId.
+    const canonical = sortPlan(
+      appointments.map((a) => ({ ...a, instructorId: a.instructorId || instructorId }))
+    );
     setState((prev) => {
       const next = {
         ...prev,
         instructorId,
         instructor,
-        appointments,
-        selectedDates: dates,
+        ...deriveFromPlan(canonical, instructorId),
+        appointments: canonical,
         productType: "private" as const,
-        timeSlot,
-        duration,
-        // Populate per-day time fields for BookingTimeGrid and PeriodDayPlanner
-        timeSelections,
-        dayTimeOverrides,
-        dayInstructorOverrides,
         privateGroupProposal: null, // per-day instructors are a period plan, not a split
         assignLater: false, // Instructor is already assigned from scheduler
       };
@@ -1683,6 +1685,7 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
         setNumberOfPersons,
         setAppointments,
         movePlannedDate,
+        updatePlannedAppointments,
         setSelectedGroupId,
         setGroupCourseType,
         setLunchDaysForParticipant,
