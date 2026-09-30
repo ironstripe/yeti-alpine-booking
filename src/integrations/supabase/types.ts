@@ -3294,6 +3294,39 @@ export type Database = {
           },
         ]
       }
+      private_appointment_submissions: {
+        Row: {
+          created_at: string
+          submission_key: string
+          ticket_id: string
+        }
+        Insert: {
+          created_at?: string
+          submission_key: string
+          ticket_id: string
+        }
+        Update: {
+          created_at?: string
+          submission_key?: string
+          ticket_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "private_appointment_submissions_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "pending_booking_confirmations"
+            referencedColumns: ["ticket_id"]
+          },
+          {
+            foreignKeyName: "private_appointment_submissions_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "tickets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       private_appointments: {
         Row: {
           confirmed_at: string | null
@@ -5117,6 +5150,7 @@ export type Database = {
         Returns: undefined
       }
       pa_is_protected: { Args: { p_appointment_id: string }; Returns: Json }
+      pa_lock_slots: { Args: { p_targets: Json }; Returns: undefined }
       pa_move_appointment: {
         Args: {
           p_actor: string
