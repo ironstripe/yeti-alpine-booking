@@ -30,6 +30,8 @@ import {
 } from "@/lib/csv-parser";
 import { useBulkCreateInstructors, type BulkCreateResult } from "@/hooks/useBulkCreateInstructors";
 import { useToast } from "@/hooks/use-toast";
+import { useIsSuperAdmin } from "@/hooks/useIsSuperAdmin";
+import { BookingCornerPreviewDialog } from "./BookingCornerPreviewDialog";
 
 interface BulkUploadModalProps {
   open: boolean;
@@ -48,6 +50,8 @@ export function BulkUploadModal({ open, onOpenChange }: BulkUploadModalProps) {
 
   const { mutateAsync: bulkCreate, isPending } = useBulkCreateInstructors();
   const { toast } = useToast();
+  const isSuperAdmin = useIsSuperAdmin();
+  const [bcOpen, setBcOpen] = useState(false);
 
   const resetState = useCallback(() => {
     setStep("upload");
@@ -299,10 +303,18 @@ export function BulkUploadModal({ open, onOpenChange }: BulkUploadModalProps) {
             </div>
 
             <div className="flex justify-between items-center">
-              <Button variant="outline" size="sm" onClick={downloadTemplate}>
-                <Download className="h-4 w-4 mr-2" />
-                Vorlage herunterladen
-              </Button>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={downloadTemplate}>
+                  <Download className="h-4 w-4 mr-2" />
+                  Vorlage herunterladen
+                </Button>
+                {isSuperAdmin && (
+                  <Button variant="outline" size="sm" onClick={() => setBcOpen(true)}>
+                    <FileSpreadsheet className="h-4 w-4 mr-2" />
+                    Booking-Corner Vorschau
+                  </Button>
+                )}
+              </div>
               <Button variant="ghost" onClick={() => handleClose(false)}>
                 Abbrechen
               </Button>
