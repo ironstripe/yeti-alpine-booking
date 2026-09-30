@@ -58,7 +58,6 @@ export function EmptySlot({
     endDrag,
     shiftClickSelect,
     toggleSlotSelection,
-    clearSelection,
     canSelectSlot,
     multiSelectMode,
   } = useSchedulerSelection();
@@ -290,7 +289,7 @@ export function EmptySlot({
       return;
     }
 
-    clearSelection();
+    // Keep any existing planning draft; it is cleared only by Abbrechen/Escape or a successful booking.
     const params = new URLSearchParams({
       instructor: instructorId,
       appointments: JSON.stringify([
@@ -298,7 +297,7 @@ export function EmptySlot({
       ]),
     });
     navigate(`/bookings/new?${params.toString()}`);
-  }, [isInvalidDropZone, timeSlot, canSelectSlot, instructorId, date, bookings, absences, clearSelection, navigate, isMobileScheduler, getFreeWindowEnd, onFreeSlotTap]);
+  }, [isInvalidDropZone, timeSlot, canSelectSlot, instructorId, date, bookings, absences, navigate, isMobileScheduler, getFreeWindowEnd, onFreeSlotTap]);
 
   const handleTouchStart = (e: React.TouchEvent) => {
     if (!usesMobilePath) return;

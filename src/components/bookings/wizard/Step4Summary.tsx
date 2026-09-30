@@ -74,8 +74,10 @@ export function Step4Summary({ onEditStep }: Step4SummaryProps) {
 
   // Check for automatic 2x2h discount
   const qualifiesFor2x2hDiscount = useMemo(() => {
+    // Canonical private plans are priced by the server per appointment; no client-side auto discount.
+    if (state.productType === "private" && state.appointments) return false;
     return check2x2hDiscount(state.duration, state.selectedDates, state.appointments);
-  }, [state.duration, state.selectedDates, state.appointments]);
+  }, [state.productType, state.duration, state.selectedDates, state.appointments]);
 
   const autoDiscountPercent = qualifiesFor2x2hDiscount ? 10 : 0;
   const autoDiscountReason = qualifiesFor2x2hDiscount ? "2x2h Tagesrabatt" : undefined;

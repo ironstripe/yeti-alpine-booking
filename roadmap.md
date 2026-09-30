@@ -19,6 +19,10 @@
 - [x] Explicit "Mehrfachauswahl" toggle + instructor names in the summary/remove-only list (Ctrl/Cmd+Click remains available)
 - [x] Wizard planning step edits each private lesson's date, time and instructor
 - [x] Canonical private lessons render once in Scheduler and show mapped participants in Scheduler/detail views
+- [x] Phase 3 correction: `state.appointments` is the canonical plan (date/start/duration/instructorId per real block); mini-scheduler + scheduler prefill populate it; paCreate payload built 1:1 from it; legacy manual flow kept when no plan exists
+- [x] "Geplante Termine" card = only editor (open by default; 09:00–16:00, end>start, no same-day overlap; date deselection drops blocks)
+- [x] Different instructors on different dates = one booking; simultaneous picks rejected, never participant split
+- [x] Final price preview sums every canonical block (date/time/participants); server-authoritative note; draft cleared only after successful paCreate
 - [ ] End-to-end test with an office login (blocked: no office account)
 
 ## Phase 1 validation fix

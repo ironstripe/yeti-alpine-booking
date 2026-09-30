@@ -847,7 +847,7 @@ export function useCreateBooking() {
 
           for (const dateStr of pBooking.dates) {
             // Get or create instance for this participant's specific group course
-            let { data: existingInstance } = await supabase
+            const { data: existingInstance } = await supabase
               .from("group_course_instances")
               .select("id, current_participants")
               .eq("course_id", pBooking.groupCourseId)
@@ -922,7 +922,7 @@ export function useCreateBooking() {
         // Shared group booking mode (all participants in same group)
         for (const dateStr of state.selectedDates) {
           // Check if instance exists
-          let { data: existingInstance } = await supabase
+          const { data: existingInstance } = await supabase
             .from("group_course_instances")
             .select("id, current_participants")
             .eq("course_id", state.selectedGroupId)
