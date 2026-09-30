@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { validatePlan, deriveFromPlan } from "./privatePlan";
+import { validatePlan, deriveFromPlan } from "../src/lib/privatePlan";
 const a = (date: string, startTime: string, durationMinutes: number, instructorId = "i1") => ({ date, startTime, durationMinutes, instructorId });
 describe("privatePlan", () => {
   test("valid multi-block day, different instructors on different dates", () => {
