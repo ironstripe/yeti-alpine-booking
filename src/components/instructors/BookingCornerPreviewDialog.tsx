@@ -12,16 +12,18 @@ import { Loader2 } from "lucide-react";
 type Row = {
   source_id: string; name: string; classification: string; confidence: string; reasons: string[];
   target: { id: string; name: string } | null; diff: { field: string; source: string | null; yeti: string | null }[];
-  window: { from: string; until: string } | null; has_current_window: boolean; has_photo: boolean; missing: string[];
+  window: { from: string; until: string } | null; has_current_window: boolean; has_photo: boolean; photo_verified?: boolean; missing: string[];
 };
-type Preview = { run_id: string; counts: Record<string, number>; rows: Row[]; yeti_only: { id: string; name: string }[] };
+type Preview = {
+  run_id: string; counts: Record<string, number>;
+  season?: { name: string; start: string; end: string }; apply_blocked?: boolean; photo_issues?: { sourceId: string | null; code: string }[]; rows: Row[]; yeti_only: { id: string; name: string }[] };
 
 const CLASS_LABEL: Record<string, string> = {
   create: "Neu", update: "Aktualisieren", no_op: "Unverändert", candidate: "Kandidat (prüfen)", review: "Prüfung nötig",
 };
 const COUNT_LABEL: [string, string][] = [
   ["profiles", "Profile (nicht archiviert)"], ["current_windows", "Mit Einsatzfenster 26/27"], ["no_current_window", "Ohne Einsatzfenster"],
-  ["photos", "Fotos"], ["no_photo", "Ohne Foto"], ["explicit_absences", "Abwesenheiten in Quelle"], ["absences_to_create", "Abwesenheiten, die angelegt werden"],
+  ["photos", "Fotos"], ["photos_verified", "Fotos geprüft (Bildzuordnung)"], ["photo_issues", "Foto-Abweichungen"], ["zip_metadata", "ZIP-Metadateien"], ["zip_rejected", "ZIP abgelehnt"], ["no_photo", "Ohne Foto"], ["explicit_absences", "Abwesenheiten in Quelle"], ["absences_to_create", "Abwesenheiten, die angelegt werden"],
   ["archived_imported", "Archivierte importiert"], ["assignment_rows", "Zuordnungen"], ["assignment_orphans", "Zuordnungen ohne Profil"],
   ["create", "Neu"], ["update", "Aktualisieren"], ["no_op", "Unverändert"], ["candidate", "Kandidaten"], ["review", "Prüfung nötig"], ["yeti_only", "Nur in YETI"],
 ];
@@ -79,6 +81,19 @@ export function BookingCornerPreviewDialog({ open, onOpenChange }: { open: boole
         {preview && (
           <ScrollArea className="flex-1 min-h-0 border rounded-md">
             <div className="p-3 space-y-4">
+              {preview.season && (
+                <p className="text-sm text-muted-foreground">
+                  Einsatzfenster zählt, wenn es die Saison {preview.season.name} ({preview.season.start} – {preview.season.end}) überschneidet.
+                </p>
+              )}
+              {preview.apply_blocked && (
+                <div className="rounded-md border border-destructive p-2 text-sm">
+                  <div className="font-medium text-destructive">Übernahme gesperrt: Fotos stimmen nicht mit der Bildzuordnung überein.</div>
+                  <ul className="mt-1 text-xs text-muted-foreground">
+                    {(preview.photo_issues ?? []).slice(0, 50).map((i, n) => <li key={n}>{i.sourceId ?? "ZIP"}: {i.code}</li>)}
+                  </ul>
+                </div>
+              )}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                 {COUNT_LABEL.map(([k, label]) => (
                   <div key={k} className="rounded-md border p-2">
@@ -101,8 +116,8 @@ export function BookingCornerPreviewDialog({ open, onOpenChange }: { open: boole
                         <div className="text-xs text-muted-foreground">{r.confidence} · {r.reasons.join(", ")}</div>
                       </td>
                       <td className="p-1">{r.target?.name ?? "—"}</td>
-                      <td className="p-1">{r.window ? `${r.window.from} – ${r.window.until}` : "—"}{r.window && !r.has_current_window && <div className="text-xs text-muted-foreground">vergangen</div>}</td>
-                      <td className="p-1">{r.has_photo ? "Ja" : "—"}</td>
+                      <td className="p-1">{r.window ? `${r.window.from} – ${r.window.until}` : "—"}{r.window && !r.has_current_window && <div className="text-xs text-muted-foreground">ausserhalb Saison</div>}</td>
+                      <td className="p-1">{r.has_photo ? (r.photo_verified ? "Ja, geprüft" : "Ja, ungeprüft") : "—"}</td>
                       <td className="p-1">{r.missing.join(", ") || "—"}</td>
                       <td className="p-1 text-xs">{r.diff.map((d) => <div key={d.field}>{d.field}: {d.yeti ?? "—"} → {d.source ?? "—"}</div>)}</td>
                     </tr>

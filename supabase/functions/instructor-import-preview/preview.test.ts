@@ -3,10 +3,10 @@
 import { assert, assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import * as XLSX from "npm:xlsx@0.18.5";
 import { zipSync } from "npm:fflate@0.8.2";
-import { parseImport, PROFILE_HEADERS, ASSIGNMENT_HEADERS, isSafeZipPath, parseBool, normHeader } from "./parse.ts";
+import { parseImport, sha256Hex, overlapsSeason, PROFILE_HEADERS, ASSIGNMENT_HEADERS, isSafeZipPath, parseBool, normHeader } from "./parse.ts";
 import { classify, type YetiInstructor } from "./match.ts";
 
-const TODAY = "2026-09-30";
+const SEASON = { name: "Winter 26/27", start: "2026-12-01", end: "2027-04-15" };
 const JPEG = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3, 4]);
 
 type P = Record<string, unknown>;
@@ -37,7 +37,7 @@ Deno.test("parse: counts, archived skipped, windows, photos, notes, newline head
     { BookingCorner_ID: "9", Bereich: "Sprachen", Eintrag: 1, "Quellwert / Erfassungsstatus": "Englisch" },
   ], { newlineHeader: true });
   const z = zipSync({ "fotos/1.jpg": JPEG, "fotos/2.JPG": JPEG, "fotos/extra.jpg": JPEG });
-  const r = await parseImport(x, z, TODAY);
+  const r = await parseImport(x, z, SEASON);
   assertEquals(r.errors, []);
   assertEquals(r.profiles.length, 3);
   assertEquals(r.archivedCount, 1);
@@ -60,20 +60,20 @@ Deno.test("parse: counts, archived skipped, windows, photos, notes, newline head
 
 Deno.test("parse: explicit absence date is counted, never mapped", async () => {
   const x = book([prof("1")], [{ BookingCorner_ID: "1", Bereich: "Ausnahmen", Eintrag: 1, "Quellwert / Erfassungsstatus": "24.12.2026" }]);
-  const r = await parseImport(x, null, TODAY);
+  const r = await parseImport(x, null, SEASON);
   assertEquals(r.explicitAbsenceDates, 1);
 });
 
 Deno.test("parse: missing sheet, duplicate ID, bad format", async () => {
-  assert((await parseImport(book([prof("1")], [], { dropSheet: "Zuordnungen" }), null, TODAY)).errors.includes("sheet_missing:Zuordnungen"));
-  assert((await parseImport(book([prof("1"), prof("1")]), null, TODAY)).errors.includes("duplicate_id:1"));
-  assertEquals((await parseImport(new TextEncoder().encode("a,b"), null, TODAY)).errors, ["xlsx_invalid_format"]);
+  assert((await parseImport(book([prof("1")], [], { dropSheet: "Zuordnungen" }), null, SEASON)).errors.includes("sheet_missing:Zuordnungen"));
+  assert((await parseImport(book([prof("1"), prof("1")]), null, SEASON)).errors.includes("duplicate_id:1"));
+  assertEquals((await parseImport(new TextEncoder().encode("a,b"), null, SEASON)).errors, ["xlsx_invalid_format"]);
 });
 
 Deno.test("zip: unsafe paths and non-JPEG content rejected", async () => {
   assertEquals([isSafeZipPath("../x.jpg"), isSafeZipPath("/x.jpg"), isSafeZipPath("a\\b.jpg"), isSafeZipPath("C:x.jpg"), isSafeZipPath("a/b.jpg")], [false, false, false, false, true]);
   const z = zipSync({ "1.jpg": new Uint8Array([0x89, 0x50, 0x4e, 0x47]), "a/../2.jpg": JPEG, "x.png": JPEG });
-  const r = await parseImport(book([prof("1"), prof("2")]), z, TODAY);
+  const r = await parseImport(book([prof("1"), prof("2")]), z, SEASON);
   assertEquals(r.photos.length, 0);
   assertEquals(r.zipRejected.sort(), ["not_jpeg_content", "not_jpeg_name", "unsafe_path"]);
 });
@@ -89,7 +89,7 @@ const y = (id: string, f: string, l: string, phone: string | null, extra: Partia
 Deno.test("match: link, candidate, review, create, yeti-only, similar spelling", async () => {
   const r = await parseImport(book([
     prof("1"), prof("2"), prof("3"), prof("4", { Vorname: "Viktoria", Name: "Beispiel" }), prof("5", { Vorname: "Neu", Name: "Andersson" }),
-  ]), null, TODAY);
+  ]), null, SEASON);
   const p = Object.fromEntries(r.profiles.map((x) => [x.sourceId, x]));
   const yeti = [
     y("L", "Test", "Musterb", "000"),                       // linked
@@ -113,8 +113,8 @@ Deno.test("match: link, candidate, review, create, yeti-only, similar spelling",
 
 Deno.test("reimport: identical file with all links yields zero creates", async () => {
   const x = book([prof("1"), prof("2")]);
-  const r1 = await parseImport(x, null, TODAY);
-  const r2 = await parseImport(x, null, TODAY);
+  const r1 = await parseImport(x, null, SEASON);
+  const r2 = await parseImport(x, null, SEASON);
   const links = r1.profiles.map((p, i) => ({ source_id: p.sourceId, instructor_id: "Y" + i, source_checksum: p.checksum }));
   const yeti = r1.profiles.map((p, i) => y("Y" + i, p.firstName!, p.lastName!, p.phone));
   const { results } = classify(r2.profiles, yeti, links);
@@ -123,9 +123,65 @@ Deno.test("reimport: identical file with all links yields zero creates", async (
 });
 
 Deno.test("diff: missing source values never overwrite YETI values", async () => {
-  const r = await parseImport(book([prof("1", { Email: null })]), null, TODAY);
+  const r = await parseImport(book([prof("1", { Email: null })]), null, SEASON);
   const links = [{ source_id: "1", instructor_id: "A", source_checksum: "old" }];
   const { results } = classify(r.profiles, [y("A", "Test", "Musterb", "079 000 00 01", { email: "keep@example.invalid" })], links);
   assertEquals(results[0].classification, "update");
   assert(!results[0].diff.some((d) => d.field === "email"));
+});
+
+// ---- Manifest (bildzuordnung.json) + season overlap ----
+const enc = (o: unknown) => new TextEncoder().encode(JSON.stringify(o));
+const JPEG2 = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 9, 9]);
+async function entry(id: string, file: string, bytes: Uint8Array, over: Record<string, unknown> = {}) {
+  return { BookingCorner_ID: id, Bilddatei: file, SHA256: await sha256Hex(bytes), Breite_px: 10, Hoehe_px: 10, Bytes: bytes.length, ...over };
+}
+
+Deno.test("manifest: valid → verified; metadata files not rejected", async () => {
+  const man = [await entry("1", "1.jpg", JPEG), await entry("2", "2.jpg", JPEG2)];
+  const z = zipSync({ "1.jpg": JPEG, "2.jpg": JPEG2, "bildzuordnung.json": enc(man), "pruefergebnis.json": enc({ ok: true }), "readme.txt": enc("x") });
+  const r = await parseImport(book([prof("1"), prof("2")]), z, SEASON);
+  assertEquals(r.photos.filter((p) => p.verified).length, 2);
+  assertEquals(r.photoIssues, []);
+  assertEquals(r.zipRejected, []);
+  assertEquals(r.zipMetadata.sort(), ["bildzuordnung.json", "pruefergebnis.json", "readme.txt"]);
+  assertEquals(r.manifestEntries, 2);
+});
+
+Deno.test("manifest: hash, size, file mismatches and missing entry block", async () => {
+  const man = [
+    await entry("1", "1.jpg", JPEG, { SHA256: "00".repeat(32) }),
+    await entry("2", "other.jpg", JPEG2, { Bytes: 999 }),
+  ];
+  const z = zipSync({ "1.jpg": JPEG, "2.jpg": JPEG2, "3.jpg": JPEG, "bildzuordnung.json": enc(man) });
+  const r = await parseImport(book([prof("1"), prof("2"), prof("3")]), z, SEASON);
+  const codes = r.photoIssues.map((i) => `${i.sourceId}:${i.code}`).sort();
+  assertEquals(codes, ["1:sha256_mismatch", "2:manifest_excel_file_mismatch", "2:manifest_zip_path_mismatch", "2:size_mismatch", "3:manifest_entry_missing"]);
+  assertEquals(r.photos.filter((p) => p.verified).length, 0);
+});
+
+Deno.test("manifest: duplicate IDs, missing manifest, missing ZIP file", async () => {
+  const e1 = await entry("1", "1.jpg", JPEG);
+  const e2 = await entry("2", "2.jpg", JPEG2);
+  const r = await parseImport(book([prof("1"), prof("2")]), zipSync({ "1.jpg": JPEG, "bildzuordnung.json": enc([e1, e1, e2]) }), SEASON);
+  const codes = r.photoIssues.map((i) => `${i.sourceId}:${i.code}`).sort();
+  assert(codes.includes("1:manifest_duplicate_id"));
+  assert(codes.includes("1:manifest_entry_missing"));
+  assert(codes.includes("2:zip_file_missing"));
+  const r2 = await parseImport(book([prof("1")]), zipSync({ "1.jpg": JPEG }), SEASON);
+  assertEquals(r2.photoIssues, [{ sourceId: null, code: "manifest_missing" }]);
+  assertEquals(r2.photos[0].verified, false);
+  const r3 = await parseImport(book([prof("1")]), zipSync({ "1.jpg": JPEG, "bildzuordnung.json": new TextEncoder().encode("{bad") }), SEASON);
+  assertEquals(r3.photoIssues, [{ sourceId: null, code: "manifest_invalid" }]);
+});
+
+Deno.test("season: explicit overlap, missing dates never block profile", async () => {
+  assert(overlapsSeason({ from: "2026-11-01", until: "2026-12-01" }, SEASON));
+  assert(overlapsSeason({ from: "2027-04-15", until: "2027-06-01" }, SEASON));
+  assert(!overlapsSeason({ from: "2026-05-01", until: "2026-11-30" }, SEASON));
+  assert(!overlapsSeason({ from: "2027-04-16", until: "2027-05-01" }, SEASON));
+  assert(!overlapsSeason(null, SEASON));
+  const r = await parseImport(book([prof("1", { "Aktiv von": null, "Aktiv bis": null }), prof("2", { "Aktiv von": "01.01.2026", "Aktiv bis": "30.11.2026" })]), null, SEASON);
+  assertEquals(r.profiles.length, 2);
+  assertEquals(r.profiles.map((p) => p.hasCurrentWindow), [false, false]);
 });

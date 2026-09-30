@@ -15,6 +15,7 @@ const json = (b: unknown, status = 200) =>
 
 const SOURCE_SYSTEM = "booking_corner";
 const ROLLOUT = "yeti_2026_27";
+const SEASON_LABEL = "26/27";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
@@ -34,12 +35,16 @@ Deno.serve(async (req) => {
 
   const xlsx = new Uint8Array(await xf.arrayBuffer());
   const zip = zf instanceof File ? new Uint8Array(await zf.arrayBuffer()) : null;
-  const today = new Date().toISOString().slice(0, 10);
+  const sb = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+  // Deployment windows are eligible only if they overlap the YETI 26/27 season record.
+  const { data: seasons, error: se } = await sb.from("seasons").select("name, start_date, end_date").ilike("name", `%${SEASON_LABEL}%`);
+  if (se) { console.error("preview_season_load_failed"); return json({ error: "load_failed" }, 500); }
+  if (!seasons || seasons.length !== 1) return json({ ok: false, errors: [seasons?.length ? "season_ambiguous" : "season_missing"] }, 422);
+  const season = { name: seasons[0].name, start: seasons[0].start_date, end: seasons[0].end_date };
 
-  const parsed = await parseImport(xlsx, zip, today);
+  const parsed = await parseImport(xlsx, zip, season);
   if (parsed.errors.length) return json({ ok: false, errors: parsed.errors }, 422);
 
-  const sb = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
   const [{ data: yeti, error: e1 }, { data: links, error: e2 }] = await Promise.all([
     sb.from("instructors").select("id, first_name, last_name, phone, email, birth_date, street, zip, city, country"),
     sb.from("instructor_source_links").select("source_id, instructor_id, source_checksum")
@@ -60,6 +65,11 @@ Deno.serve(async (req) => {
     no_photo: parsed.photoMissing.length,
     zip_rejected: parsed.zipRejected.length,
     zip_unused: parsed.zipUnused,
+    zip_metadata: parsed.zipMetadata.length,
+    manifest_entries: parsed.manifestEntries,
+    photos_verified: parsed.photos.filter((p) => p.verified).length,
+    photo_issues: parsed.photoIssues.length,
+    apply_blocked: parsed.photoIssues.length > 0 ? 1 : 0,
     assignment_rows: parsed.assignmentRows,
     assignment_orphans: parsed.assignmentOrphans,
     explicit_absences: parsed.explicitAbsenceDates,
@@ -71,10 +81,12 @@ Deno.serve(async (req) => {
   const { data: run, error: runErr } = await sb.from("instructor_import_runs").insert({
     source_system: SOURCE_SYSTEM, rollout: ROLLOUT, status: "preview",
     xlsx_sha256: await sha256Hex(xlsx), zip_sha256: zip ? await sha256Hex(zip) : null,
-    counts, created_by: auth.userId,
+    counts: { ...counts, season, photo_issue_list: parsed.photoIssues }, created_by: auth.userId,
   }).select("id").single();
   if (runErr || !run) { console.error("preview_run_insert_failed"); return json({ error: "run_failed" }, 500); }
 
+  const issuesBy = new Map<string, string[]>();
+  for (const i of parsed.photoIssues) if (i.sourceId) issuesBy.set(i.sourceId, [...(issuesBy.get(i.sourceId) ?? []), i.code]);
   const pById = new Map(parsed.profiles.map((p) => [p.sourceId, p]));
   const staging = results.map((r) => {
     const p = pById.get(r.sourceId)!;
@@ -82,7 +94,7 @@ Deno.serve(async (req) => {
     return {
       run_id: run.id, source_id: r.sourceId, classification: r.classification, confidence: r.confidence,
       target_instructor_id: r.targetInstructorId, source_checksum: checksum, normalized,
-      private_payload: priv, windows: window ? [window] : [], photo: photoBy.get(r.sourceId) ?? null,
+      private_payload: priv, windows: window ? [window] : [], photo: photoBy.get(r.sourceId) ? { ...photoBy.get(r.sourceId)!, issues: issuesBy.get(r.sourceId) ?? [] } : null,
       diff: r.diff, reasons: r.reasons,
     };
   });
@@ -97,14 +109,17 @@ Deno.serve(async (req) => {
 
   const yetiNames = new Map((yeti ?? []).map((y) => [y.id, `${y.first_name ?? ""} ${y.last_name ?? ""}`.trim()]));
   return json({
-    ok: true, run_id: run.id, counts, warnings: parsed.warnings.length, notes: parsed.notes,
+    ok: true, run_id: run.id, counts,
+    season: { name: season.name, start: season.start, end: season.end },
+    apply_blocked: parsed.photoIssues.length > 0,
+    photo_issues: parsed.photoIssues, warnings: parsed.warnings.length, notes: parsed.notes,
     rows: results.map((r) => {
       const p = pById.get(r.sourceId)!;
       return {
         source_id: r.sourceId, name: `${p.firstName ?? ""} ${p.lastName ?? ""}`.trim(),
         classification: r.classification, confidence: r.confidence, reasons: r.reasons,
         target: r.targetInstructorId ? { id: r.targetInstructorId, name: yetiNames.get(r.targetInstructorId) ?? "" } : null,
-        diff: r.diff, window: p.window, has_current_window: p.hasCurrentWindow, has_photo: photoBy.has(r.sourceId),
+        diff: r.diff, window: p.window, has_current_window: p.hasCurrentWindow, has_photo: photoBy.has(r.sourceId), photo_verified: photoBy.get(r.sourceId)?.verified ?? false,
         missing: (["email", "phone"] as const).filter((k) => !p[k]).concat(p.private.wage_raw ? [] : ["wage" as never]),
       };
     }),
