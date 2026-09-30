@@ -382,7 +382,7 @@ interface BookingWizardContextType {
   setGroupInstructor: (groupId: string, instructor: Tables<"instructors"> | null) => void;
   setGroupTime: (groupId: string, startTime: string, endTime: string) => void;
   clearMiniSchedulerSelection: () => void;
-  applyMiniSchedulerSelection: () => void;
+  applyMiniSchedulerSelection: () => string | null;
   // Step 3 setters
   setInstructor: (instructor: Tables<"instructors"> | null) => void;
   setAssignLater: (assignLater: boolean) => void;
@@ -1028,7 +1028,11 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
   };
 
   // Apply mini-scheduler selection to populate dates, time, instructor, and overrides
-  const applyMiniSchedulerSelection = () => {
+  const applyMiniSchedulerSelection = (): string | null => {
+    const slots = state.miniSchedulerSelections;
+    const overlap = slots.find((a, i) => slots.some((b, j) => j > i && a.date === b.date &&
+      toMin(a.startTime) < toMin(b.endTime) && toMin(b.startTime) < toMin(a.endTime)));
+    if (overlap) return `${overlap.date}: Gleichzeitige Termine in einer Buchung sind nicht möglich. Bitte eine Lehrperson pro Zeitfenster wählen.`;
     setState((prev) => {
       if (prev.miniSchedulerSelections.length === 0) return prev;
 
@@ -1225,7 +1229,9 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
       }
 
       // Clear base instructor when multi-group proposal is active
-      const isMultiGroup = privateGroupProposal && privateGroupProposal.groups.length > 1;
+      // Canonical plan: different instructors never split participants.
+      privateGroupProposal = null;
+      const isMultiGroup = false as boolean;
 
       if (!isMultiGroup) {
         // Canonical plan: one record per merged real block, each with its own instructor.
