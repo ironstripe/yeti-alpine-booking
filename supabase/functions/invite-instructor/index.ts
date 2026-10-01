@@ -62,7 +62,7 @@ serve(async (req) => {
       .eq("user_id", user.id);
 
     const userRoles = roles?.map((r) => r.role) || [];
-    if (!userRoles.includes("admin") && !userRoles.includes("office")) {
+    if (!userRoles.includes("admin") && !userRoles.includes("office") && !userRoles.includes("super_admin")) {
       return new Response(
         JSON.stringify({ error: "Keine Berechtigung. Nur Admin/Büro kann einladen." }),
         { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -164,6 +164,15 @@ serve(async (req) => {
       authUserId = newUser.user.id;
       console.log("Created new user:", authUserId);
     }
+
+    // Stable login→instructor link (Security Gate A). Never overwrite an existing link.
+    const { error: linkRowError } = await supabaseAdmin
+      .from("instructor_user_links")
+      .upsert(
+        { user_id: authUserId, instructor_id: instructor.id, created_by: user.id, source: "invite" },
+        { onConflict: "user_id", ignoreDuplicates: true },
+      );
+    if (linkRowError) console.error("instructor_user_links insert failed:", linkRowError.message);
 
     // Map instructor roles to user_roles
     const instructorRoles: string[] = instructor.roles || [];

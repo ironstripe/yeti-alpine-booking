@@ -16,7 +16,7 @@ Deno.serve(async (req) => {
   }
 
   // Security P0.1: assigns roles — only office/admin may call this
-  const auth = await requireRole(req, ["admin", "office"], corsHeaders);
+  const auth = await requireRole(req, ["admin", "office", "super_admin"], corsHeaders);
   if (auth instanceof Response) return auth;
 
 
@@ -57,6 +57,21 @@ Deno.serve(async (req) => {
         JSON.stringify({ linked: false, reason: "No auth user found with this email" }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
+    }
+
+    // Stable login→instructor link: only when exactly one instructor has this email; never overwrite.
+    const { data: matches } = await supabaseAdmin
+      .from("instructors")
+      .select("id")
+      .ilike("email", email);
+    if (matches && matches.length === 1) {
+      const { error: linkRowError } = await supabaseAdmin
+        .from("instructor_user_links")
+        .upsert(
+          { user_id: authUser.id, instructor_id: matches[0].id, created_by: auth.userId, source: "link" },
+          { onConflict: "user_id", ignoreDuplicates: true },
+        );
+      if (linkRowError) console.error("instructor_user_links insert failed:", linkRowError.message);
     }
 
     // Determine which user_roles to assign based on instructor roles
