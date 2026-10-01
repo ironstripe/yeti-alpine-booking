@@ -229,7 +229,10 @@ const AppRoutes = () => (
 );
 
 const App = () => (
-  <ErrorBoundary>
+  <>
+    {/* An outdated app bundle can crash below; the update prompt must survive that crash. */}
+    <PWAUpdatePrompt />
+    <ErrorBoundary>
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <Toaster />
@@ -240,14 +243,14 @@ const App = () => (
             <OfflineIndicator />
             <AppRoutes />
             <InstallBanner />
-            <PWAUpdatePrompt />
               <AuthenticatedComponents />
             </ActiveRoleProvider>
           </AuthProvider>
         </BrowserRouter>
       </TooltipProvider>
     </QueryClientProvider>
-  </ErrorBoundary>
+    </ErrorBoundary>
+  </>
 );
 
 export default App;
