@@ -7,6 +7,12 @@
 --   (b) right before the instructors UPDATE, the exact full instructors row + HR-private, source-link,
 --       deployment-window and photo-metadata state (absent rows recorded explicitly) is written to the ledger;
 --   (c) after a real INSERT (new UUID) a 'created' provenance row is written. Reimport/old link = never 'created'.
+--   (d) same-run retry guard: if the source link was last written by THIS run, the row is re-applied only when
+--       every import-owned field still equals what this run wrote (ledger pre-image + payload); otherwise
+--       'edited_since_same_run_apply' conflict and nothing is touched. A link from an earlier run (separately
+--       reviewed reimport) keeps the Booking-authoritative semantics unchanged.
+--   (e) link detection uses the link's primary key (record IS NOT NULL is false when any column is NULL,
+--       e.g. last_import_run_id after ON DELETE SET NULL).
 -- Both happen inside the existing per-row BEGIN..EXCEPTION subtransaction: a failed row leaves no ledger row.
 -- ON CONFLICT (run_id, instructor_id) DO NOTHING: retries never overwrite the first image.
 -- Ledger: service_role write, super_admin read, no anon/teacher/office/admin, not in Realtime, immutable.
@@ -63,7 +69,8 @@ AS $function$
 DECLARE
   v_run record; r record; v_target uuid; v_p jsonb; v_snap jsonb; v_cur jsonb; v_link record;
   v_applied int := 0; v_conflict int := 0; v_failed int := 0; v_skipped int := 0; v_code text; w jsonb;
-  v_pre jsonb; v_hr jsonb; v_sl jsonb; v_win jsonb; v_ph jsonb;
+  v_pre jsonb; v_hr jsonb; v_sl jsonb; v_win jsonb; v_ph jsonb; v_led record; v_drift boolean;
+  c_apply constant text[] := ARRAY['first_name','last_name','email','phone','birth_date','gender','street','zip','city','country'];
 BEGIN
   SELECT * INTO v_run FROM instructor_import_runs WHERE id = p_run FOR UPDATE;
   IF v_run IS NULL OR v_run.status <> 'applying' THEN RAISE EXCEPTION 'run_not_applying'; END IF;
@@ -83,9 +90,21 @@ BEGIN
 
       SELECT * INTO v_link FROM instructor_source_links
         WHERE source_system=v_run.source_system AND rollout=v_run.rollout AND source_id=r.source_id;
-      IF v_link IS NOT NULL THEN
+      IF v_link.id IS NOT NULL THEN
         v_target := v_link.instructor_id;           -- retry / reimport: stable UUID
         PERFORM 1 FROM instructors WHERE id=v_target FOR UPDATE;
+        IF v_link.last_import_run_id = p_run THEN   -- same-run retry: never overwrite an intervening edit
+          SELECT * INTO v_led FROM instructor_import_ledger WHERE run_id=p_run AND instructor_id=v_target;
+          IF v_led.id IS NULL THEN
+            v_code := 'same_run_ledger_missing';
+          ELSE
+            SELECT coalesce(bool_or((to_jsonb(i) ->> k) IS DISTINCT FROM
+                     CASE WHEN v_led.kind = 'created' THEN v_p ->> k
+                          ELSE coalesce(v_p ->> k, v_led.instructor_row ->> k) END), true)
+              INTO v_drift FROM instructors i, unnest(c_apply) k WHERE i.id = v_target;
+            IF v_drift THEN v_code := 'edited_since_same_run_apply'; END IF;
+          END IF;
+        END IF;
       ELSIF r.decision = 'link' THEN
         v_target := r.target_instructor_id;
         IF v_target IS NOT NULL THEN PERFORM 1 FROM instructors WHERE id=v_target FOR UPDATE; END IF;
@@ -257,7 +276,9 @@ BEGIN
                  AND ph.origin = 'manual_upload' AND ph.created_at > L.captured_at) THEN
         v_reasons := v_reasons || 'manual_photo_after_import'::text;
       END IF;
-      IF L.kind = 'updated' AND (SELECT coalesce(jsonb_agg(ph.id ORDER BY ph.id) FILTER (WHERE ph.is_current), '[]')
+      IF L.kind = 'updated' AND NOT (s.photo_status = 'applied' AND (SELECT count(*) = 1 AND bool_and(ph.origin = 'booking_import' AND ph.created_at > L.captured_at)
+            FROM instructor_photos ph WHERE ph.instructor_id = L.instructor_id AND ph.is_current))
+         AND (SELECT coalesce(jsonb_agg(ph.id ORDER BY ph.id) FILTER (WHERE ph.is_current), '[]')
             FROM instructor_photos ph WHERE ph.instructor_id = L.instructor_id AND ph.created_at <= L.captured_at)
          IS DISTINCT FROM (SELECT coalesce(jsonb_agg(e->'id' ORDER BY e->>'id') FILTER (WHERE (e->>'is_current')::boolean), '[]')
             FROM jsonb_array_elements(L.photo_rows) e) THEN
