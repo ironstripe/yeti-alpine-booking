@@ -49,8 +49,8 @@ export function useDashboardStats() {
   });
 
   // Realtime subscription for instructor status changes
-  useRealtimeSubscription<Tables<"instructors">>({
-    table: "instructors",
+  useRealtimeSubscription<Tables<"instructor_live_status">>({
+    table: "instructor_live_status",
     event: "UPDATE",
     queryKey: ["dashboard-stats", today],
   });

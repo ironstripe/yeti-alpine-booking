@@ -224,7 +224,7 @@ export function usePendingRecurringBlocks() {
         is_active: row.is_active,
         created_at: row.created_at,
         instructor_name: `${row.instructors.first_name} ${row.instructors.last_name}`,
-        instructor_email: emails.get(row.instructor_id) ?? null,
+        instructor_email: emails.get(row.instructor_id) ?? "",
       }));
     },
   });
