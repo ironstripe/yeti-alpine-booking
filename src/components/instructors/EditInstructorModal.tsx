@@ -104,6 +104,7 @@ export function EditInstructorModal({
 
   // Initialize avatar URL from instructor
   // Current portrait via staff-only short-lived signed URL (5 min); refreshed before expiry and on load error.
+  const retriedFor = useRef<string | null>(null);
   const loadPhoto = useCallback(async () => {
     const { data, error } = await supabase.functions.invoke("instructor-photo-url", { body: { instructor_id: instructor.id } });
     setAvatarUrl(error ? instructor.avatar_url ?? null : data?.url ?? null);
@@ -284,7 +285,7 @@ export function EditInstructorModal({
             <div className="flex flex-col items-center gap-3">
               <div className="relative group cursor-pointer" onClick={() => fileInputRef.current?.click()}>
                 <Avatar className="h-20 w-20 text-xl">
-                  <AvatarImage src={avatarUrl || undefined} alt="Profilbild" onError={() => { if (avatarUrl) loadPhoto(); }} />
+                  <AvatarImage src={avatarUrl || undefined} alt="Profilbild" onError={() => { if (avatarUrl && retriedFor.current !== avatarUrl) { retriedFor.current = avatarUrl; loadPhoto(); } }} />
                   <AvatarFallback className="bg-primary/10 text-primary">
                     {getInitials()}
                   </AvatarFallback>
