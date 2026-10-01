@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { fetchInstructors, fetchInstructor, fetchInstructorPay } from "@/lib/instructorsApi";
 import { searchCustomersRpc, type CustomerSearchHit } from "@/hooks/useCustomerSearch";
 
 export type CustomerSearchResult = CustomerSearchHit;
@@ -43,16 +44,12 @@ export async function searchBookings(query: string): Promise<BookingSearchResult
 }
 
 export async function searchInstructors(query: string) {
-  const { data, error } = await supabase
-    .from("instructors")
-    .select("id, first_name, last_name, email, phone")
-    .or(
-      `first_name.ilike.%${query}%,last_name.ilike.%${query}%,email.ilike.%${query}%`
-    )
-    .limit(5);
-
-  if (error) throw error;
-  return data || [];
+  const q = query.toLowerCase();
+  const all = await fetchInstructors();
+  return all
+    .filter((i) => [i.first_name, i.last_name, i.email].some((v) => v?.toLowerCase().includes(q)))
+    .slice(0, 5)
+    .map((i) => ({ id: i.id, first_name: i.first_name, last_name: i.last_name, email: i.email, phone: i.phone }));
 }
 
 export interface ParticipantSearchResult {

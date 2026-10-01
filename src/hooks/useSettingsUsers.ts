@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchInstructors, fetchInstructor, fetchInstructorPay } from "@/lib/instructorsApi";
 import { toast } from "sonner";
 import { AppRole } from "./useUserRole";
 
@@ -33,7 +34,7 @@ export function useSettingsUsers() {
       const [authResult, rolesResult, instructorsResult] = await Promise.all([
         supabase.functions.invoke<{ users: AuthUser[] }>("list-auth-users"),
         supabase.from("user_roles").select("user_id, role, created_at"),
-        supabase.from("instructors").select("id, email, first_name, last_name, created_at")
+        fetchInstructors().then((data) => ({ data, error: null as null | Error }))
       ]);
 
       if (authResult.error) {
