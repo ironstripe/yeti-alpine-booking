@@ -235,9 +235,11 @@ export default function InstructorProfile() {
                 id="email"
                 type="email"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                readOnly
+                disabled
                 placeholder="max@example.com"
               />
+              <p className="text-xs text-muted-foreground">E-Mail-Änderungen nur durch das Büro möglich</p>
             </div>
           </CardContent>
         </Card>

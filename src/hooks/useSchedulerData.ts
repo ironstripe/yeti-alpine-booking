@@ -1,5 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchInstructors } from "@/lib/instructorsApi";
 import { format, addDays, parseISO } from "date-fns";
 import type { Tables } from "@/integrations/supabase/types";
 import { 

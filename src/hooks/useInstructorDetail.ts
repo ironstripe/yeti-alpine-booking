@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchInstructor, fetchInstructorPay, saveInstructor } from "@/lib/instructorsApi";
 import type { Tables } from "@/integrations/supabase/types";
 import { format } from "date-fns";
 import { toast } from "sonner";
