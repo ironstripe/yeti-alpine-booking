@@ -47,3 +47,5 @@
 - [ ] Lock migration + role tests + real teacher login (blocked: teacher test account/approval)
 - [ ] Future Apply decision recorded: links 20308/21309/21095/15916 approved; Booking wins phones + "Viktoria"; never overwrite UUID/bookings/roles/manual photos/website flags (blocked: backup gate + Gate A)
 - [ ] Gate A2 (only if found): teacher access to customer contacts/prices
+- [ ] Real-browser office/admin/super_admin role test (blocked: separate user permission to sign in as staff)
+- [ ] Lock migration review: published app shares backend → old published frontend breaks for office until republished (needs user decision)
