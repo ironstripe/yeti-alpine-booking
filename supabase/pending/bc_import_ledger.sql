@@ -262,6 +262,9 @@ BEGIN
           v_reasons := v_reasons || (CASE WHEN k = ANY(c_pay) THEN 'pay_changed:' ELSE 'profile_changed:' END || k);
         END IF;
       END LOOP;
+    END IF;
+
+    IF v_cur IS NOT NULL THEN
       -- HR: compare the live row with exactly what this run wrote (ledger before-image + staging payload,
       -- same expressions as bc_apply_batch). No time window; updated_at ignored.
       SELECT array_agg(f ORDER BY f) INTO v_hrdiff FROM (
@@ -280,9 +283,6 @@ BEGIN
       IF v_hrdiff IS NOT NULL THEN
         v_reasons := v_reasons || ARRAY(SELECT 'hr_private_changed_after_import:' || x FROM unnest(v_hrdiff) x);
       END IF;
-    END IF;
-
-    IF v_cur IS NOT NULL THEN
       IF EXISTS (SELECT 1 FROM instructor_source_links sl WHERE sl.instructor_id = L.instructor_id
                  AND sl.last_import_run_id IS DISTINCT FROM p_run) THEN
         v_reasons := v_reasons || 'later_import_touched'::text;
