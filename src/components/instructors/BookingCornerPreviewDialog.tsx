@@ -110,7 +110,7 @@ export function BookingCornerPreviewDialog({ open, onOpenChange }: { open: boole
         <DialogHeader>
           <DialogTitle>Booking-Corner Vorschau (Probelauf)</DialogTitle>
           <DialogDescription>
-            Es wird nichts importiert: keine Lehrpersonen, Fotos oder Abwesenheiten werden angelegt oder geändert.
+            Die Vorschau ändert nichts. Lehrpersonen und Fotos werden erst nach Prüfung und „Übernahme starten“ geschrieben; Abwesenheiten werden nie angelegt.
           </DialogDescription>
         </DialogHeader>
 
