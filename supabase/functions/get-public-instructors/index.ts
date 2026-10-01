@@ -38,16 +38,19 @@ Deno.serve(async (req) => {
     if (error) throw new Error(error.message);
 
     const team = (data ?? [])
-      .map((r: any) => {
+      .map((r) => {
         const displayName = `${(r.first_name ?? "").trim()} ${(r.last_name ?? "").trim()}`.trim();
         if (!displayName) return null;
         const teaser = (r.website_teaser ?? "").trim();
         const portraitUrl = (r.avatar_url ?? "").trim();
+        // A private instructor_photos object is not a website portrait.
+        // Never expose a half-complete profile if the flag was set elsewhere.
+        if (!teaser || !portraitUrl || portraitUrl.includes("instructor-hr-photos") || portraitUrl.includes("/object/sign/")) return null;
         return {
           display_name: displayName,
           role_label: roleLabel(r.specialization ?? null, r.roles ?? null),
-          ...(teaser ? { teaser } : {}),
-          ...(portraitUrl ? { portrait_url: portraitUrl } : {}),
+          teaser,
+          portrait_url: portraitUrl,
         };
       })
       .filter(Boolean);
