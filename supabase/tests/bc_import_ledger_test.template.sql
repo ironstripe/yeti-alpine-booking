@@ -103,8 +103,11 @@ BEGIN
     AND (SELECT phone FROM public.instructors WHERE id = f.t_chg) = '+41 79 111 11 11');
   PERFORM ledger_test.ok('update applied only import fields',
     (SELECT phone = '+41 79 999 99 99' AND city = 'Malbun' AND email = 'ledger-u@test.invalid' FROM public.instructors WHERE id = f.t_upd));
-  PERFORM ledger_test.ok('pay/website/avatar/status/notes preserved on update target',
-    (SELECT (to_jsonb(i) - ARRAY['phone','city','real_time_status']) = ((SELECT row FROM ledger_test.pre WHERE id = f.t_upd) - ARRAY['phone','city','real_time_status'])
+  PERFORM ledger_test.ok('first Booking link clears the unverified old test hourly_rate; preimage retains it',
+    (SELECT hourly_rate IS NULL FROM public.instructors WHERE id = f.t_upd)
+    AND (L.instructor_row->>'hourly_rate')::numeric = 31.5);
+  PERFORM ledger_test.ok('other pay/website/avatar/status/notes preserved on update target',
+    (SELECT (to_jsonb(i) - ARRAY['phone','city','hourly_rate','real_time_status']) = ((SELECT row FROM ledger_test.pre WHERE id = f.t_upd) - ARRAY['phone','city','hourly_rate','real_time_status'])
      FROM public.instructors i WHERE i.id = f.t_upd));
   PERFORM ledger_test.ok('manual avatar still current',
     (SELECT is_current FROM public.instructor_photos WHERE instructor_id = f.t_upd AND origin = 'manual_upload'));
@@ -214,6 +217,8 @@ BEGIN
   PERFORM ledger_test.ok('dry-run: city marked restorable',
     EXISTS (SELECT 1 FROM jsonb_array_elements(ru->'fields') x WHERE x->>'field' = 'city' AND x->>'status' = 'restorable'));
   PERFORM ledger_test.ok('dry-run stops on intervening pay edit', rf->'reasons' ? 'pay_changed:hourly_rate', (rf->'reasons')::text);
+  PERFORM ledger_test.ok('dry-run accepts this run clearing old test pay on the first Booking link',
+    NOT (ru->'reasons' ? 'pay_changed:hourly_rate'), (ru->'reasons')::text);
   PERFORM ledger_test.ok('dry-run: this run''s own photo step is NOT a post-import change',
     NOT (rf->'reasons' ? 'photo_current_changed') AND (rf->'would_remove'->>'import_photos')::int = 1, rf::text);
   PERFORM ledger_test.ok('dry-run: no false profile_changed from automatic columns on update rows',

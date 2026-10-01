@@ -13,6 +13,8 @@
 --       reviewed reimport) keeps the Booking-authoritative semantics unchanged.
 --   (e) link detection uses the link's primary key (record IS NOT NULL is false when any column is NULL,
 --       e.g. last_import_run_id after ON DELETE SET NULL).
+--   (f) first Booking link clears the old, unverified YETI test hourly_rate; reimports preserve a manually
+--       verified rate. The ledger captures the exact prior value for selective recovery. Raw source pay stays HR-private.
 -- Both happen inside the existing per-row BEGIN..EXCEPTION subtransaction: a failed row leaves no ledger row.
 -- ON CONFLICT (run_id, instructor_id) DO NOTHING: retries never overwrite the first image.
 -- Ledger: service_role write, super_admin read, no anon/teacher/office/admin, not in Realtime, immutable.
@@ -162,6 +164,8 @@ BEGIN
         ON CONFLICT (run_id, instructor_id) DO NOTHING;
 
         -- Source is authoritative for non-empty values; empty source never erases. UUID/status/flags/avatar untouched.
+        -- Existing YETI test hourly rates must not appear as verified 26/27 Booking pay after a FIRST link.
+        -- The preimage above retains the original; later imports preserve manually confirmed hourly_rate.
         UPDATE instructors SET
           first_name = coalesce(v_p->>'first_name', first_name),
           last_name  = coalesce(v_p->>'last_name', last_name),
@@ -172,7 +176,8 @@ BEGIN
           street     = coalesce(v_p->>'street', street),
           zip        = coalesce(v_p->>'zip', zip),
           city       = coalesce(v_p->>'city', city),
-          country    = coalesce(v_p->>'country', country)
+          country    = coalesce(v_p->>'country', country),
+          hourly_rate = CASE WHEN v_link.id IS NULL THEN NULL ELSE hourly_rate END
         WHERE id = v_target;
       END IF;
 
@@ -258,7 +263,9 @@ BEGIN
       END LOOP;
       FOR k IN SELECT jsonb_object_keys(v_cur) LOOP
         CONTINUE WHEN k = ANY(c_apply) OR k = ANY(c_vol);
-        IF (v_cur -> k) IS DISTINCT FROM (L.instructor_row -> k) THEN
+        IF (v_cur -> k) IS DISTINCT FROM
+           (CASE WHEN k = 'hourly_rate' AND NOT coalesce(L.source_link_present, false)
+                 THEN 'null'::jsonb ELSE L.instructor_row -> k END) THEN
           v_reasons := v_reasons || (CASE WHEN k = ANY(c_pay) THEN 'pay_changed:' ELSE 'profile_changed:' END || k);
         END IF;
       END LOOP;

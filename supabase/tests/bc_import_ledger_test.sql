@@ -19,7 +19,7 @@ CREATE TABLE ledger_test.fp AS SELECT
   (SELECT count(*) FROM public.instructor_source_links WHERE source_system = 'booking_corner') AS bc_links;
 
 -- ===== embedded migration (verbatim) =====
--- migration sha256 da9f7710d67f0d19fec06ff514ac594f7a25d583363a0239bc0c9766ce017fa5
+-- migration sha256 a3a5f85a0b907a2a76a56a005ebeb0d0ee6f3a4f31e65058206e7125f02b292d
 -- Booking-Corner Apply: first-write before-image ledger + operator-only recovery DRY-RUN.
 -- STATUS: PENDING REVIEW. Not applied. Additive + re-runnable (IF NOT EXISTS / OR REPLACE).
 -- Rollback: supabase/rollback/bc_import_ledger_rollback.sql (restores live bc_apply_batch,
@@ -35,6 +35,8 @@ CREATE TABLE ledger_test.fp AS SELECT
 --       reviewed reimport) keeps the Booking-authoritative semantics unchanged.
 --   (e) link detection uses the link's primary key (record IS NOT NULL is false when any column is NULL,
 --       e.g. last_import_run_id after ON DELETE SET NULL).
+--   (f) first Booking link clears the old, unverified YETI test hourly_rate; reimports preserve a manually
+--       verified rate. The ledger captures the exact prior value for selective recovery. Raw source pay stays HR-private.
 -- Both happen inside the existing per-row BEGIN..EXCEPTION subtransaction: a failed row leaves no ledger row.
 -- ON CONFLICT (run_id, instructor_id) DO NOTHING: retries never overwrite the first image.
 -- Ledger: service_role write, super_admin read, no anon/teacher/office/admin, not in Realtime, immutable.
@@ -184,6 +186,8 @@ BEGIN
         ON CONFLICT (run_id, instructor_id) DO NOTHING;
 
         -- Source is authoritative for non-empty values; empty source never erases. UUID/status/flags/avatar untouched.
+        -- Existing YETI test hourly rates must not appear as verified 26/27 Booking pay after a FIRST link.
+        -- The preimage above retains the original; later imports preserve manually confirmed hourly_rate.
         UPDATE instructors SET
           first_name = coalesce(v_p->>'first_name', first_name),
           last_name  = coalesce(v_p->>'last_name', last_name),
@@ -194,7 +198,8 @@ BEGIN
           street     = coalesce(v_p->>'street', street),
           zip        = coalesce(v_p->>'zip', zip),
           city       = coalesce(v_p->>'city', city),
-          country    = coalesce(v_p->>'country', country)
+          country    = coalesce(v_p->>'country', country),
+          hourly_rate = CASE WHEN v_link.id IS NULL THEN NULL ELSE hourly_rate END
         WHERE id = v_target;
       END IF;
 
@@ -280,7 +285,9 @@ BEGIN
       END LOOP;
       FOR k IN SELECT jsonb_object_keys(v_cur) LOOP
         CONTINUE WHEN k = ANY(c_apply) OR k = ANY(c_vol);
-        IF (v_cur -> k) IS DISTINCT FROM (L.instructor_row -> k) THEN
+        IF (v_cur -> k) IS DISTINCT FROM
+           (CASE WHEN k = 'hourly_rate' AND NOT coalesce(L.source_link_present, false)
+                 THEN 'null'::jsonb ELSE L.instructor_row -> k END) THEN
           v_reasons := v_reasons || (CASE WHEN k = ANY(c_pay) THEN 'pay_changed:' ELSE 'profile_changed:' END || k);
         END IF;
       END LOOP;
@@ -465,8 +472,11 @@ BEGIN
     AND (SELECT phone FROM public.instructors WHERE id = f.t_chg) = '+41 79 111 11 11');
   PERFORM ledger_test.ok('update applied only import fields',
     (SELECT phone = '+41 79 999 99 99' AND city = 'Malbun' AND email = 'ledger-u@test.invalid' FROM public.instructors WHERE id = f.t_upd));
-  PERFORM ledger_test.ok('pay/website/avatar/status/notes preserved on update target',
-    (SELECT (to_jsonb(i) - ARRAY['phone','city','real_time_status']) = ((SELECT row FROM ledger_test.pre WHERE id = f.t_upd) - ARRAY['phone','city','real_time_status'])
+  PERFORM ledger_test.ok('first Booking link clears the unverified old test hourly_rate; preimage retains it',
+    (SELECT hourly_rate IS NULL FROM public.instructors WHERE id = f.t_upd)
+    AND (L.instructor_row->>'hourly_rate')::numeric = 31.5);
+  PERFORM ledger_test.ok('other pay/website/avatar/status/notes preserved on update target',
+    (SELECT (to_jsonb(i) - ARRAY['phone','city','hourly_rate','real_time_status']) = ((SELECT row FROM ledger_test.pre WHERE id = f.t_upd) - ARRAY['phone','city','hourly_rate','real_time_status'])
      FROM public.instructors i WHERE i.id = f.t_upd));
   PERFORM ledger_test.ok('manual avatar still current',
     (SELECT is_current FROM public.instructor_photos WHERE instructor_id = f.t_upd AND origin = 'manual_upload'));
@@ -576,6 +586,8 @@ BEGIN
   PERFORM ledger_test.ok('dry-run: city marked restorable',
     EXISTS (SELECT 1 FROM jsonb_array_elements(ru->'fields') x WHERE x->>'field' = 'city' AND x->>'status' = 'restorable'));
   PERFORM ledger_test.ok('dry-run stops on intervening pay edit', rf->'reasons' ? 'pay_changed:hourly_rate', (rf->'reasons')::text);
+  PERFORM ledger_test.ok('dry-run accepts this run clearing old test pay on the first Booking link',
+    NOT (ru->'reasons' ? 'pay_changed:hourly_rate'), (ru->'reasons')::text);
   PERFORM ledger_test.ok('dry-run: this run''s own photo step is NOT a post-import change',
     NOT (rf->'reasons' ? 'photo_current_changed') AND (rf->'would_remove'->>'import_photos')::int = 1, rf::text);
   PERFORM ledger_test.ok('dry-run: no false profile_changed from automatic columns on update rows',
