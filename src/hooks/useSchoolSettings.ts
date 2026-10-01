@@ -37,6 +37,40 @@ export interface SchoolSettings {
   updated_at: string;
 }
 
+export const SCHOOL_LOGO_BUCKET = "school-logos";
+
+/** Uploads a logo (PNG/SVG, max 2MB) to the private bucket and stores its reference. */
+export function useUploadSchoolLogo() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (file: File) => {
+      if (!["image/png", "image/svg+xml"].includes(file.type)) throw new Error("Nur PNG oder SVG erlaubt");
+      if (file.size > 2 * 1024 * 1024) throw new Error("Datei ist grösser als 2 MB");
+      const ext = file.type === "image/png" ? "png" : "svg";
+      const path = `logo-${Date.now()}.${ext}`;
+      const { error: upErr } = await supabase.storage
+        .from(SCHOOL_LOGO_BUCKET)
+        .upload(path, file, { contentType: file.type, upsert: false });
+      if (upErr) throw upErr;
+
+      const ref = `${SCHOOL_LOGO_BUCKET}:${path}`;
+      const { data: existing } = await supabase.from("school_settings").select("id").limit(1).maybeSingle();
+      const { error } = existing
+        ? await supabase.from("school_settings").update({ logo_url: ref }).eq("id", existing.id)
+        : await supabase.from("school_settings").insert({ name: "Skischule", logo_url: ref });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["school-settings"] });
+      toast.success("Logo gespeichert");
+    },
+    onError: (error: Error) => {
+      console.error("Error uploading logo:", error);
+      toast.error(`Logo-Upload fehlgeschlagen: ${error.message}`);
+    },
+  });
+}
+
 export function useSchoolSettings() {
   return useQuery({
     queryKey: ["school-settings"],
@@ -50,8 +84,19 @@ export function useSchoolSettings() {
       if (error) throw error;
       if (!data) return null;
 
+      // logo_url may hold a path in the private "school-logos" bucket → resolve to a signed URL
+      let logoUrl = data.logo_url as string | null;
+      if (logoUrl && logoUrl.startsWith(`${SCHOOL_LOGO_BUCKET}:`)) {
+        const path = logoUrl.slice(SCHOOL_LOGO_BUCKET.length + 1);
+        const { data: signed } = await supabase.storage
+          .from(SCHOOL_LOGO_BUCKET)
+          .createSignedUrl(path, 60 * 60 * 12);
+        logoUrl = signed?.signedUrl ?? null;
+      }
+
       return {
         ...data,
+        logo_url: logoUrl,
         office_hours: data.office_hours as unknown as OfficeHours | null,
         lesson_times: data.lesson_times as unknown as LessonTimes | null,
       } as SchoolSettings;
