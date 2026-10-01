@@ -21,11 +21,11 @@ Deno.serve(async (req) => {
   try { id = String((await req.json())?.instructor_id ?? ""); } catch { return json({ error: "invalid_json" }, 400); }
   if (!UUID.test(id)) return json({ error: "instructor_id_invalid" }, 400);
   const sb = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
-  const { data: ph } = await sb.from("instructor_photos").select("storage_path, origin")
+  const { data: ph } = await sb.from("instructor_photos").select("id, storage_path, origin")
     .eq("instructor_id", id).eq("is_current", true).maybeSingle();
   if (ph?.storage_path) {
     const { data, error } = await sb.storage.from("instructor-hr-photos").createSignedUrl(ph.storage_path, TTL);
-    if (!error && data?.signedUrl) return json({ ok: true, url: data.signedUrl, origin: ph.origin, private: true, expires_in: TTL });
+    if (!error && data?.signedUrl) return json({ ok: true, url: data.signedUrl, photo_id: ph.id, origin: ph.origin, private: true, expires_in: TTL });
   }
   const { data: ins } = await sb.from("instructors").select("avatar_url").eq("id", id).maybeSingle();
   return json({ ok: true, url: ins?.avatar_url ?? null, origin: ins?.avatar_url ? "legacy_public" : null, private: false });

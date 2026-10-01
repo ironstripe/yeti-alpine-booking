@@ -146,7 +146,8 @@ export default function InstructorDetail() {
           </div>
 
           {/* Website-Profil (kompakt) */}
-          {instructor.show_on_website && (
+          {instructor.show_on_website && instructor.status === "active" &&
+            !!instructor.avatar_url && !!instructor.website_teaser?.trim() && (
             <div className="max-w-md space-y-2">
               <Badge variant="secondary" className="gap-1">
                 <Globe className="h-3 w-3" />
@@ -154,9 +155,6 @@ export default function InstructorDetail() {
               </Badge>
               {instructor.website_teaser && (
                 <p className="text-sm text-muted-foreground">{instructor.website_teaser}</p>
-              )}
-              {isAdminOrOffice && !instructor.avatar_url && (
-                <p className="text-xs text-amber-600">Website-Profil: Profilbild ergänzen</p>
               )}
             </div>
           )}
