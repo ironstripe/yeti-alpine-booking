@@ -52,13 +52,8 @@ export default function InstructorProfile() {
     queryFn: async () => {
       if (!instructorId) return null;
 
-      const { data, error } = await supabase
-        .from("instructors")
-        .select("*")
-        .eq("id", instructorId)
-        .single();
-
-      if (error) throw error;
+      const data = await fetchInstructorSelf();
+      if (!data) throw new Error("Profil nicht gefunden");
 
       // Initialize form state
       setPhone(data.phone || "");

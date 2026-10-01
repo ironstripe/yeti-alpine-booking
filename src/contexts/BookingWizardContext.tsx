@@ -1296,15 +1296,7 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
     // Fetch full instructor record for Step 3
     let instructor: Tables<"instructors"> | null = null;
     try {
-      const { data, error } = await supabase
-        .from("instructors")
-        .select("*")
-        .eq("id", instructorId)
-        .single();
-      
-      if (!error && data) {
-        instructor = data;
-      }
+      instructor = await fetchInstructor(instructorId);
     } catch (e) {
       console.error("Failed to fetch instructor for scheduler prefill:", e);
     }

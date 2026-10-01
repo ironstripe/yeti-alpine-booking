@@ -36,16 +36,10 @@ export function useInstructorDetail(id: string | undefined) {
     queryFn: async () => {
       if (!id) throw new Error("No instructor ID provided");
 
-      const { data, error } = await supabase
-        .from("instructors")
-        .select("*")
-        .eq("id", id)
-        .maybeSingle();
-
-      if (error) throw error;
+      const data = await fetchInstructor(id);
       if (!data) throw new Error("Instructor not found");
-
-      return data as Instructor;
+      const [pay] = await fetchInstructorPay(id);
+      return (pay ? { ...data, ...pay } : data) as Instructor;
     },
     enabled: !!id,
   });
@@ -150,12 +144,7 @@ export function useInstructorDetail(id: string | undefined) {
     mutationFn: async (newStatus: string) => {
       if (!id) throw new Error("No instructor ID");
 
-      const { error } = await supabase
-        .from("instructors")
-        .update({ real_time_status: newStatus })
-        .eq("id", id);
-
-      if (error) throw error;
+      await saveInstructor({ id, real_time_status: newStatus });
       return newStatus;
     },
     onSuccess: () => {
