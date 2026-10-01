@@ -286,7 +286,8 @@ Deno.serve(async (req) => {
 });
 
 async function tryAutoAssignInstructor(
-  supabase: ReturnType<typeof createClient>,
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
   slot: { date: string; start_time: string; end_time: string },
   sport: "ski" | "snowboard",
 ): Promise<string | null> {
