@@ -8,7 +8,7 @@
 // Prices, paid amounts, source and payment status supplied by the caller are ignored.
 
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { z } from "npm:zod@3.23.8";
+import { z } from "https://esm.sh/zod@3.23.8";
 import { corsHeaders, checkApiKey, json } from "../_shared/intakeAuth.ts";
 import { issueInvoiceThenConfirm } from "./invoiceStep.ts";
 import { attemptConfirmation, ensureConfirmationDelivery } from "../_shared/bookingDelivery.ts";
