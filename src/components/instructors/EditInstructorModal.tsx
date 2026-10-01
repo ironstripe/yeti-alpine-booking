@@ -149,6 +149,7 @@ export function EditInstructorModal({
       if (error || !data?.ok) throw error ?? new Error("upload");
       setAvatarUrl(data.signed_url ?? null);
       await queryClient.invalidateQueries({ queryKey: ["instructors"] });
+      await queryClient.invalidateQueries({ queryKey: ["staff-instructor-photos"] });
       toast.success("Profilbild aktualisiert");
     } catch (err) {
       console.error("Avatar upload error:", err);

@@ -20,6 +20,8 @@ import { Globe } from "lucide-react";
 import { getSpecializationLabel } from "@/hooks/useInstructors";
 import { getLevelLabel } from "@/lib/instructor-utils";
 import { useUserRole } from "@/hooks/useUserRole";
+import { useIsSuperAdmin } from "@/hooks/useIsSuperAdmin";
+import { useStaffInstructorPhotos } from "@/hooks/useStaffInstructorPhotos";
 import { useInviteInstructor } from "@/hooks/useInviteInstructor";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -29,6 +31,8 @@ export default function InstructorDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { isTeacher, isAdminOrOffice, instructorId: currentUserInstructorId } = useUserRole();
+  const isSuperAdmin = useIsSuperAdmin();
+  const { data: staffPhotoUrls = {} } = useStaffInstructorPhotos(id ? [id] : [], isAdminOrOffice || isSuperAdmin);
   const inviteMutation = useInviteInstructor();
   const [editModalOpen, setEditModalOpen] = useState(false);
   const {
@@ -123,8 +127,8 @@ export default function InstructorDetail() {
         <div className="flex flex-col items-center text-center space-y-4">
           {/* Avatar */}
           <Avatar className="h-24 w-24 text-2xl">
-            {instructor.avatar_url && (
-              <AvatarImage src={instructor.avatar_url} alt={`${instructor.first_name} ${instructor.last_name}`} />
+            {(staffPhotoUrls[instructor.id] || instructor.avatar_url) && (
+              <AvatarImage src={staffPhotoUrls[instructor.id] || instructor.avatar_url} alt={`${instructor.first_name} ${instructor.last_name}`} />
             )}
             <AvatarFallback className="bg-primary/10 text-primary">
               {getInitials()}
