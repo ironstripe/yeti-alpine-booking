@@ -354,7 +354,7 @@ BEGIN
     'counts', jsonb_build_object('ledger_rows', jsonb_array_length(v_out), 'stop', v_stop, 'restorable_or_candidate', v_ok,
       'staging_applied', (SELECT count(*) FROM instructor_import_staging WHERE run_id = p_run AND batch_status = 'applied'),
       'applied_without_ledger', (SELECT count(*) FROM instructor_import_staging st WHERE st.run_id = p_run AND st.batch_status = 'applied'
-                                 AND NOT EXISTS (SELECT 1 FROM instructor_import_ledger l WHERE l.run_id = p_run AND l.source_id = st.source_id))),
+                                 AND NOT EXISTS (SELECT 1 FROM instructor_import_ledger ledger_lookup WHERE ledger_lookup.run_id = p_run AND ledger_lookup.source_id = st.source_id))),
     'rows', v_out);
 END $function$;
 REVOKE ALL ON FUNCTION public.bc_recovery_dry_run(uuid, uuid[]) FROM PUBLIC, anon, authenticated;

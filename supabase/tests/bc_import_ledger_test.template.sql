@@ -37,7 +37,7 @@ CREATE TABLE ledger_test.fx AS SELECT gen_random_uuid() AS run, gen_random_uuid(
 INSERT INTO public.instructors(id, first_name, last_name, email, phone, city, hourly_rate, iban, bank_name, ahv_number,
                                show_on_website, avatar_url, status, notes, birth_date)
 SELECT t_upd, 'LedgerU', 'Fixture', 'ledger-u@test.invalid', '+41 79 000 00 01', NULL, 31.5, 'CH00 TEST', 'TestBank', '756.0000.0000.00',
-       true, 'https://example.invalid/a.jpg', 'inactive', NULL, NULL FROM ledger_test.fx
+       true, 'https://example.invalid/a.jpg', 'inactive', NULL, NULL::date FROM ledger_test.fx
 UNION ALL SELECT t_fail, 'LedgerF', 'Fixture', 'ledger-f@test.invalid', NULL, NULL, NULL, NULL, NULL, NULL, false, NULL, 'inactive', 'n', NULL FROM ledger_test.fx
 UNION ALL SELECT t_chg, 'LedgerC', 'Fixture', 'ledger-c@test.invalid', '+41 79 000 00 03', NULL, NULL, NULL, NULL, NULL, false, NULL, 'inactive', NULL, NULL FROM ledger_test.fx
 UNION ALL SELECT t_other, 'LedgerO', 'Fixture', 'ledger-o@test.invalid', '+41 79 000 00 04', 'Vaduz', 25, NULL, NULL, NULL, true, 'https://example.invalid/o.jpg', 'inactive', NULL, NULL FROM ledger_test.fx;
@@ -60,8 +60,8 @@ CREATE FUNCTION ledger_test.snap(i uuid) RETURNS jsonb LANGUAGE sql AS $$
 
 INSERT INTO public.instructor_import_staging(id, run_id, source_id, classification, confidence, source_checksum, normalized,
     target_instructor_id, decision, apply_payload, review_snapshot, private_payload)
-SELECT s_create, run, 'lt-create', 'create', 'high', 'c1', '{}', NULL, 'create',
-       ledger_test.payload('LedgerNew', 'Create', 'ledger-new@test.invalid', '+41 79 000 00 09', NULL, NULL), NULL, '{"wage_raw":"synthetic"}' FROM ledger_test.fx
+SELECT s_create, run, 'lt-create', 'create', 'high', 'c1', '{}'::jsonb, NULL, 'create',
+       ledger_test.payload('LedgerNew', 'Create', 'ledger-new@test.invalid', '+41 79 000 00 09', NULL, NULL), NULL, '{"wage_raw":"synthetic"}'::jsonb FROM ledger_test.fx
 UNION ALL SELECT s_upd, run, 'lt-upd', 'review', 'high', 'c2', '{}', t_upd, 'link',
        ledger_test.payload(NULL, NULL, NULL, '+41 79 999 99 99', 'Malbun', NULL), ledger_test.snap(t_upd), '{}' FROM ledger_test.fx
 UNION ALL SELECT s_fail, run, 'lt-fail', 'review', 'high', 'c3', '{}', t_fail, 'link',
@@ -208,12 +208,12 @@ BEGIN
   SELECT e INTO rc1 FROM jsonb_array_elements(d1->'rows') e WHERE e->>'source_id' = 'lt-create';
   SELECT e INTO rc2 FROM jsonb_array_elements(d2->'rows') e WHERE e->>'source_id' = 'lt-create';
   PERFORM ledger_test.ok('dry-run reports all 3 run rows, 0 applied without ledger',
-    (d1->'counts'->>'ledger_rows')::int = 3 AND (d1->'counts'->>'applied_without_ledger')::int = 0, d1->'counts'::text);
+    (d1->'counts'->>'ledger_rows')::int = 3 AND (d1->'counts'->>'applied_without_ledger')::int = 0, (d1->'counts')::text);
   PERFORM ledger_test.ok('dry-run stops on post-import manual edit (phone)',
-    ru->>'verdict' = 'stop' AND ru->'reasons' ? 'edited_after_import:phone', ru->'reasons'::text);
+    ru->>'verdict' = 'stop' AND ru->'reasons' ? 'edited_after_import:phone', (ru->'reasons')::text);
   PERFORM ledger_test.ok('dry-run: city marked restorable',
     EXISTS (SELECT 1 FROM jsonb_array_elements(ru->'fields') x WHERE x->>'field' = 'city' AND x->>'status' = 'restorable'));
-  PERFORM ledger_test.ok('dry-run stops on intervening pay edit', rf->'reasons' ? 'pay_changed:hourly_rate', rf->'reasons'::text);
+  PERFORM ledger_test.ok('dry-run stops on intervening pay edit', rf->'reasons' ? 'pay_changed:hourly_rate', (rf->'reasons')::text);
   PERFORM ledger_test.ok('dry-run: this run''s own photo step is NOT a post-import change',
     NOT (rf->'reasons' ? 'photo_current_changed') AND (rf->'would_remove'->>'import_photos')::int = 1, rf::text);
   PERFORM ledger_test.ok('dry-run: no false profile_changed from automatic columns on update rows',
@@ -221,15 +221,15 @@ BEGIN
                 WHERE x LIKE 'profile_changed:%'), d1::text);
   PERFORM ledger_test.ok('dry-run: unreferenced create = candidate only', rc1->>'verdict' = 'unreferenced_create_candidate', rc1::text);
   PERFORM ledger_test.ok('dry-run: HR edit within 60 s detected (field name only)',
-    rf->'reasons' ? 'hr_private_changed_after_import:bank_raw', rf->'reasons'::text);
+    rf->'reasons' ? 'hr_private_changed_after_import:bank_raw', (rf->'reasons')::text);
   PERFORM ledger_test.ok('dry-run: no false HR change on untouched rows (create + update)',
     NOT EXISTS (SELECT 1 FROM jsonb_array_elements_text(rc1->'reasons' || ru->'reasons') x WHERE x LIKE 'hr_private_changed%'),
     (rc1->'reasons' || ru->'reasons')::text);
   PERFORM ledger_test.ok('dry-run: no false photo_metadata_changed (own photo step only flips is_current)',
-    NOT (rf->'reasons' ? 'photo_metadata_changed') AND NOT (ru->'reasons' ? 'photo_metadata_changed'), rf->'reasons'::text);
+    NOT (rf->'reasons' ? 'photo_metadata_changed') AND NOT (ru->'reasons' ? 'photo_metadata_changed'), (rf->'reasons')::text);
   -- manual photo inserted in the same transaction (created_at = captured_at): detected by photo identity
   PERFORM ledger_test.ok('dry-run: create with manual photo → stop, referenced, no delete',
-    rc2->>'verdict' = 'stop' AND rc2->'reasons' ? 'manual_photo_after_import' AND rc2->'reasons' ? 'referenced_cannot_delete', rc2->'reasons'::text);
+    rc2->>'verdict' = 'stop' AND rc2->'reasons' ? 'manual_photo_after_import' AND rc2->'reasons' ? 'referenced_cannot_delete', (rc2->'reasons')::text);
   PERFORM ledger_test.ok('dry-run output carries no field values',
     position('+41 79' in d2::text) = 0 AND position('ledger-u@' in d2::text) = 0 AND position('CH00' in d2::text) = 0
     AND position('edited-by-staff' in d2::text) = 0 AND position('synthetic' in d2::text) = 0);
