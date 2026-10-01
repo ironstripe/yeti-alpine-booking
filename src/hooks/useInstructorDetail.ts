@@ -1,9 +1,10 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchInstructor, fetchInstructorPay, saveInstructor } from "@/lib/instructorsApi";
 import type { Tables } from "@/integrations/supabase/types";
 import { format } from "date-fns";
+import { isExternalStatusChange } from "@/lib/liveStatus";
 import { toast } from "sonner";
 
 export type Instructor = Tables<"instructors">;
@@ -145,6 +146,7 @@ export function useInstructorDetail(id: string | undefined) {
     mutationFn: async (newStatus: string) => {
       if (!id) throw new Error("No instructor ID");
 
+      ownPendingStatus.current = newStatus;
       await saveInstructor({ id, real_time_status: newStatus });
       return newStatus;
     },
@@ -159,6 +161,9 @@ export function useInstructorDetail(id: string | undefined) {
       console.error(error);
     },
   });
+
+  // Status this device just requested; its own realtime echo must not look external.
+  const ownPendingStatus = useRef<string | null>(null);
 
   // Realtime subscription
   useEffect(() => {
@@ -175,11 +180,17 @@ export function useInstructorDetail(id: string | undefined) {
           filter: `instructor_id=eq.${id}`,
         },
         (payload) => {
-          const oldData = payload.old as Partial<Instructor>;
-          const newData = payload.new as Instructor;
+          // payload.old may contain only instructor_id → compare with what this screen shows.
+          const incoming = (payload.new as { real_time_status?: string | null }).real_time_status;
+          const cached = queryClient.getQueryData<Instructor | null>(["instructor", id]);
+          const external = isExternalStatusChange(
+            incoming,
+            cached === undefined ? undefined : cached?.real_time_status ?? null,
+            ownPendingStatus.current,
+          );
+          if (incoming === ownPendingStatus.current) ownPendingStatus.current = null;
 
-          // Check if this was an external change (not from our mutation)
-          if (oldData.real_time_status !== newData.real_time_status) {
+          if (external) {
             setIsPulsing(true);
             setExternalChange(true);
             setTimeout(() => {
