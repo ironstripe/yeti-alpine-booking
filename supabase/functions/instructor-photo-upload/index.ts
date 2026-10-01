@@ -42,9 +42,3 @@ Deno.serve(async (req) => {
   const signed = await sb.storage.from("instructor-hr-photos").createSignedUrl(path, 300);
   return json({ ok: true, private: true, signed_url: signed.data?.signedUrl ?? null, expires_in: 300, width: r.width, height: r.height });
 });
-  if (pub.error) { console.error("manual_avatar_publish_failed"); return json({ error: "avatar_failed" }, 500); }
-  const url = `${sb.storage.from("instructor-avatars").getPublicUrl(`${id}.jpg`).data.publicUrl}?t=${Date.now()}`;
-  const { error: uErr } = await sb.from("instructors").update({ avatar_url: url }).eq("id", id);
-  if (uErr) { console.error("manual_avatar_url_failed"); return json({ error: "avatar_failed" }, 500); }
-  return json({ ok: true, avatar_url: url, width: r.width, height: r.height });
-});
