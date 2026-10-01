@@ -143,11 +143,19 @@ serve(async (req) => {
     // 3. For each date, compute free slots
     const perDateResults: Record<string, SlotInfo[]> = {};
 
+    // Deployment-window gating (Booking-Corner-linked people only inside a window).
+    const deployed: Record<string, boolean> = {};
+    await Promise.all(requestedDates.map(async (d) => {
+      const { data, error } = await supabase.rpc("instructor_is_deployed", { _instructor_id: instructorId, _date: d });
+      deployed[d] = !error && data === true;
+    }));
+
     for (const date of requestedDates) {
       const daySlots = generateDaySlots();
 
       // Filter out occupied slots
       const freeSlots = daySlots.filter((slot) => {
+        if (!deployed[date]) return false;
         // Check absences
         for (const absence of absences) {
           if (date >= absence.start_date && date <= absence.end_date) {
@@ -313,6 +321,11 @@ async function findAlternativeInstructors(
 
   for (const candidate of candidates) {
     let isFree = true;
+    for (const d of dates) {
+      const { data: dep, error: depErr } = await supabase.rpc("instructor_is_deployed", { _instructor_id: candidate.id, _date: d });
+      if (depErr || dep !== true) { isFree = false; break; }
+    }
+    if (!isFree) continue;
 
     // Check ticket_items
     const { data: ti } = await supabase
