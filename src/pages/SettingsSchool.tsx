@@ -22,9 +22,9 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { useSchoolSettings, useUpdateSchoolSettings } from "@/hooks/useSchoolSettings";
+import { useSchoolSettings, useUpdateSchoolSettings, useUploadSchoolLogo } from "@/hooks/useSchoolSettings";
 import { PaymentProfilesSection } from "@/components/settings/payments/PaymentProfilesSection";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 
 const formSchema = z.object({
@@ -53,6 +53,8 @@ type FormData = z.infer<typeof formSchema>;
 export default function SettingsSchool() {
   const { data: settings, isLoading } = useSchoolSettings();
   const updateSettings = useUpdateSchoolSettings();
+  const uploadLogo = useUploadSchoolLogo();
+  const logoInputRef = useRef<HTMLInputElement>(null);
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -155,9 +157,30 @@ export default function SettingsSchool() {
                   )}
                 </div>
                 <div>
-                  <Button type="button" variant="outline" size="sm" disabled>
-                    <Upload className="h-4 w-4 mr-2" />
-                    Logo hochladen
+                  <input
+                    ref={logoInputRef}
+                    type="file"
+                    accept="image/png,image/svg+xml"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) uploadLogo.mutate(file);
+                      e.target.value = "";
+                    }}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={uploadLogo.isPending}
+                    onClick={() => logoInputRef.current?.click()}
+                  >
+                    {uploadLogo.isPending ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <Upload className="h-4 w-4 mr-2" />
+                    )}
+                    {settings?.logo_url ? "Logo ersetzen" : "Logo hochladen"}
                   </Button>
                   <p className="text-xs text-muted-foreground mt-2">
                     PNG oder SVG, max. 2MB. Empfohlen: 200x80px
