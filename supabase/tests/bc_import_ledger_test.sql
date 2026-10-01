@@ -19,7 +19,7 @@ CREATE TABLE ledger_test.fp AS SELECT
   (SELECT count(*) FROM public.instructor_source_links WHERE source_system = 'booking_corner') AS bc_links;
 
 -- ===== embedded migration (verbatim) =====
--- migration sha256 81fe7bedf90d49a5248f0229f989c614f3e7a03daffedf69efc7b798731d4dda
+-- migration sha256 406261808b4273e0509795d1a417ed7838aed81746263af4921c1797f3f4ce0d
 -- Booking-Corner Apply: first-write before-image ledger + operator-only recovery DRY-RUN.
 -- STATUS: PENDING REVIEW. Not applied. Additive + re-runnable (IF NOT EXISTS / OR REPLACE).
 -- Rollback: supabase/rollback/bc_import_ledger_rollback.sql (restores live bc_apply_batch,
@@ -29,6 +29,12 @@ CREATE TABLE ledger_test.fp AS SELECT
 --   (b) right before the instructors UPDATE, the exact full instructors row + HR-private, source-link,
 --       deployment-window and photo-metadata state (absent rows recorded explicitly) is written to the ledger;
 --   (c) after a real INSERT (new UUID) a 'created' provenance row is written. Reimport/old link = never 'created'.
+--   (d) same-run retry guard: if the source link was last written by THIS run, the row is re-applied only when
+--       every import-owned field still equals what this run wrote (ledger pre-image + payload); otherwise
+--       'edited_since_same_run_apply' conflict and nothing is touched. A link from an earlier run (separately
+--       reviewed reimport) keeps the Booking-authoritative semantics unchanged.
+--   (e) link detection uses the link's primary key (record IS NOT NULL is false when any column is NULL,
+--       e.g. last_import_run_id after ON DELETE SET NULL).
 -- Both happen inside the existing per-row BEGIN..EXCEPTION subtransaction: a failed row leaves no ledger row.
 -- ON CONFLICT (run_id, instructor_id) DO NOTHING: retries never overwrite the first image.
 -- Ledger: service_role write, super_admin read, no anon/teacher/office/admin, not in Realtime, immutable.
@@ -85,7 +91,8 @@ AS $function$
 DECLARE
   v_run record; r record; v_target uuid; v_p jsonb; v_snap jsonb; v_cur jsonb; v_link record;
   v_applied int := 0; v_conflict int := 0; v_failed int := 0; v_skipped int := 0; v_code text; w jsonb;
-  v_pre jsonb; v_hr jsonb; v_sl jsonb; v_win jsonb; v_ph jsonb;
+  v_pre jsonb; v_hr jsonb; v_sl jsonb; v_win jsonb; v_ph jsonb; v_led record; v_drift boolean;
+  c_apply constant text[] := ARRAY['first_name','last_name','email','phone','birth_date','gender','street','zip','city','country'];
 BEGIN
   SELECT * INTO v_run FROM instructor_import_runs WHERE id = p_run FOR UPDATE;
   IF v_run IS NULL OR v_run.status <> 'applying' THEN RAISE EXCEPTION 'run_not_applying'; END IF;
@@ -105,9 +112,21 @@ BEGIN
 
       SELECT * INTO v_link FROM instructor_source_links
         WHERE source_system=v_run.source_system AND rollout=v_run.rollout AND source_id=r.source_id;
-      IF v_link IS NOT NULL THEN
+      IF v_link.id IS NOT NULL THEN
         v_target := v_link.instructor_id;           -- retry / reimport: stable UUID
         PERFORM 1 FROM instructors WHERE id=v_target FOR UPDATE;
+        IF v_link.last_import_run_id = p_run THEN   -- same-run retry: never overwrite an intervening edit
+          SELECT * INTO v_led FROM instructor_import_ledger WHERE run_id=p_run AND instructor_id=v_target;
+          IF v_led.id IS NULL THEN
+            v_code := 'same_run_ledger_missing';
+          ELSE
+            SELECT coalesce(bool_or((to_jsonb(i) ->> k) IS DISTINCT FROM
+                     CASE WHEN v_led.kind = 'created' THEN v_p ->> k
+                          ELSE coalesce(v_p ->> k, v_led.instructor_row ->> k) END), true)
+              INTO v_drift FROM instructors i, unnest(c_apply) k WHERE i.id = v_target;
+            IF v_drift THEN v_code := 'edited_since_same_run_apply'; END IF;
+          END IF;
+        END IF;
       ELSIF r.decision = 'link' THEN
         v_target := r.target_instructor_id;
         IF v_target IS NOT NULL THEN PERFORM 1 FROM instructors WHERE id=v_target FOR UPDATE; END IF;
@@ -276,18 +295,20 @@ BEGIN
         v_reasons := v_reasons || 'later_import_touched'::text;
       END IF;
       IF EXISTS (SELECT 1 FROM instructor_photos ph WHERE ph.instructor_id = L.instructor_id
-                 AND ph.origin = 'manual_upload' AND ph.created_at > L.captured_at) THEN
+                 AND ph.origin = 'manual_upload' AND ph.created_at >= L.captured_at) THEN
         v_reasons := v_reasons || 'manual_photo_after_import'::text;
       END IF;
-      IF L.kind = 'updated' AND (SELECT coalesce(jsonb_agg(ph.id ORDER BY ph.id) FILTER (WHERE ph.is_current), '[]')
-            FROM instructor_photos ph WHERE ph.instructor_id = L.instructor_id AND ph.created_at <= L.captured_at)
+      IF L.kind = 'updated' AND NOT (s.photo_status = 'applied' AND (SELECT count(*) = 1 AND coalesce(bool_and(ph.origin = 'booking_import' AND ph.created_at >= L.captured_at), false)
+            FROM instructor_photos ph WHERE ph.instructor_id = L.instructor_id AND ph.is_current))
+         AND (SELECT coalesce(jsonb_agg(ph.id ORDER BY ph.id) FILTER (WHERE ph.is_current), '[]')
+            FROM instructor_photos ph WHERE ph.instructor_id = L.instructor_id AND ph.created_at < L.captured_at)
          IS DISTINCT FROM (SELECT coalesce(jsonb_agg(e->'id' ORDER BY e->>'id') FILTER (WHERE (e->>'is_current')::boolean), '[]')
             FROM jsonb_array_elements(L.photo_rows) e) THEN
         v_reasons := v_reasons || 'photo_current_changed'::text;
       END IF;
-      SELECT count(*) INTO v_n FROM ticket_items t WHERE t.instructor_id = L.instructor_id AND t.created_at > L.captured_at;
+      SELECT count(*) INTO v_n FROM ticket_items t WHERE t.instructor_id = L.instructor_id AND t.created_at >= L.captured_at;
       IF v_n > 0 THEN v_reasons := v_reasons || 'bookings_since_import'::text; END IF;
-      SELECT count(*) INTO v_n FROM private_appointments pa WHERE pa.instructor_id = L.instructor_id AND pa.created_at > L.captured_at;
+      SELECT count(*) INTO v_n FROM private_appointments pa WHERE pa.instructor_id = L.instructor_id AND pa.created_at >= L.captured_at;
       IF v_n > 0 THEN v_reasons := v_reasons || 'private_appointments_since_import'::text; END IF;
 
       IF L.kind = 'created' THEN
@@ -323,7 +344,7 @@ BEGIN
       'would_remove', jsonb_build_object(
         'source_link', L.kind = 'created' OR NOT coalesce(L.source_link_present, false),
         'deployment_windows', (SELECT count(*) FROM instructor_deployment_windows d WHERE d.instructor_id = L.instructor_id AND d.import_run_id = p_run),
-        'import_photos', (SELECT count(*) FROM instructor_photos ph WHERE ph.instructor_id = L.instructor_id AND ph.origin = 'booking_import' AND ph.created_at > L.captured_at)));
+        'import_photos', (SELECT count(*) FROM instructor_photos ph WHERE ph.instructor_id = L.instructor_id AND ph.origin = 'booking_import' AND ph.created_at >= L.captured_at)));
   END LOOP;
 
   RETURN jsonb_build_object('mode', 'dry_run_only', 'run_id', p_run,
@@ -358,7 +379,8 @@ UNION ALL SELECT t_fail, 'LedgerF', 'Fixture', 'ledger-f@test.invalid', NULL, NU
 UNION ALL SELECT t_chg, 'LedgerC', 'Fixture', 'ledger-c@test.invalid', '+41 79 000 00 03', NULL, NULL, NULL, NULL, NULL, false, NULL, 'inactive', NULL, NULL FROM ledger_test.fx
 UNION ALL SELECT t_other, 'LedgerO', 'Fixture', 'ledger-o@test.invalid', '+41 79 000 00 04', 'Vaduz', 25, NULL, NULL, NULL, true, 'https://example.invalid/o.jpg', 'inactive', NULL, NULL FROM ledger_test.fx;
 INSERT INTO public.instructor_photos(instructor_id, storage_path, origin, is_current, created_at)
-  SELECT t_upd, 'ledger-test/u-manual.jpg', 'manual_upload', true, now() - interval '1 day' FROM ledger_test.fx;
+  SELECT t_upd, 'ledger-test/u-manual.jpg', 'manual_upload', true, now() - interval '1 day' FROM ledger_test.fx
+  UNION ALL SELECT t_fail, 'ledger-test/f-old-import.jpg', 'booking_import', true, now() - interval '2 days' FROM ledger_test.fx;  -- photo from an earlier run
 
 CREATE TABLE ledger_test.pre AS SELECT i.id, to_jsonb(i) AS row FROM public.instructors i, ledger_test.fx f
   WHERE i.id IN (f.t_upd, f.t_fail, f.t_chg, f.t_other);
@@ -427,20 +449,51 @@ BEGIN
     (SELECT to_jsonb(i) FROM public.instructors i WHERE i.id = f.t_other) = (SELECT row FROM ledger_test.pre WHERE id = f.t_other));
 END $$;
 
--- ---------- retry (run 2): first image wins, no duplicate create, failed row now succeeds ----------
+-- ---------- retry (run 2) ----------
+-- s_upd: same-run retry AFTER a manual phone edit → must conflict and touch nothing.
+-- s_create: same-run retry without edits → safe idempotent re-apply (no second UUID, row identical).
+-- s_fail: formerly failed row (payload fixed) → succeeds with a clean first image.
 CREATE TABLE ledger_test.cap AS SELECT instructor_id, captured_at, row_sha256 FROM public.instructor_import_ledger
   WHERE run_id = (SELECT run FROM ledger_test.fx);
-UPDATE public.instructors SET phone = '+41 79 222 22 22' WHERE id = (SELECT t_upd FROM ledger_test.fx);  -- post-import manual edit
+CREATE TABLE ledger_test.post1 AS
+  SELECT i.id, to_jsonb(i) AS row,
+    (SELECT to_jsonb(h) FROM public.instructor_hr_private h WHERE h.instructor_id = i.id) AS hr,
+    (SELECT to_jsonb(l) FROM public.instructor_source_links l WHERE l.instructor_id = i.id) AS link,
+    (SELECT jsonb_agg(to_jsonb(d) ORDER BY d.id) FROM public.instructor_deployment_windows d WHERE d.instructor_id = i.id) AS win,
+    (SELECT jsonb_agg(to_jsonb(p) ORDER BY p.id) FROM public.instructor_photos p WHERE p.instructor_id = i.id) AS ph
+  FROM public.instructors i, ledger_test.fx f
+  WHERE i.id IN (f.t_upd, (SELECT applied_instructor_id FROM public.instructor_import_staging WHERE id = f.s_create));
+UPDATE public.instructors SET phone = '+41 79 222 22 22' WHERE id = (SELECT t_upd FROM ledger_test.fx);  -- staff edit after run 1
 UPDATE public.instructor_import_staging SET batch_status = 'failed'
   WHERE id IN ((SELECT s_upd FROM ledger_test.fx), (SELECT s_create FROM ledger_test.fx));
 UPDATE public.instructor_import_staging SET apply_payload = jsonb_set(apply_payload, '{birth_date}', 'null')
   WHERE id = (SELECT s_fail FROM ledger_test.fx);
 CREATE TABLE ledger_test.r2 AS SELECT public.bc_apply_batch((SELECT run FROM ledger_test.fx), 50) AS r;
 DO $$
-DECLARE f record; new_id uuid;
+DECLARE f record; new_id uuid; r jsonb; p record;
 BEGIN
-  SELECT * INTO f FROM ledger_test.fx;
+  SELECT * INTO f FROM ledger_test.fx; SELECT ledger_test.r2.r INTO r FROM ledger_test.r2;
   SELECT applied_instructor_id INTO new_id FROM public.instructor_import_staging WHERE id = f.s_create;
+  PERFORM ledger_test.ok('run2 counts applied=2 (create retry, formerly failed) conflict=1 (edited update)',
+    (r->>'applied')::int = 2 AND (r->>'conflict')::int = 1 AND (r->>'failed')::int = 0, r::text);
+  PERFORM ledger_test.ok('NEGATIVE same-run retry after manual edit → conflict edited_since_same_run_apply',
+    (SELECT batch_status = 'conflict' AND error = 'edited_since_same_run_apply' FROM public.instructor_import_staging WHERE id = f.s_upd));
+  SELECT * INTO p FROM ledger_test.post1 WHERE id = f.t_upd;
+  PERFORM ledger_test.ok('NEGATIVE manual phone edit NOT overwritten, rest of row unchanged',
+    (SELECT phone = '+41 79 222 22 22' AND (to_jsonb(i) - ARRAY['phone','real_time_status']) = (p.row - ARRAY['phone','real_time_status'])
+     FROM public.instructors i WHERE i.id = f.t_upd));
+  PERFORM ledger_test.ok('NEGATIVE conflicted retry left HR-private, source link, windows, photos untouched',
+    (SELECT to_jsonb(h) FROM public.instructor_hr_private h WHERE h.instructor_id = f.t_upd) IS NOT DISTINCT FROM p.hr
+    AND (SELECT to_jsonb(l) FROM public.instructor_source_links l WHERE l.instructor_id = f.t_upd) IS NOT DISTINCT FROM p.link
+    AND (SELECT jsonb_agg(to_jsonb(d) ORDER BY d.id) FROM public.instructor_deployment_windows d WHERE d.instructor_id = f.t_upd) IS NOT DISTINCT FROM p.win
+    AND (SELECT jsonb_agg(to_jsonb(x) ORDER BY x.id) FROM public.instructor_photos x WHERE x.instructor_id = f.t_upd) IS NOT DISTINCT FROM p.ph);
+  SELECT * INTO p FROM ledger_test.post1 WHERE id = new_id;
+  PERFORM ledger_test.ok('POSITIVE safe idempotent same-run retry: applied, row byte-identical, windows/photos same',
+    (SELECT batch_status = 'applied' FROM public.instructor_import_staging WHERE id = f.s_create)
+    AND (SELECT to_jsonb(i) FROM public.instructors i WHERE i.id = new_id) = p.row
+    AND (SELECT jsonb_agg(to_jsonb(d) ORDER BY d.id) FROM public.instructor_deployment_windows d WHERE d.instructor_id = new_id) IS NOT DISTINCT FROM p.win
+    AND (SELECT jsonb_agg(to_jsonb(x) ORDER BY x.id) FROM public.instructor_photos x WHERE x.instructor_id = new_id) IS NOT DISTINCT FROM p.ph
+    AND (SELECT instructor_id FROM public.instructor_source_links WHERE source_system = 'ledger_test' AND source_id = 'lt-create') = new_id);
   PERFORM ledger_test.ok('retry: first image unchanged (captured_at + sha)',
     NOT EXISTS (SELECT 1 FROM ledger_test.cap c JOIN public.instructor_import_ledger l USING (instructor_id)
                 WHERE l.run_id = f.run AND (l.captured_at, l.row_sha256) IS DISTINCT FROM (c.captured_at, c.row_sha256)));
@@ -455,6 +508,10 @@ BEGIN
   PERFORM ledger_test.ok('ledger rows for run = 3 (create, update, formerly failed)',
     (SELECT count(*) FROM public.instructor_import_ledger WHERE run_id = f.run) = 3);
 END $$;
+
+-- this run's own photo step on t_fail (earlier-run import photo becomes non-current) – DB metadata only, no storage write
+SELECT public.bc_register_import_photo((SELECT run FROM ledger_test.fx), 'lt-fail',
+  (SELECT t_fail FROM ledger_test.fx)::text || '/import-' || repeat('a', 64) || '.jpg', repeat('a', 64), 10, 10);
 
 -- ---------- immutability ----------
 DO $$
@@ -491,6 +548,11 @@ BEGIN
   PERFORM ledger_test.ok('dry-run: city marked restorable',
     EXISTS (SELECT 1 FROM jsonb_array_elements(ru->'fields') x WHERE x->>'field' = 'city' AND x->>'status' = 'restorable'));
   PERFORM ledger_test.ok('dry-run stops on intervening pay edit', rf->'reasons' ? 'pay_changed:hourly_rate', rf->'reasons'::text);
+  PERFORM ledger_test.ok('dry-run: this run''s own photo step is NOT a post-import change',
+    NOT (rf->'reasons' ? 'photo_current_changed') AND (rf->'would_remove'->>'import_photos')::int = 1, rf::text);
+  PERFORM ledger_test.ok('dry-run: no false profile_changed from automatic columns on update rows',
+    NOT EXISTS (SELECT 1 FROM jsonb_array_elements(d1->'rows') e, jsonb_array_elements_text(e->'reasons') x
+                WHERE x LIKE 'profile_changed:%'), d1::text);
   PERFORM ledger_test.ok('dry-run: unreferenced create = candidate only', rc1->>'verdict' = 'unreferenced_create_candidate', rc1::text);
   PERFORM ledger_test.ok('dry-run: create with manual photo → stop, referenced, no delete',
     rc2->>'verdict' = 'stop' AND rc2->'reasons' ? 'manual_photo_after_import' AND rc2->'reasons' ? 'referenced_cannot_delete', rc2->'reasons'::text);
