@@ -1,5 +1,6 @@
 BEGIN;
 -- Booking-Corner Malbun 26/27: INACTIVE PRODUCT DRAFTS ONLY.
+-- LIVE STATUS: APPLIED on 2026-10-01; do not rerun manually on shared YETI Cloud.
 -- Source snapshot: 2026-09-30. All source values stored, but no website/course
 -- publication and no change to the live booking/checkout pricing algorithm.
 -- DO NOT rerun after a successful COMMIT; the one-time preflight will abort.
