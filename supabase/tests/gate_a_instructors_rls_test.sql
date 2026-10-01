@@ -7,9 +7,11 @@
 -- Pass criterion: every row has pass = true.
 
 BEGIN;
+-- scratch schema for helpers/results (created inside the transaction, rolled back)
+CREATE SCHEMA gate_a_test;
 
 -- ---------- fingerprint before ----------
-CREATE TEMP TABLE fp AS SELECT
+CREATE TABLE gate_a_test.fp AS SELECT
   (SELECT md5(string_agg(t::text, '' ORDER BY id)) FROM public.instructors t) AS rows_hash,
   (SELECT count(*) FROM public.instructors) AS n_instructors,
   (SELECT md5(string_agg(user_id::text||role::text, ',' ORDER BY user_id, role)) FROM public.user_roles) AS roles_hash,
@@ -40,11 +42,8 @@ CREATE POLICY "gate_a_avatars_staff_update" ON storage.objects FOR UPDATE TO aut
 CREATE POLICY "gate_a_avatars_staff_delete" ON storage.objects FOR DELETE TO authenticated
   USING (bucket_id = 'instructor-avatars' AND public.is_staff(auth.uid()));
 
--- scratch schema for helpers (created inside the transaction, rolled back)
-CREATE SCHEMA gate_a_test;
-
 -- ---------- identities from real roles ----------
-CREATE TEMP TABLE who AS
+CREATE TABLE gate_a_test.who AS
 WITH r AS (SELECT user_id, array_agg(role::text) rs FROM public.user_roles GROUP BY user_id)
 SELECT
   (SELECT r.user_id FROM r JOIN public.instructor_user_links l USING (user_id) WHERE rs = ARRAY['teacher'] LIMIT 1) AS teacher,
@@ -75,8 +74,8 @@ DECLARE uid uuid; r text := 'authenticated';
 BEGIN
   IF actor = 'anon' THEN r := 'anon';
   ELSIF actor = 'service' THEN r := 'service_role';
-  ELSE EXECUTE format('SELECT %I FROM who', actor) INTO uid; END IF;
-  INSERT INTO res(actor, test, expect, got) VALUES (actor, test, expect, gate_a_test.probe(uid, r, q));
+  ELSE EXECUTE format('SELECT %I FROM gate_a_test.who', actor) INTO uid; END IF;
+  INSERT INTO gate_a_test.res(actor, test, expect, got) VALUES (actor, test, expect, gate_a_test.probe(uid, r, q));
   EXECUTE 'RESET ROLE';
 END $$;
 
@@ -89,7 +88,7 @@ GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA gate_a_test TO authenticated, anon, ser
 DO $$
 DECLARE other uuid; own uuid;
 BEGIN
-  own := public.get_instructor_for_user((SELECT teacher FROM who));
+  own := public.get_instructor_for_user((SELECT teacher FROM gate_a_test.who));
   SELECT id INTO other FROM public.instructors WHERE id IS DISTINCT FROM own ORDER BY id LIMIT 1;
 
   -- Teacher: negative
@@ -151,14 +150,14 @@ BEGIN
 END $$;
 
 RESET ROLE;
-INSERT INTO res(actor,test,expect,got) SELECT 'system','realtime: instructors not published','ok',
+INSERT INTO gate_a_test.res(actor,test,expect,got) SELECT 'system','realtime: instructors not published','ok',
   CASE WHEN NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname='supabase_realtime' AND tablename='instructors') THEN 'ok' ELSE 'denied' END;
-INSERT INTO res(actor,test,expect,got) SELECT 'system','identities present (teacher/office/admin/sa_only)','ok',
-  CASE WHEN teacher IS NOT NULL AND office IS NOT NULL AND admin IS NOT NULL AND sa_only IS NOT NULL THEN 'ok' ELSE 'UNAVAILABLE' END FROM who;
+INSERT INTO gate_a_test.res(actor,test,expect,got) SELECT 'system','identities present (teacher/office/admin/sa_only)','ok',
+  CASE WHEN teacher IS NOT NULL AND office IS NOT NULL AND admin IS NOT NULL AND sa_only IS NOT NULL THEN 'ok' ELSE 'UNAVAILABLE' END FROM gate_a_test.who;
 
-SELECT n, actor, test, expect, got, (expect = got) AS pass FROM res
+SELECT n, actor, test, expect, got, (expect = got) AS pass FROM gate_a_test.res
 UNION ALL
-SELECT 999, 'system', 'SUMMARY', 'all pass', count(*) FILTER (WHERE expect <> got)::text || ' failures', bool_and(expect = got) FROM res
+SELECT 999, 'system', 'SUMMARY', 'all pass', count(*) FILTER (WHERE expect <> got)::text || ' failures', bool_and(expect = got) FROM gate_a_test.res
 ORDER BY 1;
 
 ROLLBACK;
