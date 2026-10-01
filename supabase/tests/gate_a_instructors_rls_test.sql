@@ -52,7 +52,7 @@ SELECT
   (SELECT user_id FROM r WHERE 'admin' = ANY(rs) AND NOT rs && ARRAY['office','super_admin'] LIMIT 1) AS admin,
   (SELECT user_id FROM r WHERE 'super_admin' = ANY(rs) AND NOT rs && ARRAY['admin','office'] LIMIT 1) AS sa_only,
   (SELECT user_id FROM r WHERE 'super_admin' = ANY(rs) LIMIT 1) AS sa_any,
-  (SELECT user_id FROM r WHERE 'office' = ANY(rs) LIMIT 1) AS office_any;
+  (SELECT user_id FROM r WHERE 'office' = ANY(rs) AND NOT 'super_admin' = ANY(rs) LIMIT 1) AS office_any;
 
 CREATE TABLE gate_a_test.res(n serial, actor text, test text, expect text, got text);
 
