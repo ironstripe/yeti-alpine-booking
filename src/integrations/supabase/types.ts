@@ -2265,6 +2265,75 @@ export type Database = {
           },
         ]
       }
+      instructor_import_ledger: {
+        Row: {
+          captured_at: string
+          hr_private_present: boolean | null
+          hr_private_row: Json | null
+          id: string
+          instructor_id: string
+          instructor_row: Json | null
+          kind: string
+          photo_rows: Json
+          row_sha256: string
+          run_id: string
+          source_id: string
+          source_link_present: boolean | null
+          source_link_row: Json | null
+          staging_id: string
+          window_rows: Json
+        }
+        Insert: {
+          captured_at?: string
+          hr_private_present?: boolean | null
+          hr_private_row?: Json | null
+          id?: string
+          instructor_id: string
+          instructor_row?: Json | null
+          kind: string
+          photo_rows?: Json
+          row_sha256: string
+          run_id: string
+          source_id: string
+          source_link_present?: boolean | null
+          source_link_row?: Json | null
+          staging_id: string
+          window_rows?: Json
+        }
+        Update: {
+          captured_at?: string
+          hr_private_present?: boolean | null
+          hr_private_row?: Json | null
+          id?: string
+          instructor_id?: string
+          instructor_row?: Json | null
+          kind?: string
+          photo_rows?: Json
+          row_sha256?: string
+          run_id?: string
+          source_id?: string
+          source_link_present?: boolean | null
+          source_link_row?: Json | null
+          staging_id?: string
+          window_rows?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "instructor_import_ledger_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "instructor_import_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "instructor_import_ledger_staging_id_fkey"
+            columns: ["staging_id"]
+            isOneToOne: false
+            referencedRelation: "instructor_import_staging"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       instructor_import_runs: {
         Row: {
           applied_at: string | null
@@ -5490,6 +5559,10 @@ export type Database = {
         Returns: Json
       }
       bc_finish_run: { Args: { p_run: string }; Returns: Json }
+      bc_recovery_dry_run: {
+        Args: { p_instructor_ids?: string[]; p_run: string }
+        Returns: Json
+      }
       bc_register_import_photo: {
         Args: {
           p_height: number
