@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
+import { fetchInstructors } from "@/lib/instructorsApi";
 
 export interface RecurringBlock {
   id: string;
@@ -196,8 +197,7 @@ export function usePendingRecurringBlocks() {
           *,
           instructors!inner (
             first_name,
-            last_name,
-            email
+            last_name
           )
         `)
         .eq("status", "pending")
@@ -205,6 +205,9 @@ export function usePendingRecurringBlocks() {
         .order("created_at", { ascending: false });
 
       if (error) throw error;
+
+      // Contact fields come only from the staff-protected lookup (never a direct column read).
+      const emails = new Map((await fetchInstructors()).map((i) => [i.id, i.email]));
 
       return data.map((row): PendingRecurringBlock => ({
         id: row.id,
@@ -221,7 +224,7 @@ export function usePendingRecurringBlocks() {
         is_active: row.is_active,
         created_at: row.created_at,
         instructor_name: `${row.instructors.first_name} ${row.instructors.last_name}`,
-        instructor_email: row.instructors.email,
+        instructor_email: emails.get(row.instructor_id) ?? "",
       }));
     },
   });

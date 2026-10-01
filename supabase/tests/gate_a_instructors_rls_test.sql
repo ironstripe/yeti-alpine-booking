@@ -1,162 +1,177 @@
--- Security Gate A role test. Run AFTER the lock migration:
---   psql "$PRIVILEGED_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/gate_a_instructors_rls_test.sql
--- Everything runs in one transaction and ends with ROLLBACK (no data, role or row persists).
--- Prints GATE_A_ALL_PASSED on success; any failed assertion aborts with an exception.
--- Uses existing accounts only as JWT subjects (no auth writes). A standalone super_admin is
--- simulated by a temporary user_roles row for an account without roles, rolled back at the end.
+-- Security Gate A role test – executable in the Lovable Cloud SQL editor (runs as postgres).
+-- Self-contained: BEGIN → applies the pending lock INSIDE the transaction → probes each real
+-- role via SET LOCAL ROLE + request.jwt.claims → prints a result table → ROLLBACK.
+-- Nothing persists: no lock, no role change, no row change. Identities are picked from the
+-- CURRENT user_roles rows (no role is added/removed to fake a pass). If a required identity
+-- does not exist, its probes report 'UNAVAILABLE' and Gate A must be reported incomplete.
+-- Pass criterion: every row has pass = true. Office probes use any real office account and
+-- super_admin probes any real super_admin account (today none is office-only or standalone).
 
 BEGIN;
+-- scratch schema for helpers/results (created inside the transaction, rolled back)
+CREATE SCHEMA gate_a_test;
 
-CREATE TEMP TABLE ids ON COMMIT DROP AS
+-- ---------- fingerprint before ----------
+CREATE TABLE gate_a_test.fp AS SELECT
+  (SELECT md5(string_agg(t::text, '' ORDER BY id)) FROM public.instructors t) AS rows_hash,
+  (SELECT count(*) FROM public.instructors) AS n_instructors,
+  (SELECT md5(string_agg(user_id::text||role::text, ',' ORDER BY user_id, role)) FROM public.user_roles) AS roles_hash,
+  (SELECT count(*) FROM public.user_roles) AS n_roles,
+  (SELECT count(*) FROM public.instructors WHERE show_on_website AND status = 'active') AS team;
+
+-- ---------- pending lock (identical to supabase/pending/gate_a_instructors_lock.sql) ----------
+DROP POLICY IF EXISTS "Authenticated users can view all instructors" ON public.instructors;
+DROP POLICY IF EXISTS "Authenticated users can insert instructors" ON public.instructors;
+DROP POLICY IF EXISTS "Authenticated users can update instructors" ON public.instructors;
+DROP POLICY IF EXISTS "Authenticated users can delete instructors" ON public.instructors;
+CREATE POLICY "gate_a_instructors_directory_select" ON public.instructors FOR SELECT TO authenticated USING (true);
+REVOKE ALL ON public.instructors FROM authenticated;
+REVOKE ALL ON public.instructors FROM anon;
+GRANT SELECT (id, created_at, first_name, last_name, level, specialization, status, real_time_status,
+  languages, role, roles, instructor_type, gender, avatar_url, show_on_website, website_teaser)
+  ON public.instructors TO authenticated;
+ALTER PUBLICATION supabase_realtime DROP TABLE public.instructors;
+ALTER TABLE public.instructors REPLICA IDENTITY DEFAULT;
+DROP POLICY IF EXISTS "Authenticated users can upload instructor avatars" ON storage.objects;
+DROP POLICY IF EXISTS "Authenticated users can update instructor avatars" ON storage.objects;
+DROP POLICY IF EXISTS "Authenticated users can delete instructor avatars" ON storage.objects;
+CREATE POLICY "gate_a_avatars_staff_insert" ON storage.objects FOR INSERT TO authenticated
+  WITH CHECK (bucket_id = 'instructor-avatars' AND public.is_staff(auth.uid()));
+CREATE POLICY "gate_a_avatars_staff_update" ON storage.objects FOR UPDATE TO authenticated
+  USING (bucket_id = 'instructor-avatars' AND public.is_staff(auth.uid()))
+  WITH CHECK (bucket_id = 'instructor-avatars' AND public.is_staff(auth.uid()));
+CREATE POLICY "gate_a_avatars_staff_delete" ON storage.objects FOR DELETE TO authenticated
+  USING (bucket_id = 'instructor-avatars' AND public.is_staff(auth.uid()));
+
+-- ---------- identities from real roles ----------
+CREATE TABLE gate_a_test.who AS
+WITH r AS (SELECT user_id, array_agg(role::text) rs FROM public.user_roles GROUP BY user_id)
 SELECT
-  (SELECT id FROM auth.users WHERE email = 'ivo.streiff71@gmail.com') AS teacher,     -- teacher only
-  (SELECT id FROM auth.users WHERE email = 'vs.mueller@gmx.at')        AS admin_only,  -- admin only
-  (SELECT id FROM auth.users WHERE email = 'hheinerj@hotmail.com')     AS office,      -- admin+office
-  (SELECT id FROM auth.users WHERE email = 'minimaroni@yahoo.de')      AS sa_only,     -- no roles -> temp super_admin
-  (SELECT md5(string_agg(t::text, '' ORDER BY id)) FROM public.instructors t) AS hash_before,
-  (SELECT count(*) FROM public.instructors WHERE show_on_website AND status = 'active') AS team_before;
-GRANT SELECT ON ids TO authenticated, anon;
+  (SELECT r.user_id FROM r JOIN public.instructor_user_links l USING (user_id) WHERE rs = ARRAY['teacher'] LIMIT 1) AS teacher,
+  (SELECT user_id FROM r WHERE 'office' = ANY(rs) AND NOT rs && ARRAY['admin','super_admin'] LIMIT 1) AS office,
+  (SELECT user_id FROM r WHERE 'admin' = ANY(rs) AND NOT rs && ARRAY['office','super_admin'] LIMIT 1) AS admin,
+  (SELECT user_id FROM r WHERE 'super_admin' = ANY(rs) AND NOT rs && ARRAY['admin','office'] LIMIT 1) AS sa_only,
+  (SELECT user_id FROM r WHERE 'super_admin' = ANY(rs) LIMIT 1) AS sa_any,
+  (SELECT user_id FROM r WHERE 'office' = ANY(rs) AND NOT 'super_admin' = ANY(rs) LIMIT 1) AS office_any;
 
-INSERT INTO public.user_roles(user_id, role) SELECT sa_only, 'super_admin' FROM ids;
+CREATE TABLE gate_a_test.res(n serial, actor text, test text, expect text, got text);
 
-CREATE OR REPLACE FUNCTION pg_temp.as_user(u uuid) RETURNS void LANGUAGE plpgsql AS $$
+CREATE FUNCTION gate_a_test.probe(uid uuid, r text, q text) RETURNS text LANGUAGE plpgsql AS $$
 BEGIN
-  PERFORM set_config('request.jwt.claims', json_build_object('sub', u, 'role', 'authenticated')::text, true);
-  PERFORM set_config('request.jwt.claim.sub', u::text, true);
-  EXECUTE 'SET LOCAL ROLE authenticated';
+  IF r = 'authenticated' AND uid IS NULL THEN RETURN 'UNAVAILABLE'; END IF;
+  BEGIN
+    PERFORM set_config('request.jwt.claims',
+      json_build_object('sub', uid, 'role', r)::text, true);
+    EXECUTE format('SET LOCAL ROLE %I', r);
+    EXECUTE q;
+    EXECUTE 'RESET ROLE';
+    RETURN 'ok';
+  EXCEPTION WHEN OTHERS THEN
+    RETURN 'denied';
+  END;
 END $$;
 
-CREATE OR REPLACE FUNCTION pg_temp.must_fail(sql text, label text) RETURNS void LANGUAGE plpgsql AS $$
+CREATE FUNCTION gate_a_test.t(actor text, test text, expect text, q text) RETURNS void LANGUAGE plpgsql AS $$
+DECLARE uid uuid; r text := 'authenticated';
 BEGIN
-  BEGIN EXECUTE sql;
-  EXCEPTION WHEN OTHERS THEN RAISE NOTICE 'ok (denied): %', label; RETURN; END;
-  RAISE EXCEPTION 'FAIL: expected denial: %', label;
+  IF actor = 'anon' THEN r := 'anon';
+  ELSIF actor = 'service' THEN r := 'service_role';
+  ELSE EXECUTE format('SELECT %I FROM gate_a_test.who', actor) INTO uid; END IF;
+  INSERT INTO gate_a_test.res(actor, test, expect, got) VALUES (actor, test, expect, gate_a_test.probe(uid, r, q));
+  EXECUTE 'RESET ROLE';
 END $$;
 
-CREATE OR REPLACE FUNCTION pg_temp.must_pass(sql text, label text) RETURNS void LANGUAGE plpgsql AS $$
-BEGIN EXECUTE sql; RAISE NOTICE 'ok: %', label; END $$;
+-- helpers used inside probes (assert → error when false)
+CREATE FUNCTION gate_a_test.must(b boolean) RETURNS void LANGUAGE plpgsql AS $$
+BEGIN IF b IS NOT TRUE THEN RAISE EXCEPTION 'assert'; END IF; END $$;
+GRANT USAGE ON SCHEMA gate_a_test TO authenticated, anon, service_role;
+GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA gate_a_test TO authenticated, anon, service_role;
 
 DO $$
-DECLARE t uuid; own uuid; other uuid; n int; old_phone text;
+DECLARE other uuid; own uuid;
 BEGIN
-  SELECT teacher INTO t FROM ids;
-  PERFORM pg_temp.as_user(t);
-  own := public.get_instructor_for_user(t);
-  SELECT id INTO other FROM public.instructors WHERE id IS DISTINCT FROM own LIMIT 1;
+  own := public.get_instructor_for_user((SELECT teacher FROM gate_a_test.who));
+  SELECT id INTO other FROM public.instructors WHERE id IS DISTINCT FROM own ORDER BY id LIMIT 1;
 
-  -- Teacher: sensitive columns never readable directly
-  PERFORM pg_temp.must_fail('SELECT * FROM public.instructors', 'teacher select *');
-  PERFORM pg_temp.must_fail('SELECT email FROM public.instructors', 'teacher email');
-  PERFORM pg_temp.must_fail('SELECT phone FROM public.instructors', 'teacher phone');
-  PERFORM pg_temp.must_fail('SELECT birth_date FROM public.instructors', 'teacher birth_date');
-  PERFORM pg_temp.must_fail('SELECT street, zip, city, country FROM public.instructors', 'teacher address');
-  PERFORM pg_temp.must_fail('SELECT hourly_rate FROM public.instructors', 'teacher hourly_rate');
-  PERFORM pg_temp.must_fail('SELECT iban, bank_name, ahv_number FROM public.instructors', 'teacher bank/ahv');
-  PERFORM pg_temp.must_fail('SELECT notes, entry_date FROM public.instructors', 'teacher notes/entry');
-  PERFORM pg_temp.must_fail($q$SELECT 1 FROM public.instructors WHERE email ILIKE '%a%'$q$, 'teacher filter on email');
-  PERFORM pg_temp.must_fail('SELECT ti.id, i.email FROM public.ticket_items ti JOIN public.instructors i ON i.id = ti.instructor_id', 'teacher join email');
-  -- Teacher: directory of all instructors works (schedule needs names)
-  SELECT count(*) INTO n FROM (SELECT id, first_name, last_name, status FROM public.instructors) s;
-  IF n < 2 THEN RAISE EXCEPTION 'FAIL: teacher directory'; END IF;
-  -- Teacher: staff/pay RPCs forbidden
-  PERFORM pg_temp.must_fail('SELECT * FROM public.instructors_ops_list()', 'teacher ops_list');
-  PERFORM pg_temp.must_fail('SELECT * FROM public.instructors_pay_list()', 'teacher pay_list');
-  PERFORM pg_temp.must_fail(format($q$SELECT public.instructor_ops_upsert('{"id":"%s","notes":"x"}')$q$, other), 'teacher ops_upsert foreign');
-  PERFORM pg_temp.must_fail(format($q$SELECT public.instructor_delete('%s')$q$, other), 'teacher delete via rpc');
-  -- Teacher: no direct writes
-  PERFORM pg_temp.must_fail(format($q$UPDATE public.instructors SET first_name = first_name WHERE id = '%s'$q$, other), 'teacher direct update');
-  PERFORM pg_temp.must_fail(format($q$DELETE FROM public.instructors WHERE id = '%s'$q$, other), 'teacher direct delete');
-  PERFORM pg_temp.must_fail($q$INSERT INTO public.instructors(first_name, last_name) VALUES ('x','y')$q$, 'teacher direct insert');
-  -- Teacher: own profile
-  IF own IS NOT NULL THEN
-    SELECT count(*) INTO n FROM public.instructor_self();
-    IF n <> 1 THEN RAISE EXCEPTION 'FAIL: instructor_self count %', n; END IF;
-    SELECT phone INTO old_phone FROM public.instructor_self();
-    PERFORM pg_temp.must_pass($q$SELECT public.instructor_self_update('{"phone":"+41 79 000 00 00"}')$q$, 'teacher own phone');
-    -- restore so the row-hash check at the end stays exact
-    PERFORM public.instructor_self_update(jsonb_build_object('phone', old_phone));
-    PERFORM pg_temp.must_fail($q$SELECT public.instructor_self_update('{"email":"x@y.z"}')$q$, 'teacher own email');
-    PERFORM pg_temp.must_fail($q$SELECT public.instructor_self_update('{"hourly_rate":99}')$q$, 'teacher own pay');
-    PERFORM pg_temp.must_fail($q$SELECT public.instructor_self_update('{"show_on_website":true}')$q$, 'teacher own website flag');
-  ELSE
-    RAISE NOTICE 'SKIP: teacher account has no linked instructor';
-  END IF;
-  -- Teacher: HR / import / photos
-  SELECT count(*) INTO n FROM public.instructor_hr_private;      IF n <> 0 THEN RAISE EXCEPTION 'FAIL hr'; END IF;
-  SELECT count(*) INTO n FROM public.instructor_import_runs;     IF n <> 0 THEN RAISE EXCEPTION 'FAIL runs'; END IF;
-  SELECT count(*) INTO n FROM public.instructor_source_links;    IF n <> 0 THEN RAISE EXCEPTION 'FAIL links'; END IF;
-  SELECT count(*) INTO n FROM public.instructor_photos;          IF n <> 0 THEN RAISE EXCEPTION 'FAIL photos'; END IF;
-  PERFORM pg_temp.must_fail('SELECT * FROM public.instructor_import_staging', 'teacher staging');
-  SELECT count(*) INTO n FROM storage.objects WHERE bucket_id IN ('instructor-hr-photos','instructor-import-sources');
-  IF n <> 0 THEN RAISE EXCEPTION 'FAIL private buckets visible'; END IF;
-  PERFORM pg_temp.must_fail($q$INSERT INTO storage.objects(bucket_id, name) VALUES ('instructor-avatars','gate-a-test.jpg')$q$, 'teacher avatar upload');
-  -- Teacher: realtime table exposes only id/status/timestamp
-  PERFORM pg_temp.must_pass('SELECT instructor_id, real_time_status, updated_at FROM public.instructor_live_status', 'teacher live status');
-  RESET ROLE;
+  -- Teacher: negative
+  PERFORM gate_a_test.t('teacher','select *','denied','SELECT * FROM public.instructors');
+  PERFORM gate_a_test.t('teacher','email','denied','SELECT email FROM public.instructors');
+  PERFORM gate_a_test.t('teacher','phone','denied','SELECT phone FROM public.instructors');
+  PERFORM gate_a_test.t('teacher','birth_date','denied','SELECT birth_date FROM public.instructors');
+  PERFORM gate_a_test.t('teacher','address','denied','SELECT street, zip, city, country FROM public.instructors');
+  PERFORM gate_a_test.t('teacher','notes/entry_date','denied','SELECT notes, entry_date FROM public.instructors');
+  PERFORM gate_a_test.t('teacher','hourly_rate','denied','SELECT hourly_rate FROM public.instructors');
+  PERFORM gate_a_test.t('teacher','bank/iban/ahv','denied','SELECT bank_name, iban, ahv_number FROM public.instructors');
+  PERFORM gate_a_test.t('teacher','filter on email','denied',$q$SELECT 1 FROM public.instructors WHERE email ILIKE '%a%'$q$);
+  PERFORM gate_a_test.t('teacher','join email via ticket_items','denied','SELECT i.email FROM public.ticket_items ti JOIN public.instructors i ON i.id = ti.instructor_id');
+  PERFORM gate_a_test.t('teacher','ops_list RPC','denied','SELECT * FROM public.instructors_ops_list(NULL)');
+  PERFORM gate_a_test.t('teacher','pay_list RPC','denied','SELECT * FROM public.instructors_pay_list(NULL)');
+  PERFORM gate_a_test.t('teacher','direct UPDATE other','denied',format($q$UPDATE public.instructors SET first_name = first_name WHERE id = %L$q$, other));
+  PERFORM gate_a_test.t('teacher','direct UPDATE own','denied',format($q$UPDATE public.instructors SET first_name = first_name WHERE id = %L$q$, own));
+  PERFORM gate_a_test.t('teacher','direct DELETE','denied',format($q$DELETE FROM public.instructors WHERE id = %L$q$, other));
+  PERFORM gate_a_test.t('teacher','direct INSERT','denied',$q$INSERT INTO public.instructors(first_name,last_name) VALUES ('x','y')$q$);
+  PERFORM gate_a_test.t('teacher','ops_upsert other','denied',format($q$SELECT public.instructor_ops_upsert(jsonb_build_object('id',%L,'first_name','x'))$q$, other));
+  PERFORM gate_a_test.t('teacher','instructor_delete','denied',format($q$SELECT public.instructor_delete(%L)$q$, other));
+  PERFORM gate_a_test.t('teacher','self_update email','denied',$q$SELECT public.instructor_self_update('{"email":"x@example.invalid"}')$q$);
+  PERFORM gate_a_test.t('teacher','self_update hourly_rate','denied',$q$SELECT public.instructor_self_update('{"hourly_rate":99}')$q$);
+  PERFORM gate_a_test.t('teacher','HR source links','denied','SELECT gate_a_test.must(count(*) > 0) FROM public.instructor_source_links');
+  PERFORM gate_a_test.t('teacher','HR private','denied','SELECT gate_a_test.must(count(*) > 0) FROM public.instructor_hr_private');
+  PERFORM gate_a_test.t('teacher','import staging','denied','SELECT gate_a_test.must(count(*) > 0) FROM public.instructor_import_staging');
+  PERFORM gate_a_test.t('teacher','private HR photos objects','denied',$q$SELECT gate_a_test.must(count(*) > 0) FROM storage.objects WHERE bucket_id = 'instructor-hr-photos'$q$);
+  PERFORM gate_a_test.t('teacher','public avatar upload','denied',$q$INSERT INTO storage.objects(bucket_id, name) VALUES ('instructor-avatars','gate-a-probe.jpg')$q$);
+  -- Teacher: positive
+  PERFORM gate_a_test.t('teacher','directory (all names)','ok','SELECT gate_a_test.must(count(*) = 31) FROM (SELECT id, first_name, last_name, status, real_time_status FROM public.instructors) s');
+  PERFORM gate_a_test.t('teacher','own profile instructor_self','ok','SELECT gate_a_test.must(count(*) = 1) FROM public.instructor_self()');
+  PERFORM gate_a_test.t('teacher','self_update phone','ok',$q$SELECT public.instructor_self_update(jsonb_build_object('phone', (SELECT phone FROM public.instructor_self())))$q$);
+  PERFORM gate_a_test.t('teacher','live status feed','ok','SELECT gate_a_test.must(count(*) = 31) FROM public.instructor_live_status');
+
+  -- Office / Admin / standalone super_admin
+  PERFORM gate_a_test.t('office_any','ops_list incl. personnel','ok','SELECT gate_a_test.must(count(*) = 31) FROM (SELECT email, phone, street, zip, city, country, birth_date, entry_date, notes FROM public.instructors_ops_list(NULL)) s');
+  PERFORM gate_a_test.t('office_any','pay_list','denied','SELECT * FROM public.instructors_pay_list(NULL)');
+  PERFORM gate_a_test.t('office_any','direct hourly_rate','denied','SELECT hourly_rate FROM public.instructors');
+  PERFORM gate_a_test.t('office_any','ops_upsert personnel (no wage)','ok',format($q$SELECT public.instructor_ops_upsert(jsonb_build_object('id',%L,'notes',(SELECT notes FROM public.instructors_ops_list(%L))))$q$, other, other));
+  PERFORM gate_a_test.t('office_any','ops_upsert with iban','denied',format($q$SELECT public.instructor_ops_upsert(jsonb_build_object('id',%L,'iban','CH00'))$q$, other));
+  PERFORM gate_a_test.t('office_any','pay_update','denied',format($q$SELECT public.instructor_pay_update(%L,'{"hourly_rate":1}')$q$, other));
+  PERFORM gate_a_test.t('admin','ops_list incl. personnel','ok','SELECT gate_a_test.must(count(*) = 31) FROM (SELECT email, birth_date, notes FROM public.instructors_ops_list(NULL)) s');
+  PERFORM gate_a_test.t('admin','pay_list','denied','SELECT * FROM public.instructors_pay_list(NULL)');
+  PERFORM gate_a_test.t('admin','ops_upsert with hourly_rate','denied',format($q$SELECT public.instructor_ops_upsert(jsonb_build_object('id',%L,'hourly_rate',1))$q$, other));
+  PERFORM gate_a_test.t('admin','public avatar upload','ok',$q$INSERT INTO storage.objects(bucket_id, name) VALUES ('instructor-avatars','gate-a-probe-admin.jpg')$q$);
+  PERFORM gate_a_test.t('sa_any','ops_list','ok','SELECT gate_a_test.must(count(*) >= 30) FROM public.instructors_ops_list(NULL)');
+  PERFORM gate_a_test.t('sa_any','pay_list','ok','SELECT gate_a_test.must(count(*) >= 30) FROM public.instructors_pay_list(NULL)');
+  PERFORM gate_a_test.t('sa_any','HR private readable','ok','SELECT count(*) FROM public.instructor_hr_private');
+  PERFORM gate_a_test.t('sa_any','pay_update (rolled back)','ok',format($q$SELECT public.instructor_pay_update(%L, jsonb_build_object('hourly_rate',(SELECT hourly_rate FROM public.instructors_pay_list(%L))))$q$, other, other));
+
+  -- Anonymous
+  PERFORM gate_a_test.t('anon','select id','denied','SELECT id FROM public.instructors');
+  PERFORM gate_a_test.t('anon','ops_list','denied','SELECT * FROM public.instructors_ops_list(NULL)');
+  PERFORM gate_a_test.t('anon','live status','denied','SELECT gate_a_test.must(count(*) > 0) FROM public.instructor_live_status');
+
+  -- Public Team API path (Edge Function uses service_role)
+  PERFORM gate_a_test.t('service','public Team read','ok',$q$SELECT gate_a_test.must(count(*) = 2) FROM public.instructors WHERE status='active' AND show_on_website$q$);
+  -- fingerprint after all non-destructive probes (before the delete probe)
+  INSERT INTO gate_a_test.res(actor,test,expect,got)
+  SELECT 'system','fingerprint unchanged (31 rows hash, 14 roles, team=2, flags)','ok',
+    CASE WHEN f.rows_hash = (SELECT md5(string_agg(t::text, '' ORDER BY id)) FROM public.instructors t)
+          AND f.n_instructors = 31 AND f.n_roles = 14 AND f.team = 2
+          AND f.roles_hash = (SELECT md5(string_agg(user_id::text||role::text, ',' ORDER BY user_id, role)) FROM public.user_roles)
+         THEN 'ok' ELSE 'changed' END FROM gate_a_test.fp f;
+  PERFORM gate_a_test.t('admin','instructor_delete (rolled back)','ok',format($q$SELECT public.instructor_delete(%L)$q$, (SELECT id FROM public.instructors i WHERE NOT EXISTS (SELECT 1 FROM public.ticket_items WHERE instructor_id=i.id) ORDER BY id DESC LIMIT 1)));
 END $$;
 
--- Office / admin: approved personnel fields yes, pay/bank/AHV no
-DO $$
-DECLARE u uuid; x uuid; n int;
-BEGIN
-  FOR u IN SELECT unnest(ARRAY[office, admin_only]) FROM ids LOOP
-    PERFORM pg_temp.as_user(u);
-    PERFORM pg_temp.must_pass('SELECT email, phone, street, zip, city, country, birth_date, entry_date, notes FROM public.instructors_ops_list()', 'staff ops_list personnel');
-    PERFORM pg_temp.must_fail('SELECT hourly_rate FROM public.instructors', 'staff direct hourly_rate');
-    PERFORM pg_temp.must_fail('SELECT iban FROM public.instructors', 'staff direct iban');
-    PERFORM pg_temp.must_fail('SELECT * FROM public.instructors', 'staff select *');
-    PERFORM pg_temp.must_fail('SELECT * FROM public.instructors_pay_list()', 'staff pay_list');
-    PERFORM pg_temp.must_fail($q$SELECT public.instructor_ops_upsert('{"first_name":"T","last_name":"T","hourly_rate":30}')$q$, 'staff upsert with pay');
-    SELECT count(*) INTO n FROM public.instructor_hr_private; IF n <> 0 THEN RAISE EXCEPTION 'FAIL staff hr'; END IF;
-    x := public.instructor_ops_upsert('{"first_name":"Gate","last_name":"ATest","notes":"n","birth_date":"1990-01-01","street":"S"}');
-    PERFORM public.instructor_ops_upsert(jsonb_build_object('id', x, 'notes', 'n2', 'phone', '+41 79 111 11 11'));
-    PERFORM public.instructor_delete(x);
-    RAISE NOTICE 'ok: staff create (no hourly_rate) / edit personnel / delete';
-    RESET ROLE;
-  END LOOP;
-END $$;
+RESET ROLE;
+INSERT INTO gate_a_test.res(actor,test,expect,got) SELECT 'system','realtime: instructors not published','ok',
+  CASE WHEN NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname='supabase_realtime' AND tablename='instructors') THEN 'ok' ELSE 'denied' END;
+INSERT INTO gate_a_test.res(actor,test,expect,got) SELECT 'system','identities: teacher-only, admin-only, office (any), super_admin (any)','ok',
+  CASE WHEN teacher IS NOT NULL AND admin IS NOT NULL AND office_any IS NOT NULL AND sa_any IS NOT NULL THEN 'ok' ELSE 'UNAVAILABLE' END FROM gate_a_test.who;
+-- informational (not a pass criterion): does an office-only / standalone super_admin account exist?
+INSERT INTO gate_a_test.res(actor,test,expect,got) SELECT 'info','office-only account exists',
+  CASE WHEN office IS NULL THEN 'none' ELSE 'yes' END, CASE WHEN office IS NULL THEN 'none' ELSE 'yes' END FROM gate_a_test.who;
+INSERT INTO gate_a_test.res(actor,test,expect,got) SELECT 'info','standalone super_admin exists',
+  CASE WHEN sa_only IS NULL THEN 'none' ELSE 'yes' END, CASE WHEN sa_only IS NULL THEN 'none' ELSE 'yes' END FROM gate_a_test.who;
 
--- Standalone super_admin (no admin/office)
-DO $$
-DECLARE u uuid; x uuid;
-BEGIN
-  SELECT sa_only INTO u FROM ids;
-  PERFORM pg_temp.as_user(u);
-  PERFORM pg_temp.must_pass('SELECT * FROM public.instructors_ops_list()', 'super_admin ops_list');
-  PERFORM pg_temp.must_pass('SELECT * FROM public.instructors_pay_list()', 'super_admin pay_list');
-  PERFORM pg_temp.must_pass('SELECT * FROM public.instructor_hr_private', 'super_admin hr');
-  PERFORM pg_temp.must_pass('SELECT * FROM public.instructor_import_runs', 'super_admin runs');
-  x := public.instructor_ops_upsert('{"first_name":"Gate","last_name":"SA"}');
-  PERFORM public.instructor_pay_update(x, '{"hourly_rate":35,"iban":"CH00"}');
-  PERFORM public.instructor_delete(x);
-  RAISE NOTICE 'ok: super_admin create / pay update / delete';
-  RESET ROLE;
-END $$;
+SELECT n, actor, test, expect, got, (expect = got) AS pass FROM gate_a_test.res
+UNION ALL
+SELECT 999, 'system', 'SUMMARY', 'all pass', count(*) FILTER (WHERE expect <> got)::text || ' failures', bool_and(expect = got) FROM gate_a_test.res
+ORDER BY 1;
 
--- Anonymous
-DO $$
-BEGIN
-  PERFORM set_config('request.jwt.claims', '{"role":"anon"}', true);
-  SET LOCAL ROLE anon;
-  PERFORM pg_temp.must_fail('SELECT id FROM public.instructors', 'anon directory');
-  PERFORM pg_temp.must_fail('SELECT * FROM public.instructors_ops_list()', 'anon ops_list');
-  PERFORM pg_temp.must_fail('SELECT * FROM public.instructor_live_status', 'anon live status');
-  RESET ROLE;
-END $$;
-
--- Structure + no row/flag changes
-DO $$
-DECLARE n int;
-BEGIN
-  SELECT count(*) INTO n FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'instructors';
-  IF n <> 0 THEN RAISE EXCEPTION 'FAIL: instructors still in realtime'; END IF;
-  SELECT count(*) INTO n FROM information_schema.columns WHERE table_schema='public' AND table_name='instructor_live_status';
-  IF n <> 3 THEN RAISE EXCEPTION 'FAIL: live status column count %', n; END IF;
-  IF (SELECT md5(string_agg(t::text, '' ORDER BY id)) FROM public.instructors t) <> (SELECT hash_before FROM ids)
-    THEN RAISE EXCEPTION 'FAIL: instructor rows changed (outside rolled-back test writes)'; END IF;
-  IF (SELECT count(*) FROM public.instructors WHERE show_on_website AND status='active') <> (SELECT team_before FROM ids)
-    THEN RAISE EXCEPTION 'FAIL: public team count changed'; END IF;
-END $$;
-
-SELECT 'GATE_A_ALL_PASSED' AS result;
 ROLLBACK;

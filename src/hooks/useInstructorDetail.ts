@@ -171,8 +171,8 @@ export function useInstructorDetail(id: string | undefined) {
         {
           event: "UPDATE",
           schema: "public",
-          table: "instructors",
-          filter: `id=eq.${id}`,
+          table: "instructor_live_status",
+          filter: `instructor_id=eq.${id}`,
         },
         (payload) => {
           const oldData = payload.old as Partial<Instructor>;
