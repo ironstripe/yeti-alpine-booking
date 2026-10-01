@@ -57,6 +57,9 @@ verify_jwt = false
 [functions.get-products]
 verify_jwt = false
 
+[functions.get-website-products]
+verify_jwt = false
+
 [functions.get-availability]
 verify_jwt = false
 
