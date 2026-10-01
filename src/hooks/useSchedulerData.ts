@@ -1,5 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchInstructors } from "@/lib/instructorsApi";
 import { format, addDays, parseISO } from "date-fns";
 import type { Tables } from "@/integrations/supabase/types";
 import { 
@@ -97,14 +98,8 @@ export function useSchedulerData({ startDate, endDate, instructorId }: UseSchedu
   const instructorsQuery = useQuery({
     queryKey: ["scheduler-instructors"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("instructors")
-        .select("*")
-        .eq("status", "active")
-        .order("last_name", { ascending: true });
-
-      if (error) throw error;
-      return data as Tables<"instructors">[];
+      const data = await fetchInstructors();
+      return data.filter((i) => i.status === "active") as Tables<"instructors">[];
     },
   });
 

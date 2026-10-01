@@ -92,7 +92,7 @@ const BookingDetail = () => {
             *,
             product:products(*),
             participant:customer_participants(*),
-            instructor:instructors(*)
+            instructor:instructors(id, first_name, last_name, level, specialization, status, avatar_url, roles)
           )
         `)
         .eq("id", id)

@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { fetchInstructorSelf } from "@/lib/instructorsApi";
 
 export type AppRole = "admin" | "office" | "teacher";
 
@@ -46,18 +47,14 @@ export function useUserRole(): UserRoleState {
     queryFn: async () => {
       if (!user?.email) return null;
       
-      const { data, error } = await supabase
-        .from("instructors")
-        .select("id")
-        .ilike("email", user.email)
-        .maybeSingle();
-
-      if (error) {
+      // Server resolves the stable login→instructor link (not a client-side email match).
+      try {
+        const self = await fetchInstructorSelf();
+        return self?.id || null;
+      } catch (error) {
         console.error("Error fetching instructor for user:", error);
         return null;
       }
-
-      return data?.id || null;
     },
     enabled: !!user?.email,
   });

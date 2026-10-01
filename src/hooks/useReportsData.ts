@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchInstructors, fetchInstructor, fetchInstructorPay } from "@/lib/instructorsApi";
 import { isActiveItemStatus, sessionKey, minutesBetween } from "@/lib/finance";
 import { startOfWeek, endOfWeek, startOfMonth, endOfMonth, subDays, format, parseISO, differenceInMinutes } from "date-fns";
 
@@ -471,12 +472,12 @@ export const useInstructorStats = (dateRange: DateRange) => {
       const startDate = format(dateRange.start, "yyyy-MM-dd");
       const endDate = format(dateRange.end, "yyyy-MM-dd");
 
-      const { data: instructors, error: instError } = await supabase
-        .from("instructors")
-        .select("id, first_name, last_name, hourly_rate, status")
-        .eq("status", "active");
-
-      if (instError) throw instError;
+      // Pay is super_admin-only; other staff get hourly_rate = null (pay columns show 0).
+      const [allInstructors, pay] = await Promise.all([fetchInstructors(), fetchInstructorPay()]);
+      const payById = new Map(pay.map((p) => [p.id, p.hourly_rate]));
+      const instructors = allInstructors
+        .filter((i) => i.status === "active")
+        .map((i) => ({ id: i.id, first_name: i.first_name, last_name: i.last_name, status: i.status, hourly_rate: payById.get(i.id) ?? null }));
 
       const { data: ticketItems, error: itemsError } = await supabase
         .from("ticket_items")

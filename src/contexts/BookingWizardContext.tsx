@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useCallback, ReactNode } from "react";
 import type { Tables } from "@/integrations/supabase/types";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchInstructor } from "@/lib/instructorsApi";
 import { dateSetChanged, deriveFromPlan, sortPlan, toMin, validatePlan } from "@/lib/privatePlan";
 
 export type WizardStep = 1 | 2 | 3;
@@ -1296,15 +1297,7 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
     // Fetch full instructor record for Step 3
     let instructor: Tables<"instructors"> | null = null;
     try {
-      const { data, error } = await supabase
-        .from("instructors")
-        .select("*")
-        .eq("id", instructorId)
-        .single();
-      
-      if (!error && data) {
-        instructor = data;
-      }
+      instructor = await fetchInstructor(instructorId);
     } catch (e) {
       console.error("Failed to fetch instructor for scheduler prefill:", e);
     }
@@ -1570,7 +1563,7 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
             internal_notes,
             instructor_notes,
             product:products!ticket_items_product_id_fkey (id, name, type),
-            instructor:instructors!ticket_items_instructor_id_fkey (*),
+            instructor:instructors!ticket_items_instructor_id_fkey (id, first_name, last_name, level, specialization, status, avatar_url, roles, languages, real_time_status, instructor_type, gender, created_at, role, show_on_website, website_teaser),
             participant:customer_participants!ticket_items_participant_id_fkey (*)
           )
         `)

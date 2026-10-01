@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchInstructors, fetchInstructor, fetchInstructorPay } from "@/lib/instructorsApi";
 import { toast } from "sonner";
 import {
   notifyAllEnrollments,
@@ -65,12 +66,10 @@ export function useUpdateInstanceWithNotification() {
       // Fetch instructor separately if needed
       let instructorData: { id: string; first_name: string; last_name: string; email: string } | null = null;
       if (originalInstance?.instructor_id) {
-        const { data: instructor } = await supabase
-          .from("instructors")
-          .select("id, first_name, last_name, email")
-          .eq("id", originalInstance.instructor_id)
-          .single();
-        instructorData = instructor;
+        const instructor = await fetchInstructor(originalInstance.instructor_id);
+        instructorData = instructor
+          ? { id: instructor.id, first_name: instructor.first_name, last_name: instructor.last_name, email: instructor.email ?? "" }
+          : null;
       }
 
       if (fetchError) throw fetchError;
@@ -263,12 +262,10 @@ export function useCancelInstanceWithNotification() {
       // Fetch instructor separately if needed
       let instructorData: { id: string; first_name: string; last_name: string; email: string } | null = null;
       if (instance?.instructor_id) {
-        const { data: instructor } = await supabase
-          .from("instructors")
-          .select("id, first_name, last_name, email")
-          .eq("id", instance.instructor_id)
-          .single();
-        instructorData = instructor;
+        const instructor = await fetchInstructor(instance.instructor_id);
+        instructorData = instructor
+          ? { id: instructor.id, first_name: instructor.first_name, last_name: instructor.last_name, email: instructor.email ?? "" }
+          : null;
       }
 
       // Update status to cancelled

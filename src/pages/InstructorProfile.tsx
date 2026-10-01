@@ -18,6 +18,7 @@ import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getLevelLabel } from "@/lib/instructor-utils";
 import { getSpecializationLabel } from "@/hooks/useInstructors";
+import { fetchInstructorSelf, updateInstructorSelf } from "@/lib/instructorsApi";
 
 const languageOptions = [
   { value: "de", label: "Deutsch" },
@@ -52,13 +53,8 @@ export default function InstructorProfile() {
     queryFn: async () => {
       if (!instructorId) return null;
 
-      const { data, error } = await supabase
-        .from("instructors")
-        .select("*")
-        .eq("id", instructorId)
-        .single();
-
-      if (error) throw error;
+      const data = await fetchInstructorSelf();
+      if (!data) throw new Error("Profil nicht gefunden");
 
       // Initialize form state
       setPhone(data.phone || "");
@@ -133,16 +129,7 @@ export default function InstructorProfile() {
     mutationFn: async () => {
       if (!instructorId) throw new Error("No instructor ID");
 
-      const { error } = await supabase
-        .from("instructors")
-        .update({
-          phone,
-          email,
-          languages,
-        })
-        .eq("id", instructorId);
-
-      if (error) throw error;
+      await updateInstructorSelf({ phone, languages });
     },
     onSuccess: () => {
       toast.success("Profil aktualisiert");
@@ -240,9 +227,11 @@ export default function InstructorProfile() {
                 id="email"
                 type="email"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                readOnly
+                disabled
                 placeholder="max@example.com"
               />
+              <p className="text-xs text-muted-foreground">E-Mail-Änderungen nur durch das Büro möglich</p>
             </div>
           </CardContent>
         </Card>

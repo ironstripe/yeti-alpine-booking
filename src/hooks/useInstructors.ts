@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchInstructors } from "@/lib/instructorsApi";
 import type { Tables } from "@/integrations/supabase/types";
 import { format } from "date-fns";
 
@@ -20,12 +21,7 @@ export function useInstructors() {
       const today = format(new Date(), "yyyy-MM-dd");
 
       // Fetch instructors
-      const { data: instructors, error } = await supabase
-        .from("instructors")
-        .select("*")
-        .order("last_name", { ascending: true });
-
-      if (error) throw error;
+      const instructors = await fetchInstructors();
 
       // Fetch today's bookings count per instructor
       const { data: bookings, error: bookingsError } = await supabase
@@ -59,21 +55,22 @@ export function useInstructors() {
       .on(
         "postgres_changes",
         {
-          event: "UPDATE",
+          event: "*",
           schema: "public",
-          table: "instructors",
+          table: "instructor_live_status",
         },
         (payload) => {
-          const updatedInstructor = payload.new as Instructor;
-          const oldInstructor = payload.old as Partial<Instructor>;
+          // PII-free table: only instructor_id, real_time_status, updated_at.
+          const updated = payload.new as { instructor_id?: string; real_time_status?: string | null };
+          const old = payload.old as { real_time_status?: string | null };
+          const changedId = updated?.instructor_id;
 
-          // If real_time_status changed, trigger pulse animation
-          if (oldInstructor.real_time_status !== updatedInstructor.real_time_status) {
-            setPulsingIds((prev) => new Set(prev).add(updatedInstructor.id));
+          if (changedId && old?.real_time_status !== updated.real_time_status) {
+            setPulsingIds((prev) => new Set(prev).add(changedId));
             setTimeout(() => {
               setPulsingIds((prev) => {
                 const next = new Set(prev);
-                next.delete(updatedInstructor.id);
+                next.delete(changedId);
                 return next;
               });
             }, 1000);

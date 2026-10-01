@@ -2413,6 +2413,32 @@ export type Database = {
           },
         ]
       }
+      instructor_live_status: {
+        Row: {
+          instructor_id: string
+          real_time_status: string | null
+          updated_at: string
+        }
+        Insert: {
+          instructor_id: string
+          real_time_status?: string | null
+          updated_at?: string
+        }
+        Update: {
+          instructor_id?: string
+          real_time_status?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "instructor_live_status_instructor_id_fkey"
+            columns: ["instructor_id"]
+            isOneToOne: true
+            referencedRelation: "instructors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       instructor_notification_queue: {
         Row: {
           created_at: string | null
@@ -2664,6 +2690,38 @@ export type Database = {
             foreignKeyName: "instructor_test_tokens_instructor_id_fkey"
             columns: ["instructor_id"]
             isOneToOne: false
+            referencedRelation: "instructors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      instructor_user_links: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          instructor_id: string
+          source: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          instructor_id: string
+          source?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          instructor_id?: string
+          source?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "instructor_user_links_instructor_id_fkey"
+            columns: ["instructor_id"]
+            isOneToOne: true
             referencedRelation: "instructors"
             referencedColumns: ["id"]
           },
@@ -5522,6 +5580,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      instructor_delete: { Args: { p_id: string }; Returns: undefined }
       instructor_deployment_gates: {
         Args: never
         Returns: {
@@ -5534,7 +5593,79 @@ export type Database = {
         Args: { _date: string; _instructor_id: string }
         Returns: boolean
       }
+      instructor_ops_upsert: { Args: { p: Json }; Returns: string }
+      instructor_pay_update: {
+        Args: { p: Json; p_id: string }
+        Returns: undefined
+      }
+      instructor_self: {
+        Args: never
+        Returns: {
+          avatar_url: string
+          birth_date: string
+          city: string
+          country: string
+          email: string
+          entry_date: string
+          first_name: string
+          gender: string
+          id: string
+          languages: string[]
+          last_name: string
+          level: string
+          phone: string
+          real_time_status: string
+          role: string
+          roles: string[]
+          specialization: string
+          status: string
+          street: string
+          zip: string
+        }[]
+      }
+      instructor_self_update: { Args: { p: Json }; Returns: undefined }
+      instructors_ops_list: {
+        Args: { p_id?: string }
+        Returns: {
+          avatar_url: string
+          birth_date: string
+          city: string
+          country: string
+          created_at: string
+          email: string
+          entry_date: string
+          first_name: string
+          gender: string
+          id: string
+          instructor_type: Database["public"]["Enums"]["instructor_role_type"]
+          languages: string[]
+          last_name: string
+          level: string
+          notes: string
+          phone: string
+          real_time_status: string
+          role: string
+          roles: string[]
+          show_on_website: boolean
+          specialization: string
+          status: string
+          street: string
+          website_teaser: string
+          zip: string
+        }[]
+      }
+      instructors_pay_list: {
+        Args: { p_id?: string }
+        Returns: {
+          ahv_number: string
+          bank_name: string
+          hourly_rate: number
+          iban: string
+          id: string
+        }[]
+      }
       is_admin_or_office: { Args: { _user_id: string }; Returns: boolean }
+      is_staff: { Args: { _user_id: string }; Returns: boolean }
       is_super_admin: { Args: { _user_id: string }; Returns: boolean }
       merge_customers: {
         Args: {

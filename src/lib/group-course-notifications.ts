@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { fetchInstructors, fetchInstructor, fetchInstructorPay } from "@/lib/instructorsApi";
 
 export type GroupCourseChangeType = 
   | "customer.group_course.changed"
@@ -91,18 +92,13 @@ export async function getInstanceEnrollments(instanceId: string): Promise<Enroll
  * Fetches instructor details by ID
  */
 export async function getInstructorDetails(instructorId: string) {
-  const { data, error } = await supabase
-    .from("instructors")
-    .select("id, first_name, last_name, email")
-    .eq("id", instructorId)
-    .single();
-
-  if (error) {
+  try {
+    const data = await fetchInstructor(instructorId);
+    return data ? { id: data.id, first_name: data.first_name, last_name: data.last_name, email: data.email } : null;
+  } catch (error) {
     console.error("Failed to fetch instructor:", error);
     return null;
   }
-
-  return data;
 }
 
 /**
