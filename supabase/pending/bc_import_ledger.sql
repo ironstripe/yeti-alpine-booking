@@ -209,7 +209,7 @@ DECLARE
   c_apply constant text[] := ARRAY['first_name','last_name','email','phone','birth_date','gender','street','zip','city','country'];
   c_pay   constant text[] := ARRAY['hourly_rate','bank_name','iban','ahv_number'];
   c_vol   constant text[] := ARRAY['real_time_status'];
-  v_ok int := 0; v_stop int := 0; v_none int := 0;
+  v_ok int := 0; v_stop int := 0;
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM instructor_import_runs WHERE id = p_run) THEN RAISE EXCEPTION 'run_not_found'; END IF;
 
@@ -290,8 +290,6 @@ BEGIN
 
     v_reasons := ARRAY(SELECT DISTINCT unnest(v_reasons) ORDER BY 1);
     IF cardinality(v_reasons) > 0 THEN v_stop := v_stop + 1;
-    ELSIF L.kind = 'updated' AND NOT EXISTS (SELECT 1 FROM jsonb_array_elements(v_fields) f WHERE f->>'status' = 'restorable')
-          AND NOT L.hr_private_present IS DISTINCT FROM true AND L.source_link_present THEN v_none := v_none + 1;
     ELSE v_ok := v_ok + 1; END IF;
 
     v_out := v_out || jsonb_build_object(
@@ -307,7 +305,7 @@ BEGIN
   END LOOP;
 
   RETURN jsonb_build_object('mode', 'dry_run_only', 'run_id', p_run,
-    'counts', jsonb_build_object('ledger_rows', jsonb_array_length(v_out), 'stop', v_stop, 'restorable_or_candidate', v_ok, 'nothing_to_restore', v_none,
+    'counts', jsonb_build_object('ledger_rows', jsonb_array_length(v_out), 'stop', v_stop, 'restorable_or_candidate', v_ok,
       'staging_applied', (SELECT count(*) FROM instructor_import_staging WHERE run_id = p_run AND batch_status = 'applied'),
       'applied_without_ledger', (SELECT count(*) FROM instructor_import_staging st WHERE st.run_id = p_run AND st.batch_status = 'applied'
                                  AND NOT EXISTS (SELECT 1 FROM instructor_import_ledger l WHERE l.run_id = p_run AND l.source_id = st.source_id))),
