@@ -64,6 +64,19 @@ Deno.serve(async (req) => {
   );
 
   try {
+    if (data.source === "website") {
+      const { data: product, error: productErr } = await supabase.from("products")
+        .select("id,season_id,is_active,website_online_bookable")
+        .eq("id", data.product_id).maybeSingle();
+      if (productErr) throw productErr;
+      const { data: seasons, error: seasonErr } = await supabase.from("seasons")
+        .select("id").eq("is_current", true).limit(2);
+      if (seasonErr) throw seasonErr;
+      if (!product || product.is_active !== true || product.website_online_bookable !== true ||
+          seasons?.length !== 1 || seasons[0].id !== product.season_id) {
+        return json({ success: false, code: "product_not_online_bookable" }, 409);
+      }
+    }
     const { data: result, error } = await supabase.rpc("create_provisional_reservation", {
       p_payload: {
         source: data.source,

@@ -4100,6 +4100,13 @@ export type Database = {
           sort_order: number | null
           type: string
           vat_rate: number | null
+          website_badge: string | null
+          website_icon_key: string | null
+          website_meta: Json
+          website_notes: string[]
+          website_online_bookable: boolean
+          website_requirement: string | null
+          website_subtitle: string | null
         }
         Insert: {
           audience?: string | null
@@ -4121,6 +4128,13 @@ export type Database = {
           sort_order?: number | null
           type: string
           vat_rate?: number | null
+          website_badge?: string | null
+          website_icon_key?: string | null
+          website_meta?: Json
+          website_notes?: string[]
+          website_online_bookable?: boolean
+          website_requirement?: string | null
+          website_subtitle?: string | null
         }
         Update: {
           audience?: string | null
@@ -4142,6 +4156,13 @@ export type Database = {
           sort_order?: number | null
           type?: string
           vat_rate?: number | null
+          website_badge?: string | null
+          website_icon_key?: string | null
+          website_meta?: Json
+          website_notes?: string[]
+          website_online_bookable?: boolean
+          website_requirement?: string | null
+          website_subtitle?: string | null
         }
         Relationships: [
           {

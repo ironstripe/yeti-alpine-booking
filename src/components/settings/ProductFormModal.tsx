@@ -1,7 +1,7 @@
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Loader2, Info, TrendingDown, ChevronUp, ChevronDown } from "lucide-react";
+import { Loader2, Info, TrendingDown, ChevronUp, ChevronDown, Plus, X } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -42,6 +42,11 @@ const priceTierSchema = z.object({
   cumulative_price: z.number().min(0),
 });
 
+const websiteMetaSchema = z.object({
+  icon: z.enum(["calendar", "clock", "users", "map"]),
+  label: z.string().min(1).max(160),
+});
+
 // Product types that should use tiered pricing
 const GROUP_PRODUCT_TYPES = ["group", "group_toddler", "group_beginner"];
 
@@ -61,6 +66,13 @@ const formSchema = z.object({
   audience: z.enum(["kids", "adults", "mixed", "unset"]),
   reporting_category: z.enum(["private", "group", "other", "unset"]),
   price_tiers: z.array(priceTierSchema),
+  sort_order: z.coerce.number().int().min(0),
+  website_subtitle: z.string().max(240).optional(),
+  website_requirement: z.string().max(500).optional(),
+  website_icon_key: z.enum(["user", "users", "baby", "calendar", "snowflake", "trophy", "sparkles"]),
+  website_badge: z.enum(["none", "beliebt", "empfohlen"]),
+  website_meta: z.array(websiteMetaSchema).max(8),
+  website_notes_text: z.string().optional(),
 });
 
 type FormData = z.infer<typeof formSchema>;
@@ -95,8 +107,17 @@ export function ProductFormModal({ open, onOpenChange, product, seasonId, isBook
       audience: "unset",
       reporting_category: "unset",
       price_tiers: getDefaultPriceTiers(),
+      sort_order: 0,
+      website_subtitle: "",
+      website_requirement: "",
+      website_icon_key: "snowflake",
+      website_badge: "none",
+      website_meta: [],
+      website_notes_text: "",
     },
   });
+
+  const websiteMetaFields = useFieldArray({ control: form.control, name: "website_meta" });
 
   const productType = form.watch("type");
   const pricingType = form.watch("pricing_type");
@@ -132,6 +153,13 @@ export function ProductFormModal({ open, onOpenChange, product, seasonId, isBook
         audience: ((product as any).audience ?? "unset") as any,
         reporting_category: ((product as any).reporting_category ?? "unset") as any,
         price_tiers: fullTiers,
+        sort_order: product.sort_order ?? 0,
+        website_subtitle: product.website_subtitle || "",
+        website_requirement: product.website_requirement || "",
+        website_icon_key: (product.website_icon_key || "snowflake") as FormData["website_icon_key"],
+        website_badge: (product.website_badge || "none") as FormData["website_badge"],
+        website_meta: Array.isArray(product.website_meta) ? product.website_meta as FormData["website_meta"] : [],
+        website_notes_text: (product.website_notes || []).join("\n"),
       });
     } else {
       // NEW PRODUCT - simple default, user chooses pricing model manually
@@ -150,6 +178,13 @@ export function ProductFormModal({ open, onOpenChange, product, seasonId, isBook
         audience: "unset",
         reporting_category: "unset",
         price_tiers: getDefaultPriceTiers(),
+        sort_order: 0,
+        website_subtitle: "",
+        website_requirement: "",
+        website_icon_key: "snowflake",
+        website_badge: "none",
+        website_meta: [],
+        website_notes_text: "",
       });
     }
   }, [product, form, open]);
@@ -186,6 +221,13 @@ export function ProductFormModal({ open, onOpenChange, product, seasonId, isBook
       discipline: data.discipline === "unset" ? null : data.discipline,
       audience: data.audience === "unset" ? null : data.audience,
       reporting_category: data.reporting_category === "unset" ? null : data.reporting_category,
+      sort_order: data.sort_order,
+      website_subtitle: data.website_subtitle?.trim() || null,
+      website_requirement: data.website_requirement?.trim() || null,
+      website_icon_key: data.website_icon_key,
+      website_badge: data.website_badge === "none" ? null : data.website_badge,
+      website_meta: data.website_meta,
+      website_notes: (data.website_notes_text || "").split("\n").map(s => s.trim()).filter(Boolean).slice(0, 8),
     };
 
     // Include season_id for new products
@@ -277,6 +319,74 @@ export function ProductFormModal({ open, onOpenChange, product, seasonId, isBook
                   </FormItem>
                 )}
               />
+
+              <div className="space-y-4 rounded-md border p-4">
+                <div>
+                  <p className="font-medium">Website-Karte</p>
+                  <p className="text-xs text-muted-foreground">
+                    Aktive Produkte der aktuellen Saison erscheinen automatisch. Der Name, die Preise und die Disziplin kommen direkt aus diesem Produkt.
+                    Diese Angaben ergänzen die bestehende Kartenansicht; Online-Buchungen bleiben bis zur gesonderten Freigabe gesperrt.
+                  </p>
+                </div>
+                <FormField control={form.control} name="sort_order" render={({ field }) => (
+                  <FormItem><FormLabel>Reihenfolge</FormLabel><FormDescription>Aufsteigend; gleiche Zahl wird nach Namen sortiert.</FormDescription>
+                    <FormControl><Input {...field} type="number" min={0} step={1} className="w-28" /></FormControl><FormMessage />
+                  </FormItem>
+                )} />
+                <FormField control={form.control} name="website_subtitle" render={({ field }) => (
+                  <FormItem><FormLabel>Untertitel</FormLabel><FormControl>
+                    <Input {...field} placeholder="Kurz beschreiben, für wen der Kurs ist" maxLength={240} />
+                  </FormControl><FormMessage /></FormItem>
+                )} />
+                <div className="grid grid-cols-2 gap-3">
+                  <FormField control={form.control} name="website_icon_key" render={({ field }) => (
+                    <FormItem><FormLabel>Symbol</FormLabel><Select value={field.value} onValueChange={field.onChange}>
+                      <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
+                      <SelectContent>
+                        <SelectItem value="snowflake">Schnee</SelectItem><SelectItem value="user">Privat</SelectItem>
+                        <SelectItem value="users">Gruppe</SelectItem><SelectItem value="baby">Kleinkind</SelectItem>
+                        <SelectItem value="calendar">Kalender</SelectItem><SelectItem value="trophy">Können</SelectItem>
+                        <SelectItem value="sparkles">Special</SelectItem>
+                      </SelectContent>
+                    </Select><FormMessage /></FormItem>
+                  )} />
+                  <FormField control={form.control} name="website_badge" render={({ field }) => (
+                    <FormItem><FormLabel>Markierung</FormLabel><Select value={field.value} onValueChange={field.onChange}>
+                      <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
+                      <SelectContent><SelectItem value="none">Keine</SelectItem><SelectItem value="beliebt">Beliebt</SelectItem><SelectItem value="empfohlen">Empfohlen</SelectItem></SelectContent>
+                    </Select><FormMessage /></FormItem>
+                  )} />
+                </div>
+                <div className="space-y-2">
+                  <p className="text-sm font-medium">Kursdetails (nur bestätigte Fakten)</p>
+                  {websiteMetaFields.fields.map((item, index) => (
+                    <div className="flex items-start gap-2" key={item.id}>
+                      <FormField control={form.control} name={`website_meta.${index}.icon`} render={({ field }) => (
+                        <FormItem className="w-32"><Select value={field.value} onValueChange={field.onChange}>
+                          <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
+                          <SelectContent><SelectItem value="calendar">Tage</SelectItem><SelectItem value="clock">Zeit</SelectItem>
+                            <SelectItem value="users">Gruppe</SelectItem><SelectItem value="map">Treffpunkt</SelectItem></SelectContent>
+                        </Select><FormMessage /></FormItem>
+                      )} />
+                      <FormField control={form.control} name={`website_meta.${index}.label`} render={({ field }) => (
+                        <FormItem className="flex-1"><FormControl><Input {...field} maxLength={160} placeholder="z.B. 10:00–12:00 Uhr" /></FormControl><FormMessage /></FormItem>
+                      )} />
+                      <Button type="button" variant="ghost" size="icon" aria-label="Kursdetail entfernen" onClick={() => websiteMetaFields.remove(index)}><X className="h-4 w-4" /></Button>
+                    </div>
+                  ))}
+                  <Button type="button" variant="outline" size="sm" disabled={websiteMetaFields.fields.length >= 8}
+                    onClick={() => websiteMetaFields.append({ icon: "calendar", label: "" })}>
+                    <Plus className="h-4 w-4 mr-1" /> Detail ergänzen
+                  </Button>
+                </div>
+                <FormField control={form.control} name="website_requirement" render={({ field }) => (
+                  <FormItem><FormLabel>Voraussetzung (optional)</FormLabel><FormControl><Input {...field} maxLength={500} /></FormControl><FormMessage /></FormItem>
+                )} />
+                <FormField control={form.control} name="website_notes_text" render={({ field }) => (
+                  <FormItem><FormLabel>Weitere Hinweise</FormLabel><FormDescription>Ein Hinweis pro Zeile, maximal acht.</FormDescription>
+                    <FormControl><Textarea {...field} rows={3} placeholder="Liftkarte nicht inbegriffen" /></FormControl><FormMessage /></FormItem>
+                )} />
+              </div>
 
               {/* Reporting metadata for the Swiss Snowsports statistics */}
               <div className="space-y-3 rounded-md border p-3">
