@@ -40,3 +40,8 @@
 - [ ] Christoph FreeSurf account (blocked: identity clarification)
 - [ ] Public Team candidate list (after verified real import)
 - [ ] BC Apply plan revision: authoritative source on reviewed links, preserve Zuordnungen per ID, manual photo provenance, no-window gating staff+web, batch_status constraint
+
+## Security Gate A – instructors access control (pre-import)
+- [ ] Plan rev. 2 approval (split ops/HR, stable user link, live-status realtime, exact rollback)
+- [ ] Additive migration + link backfill + frontend switch
+- [ ] Lock migration + role tests + real teacher login (blocked: teacher test account/approval)
