@@ -125,29 +125,21 @@ export function EditInstructorModal({
 
     setIsUploadingAvatar(true);
     try {
-      const extMap: Record<string, string> = {
-        'image/jpeg': 'jpg',
-        'image/png': 'png',
-        'image/webp': 'webp',
-      };
-      const fileExt = extMap[file.type] || 'jpg';
-      const filePath = `${instructor.id}.${fileExt}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from("instructor-avatars")
-        .upload(filePath, file, { upsert: true, contentType: file.type });
-
-      if (uploadError) throw uploadError;
-
-      const { data: { publicUrl } } = supabase.storage
-        .from("instructor-avatars")
-        .getPublicUrl(filePath);
-
-      // Add cache-buster to force refresh
-      const urlWithCacheBust = `${publicUrl}?t=${Date.now()}`;
-
-      await updateInstructor.mutateAsync({ avatar_url: urlWithCacheBust });
-      setAvatarUrl(urlWithCacheBust);
+      // Convert to JPEG in the browser; the server strips metadata, keeps a private
+      // manual_upload record (wins over Booking-Corner reimports) and sets the avatar.
+      const bmp = await createImageBitmap(file);
+      const canvas = document.createElement("canvas");
+      canvas.width = bmp.width; canvas.height = bmp.height;
+      canvas.getContext("2d")!.drawImage(bmp, 0, 0);
+      const jpeg: Blob = await new Promise((res, rej) =>
+        canvas.toBlob((b) => (b ? res(b) : rej(new Error("encode"))), "image/jpeg", 0.9));
+      const fd = new FormData();
+      fd.append("instructor_id", instructor.id);
+      fd.append("file", new File([jpeg], "portrait.jpg", { type: "image/jpeg" }));
+      const { data, error } = await supabase.functions.invoke("instructor-photo-upload", { body: fd });
+      if (error || !data?.avatar_url) throw error ?? new Error("upload");
+      setAvatarUrl(data.avatar_url);
+      await queryClient.invalidateQueries({ queryKey: ["instructors"] });
       toast.success("Profilbild aktualisiert");
     } catch (err) {
       console.error("Avatar upload error:", err);
