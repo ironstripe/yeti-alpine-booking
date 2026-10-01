@@ -10,6 +10,7 @@ Status: the migration `supabase/pending/bc_import_ledger.sql` is pending review 
 Guarantees:
 - The ledger row and the change are made in the same per-row subtransaction. If a row fails, no ledger row is left behind.
 - On a retry, the first image is kept and never overwritten.
+- Same-run retry guard: retrying a row this run already applied re-applies it only if all 10 import-owned fields still hold what this run wrote. Otherwise the row becomes an `edited_since_same_run_apply` conflict and nothing is touched. Reimports in a new, separately reviewed run keep Booking-authoritative semantics.
 - The ledger cannot be changed: UPDATE, DELETE and TRUNCATE are blocked, even for the owner.
 
 ## Forward order (each step needs owner approval)
