@@ -132,6 +132,66 @@ export type Database = {
         }
         Relationships: []
       }
+      bc_product_tariff_sources: {
+        Row: {
+          source_id: string
+          season_id: string
+          product_id: string | null
+          source_sha256: string
+          source_family: string
+          import_status: string
+          day_count: number
+          duration_minutes: number
+          persons_per_lesson: number
+          price_chf: number
+          source_payload: Json
+          created_at: string
+        }
+        Insert: {
+          source_id: string
+          season_id: string
+          product_id?: string | null
+          source_sha256: string
+          source_family: string
+          import_status: string
+          day_count: number
+          duration_minutes: number
+          persons_per_lesson: number
+          price_chf: number
+          source_payload: Json
+          created_at?: string
+        }
+        Update: {
+          source_id?: string
+          season_id?: string
+          product_id?: string | null
+          source_sha256?: string
+          source_family?: string
+          import_status?: string
+          day_count?: number
+          duration_minutes?: number
+          persons_per_lesson?: number
+          price_chf?: number
+          source_payload?: Json
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bc_product_tariff_sources_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bc_product_tariff_sources_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "seasons"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       billing_partners: {
         Row: {
           address: string | null
