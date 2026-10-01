@@ -18,6 +18,7 @@ import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getLevelLabel } from "@/lib/instructor-utils";
 import { getSpecializationLabel } from "@/hooks/useInstructors";
+import { fetchInstructorSelf, updateInstructorSelf } from "@/lib/instructorsApi";
 
 const languageOptions = [
   { value: "de", label: "Deutsch" },
