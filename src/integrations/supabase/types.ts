@@ -134,46 +134,46 @@ export type Database = {
       }
       bc_product_tariff_sources: {
         Row: {
-          source_id: string
-          season_id: string
-          product_id: string | null
-          source_sha256: string
-          source_family: string
-          import_status: string
+          created_at: string
           day_count: number
           duration_minutes: number
+          import_status: string
           persons_per_lesson: number
           price_chf: number
+          product_id: string | null
+          season_id: string
+          source_family: string
+          source_id: string
           source_payload: Json
-          created_at: string
+          source_sha256: string
         }
         Insert: {
-          source_id: string
-          season_id: string
-          product_id?: string | null
-          source_sha256: string
-          source_family: string
-          import_status: string
+          created_at?: string
           day_count: number
           duration_minutes: number
+          import_status: string
           persons_per_lesson: number
           price_chf: number
+          product_id?: string | null
+          season_id: string
+          source_family: string
+          source_id: string
           source_payload: Json
-          created_at?: string
+          source_sha256: string
         }
         Update: {
-          source_id?: string
-          season_id?: string
-          product_id?: string | null
-          source_sha256?: string
-          source_family?: string
-          import_status?: string
+          created_at?: string
           day_count?: number
           duration_minutes?: number
+          import_status?: string
           persons_per_lesson?: number
           price_chf?: number
+          product_id?: string | null
+          season_id?: string
+          source_family?: string
+          source_id?: string
           source_payload?: Json
-          created_at?: string
+          source_sha256?: string
         }
         Relationships: [
           {
