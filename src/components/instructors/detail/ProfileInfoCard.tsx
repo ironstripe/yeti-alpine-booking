@@ -134,10 +134,12 @@ export function ProfileInfoCard({ instructor, onEdit }: ProfileInfoCardProps) {
         <div>
           <h4 className="text-sm font-medium text-muted-foreground mb-3">Anstellung</h4>
           <div className="grid grid-cols-2 gap-3 text-sm">
-            <div>
-              <span className="text-muted-foreground">Stundenlohn:</span>
-              <span className="ml-2 font-medium">CHF {instructor.hourly_rate?.toFixed(2)}</span>
-            </div>
+            {instructor.hourly_rate != null && (
+              <div>
+                <span className="text-muted-foreground">Stundenlohn:</span>
+                <span className="ml-2 font-medium">CHF {instructor.hourly_rate.toFixed(2)}</span>
+              </div>
+            )}
             <div>
               <span className="text-muted-foreground">Rolle:</span>
               <span className="ml-2">
