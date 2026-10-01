@@ -16,11 +16,12 @@ Baseline HEAD `bba0dcf`. Kein Import/Apply, kein Publish, keine Änderung an bes
 | Klasse | Spalten | Teacher | Office/Admin | super_admin |
 |---|---|---|---|---|
 | Verzeichnis | id, first_name, last_name, level, specialization, status, real_time_status, languages, role, roles, instructor_type, gender, avatar_url, show_on_website, website_teaser, created_at | alle | alle | alle |
-| Betrieb/Kontakt | email, phone | nur eigene | alle | alle |
-| HR/Privat | birth_date, street, zip, city, country, entry_date, notes | nur eigene (ohne notes) | **nein** | alle |
-| Lohn/Bank | hourly_rate, bank_name, iban, ahv_number | **nein** (auch nicht eigene) | **nein** | alle |
+| Betrieb/Personal (Owner-Entscheid 01.10. 12:43) | email, phone, street, zip, city, country, birth_date, entry_date, notes | nur eigene (ohne notes) | alle, lesen + bearbeiten | alle |
+| Lohn/Bank | hourly_rate, bank_name, iban, ahv_number (Spalten auf `instructors`) + Rohwerte in `instructor_hr_private` | **nein** (auch nicht eigene) | **nein** | lesen + bearbeiten |
 
-Sichtbare Folge für das Büro (zur Entscheidung): Im Dialog „Lehrperson bearbeiten“, in Profilkarte und Neu-Anlage sind Adresse/Geburtsdatum/Eintritt/Notizen und Lohn/Bank/AHV für Office/Admin ohne super_admin nicht mehr sichtbar/editierbar; die Felder werden nur für super_admin angezeigt (kein Layoutumbau, Felder werden ausgeblendet). Der Lehrpersonen-Bericht in `useReportsData` nutzt `hourly_rate` → zeigt Lohnkosten nur noch super_admin. Falls Office Adresse operativ braucht, bitte sagen – dann rückt sie in die Betriebsklasse.
+Sichtbare Folge im Büro: „Lehrperson bearbeiten“, Profilkarte und Neu-Anlage zeigen Office/Admin weiterhin Kontakt, Adresse, Geburtsdatum, Eintritt und Notizen. Nur der Block Lohn/Bank/AHV wird für Nicht-super_admin ausgeblendet (kein Layoutumbau). Formularvalidierung: `hourly_rate` ist für niemanden Pflicht (Spalte ist bereits nullable) und wird für Office/Admin weder validiert noch mitgesendet – keine versteckte Pflichtfeldsperre. `useReportsData`-Lohnkosten nur für super_admin; für Office erscheint der Bericht ohne Lohnspalte.
+
+Lehrpersonen-Portal (Teacher): braucht weiterhin Stundenplan aller Lehrpersonen und Buchungen mit Teilnehmernamen/Niveau, Datum/Zeit und Büro-Notizen, **ohne** Kundenkontakte und Preise. Gate A ändert dafür nur `instructors`; die Teacher-Sicht auf `customers`/`tickets`/`ticket_items` (Kontakt- und Preisfelder) wird im Inventar live geprüft und negativ getestet. Zeigt sich dort eine Lücke, wird sie als eigener Folgeschritt A2 mit eigener Freigabe vorgeschlagen, nicht in Gate A mitgezogen.
 
 ## 3. Lösung (serverseitig erzwungen)
 
@@ -29,10 +30,10 @@ Sichtbare Folge für das Büro (zur Entscheidung): Im Dialog „Lehrperson bearb
 - RLS-SELECT bleibt `true` für authenticated (Zeilen = Verzeichnis); Schreib-Policies entfallen, weil Schreiben nur über Funktionen läuft.
 
 **B. Getrennte Serverfunktionen (SECURITY DEFINER, `REVOKE … FROM PUBLIC, anon`, `GRANT EXECUTE … TO authenticated`, Rollenprüfung im Rumpf)**
-- `instructors_ops_list(p_id uuid default null)` → explizite Spaltenliste Verzeichnis + Betrieb. Erlaubt: office, admin, super_admin.
-- `instructors_hr_get(p_id uuid)` / `instructors_hr_list()` → HR + Lohn/Bank. Erlaubt: nur super_admin.
-- `instructor_self()` → eigene Zeile: Verzeichnis + Betrieb + HR ohne notes, ohne Lohn/Bank.
-- `instructor_ops_upsert(p jsonb)` (office/admin/super_admin): nur Verzeichnis + Betrieb; `instructor_hr_update(p_id, p jsonb)` (super_admin); `instructor_delete(p_id)` (office/admin/super_admin, bestehende FK-Regeln unverändert); `instructor_self_update(p jsonb)` (Teacher: nur phone, languages; **E-Mail nicht** selbst änderbar).
+- `instructors_ops_list(p_id uuid default null)` → explizit: Verzeichnis + email, phone, street, zip, city, country, birth_date, entry_date, notes. **Ohne** hourly_rate, bank_name, iban, ahv_number. Erlaubt: office, admin, super_admin.
+- `instructors_pay_get(p_id uuid)` / `instructors_pay_list()` → nur id + hourly_rate, bank_name, iban, ahv_number (+ bestehender super_admin-Lesezugriff auf `instructor_hr_private`). Erlaubt: nur super_admin.
+- `instructor_self()` → eigene Zeile: Verzeichnis + Kontakt/Adresse/Geburtsdatum/Eintritt, ohne notes und ohne Lohn/Bank.
+- `instructor_ops_upsert(p jsonb)` (office/admin/super_admin): schreibt nur die ops-Spalten oben; Lohn/Bank-Schlüssel im Payload → Fehler `forbidden_field` (nicht still ignoriert). `instructor_pay_update(p_id, p jsonb)` (nur super_admin). `instructor_delete(p_id)` (office/admin/super_admin, FK-Regeln unverändert). `instructor_self_update(p jsonb)` (Teacher: nur phone, languages; **E-Mail nicht** selbst änderbar).
 - Kein Rückgabetyp `SETOF instructors`; alle Rückgaben mit expliziten Spalten.
 
 **C. super_admin eigenständig**
@@ -76,8 +77,9 @@ Vor Schritt 3 wird der Rollback in einer Transaktion mit `ROLLBACK` probehalber 
 
 **SQL-Rollentest** `supabase/tests/gate_a_instructors_rls_test.sql`, `psql "$PRIVILEGED_DB_URL" -v ON_ERROR_STOP=1 -f …`, alles in einer Transaktion mit ROLLBACK; Wegwerf-Auth-User/Rollen nur innerhalb der Transaktion, per `set local role authenticated` + `request.jwt.claims`.
 - Teacher: `SELECT *` und jede gesperrte Spalte → permission denied; eingebetteter Join auf email/iban → denied; Verzeichnis aller → ok; `instructors_ops_list`/`hr_*` → forbidden; `instructor_self` → nur eigene, ohne Lohn/Bank/notes; direktes UPDATE/DELETE/INSERT → denied; `instructor_self_update` mit email/hourly_rate/status → abgelehnt, mit phone → ok; fremde ID nicht erreichbar; E-Mail-Spoof (fremde E-Mail gesetzt) verschiebt Zuordnung nicht; HR/Staging/Runs/Links/Fotos-Metadaten → 0/denied; `storage.objects` in `instructor-hr-photos` → 0; Avatar-Upload → denied.
-- Office/Admin: ops_list mit Kontakt ok, HR-Spalten weder direkt noch per Funktion; upsert/delete ok.
-- super_admin **ohne** admin/office: ops + HR + Import-Tabellen ok.
+- Office/Admin: ops_list liefert und ops_upsert ändert email, phone, street, zip, city, country, birth_date, entry_date, notes → ok; hourly_rate/bank_name/iban/ahv_number weder direkt (REST, Join, `*`) noch über ops_list, `pay_*` → forbidden, ops_upsert mit Lohnfeld → `forbidden_field`; `instructor_hr_private` → 0 Zeilen; Anlage ohne hourly_rate gelingt; delete ok.
+- super_admin **ohne** admin/office: ops_list + ops_upsert + pay_get/pay_update + `instructor_hr_private` + Import-Tabellen ok.
+- Teacher-Portal: Buchungen aller Lehrpersonen mit Teilnehmernamen/Niveau, Datum/Zeit, Büro-Notizen lesbar; Kundenkontakt- (E-Mail/Telefon/Adresse) und Preisfelder in `customers`/`tickets`/`ticket_items` werden negativ geprüft – Ergebnis wird berichtet (Lücke → Folgeschritt A2).
 - Anon: alles verweigert.
 - Realtime: `instructors` nicht in Publikation; `instructor_live_status` hat genau 3 Spalten.
 - Unveränderung: Hash über alle `instructors`-Zeilen (heute 31) und Liste `show_on_website=true` vor/nach identisch.
