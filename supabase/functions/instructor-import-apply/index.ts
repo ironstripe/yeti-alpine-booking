@@ -6,7 +6,7 @@ import { unzipSync } from "npm:fflate@0.8.2";
 import { requireRole } from "../_shared/staffAuth.ts";
 import { parseImport, sha256Hex, LIMITS } from "../_shared/bcImport/parse.ts";
 import { classify } from "../_shared/bcImport/match.ts";
-import { buildPayload, snapshotOf, validateDecisions, duplicateSourceEmails, APPLY_FIELDS } from "../_shared/bcImport/apply.ts";
+import { buildPayload, snapshotOf, validateDecisions, duplicateSourceEmails, diffEqual, APPLY_FIELDS } from "../_shared/bcImport/apply.ts";
 import { makeRendition } from "../_shared/bcImport/image.ts";
 
 const cors = {
@@ -139,7 +139,7 @@ async function start(req: Request, sb: SB, userId: string) {
     const cur = now.get(s.source_id)!;
     let conflict: string | null = null;
     if (cur.classification !== s.classification || cur.targetInstructorId !== s.target_instructor_id) conflict = "evidence_changed";
-    else if (JSON.stringify(cur.diff) !== JSON.stringify(s.diff)) conflict = "evidence_changed";
+    else if (!diffEqual(cur.diff, s.diff)) conflict = "evidence_changed";
     else if (d !== "skip" && dupEmail.has(s.source_id)) conflict = "email_duplicate_in_source";
     const ph = photoBy.get(s.source_id);
     const stagedSha = (s.photo as { sha256?: string } | null)?.sha256 ?? null;

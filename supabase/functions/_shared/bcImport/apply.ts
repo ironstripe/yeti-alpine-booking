@@ -71,3 +71,15 @@ export function duplicateSourceEmails(payloads: { source_id: string; email: stri
   for (const p of payloads) if (p.email) seen.set(p.email.toLowerCase(), [...(seen.get(p.email.toLowerCase()) ?? []), p.source_id]);
   return new Set([...seen.values()].filter((v) => v.length > 1).flat());
 }
+
+/** Canonical JSON: object keys sorted recursively, array order preserved, null kept distinct. */
+export function canonicalJson(v: unknown): string {
+  if (Array.isArray(v)) return `[${v.map(canonicalJson).join(",")}]`;
+  if (v !== null && typeof v === "object") {
+    const o = v as Record<string, unknown>;
+    return `{${Object.keys(o).filter((k) => o[k] !== undefined).sort().map((k) => `${JSON.stringify(k)}:${canonicalJson(o[k])}`).join(",")}}`;
+  }
+  return JSON.stringify(v ?? null);
+}
+/** Semantic diff equality: JSONB key reordering is ignored; values, field names and item order are not. */
+export const diffEqual = (a: unknown, b: unknown) => canonicalJson(a ?? null) === canonicalJson(b ?? null);
