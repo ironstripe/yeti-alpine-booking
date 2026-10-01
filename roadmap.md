@@ -39,6 +39,8 @@
 - [ ] Real-file dry-run by owner, then separate Apply step (waiting: owner runs preview with real files)
 - [ ] Christoph FreeSurf account (blocked: identity clarification)
 - [ ] Public Team candidate list (after verified real import)
+- [ ] Before-image ledger + recovery dry-run: files ready (pending/bc_import_ledger.sql, test, rollback, RECOVERY.md) (blocked: owner review before Cloud SQL; then run test, apply, re-run Gate A/scheduler tests)
+- [ ] Old YETI test hourly rates: separate gate, never treated as verified Booking wages
 - [ ] BC Apply plan revision: authoritative source on reviewed links, preserve Zuordnungen per ID, manual photo provenance, no-window gating staff+web, batch_status constraint
 
 ## Security Gate A – instructors access control (pre-import)
