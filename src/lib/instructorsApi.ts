@@ -56,14 +56,17 @@ export async function fetchInstructorPay(id?: string): Promise<InstructorPay[]> 
   return (data as InstructorPay[]) ?? [];
 }
 
-/** Writes operational fields (staff). Pay fields are routed to the super_admin RPC only if present. */
-export async function saveInstructor(values: Record<string, unknown>): Promise<string> {
+/** Writes operational fields (staff). Pay fields are sent (to the super_admin-only RPC) only when withPay is set. */
+export async function saveInstructor(
+  values: Record<string, unknown>,
+  opts: { withPay?: boolean } = {},
+): Promise<string> {
   const ops: Record<string, unknown> = {};
   const pay: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(values)) {
     if (v === undefined) continue;
     if ((OPS_FIELDS as readonly string[]).includes(k)) ops[k] = v;
-    else if ((PAY_FIELDS as readonly string[]).includes(k)) pay[k] = v;
+    else if (opts.withPay && (PAY_FIELDS as readonly string[]).includes(k)) pay[k] = v;
   }
   const { data, error } = await rpc("instructor_ops_upsert", { p: ops });
   if (error) throw error;

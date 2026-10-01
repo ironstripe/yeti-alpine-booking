@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { supabase } from "@/integrations/supabase/client";
+import { saveInstructor } from "@/lib/instructorsApi";
 import { useInviteInstructor } from "@/hooks/useInviteInstructor";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -58,21 +59,19 @@ export function NewUserDialog({ open, onOpenChange }: NewUserDialogProps) {
       if (selectedRoles.includes("admin")) instructorRoles.push("admin");
 
       // Create instructor record
-      const { data: instructor, error: insertError } = await supabase
-        .from("instructors")
-        .insert({
-          first_name: values.first_name,
-          last_name: values.last_name,
-          email: values.email,
-          phone: "",
-          hourly_rate: 0,
-          roles: instructorRoles,
-        })
-        .select("id")
-        .single();
-
-      if (insertError) {
-        throw new Error(`Benutzer konnte nicht erstellt werden: ${insertError.message}`);
+      let instructor: { id: string };
+      try {
+        instructor = {
+          id: await saveInstructor({
+            first_name: values.first_name,
+            last_name: values.last_name,
+            email: values.email,
+            phone: "",
+            roles: instructorRoles,
+          }),
+        };
+      } catch (insertError) {
+        throw new Error(`Benutzer konnte nicht erstellt werden: ${(insertError as Error).message}`);
       }
 
       // Immediately invite
