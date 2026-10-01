@@ -4,7 +4,8 @@
 -- Nothing persists: no lock, no role change, no row change. Identities are picked from the
 -- CURRENT user_roles rows (no role is added/removed to fake a pass). If a required identity
 -- does not exist, its probes report 'UNAVAILABLE' and Gate A must be reported incomplete.
--- Pass criterion: every row has pass = true.
+-- Pass criterion: every row has pass = true. Office probes use any real office account and
+-- super_admin probes any real super_admin account (today none is office-only or standalone).
 
 BEGIN;
 -- scratch schema for helpers/results (created inside the transaction, rolled back)
@@ -50,7 +51,8 @@ SELECT
   (SELECT user_id FROM r WHERE 'office' = ANY(rs) AND NOT rs && ARRAY['admin','super_admin'] LIMIT 1) AS office,
   (SELECT user_id FROM r WHERE 'admin' = ANY(rs) AND NOT rs && ARRAY['office','super_admin'] LIMIT 1) AS admin,
   (SELECT user_id FROM r WHERE 'super_admin' = ANY(rs) AND NOT rs && ARRAY['admin','office'] LIMIT 1) AS sa_only,
-  (SELECT user_id FROM r WHERE 'super_admin' = ANY(rs) LIMIT 1) AS sa_any;
+  (SELECT user_id FROM r WHERE 'super_admin' = ANY(rs) LIMIT 1) AS sa_any,
+  (SELECT user_id FROM r WHERE 'office' = ANY(rs) LIMIT 1) AS office_any;
 
 CREATE TABLE gate_a_test.res(n serial, actor text, test text, expect text, got text);
 
@@ -124,19 +126,19 @@ BEGIN
   PERFORM gate_a_test.t('teacher','live status feed','ok','SELECT gate_a_test.must(count(*) = 31) FROM public.instructor_live_status');
 
   -- Office / Admin / standalone super_admin
-  PERFORM gate_a_test.t('office','ops_list incl. personnel','ok','SELECT gate_a_test.must(count(*) = 31) FROM (SELECT email, phone, street, zip, city, country, birth_date, entry_date, notes FROM public.instructors_ops_list(NULL)) s');
-  PERFORM gate_a_test.t('office','pay_list','denied','SELECT * FROM public.instructors_pay_list(NULL)');
-  PERFORM gate_a_test.t('office','direct hourly_rate','denied','SELECT hourly_rate FROM public.instructors');
-  PERFORM gate_a_test.t('office','ops_upsert personnel (no wage)','ok',format($q$SELECT public.instructor_ops_upsert(jsonb_build_object('id',%L,'notes',(SELECT notes FROM public.instructors_ops_list(%L))))$q$, other, other));
-  PERFORM gate_a_test.t('office','ops_upsert with iban','denied',format($q$SELECT public.instructor_ops_upsert(jsonb_build_object('id',%L,'iban','CH00'))$q$, other));
-  PERFORM gate_a_test.t('office','pay_update','denied',format($q$SELECT public.instructor_pay_update(%L,'{"hourly_rate":1}')$q$, other));
+  PERFORM gate_a_test.t('office_any','ops_list incl. personnel','ok','SELECT gate_a_test.must(count(*) = 31) FROM (SELECT email, phone, street, zip, city, country, birth_date, entry_date, notes FROM public.instructors_ops_list(NULL)) s');
+  PERFORM gate_a_test.t('office_any','pay_list','denied','SELECT * FROM public.instructors_pay_list(NULL)');
+  PERFORM gate_a_test.t('office_any','direct hourly_rate','denied','SELECT hourly_rate FROM public.instructors');
+  PERFORM gate_a_test.t('office_any','ops_upsert personnel (no wage)','ok',format($q$SELECT public.instructor_ops_upsert(jsonb_build_object('id',%L,'notes',(SELECT notes FROM public.instructors_ops_list(%L))))$q$, other, other));
+  PERFORM gate_a_test.t('office_any','ops_upsert with iban','denied',format($q$SELECT public.instructor_ops_upsert(jsonb_build_object('id',%L,'iban','CH00'))$q$, other));
+  PERFORM gate_a_test.t('office_any','pay_update','denied',format($q$SELECT public.instructor_pay_update(%L,'{"hourly_rate":1}')$q$, other));
   PERFORM gate_a_test.t('admin','ops_list incl. personnel','ok','SELECT gate_a_test.must(count(*) = 31) FROM (SELECT email, birth_date, notes FROM public.instructors_ops_list(NULL)) s');
   PERFORM gate_a_test.t('admin','pay_list','denied','SELECT * FROM public.instructors_pay_list(NULL)');
   PERFORM gate_a_test.t('admin','ops_upsert with hourly_rate','denied',format($q$SELECT public.instructor_ops_upsert(jsonb_build_object('id',%L,'hourly_rate',1))$q$, other));
   PERFORM gate_a_test.t('admin','public avatar upload','ok',$q$INSERT INTO storage.objects(bucket_id, name) VALUES ('instructor-avatars','gate-a-probe-admin.jpg')$q$);
-  PERFORM gate_a_test.t('sa_only','ops_list','ok','SELECT gate_a_test.must(count(*) >= 30) FROM public.instructors_ops_list(NULL)');
-  PERFORM gate_a_test.t('sa_only','pay_list','ok','SELECT gate_a_test.must(count(*) >= 30) FROM public.instructors_pay_list(NULL)');
-  PERFORM gate_a_test.t('sa_only','HR private readable','ok','SELECT count(*) FROM public.instructor_hr_private');
+  PERFORM gate_a_test.t('sa_any','ops_list','ok','SELECT gate_a_test.must(count(*) >= 30) FROM public.instructors_ops_list(NULL)');
+  PERFORM gate_a_test.t('sa_any','pay_list','ok','SELECT gate_a_test.must(count(*) >= 30) FROM public.instructors_pay_list(NULL)');
+  PERFORM gate_a_test.t('sa_any','HR private readable','ok','SELECT count(*) FROM public.instructor_hr_private');
   PERFORM gate_a_test.t('sa_any','pay_update (rolled back)','ok',format($q$SELECT public.instructor_pay_update(%L, jsonb_build_object('hourly_rate',(SELECT hourly_rate FROM public.instructors_pay_list(%L))))$q$, other, other));
 
   -- Anonymous
@@ -159,8 +161,13 @@ END $$;
 RESET ROLE;
 INSERT INTO gate_a_test.res(actor,test,expect,got) SELECT 'system','realtime: instructors not published','ok',
   CASE WHEN NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname='supabase_realtime' AND tablename='instructors') THEN 'ok' ELSE 'denied' END;
-INSERT INTO gate_a_test.res(actor,test,expect,got) SELECT 'system','identities present (teacher/office/admin/sa_only)','ok',
-  CASE WHEN teacher IS NOT NULL AND office IS NOT NULL AND admin IS NOT NULL AND sa_only IS NOT NULL THEN 'ok' ELSE 'UNAVAILABLE' END FROM gate_a_test.who;
+INSERT INTO gate_a_test.res(actor,test,expect,got) SELECT 'system','identities: teacher-only, admin-only, office (any), super_admin (any)','ok',
+  CASE WHEN teacher IS NOT NULL AND admin IS NOT NULL AND office_any IS NOT NULL AND sa_any IS NOT NULL THEN 'ok' ELSE 'UNAVAILABLE' END FROM gate_a_test.who;
+-- informational (not a pass criterion): does an office-only / standalone super_admin account exist?
+INSERT INTO gate_a_test.res(actor,test,expect,got) SELECT 'info','office-only account exists',
+  CASE WHEN office IS NULL THEN 'none' ELSE 'yes' END, CASE WHEN office IS NULL THEN 'none' ELSE 'yes' END FROM gate_a_test.who;
+INSERT INTO gate_a_test.res(actor,test,expect,got) SELECT 'info','standalone super_admin exists',
+  CASE WHEN sa_only IS NULL THEN 'none' ELSE 'yes' END, CASE WHEN sa_only IS NULL THEN 'none' ELSE 'yes' END FROM gate_a_test.who;
 
 SELECT n, actor, test, expect, got, (expect = got) AS pass FROM gate_a_test.res
 UNION ALL
