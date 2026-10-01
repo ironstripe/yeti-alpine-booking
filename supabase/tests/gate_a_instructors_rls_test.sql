@@ -5,6 +5,12 @@
 -- Nothing persists: no lock, no role change, no row change. Identities are picked from the
 -- CURRENT user_roles rows (no role is added/removed to fake a pass). If a required identity
 -- does not exist, its probes report 'UNAVAILABLE' and Gate A must be reported incomplete.
+-- Fixtures: two synthetic instructors (inactive, not on website) plus one synthetic row each in
+-- source links, HR private, an import run/staging row and a private HR photo object. Every write probe
+-- and the delete probe target only these fixtures; real instructors are never written or deleted.
+-- Every private-read denial has a positive CONTROL on the same fixture row: if the control fails,
+-- the denial is unproven and the run must be reported UNVERIFIED, not PASS.
+-- Counts are relative to the in-transaction baseline (no hardcoded 31/14/2).
 -- Pass criterion: every row has pass = true. Office probes use any real office account and
 -- super_admin probes any real super_admin account (today none is office-only or standalone).
 
@@ -69,6 +75,20 @@ SELECT
   (SELECT user_id FROM r WHERE 'super_admin' = ANY(rs) LIMIT 1) AS sa_any,
   (SELECT user_id FROM r WHERE 'office' = ANY(rs) AND NOT 'super_admin' = ANY(rs) LIMIT 1) AS office_any;
 
+-- ---------- synthetic fixtures (inserted as postgres, rolled back; no real record is written) ----------
+CREATE TABLE gate_a_test.fx AS SELECT gen_random_uuid() AS ins, gen_random_uuid() AS ins_del, gen_random_uuid() AS run;
+INSERT INTO public.instructors(id, first_name, last_name, status, show_on_website)
+  SELECT ins, 'GateA', 'Fixture', 'inactive', false FROM gate_a_test.fx
+  UNION ALL SELECT ins_del, 'GateA', 'DeleteFixture', 'inactive', false FROM gate_a_test.fx;
+INSERT INTO public.instructor_import_runs(id, source_system, rollout, xlsx_sha256, created_by)
+  SELECT run, 'gate_a_test', 'test', 'x', (SELECT sa_any FROM gate_a_test.who) FROM gate_a_test.fx;
+INSERT INTO public.instructor_source_links(source_system, rollout, source_id, instructor_id, source_checksum)
+  SELECT 'gate_a_test', 'test', 'fx-1', ins, 'x' FROM gate_a_test.fx;
+INSERT INTO public.instructor_hr_private(instructor_id, wage_raw) SELECT ins, 'synthetic' FROM gate_a_test.fx;
+INSERT INTO public.instructor_import_staging(run_id, source_id, classification, confidence, source_checksum, normalized)
+  SELECT run, 'fx-1', 'create', 'high', 'x', '{}'::jsonb FROM gate_a_test.fx;
+INSERT INTO storage.objects(bucket_id, name) VALUES ('instructor-hr-photos', 'gate-a-test/fixture.jpg');
+
 CREATE TABLE gate_a_test.res(n serial, actor text, test text, expect text, got text);
 
 CREATE FUNCTION gate_a_test.probe(uid uuid, r text, q text) RETURNS text LANGUAGE plpgsql AS $$
@@ -104,12 +124,13 @@ CREATE FUNCTION gate_a_test.must(b boolean) RETURNS void LANGUAGE plpgsql AS $$
 BEGIN IF b IS NOT TRUE THEN RAISE EXCEPTION 'assert'; END IF; END $$;
 GRANT USAGE ON SCHEMA gate_a_test TO authenticated, anon, service_role;
 GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA gate_a_test TO authenticated, anon, service_role;
+GRANT SELECT ON gate_a_test.fp, gate_a_test.fx TO authenticated, anon, service_role;
 
 DO $$
 DECLARE other uuid; own uuid;
 BEGIN
   own := public.get_instructor_for_user((SELECT teacher FROM gate_a_test.who));
-  SELECT id INTO other FROM public.instructors WHERE id IS DISTINCT FROM own ORDER BY id LIMIT 1;
+  other := (SELECT ins FROM gate_a_test.fx);  -- writes only ever target the synthetic fixture
 
   -- Teacher: negative
   PERFORM gate_a_test.t('teacher','select *','denied','SELECT * FROM public.instructors');
@@ -132,31 +153,36 @@ BEGIN
   PERFORM gate_a_test.t('teacher','instructor_delete','denied',format($q$SELECT public.instructor_delete(%L)$q$, other));
   PERFORM gate_a_test.t('teacher','self_update email','denied',$q$SELECT public.instructor_self_update('{"email":"x@example.invalid"}')$q$);
   PERFORM gate_a_test.t('teacher','self_update hourly_rate','denied',$q$SELECT public.instructor_self_update('{"hourly_rate":99}')$q$);
-  PERFORM gate_a_test.t('teacher','HR source links','denied','SELECT gate_a_test.must(count(*) > 0) FROM public.instructor_source_links');
-  PERFORM gate_a_test.t('teacher','HR private','denied','SELECT gate_a_test.must(count(*) > 0) FROM public.instructor_hr_private');
-  PERFORM gate_a_test.t('teacher','import staging','denied','SELECT gate_a_test.must(count(*) > 0) FROM public.instructor_import_staging');
-  PERFORM gate_a_test.t('teacher','private HR photos objects','denied',$q$SELECT gate_a_test.must(count(*) > 0) FROM storage.objects WHERE bucket_id = 'instructor-hr-photos'$q$);
+  -- private HR reads: probe the synthetic fixture row; a positive control proves the row is visible to an allowed role
+  PERFORM gate_a_test.t('teacher','HR source links (fixture)','denied','SELECT gate_a_test.must(count(*) = 1) FROM public.instructor_source_links WHERE instructor_id = (SELECT ins FROM gate_a_test.fx)');
+  PERFORM gate_a_test.t('sa_any','CONTROL HR source links (fixture)','ok','SELECT gate_a_test.must(count(*) = 1) FROM public.instructor_source_links WHERE instructor_id = (SELECT ins FROM gate_a_test.fx)');
+  PERFORM gate_a_test.t('teacher','HR private (fixture)','denied','SELECT gate_a_test.must(count(*) = 1) FROM public.instructor_hr_private WHERE instructor_id = (SELECT ins FROM gate_a_test.fx)');
+  PERFORM gate_a_test.t('office_any','HR private (fixture)','denied','SELECT gate_a_test.must(count(*) = 1) FROM public.instructor_hr_private WHERE instructor_id = (SELECT ins FROM gate_a_test.fx)');
+  PERFORM gate_a_test.t('sa_any','CONTROL HR private (fixture)','ok','SELECT gate_a_test.must(count(*) = 1) FROM public.instructor_hr_private WHERE instructor_id = (SELECT ins FROM gate_a_test.fx)');
+  PERFORM gate_a_test.t('teacher','import staging (fixture)','denied','SELECT gate_a_test.must(count(*) = 1) FROM public.instructor_import_staging WHERE run_id = (SELECT run FROM gate_a_test.fx)');
+  PERFORM gate_a_test.t('service','CONTROL import staging (fixture)','ok','SELECT gate_a_test.must(count(*) = 1) FROM public.instructor_import_staging WHERE run_id = (SELECT run FROM gate_a_test.fx)');
+  PERFORM gate_a_test.t('teacher','private HR photo object (fixture)','denied',$q$SELECT gate_a_test.must(count(*) = 1) FROM storage.objects WHERE bucket_id = 'instructor-hr-photos' AND name = 'gate-a-test/fixture.jpg'$q$);
+  PERFORM gate_a_test.t('admin','CONTROL private HR photo object (fixture)','ok',$q$SELECT gate_a_test.must(count(*) = 1) FROM storage.objects WHERE bucket_id = 'instructor-hr-photos' AND name = 'gate-a-test/fixture.jpg'$q$);
   PERFORM gate_a_test.t('teacher','public avatar upload','denied',$q$INSERT INTO storage.objects(bucket_id, name) VALUES ('instructor-avatars','gate-a-probe.jpg')$q$);
   -- Teacher: positive
-  PERFORM gate_a_test.t('teacher','directory (all names)','ok','SELECT gate_a_test.must(count(*) = 31) FROM (SELECT id, first_name, last_name, status, real_time_status FROM public.instructors) s');
+  PERFORM gate_a_test.t('teacher','directory (all names)','ok','SELECT gate_a_test.must(count(*) = (SELECT n_instructors + 2 FROM gate_a_test.fp)) FROM (SELECT id, first_name, last_name, status, real_time_status FROM public.instructors) s');
   PERFORM gate_a_test.t('teacher','own profile instructor_self','ok','SELECT gate_a_test.must(count(*) = 1) FROM public.instructor_self()');
   PERFORM gate_a_test.t('teacher','self_update phone','ok',$q$SELECT public.instructor_self_update(jsonb_build_object('phone', (SELECT phone FROM public.instructor_self())))$q$);
-  PERFORM gate_a_test.t('teacher','live status feed','ok','SELECT gate_a_test.must(count(*) = 31) FROM public.instructor_live_status');
+  PERFORM gate_a_test.t('teacher','live status feed','ok','SELECT gate_a_test.must(count(*) = (SELECT n_instructors + 2 FROM gate_a_test.fp)) FROM public.instructor_live_status');
 
   -- Office / Admin / standalone super_admin
-  PERFORM gate_a_test.t('office_any','ops_list incl. personnel','ok','SELECT gate_a_test.must(count(*) = 31) FROM (SELECT email, phone, street, zip, city, country, birth_date, entry_date, notes FROM public.instructors_ops_list(NULL)) s');
+  PERFORM gate_a_test.t('office_any','ops_list incl. personnel','ok','SELECT gate_a_test.must(count(*) = (SELECT n_instructors + 2 FROM gate_a_test.fp)) FROM (SELECT email, phone, street, zip, city, country, birth_date, entry_date, notes FROM public.instructors_ops_list(NULL)) s');
   PERFORM gate_a_test.t('office_any','pay_list','denied','SELECT * FROM public.instructors_pay_list(NULL)');
   PERFORM gate_a_test.t('office_any','direct hourly_rate','denied','SELECT hourly_rate FROM public.instructors');
   PERFORM gate_a_test.t('office_any','ops_upsert personnel (no wage)','ok',format($q$SELECT public.instructor_ops_upsert(jsonb_build_object('id',%L,'notes',(SELECT notes FROM public.instructors_ops_list(%L))))$q$, other, other));
   PERFORM gate_a_test.t('office_any','ops_upsert with iban','denied',format($q$SELECT public.instructor_ops_upsert(jsonb_build_object('id',%L,'iban','CH00'))$q$, other));
   PERFORM gate_a_test.t('office_any','pay_update','denied',format($q$SELECT public.instructor_pay_update(%L,'{"hourly_rate":1}')$q$, other));
-  PERFORM gate_a_test.t('admin','ops_list incl. personnel','ok','SELECT gate_a_test.must(count(*) = 31) FROM (SELECT email, birth_date, notes FROM public.instructors_ops_list(NULL)) s');
+  PERFORM gate_a_test.t('admin','ops_list incl. personnel','ok','SELECT gate_a_test.must(count(*) = (SELECT n_instructors + 2 FROM gate_a_test.fp)) FROM (SELECT email, birth_date, notes FROM public.instructors_ops_list(NULL)) s');
   PERFORM gate_a_test.t('admin','pay_list','denied','SELECT * FROM public.instructors_pay_list(NULL)');
   PERFORM gate_a_test.t('admin','ops_upsert with hourly_rate','denied',format($q$SELECT public.instructor_ops_upsert(jsonb_build_object('id',%L,'hourly_rate',1))$q$, other));
   PERFORM gate_a_test.t('admin','public avatar upload','ok',$q$INSERT INTO storage.objects(bucket_id, name) VALUES ('instructor-avatars','gate-a-probe-admin.jpg')$q$);
-  PERFORM gate_a_test.t('sa_any','ops_list','ok','SELECT gate_a_test.must(count(*) >= 30) FROM public.instructors_ops_list(NULL)');
-  PERFORM gate_a_test.t('sa_any','pay_list','ok','SELECT gate_a_test.must(count(*) >= 30) FROM public.instructors_pay_list(NULL)');
-  PERFORM gate_a_test.t('sa_any','HR private readable','ok','SELECT count(*) FROM public.instructor_hr_private');
+  PERFORM gate_a_test.t('sa_any','ops_list','ok','SELECT gate_a_test.must(count(*) = (SELECT n_instructors + 2 FROM gate_a_test.fp)) FROM public.instructors_ops_list(NULL)');
+  PERFORM gate_a_test.t('sa_any','pay_list','ok','SELECT gate_a_test.must(count(*) = (SELECT n_instructors + 2 FROM gate_a_test.fp)) FROM public.instructors_pay_list(NULL)');
   PERFORM gate_a_test.t('sa_any','pay_update (rolled back)','ok',format($q$SELECT public.instructor_pay_update(%L, jsonb_build_object('hourly_rate',(SELECT hourly_rate FROM public.instructors_pay_list(%L))))$q$, other, other));
 
   -- Anonymous
@@ -165,15 +191,19 @@ BEGIN
   PERFORM gate_a_test.t('anon','live status','denied','SELECT gate_a_test.must(count(*) > 0) FROM public.instructor_live_status');
 
   -- Public Team API path (Edge Function uses service_role)
-  PERFORM gate_a_test.t('service','public Team read','ok',$q$SELECT gate_a_test.must(count(*) = 2) FROM public.instructors WHERE status='active' AND show_on_website$q$);
+  PERFORM gate_a_test.t('service','public Team read','ok',$q$SELECT gate_a_test.must(count(*) = (SELECT team FROM gate_a_test.fp)) FROM public.instructors WHERE status='active' AND show_on_website$q$);
   -- fingerprint after all non-destructive probes (before the delete probe)
   INSERT INTO gate_a_test.res(actor,test,expect,got)
-  SELECT 'system','fingerprint unchanged (31 rows hash, 14 roles, team=2, flags)','ok',
-    CASE WHEN f.rows_hash = (SELECT md5(string_agg(t::text, '' ORDER BY id)) FROM public.instructors t)
-          AND f.n_instructors = 31 AND f.n_roles = 14 AND f.team = 2
+  SELECT 'system','fingerprint: real rows/roles/flags identical to baseline (if changed: concurrent edit, re-run)','ok',
+    CASE WHEN f.rows_hash = (SELECT md5(string_agg(t::text, '' ORDER BY id)) FROM public.instructors t
+                             WHERE t.id NOT IN (SELECT ins FROM gate_a_test.fx UNION ALL SELECT ins_del FROM gate_a_test.fx))
+          AND f.team = (SELECT count(*) FROM public.instructors WHERE show_on_website AND status = 'active')
+          AND f.n_roles = (SELECT count(*) FROM public.user_roles)
           AND f.roles_hash = (SELECT md5(string_agg(user_id::text||role::text, ',' ORDER BY user_id, role)) FROM public.user_roles)
          THEN 'ok' ELSE 'changed' END FROM gate_a_test.fp f;
-  PERFORM gate_a_test.t('admin','instructor_delete (rolled back)','ok',format($q$SELECT public.instructor_delete(%L)$q$, (SELECT id FROM public.instructors i WHERE NOT EXISTS (SELECT 1 FROM public.ticket_items WHERE instructor_id=i.id) ORDER BY id DESC LIMIT 1)));
+  PERFORM gate_a_test.t('admin','instructor_delete (synthetic fixture only)','ok',format($q$SELECT public.instructor_delete(%L)$q$, (SELECT ins_del FROM gate_a_test.fx)));
+  INSERT INTO gate_a_test.res(actor,test,expect,got) SELECT 'system','delete fixture actually gone','ok',
+    CASE WHEN NOT EXISTS (SELECT 1 FROM public.instructors WHERE id = (SELECT ins_del FROM gate_a_test.fx)) THEN 'ok' ELSE 'still present' END;
 END $$;
 
 RESET ROLE;
