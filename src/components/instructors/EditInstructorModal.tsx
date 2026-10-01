@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { useIsSuperAdmin } from "@/hooks/useIsSuperAdmin";
 import {
   Dialog,
   DialogContent,
@@ -63,10 +64,10 @@ const instructorSchema = z.object({
   gender: z.string().optional(),
   roles: z.array(z.string()).min(1, "Mindestens eine Rolle erforderlich"),
   level: z.string().optional(),
-  hourly_rate: z
-    .number({ invalid_type_error: "Stundenlohn ist erforderlich" })
-    .min(20, "Mindestens 20 CHF")
-    .max(100, "Maximal 100 CHF"),
+  hourly_rate: z.preprocess(
+    (v) => (typeof v === "number" && Number.isNaN(v) ? undefined : v),
+    z.number().min(20, "Mindestens 20 CHF").max(100, "Maximal 100 CHF").optional().nullable(),
+  ),
   status: z.string().optional(),
   entry_date: z.string().optional(),
   street: z.string().optional(),
@@ -94,6 +95,7 @@ export function EditInstructorModal({
   onOpenChange,
   instructor,
 }: EditInstructorModalProps) {
+  const isSuperAdmin = useIsSuperAdmin();
   const updateInstructor = useUpdateInstructor(instructor.id);
   const queryClient = useQueryClient();
   const [ibanValue, setIbanValue] = useState("");
@@ -537,9 +539,10 @@ export function EditInstructorModal({
                 Anstellung
               </h3>
               <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
+                {isSuperAdmin && (
+<div className="space-y-2">
                   <Label htmlFor="hourly_rate">
-                    Stundenlohn (CHF) <span className="text-destructive">*</span>
+                    Stundenlohn (CHF)
                   </Label>
                   <Input
                     id="hourly_rate"
@@ -554,6 +557,7 @@ export function EditInstructorModal({
                     <p className="text-xs text-destructive">{errors.hourly_rate.message}</p>
                   )}
                 </div>
+)}
               <div className="space-y-2">
                 <Label>Status</Label>
                 <Select value={status || "active"} onValueChange={(v) => setValue("status", v)}>
@@ -583,7 +587,8 @@ export function EditInstructorModal({
             <Separator />
 
             {/* Section 6: Banking */}
-            <div className="space-y-4">
+            {isSuperAdmin && (
+<div className="space-y-4">
               <h3 className="text-sm font-medium text-muted-foreground">
                 Bankverbindung
               </h3>
@@ -637,6 +642,7 @@ export function EditInstructorModal({
                 )}
               </div>
             </div>
+)}
 
             <Separator />
 
