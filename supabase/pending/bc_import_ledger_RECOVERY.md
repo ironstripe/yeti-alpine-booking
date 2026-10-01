@@ -32,9 +32,9 @@ The output contains field names, verdicts and reference counts only. It never co
 - `edited_after_import:<field>`
 - `pay_changed:<field>`
 - `profile_changed:<field>` (this includes the website flag and the avatar)
-- `hr_private_changed_after_import`
+- `hr_private_changed_after_import:<field>` (the live HR row compared field by field with what this run wrote, with no time window)
 - `manual_photo_after_import`
-- `photo_current_changed`
+- `photo_metadata_changed` / `photo_current_changed` (photo IDs and metadata compared with the captured photos, never with timestamps)
 - `bookings_since_import`
 - `private_appointments_since_import`
 - `later_import_touched`
