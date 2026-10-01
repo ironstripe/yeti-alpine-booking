@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, test as it, expect } from "bun:test";
 import { isExternalStatusChange } from "../src/lib/liveStatus";
 
 // Realistic realtime payloads with REPLICA IDENTITY DEFAULT: `old` holds only the primary key.
