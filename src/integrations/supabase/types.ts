@@ -2217,27 +2217,33 @@ export type Database = {
       instructor_hr_private: {
         Row: {
           ahv_raw: string | null
+          assignments: Json
           bank_raw: string | null
           instructor_id: string
           source_import_run_id: string | null
+          source_provenance: Json
           unresolved: Json
           updated_at: string
           wage_raw: string | null
         }
         Insert: {
           ahv_raw?: string | null
+          assignments?: Json
           bank_raw?: string | null
           instructor_id: string
           source_import_run_id?: string | null
+          source_provenance?: Json
           unresolved?: Json
           updated_at?: string
           wage_raw?: string | null
         }
         Update: {
           ahv_raw?: string | null
+          assignments?: Json
           bank_raw?: string | null
           instructor_id?: string
           source_import_run_id?: string | null
+          source_provenance?: Json
           unresolved?: Json
           updated_at?: string
           wage_raw?: string | null
@@ -2262,6 +2268,8 @@ export type Database = {
       instructor_import_runs: {
         Row: {
           applied_at: string | null
+          apply_started_at: string | null
+          apply_started_by: string | null
           counts: Json
           created_at: string
           created_by: string
@@ -2275,6 +2283,8 @@ export type Database = {
         }
         Insert: {
           applied_at?: string | null
+          apply_started_at?: string | null
+          apply_started_by?: string | null
           counts?: Json
           created_at?: string
           created_by: string
@@ -2288,6 +2298,8 @@ export type Database = {
         }
         Update: {
           applied_at?: string | null
+          apply_started_at?: string | null
+          apply_started_by?: string | null
           counts?: Json
           created_at?: string
           created_by?: string
@@ -2303,6 +2315,10 @@ export type Database = {
       }
       instructor_import_staging: {
         Row: {
+          applied_at: string | null
+          applied_instructor_id: string | null
+          apply_payload: Json | null
+          assignments: Json
           batch_status: string
           classification: string
           confidence: string
@@ -2313,8 +2329,10 @@ export type Database = {
           id: string
           normalized: Json
           photo: Json | null
+          photo_status: string
           private_payload: Json
           reasons: string[]
+          review_snapshot: Json | null
           run_id: string
           source_checksum: string
           source_id: string
@@ -2322,6 +2340,10 @@ export type Database = {
           windows: Json
         }
         Insert: {
+          applied_at?: string | null
+          applied_instructor_id?: string | null
+          apply_payload?: Json | null
+          assignments?: Json
           batch_status?: string
           classification: string
           confidence: string
@@ -2332,8 +2354,10 @@ export type Database = {
           id?: string
           normalized: Json
           photo?: Json | null
+          photo_status?: string
           private_payload?: Json
           reasons?: string[]
+          review_snapshot?: Json | null
           run_id: string
           source_checksum: string
           source_id: string
@@ -2341,6 +2365,10 @@ export type Database = {
           windows?: Json
         }
         Update: {
+          applied_at?: string | null
+          applied_instructor_id?: string | null
+          apply_payload?: Json | null
+          assignments?: Json
           batch_status?: string
           classification?: string
           confidence?: string
@@ -2351,8 +2379,10 @@ export type Database = {
           id?: string
           normalized?: Json
           photo?: Json | null
+          photo_status?: string
           private_payload?: Json
           reasons?: string[]
+          review_snapshot?: Json | null
           run_id?: string
           source_checksum?: string
           source_id?: string
@@ -2360,6 +2390,13 @@ export type Database = {
           windows?: Json
         }
         Relationships: [
+          {
+            foreignKeyName: "instructor_import_staging_applied_instructor_id_fkey"
+            columns: ["applied_instructor_id"]
+            isOneToOne: false
+            referencedRelation: "instructors"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "instructor_import_staging_run_id_fkey"
             columns: ["run_id"]
@@ -5390,6 +5427,31 @@ export type Database = {
         }
         Returns: Json
       }
+      bc_apply_batch: {
+        Args: { p_limit?: number; p_run: string }
+        Returns: Json
+      }
+      bc_finish_run: { Args: { p_run: string }; Returns: Json }
+      bc_register_import_photo: {
+        Args: {
+          p_height: number
+          p_path: string
+          p_run: string
+          p_sha: string
+          p_source_id: string
+          p_width: number
+        }
+        Returns: string
+      }
+      bc_register_manual_photo: {
+        Args: {
+          p_height: number
+          p_instructor: string
+          p_path: string
+          p_width: number
+        }
+        Returns: string
+      }
       cancel_participant_transfer_request: {
         Args: { p_request_id: string }
         Returns: Json
@@ -5459,6 +5521,14 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      instructor_deployment_gates: {
+        Args: never
+        Returns: {
+          instructor_id: string
+          valid_from: string
+          valid_until: string
+        }[]
       }
       instructor_is_deployed: {
         Args: { _date: string; _instructor_id: string }

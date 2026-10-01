@@ -3,8 +3,8 @@
 // does NOT upload photos, does NOT create absences. No PII in logs.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireRole } from "../_shared/staffAuth.ts";
-import { parseImport, sha256Hex, LIMITS } from "./parse.ts";
-import { classify } from "./match.ts";
+import { parseImport, sha256Hex, LIMITS } from "../_shared/bcImport/parse.ts";
+import { classify } from "../_shared/bcImport/match.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -95,7 +95,7 @@ Deno.serve(async (req) => {
       run_id: run.id, source_id: r.sourceId, classification: r.classification, confidence: r.confidence,
       target_instructor_id: r.targetInstructorId, source_checksum: checksum, normalized,
       private_payload: priv, windows: window ? [window] : [], photo: photoBy.get(r.sourceId) ? { ...photoBy.get(r.sourceId)!, issues: issuesBy.get(r.sourceId) ?? [] } : null,
-      diff: r.diff, reasons: r.reasons,
+      diff: r.diff, reasons: r.reasons, assignments: parsed.assignments[r.sourceId] ?? [],
     };
   });
   for (let i = 0; i < staging.length; i += 50) {
@@ -120,6 +120,7 @@ Deno.serve(async (req) => {
         classification: r.classification, confidence: r.confidence, reasons: r.reasons,
         target: r.targetInstructorId ? { id: r.targetInstructorId, name: yetiNames.get(r.targetInstructorId) ?? "" } : null,
         diff: r.diff, window: p.window, has_current_window: p.hasCurrentWindow, has_photo: photoBy.has(r.sourceId), photo_verified: photoBy.get(r.sourceId)?.verified ?? false,
+        assignment_count: (parsed.assignments[r.sourceId] ?? []).length,
         missing: (["email", "phone"] as const).filter((k) => !p[k]).concat(p.private.wage_raw ? [] : ["wage" as never]),
       };
     }),

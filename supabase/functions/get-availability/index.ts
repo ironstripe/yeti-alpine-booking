@@ -66,6 +66,17 @@ Deno.serve(async (req) => {
     );
     const instructorIds = teachingInstructors.map((i) => i.id);
 
+    // Deployment-window gating: Booking-Corner-linked people are bookable only inside a window;
+    // unlinked legacy YETI people stay as before.
+    const [{ data: gLinks, error: glErr }, { data: gWins, error: gwErr }] = await Promise.all([
+      supabase.from("instructor_source_links").select("instructor_id"),
+      supabase.from("instructor_deployment_windows").select("instructor_id, valid_from, valid_until"),
+    ]);
+    if (glErr || gwErr) throw new Error("deployment_windows");
+    const gated = new Set<string>([...(gLinks ?? []).map((l: any) => l.instructor_id), ...(gWins ?? []).map((w: any) => w.instructor_id)]);
+    const isDeployed = (id: string, d: string) =>
+      !gated.has(id) || (gWins ?? []).some((w: any) => w.instructor_id === id && d >= w.valid_from && d <= w.valid_until);
+
     // Private lessons / reservations. Status filtering is done in JS so that a
     // malformed embedded filter can never silently return "everything is free".
     const { data: items, error: itemsErr } = await supabase
@@ -157,6 +168,7 @@ Deno.serve(async (req) => {
       for (let start = OPEN_MIN; start + duration_minutes <= CLOSE_MIN; start += STEP_MIN) {
         const end = start + duration_minutes;
         const freeInstructors = instructorIds.filter((id) => {
+          if (!isDeployed(id, d)) return false;
           const intervals = dayBusy.get(id) ?? [];
           return !intervals.some(([s, e]) => s < end && e > start);
         });

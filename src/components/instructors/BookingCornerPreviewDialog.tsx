@@ -8,6 +8,10 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader2 } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+
+type Decision = "create" | "link" | "skip";
+const DEFAULT_DECISION: Record<string, Decision | undefined> = { create: "create", update: "link", no_op: "link" };
 
 type Row = {
   source_id: string; name: string; classification: string; confidence: string; reasons: string[];
@@ -34,6 +38,52 @@ export function BookingCornerPreviewDialog({ open, onOpenChange }: { open: boole
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [preview, setPreview] = useState<Preview | null>(null);
+  const [decisions, setDecisions] = useState<Record<string, Decision | undefined>>({});
+  const [consent, setConsent] = useState(false);
+  const [applying, setApplying] = useState(false);
+  const [progress, setProgress] = useState<string | null>(null);
+
+  const call = async (body: unknown) => {
+    const { data, error } = await supabase.functions.invoke("instructor-import-apply", { body: body as Record<string, unknown> });
+    if (error) throw new Error(error instanceof FunctionsHttpError ? await error.context.text() : error.message);
+    return data;
+  };
+
+  const undecided = preview ? preview.rows.filter((r) => !decisions[r.source_id]).length : 0;
+
+  const apply = async () => {
+    if (!preview || !xlsx) return;
+    setApplying(true); setError(null);
+    try {
+      const fd = new FormData();
+      fd.append("run_id", preview.run_id);
+      fd.append("decisions", JSON.stringify(decisions));
+      fd.append("xlsx", xlsx);
+      if (zip) fd.append("zip", zip);
+      setProgress("Prüfe Dateien und Nachweise …");
+      const { data: st, error: se } = await supabase.functions.invoke("instructor-import-apply", { body: fd });
+      if (se) throw new Error(se instanceof FunctionsHttpError ? await se.context.text() : se.message);
+      if (st?.conflict) setProgress(`${st.conflict} Konflikte – werden nicht übernommen.`);
+      for (let i = 0; i < 50; i++) {
+        const b = await call({ action: "batch", run_id: preview.run_id });
+        setProgress(`Profile übernommen … verbleibend ${b.remaining ?? 0}`);
+        if (!b.remaining) break;
+      }
+      for (let i = 0; i < 100; i++) {
+        let ph;
+        try { ph = await call({ action: "photo", run_id: preview.run_id }); } catch { continue; }
+        setProgress(`Fotos verarbeitet … verbleibend ${ph.remaining ?? 0}`);
+        if (!ph.remaining) break;
+      }
+      const fin = await call({ action: "finish", run_id: preview.run_id });
+      const stat = await call({ action: "status", run_id: preview.run_id });
+      setProgress(fin.finished ? "Übernahme abgeschlossen." : `Übernahme unvollständig: ${(stat.problems ?? []).length} Probleme (Konflikte/Fotos).`);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setApplying(false);
+    }
+  };
 
   const run = async () => {
     if (!xlsx) return;
@@ -48,7 +98,10 @@ export function BookingCornerPreviewDialog({ open, onOpenChange }: { open: boole
       setError(details);
       return;
     }
-    setPreview(data as Preview);
+    const pv = data as Preview;
+    setPreview(pv);
+    setConsent(false); setProgress(null);
+    setDecisions(Object.fromEntries(pv.rows.map((r) => [r.source_id, DEFAULT_DECISION[r.classification]])));
   };
 
   return (
@@ -57,7 +110,7 @@ export function BookingCornerPreviewDialog({ open, onOpenChange }: { open: boole
         <DialogHeader>
           <DialogTitle>Booking-Corner Vorschau (Probelauf)</DialogTitle>
           <DialogDescription>
-            Es wird nichts importiert: keine Lehrpersonen, Fotos oder Abwesenheiten werden angelegt oder geändert.
+            Die Vorschau ändert nichts. Lehrpersonen und Fotos werden erst nach Prüfung und „Übernahme starten“ geschrieben; Abwesenheiten werden nie angelegt.
           </DialogDescription>
         </DialogHeader>
 
@@ -104,7 +157,7 @@ export function BookingCornerPreviewDialog({ open, onOpenChange }: { open: boole
               </div>
               <table className="w-full text-sm">
                 <thead className="text-left text-muted-foreground">
-                  <tr><th className="p-1">ID</th><th className="p-1">Name</th><th className="p-1">Einstufung</th><th className="p-1">YETI-Treffer</th><th className="p-1">Einsatz</th><th className="p-1">Foto</th><th className="p-1">Fehlt</th><th className="p-1">Unterschiede</th></tr>
+                  <tr><th className="p-1">ID</th><th className="p-1">Name</th><th className="p-1">Einstufung</th><th className="p-1">YETI-Treffer</th><th className="p-1">Einsatz</th><th className="p-1">Foto</th><th className="p-1">Fehlt</th><th className="p-1">Unterschiede (YETI → Booking-Corner)</th><th className="p-1">Entscheidung</th></tr>
                 </thead>
                 <tbody>
                   {preview.rows.map((r) => (
@@ -120,10 +173,39 @@ export function BookingCornerPreviewDialog({ open, onOpenChange }: { open: boole
                       <td className="p-1">{r.has_photo ? (r.photo_verified ? "Ja, geprüft" : "Ja, ungeprüft") : "—"}</td>
                       <td className="p-1">{r.missing.join(", ") || "—"}</td>
                       <td className="p-1 text-xs">{r.diff.map((d) => <div key={d.field}>{d.field}: {d.yeti ?? "—"} → {d.source ?? "—"}</div>)}</td>
+                      <td className="p-1">
+                        <select
+                          className="h-8 rounded-md border bg-background px-1 text-xs"
+                          value={decisions[r.source_id] ?? ""}
+                          disabled={applying}
+                          onChange={(e) => setDecisions((d) => ({ ...d, [r.source_id]: (e.target.value || undefined) as Decision | undefined }))}
+                        >
+                          <option value="">— wählen —</option>
+                          {r.classification !== "update" && r.classification !== "no_op" && <option value="create">Neu anlegen</option>}
+                          {r.target && <option value="link">Mit {r.target.name} verknüpfen</option>}
+                          <option value="skip">Überspringen</option>
+                        </select>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
+              <div className="rounded-md border p-3 space-y-2">
+                <div className="font-medium text-sm">Übernahme</div>
+                <p className="text-xs text-muted-foreground">
+                  Verknüpfte Profile behalten ID, Status, Website-Sichtbarkeit und manuelle Fotos; leere Quellwerte löschen nichts.
+                  Es wird niemand auf der Website veröffentlicht.
+                </p>
+                <label className="flex items-center gap-2 text-sm">
+                  <Checkbox checked={consent} onCheckedChange={(v) => setConsent(v === true)} disabled={applying} />
+                  Ich habe alle Entscheidungen und Unterschiede geprüft.
+                </label>
+                {undecided > 0 && <p className="text-xs text-destructive">{undecided} Zeilen ohne Entscheidung.</p>}
+                <Button onClick={apply} disabled={!consent || undecided > 0 || applying || !!preview.apply_blocked}>
+                  {applying && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}Übernahme starten
+                </Button>
+                {progress && <p className="text-sm">{progress}</p>}
+              </div>
               {preview.yeti_only.length > 0 && (
                 <div>
                   <div className="font-medium text-sm">Nur in YETI (werden nicht verändert)</div>
