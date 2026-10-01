@@ -39,3 +39,4 @@
 - [ ] Real-file dry-run by owner, then separate Apply step (waiting: owner runs preview with real files)
 - [ ] Christoph FreeSurf account (blocked: identity clarification)
 - [ ] Public Team candidate list (after verified real import)
+- [ ] BC Apply plan revision: authoritative source on reviewed links, preserve Zuordnungen per ID, manual photo provenance, no-window gating staff+web, batch_status constraint
