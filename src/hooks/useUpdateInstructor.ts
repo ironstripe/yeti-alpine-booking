@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { saveInstructor } from "@/lib/instructorsApi";
+import { useIsSuperAdmin } from "@/hooks/useIsSuperAdmin";
 import { toast } from "sonner";
 import type { TablesUpdate } from "@/integrations/supabase/types";
 
@@ -7,17 +8,14 @@ type InstructorUpdate = TablesUpdate<"instructors">;
 
 export function useUpdateInstructor(instructorId: string) {
   const queryClient = useQueryClient();
+  const withPay = useIsSuperAdmin();
 
   return useMutation({
     mutationFn: async (updates: InstructorUpdate) => {
-      const { data, error } = await supabase
-        .from("instructors")
-        .update(updates)
-        .eq("id", instructorId)
-        .select()
-        .single();
-
-      if (error) {
+      try {
+        await saveInstructor({ ...updates, id: instructorId }, { withPay });
+      } catch (e) {
+        const error = e as { code?: string; message: string };
         if (error.code === "23505") {
           if (error.message.includes("email")) {
             throw new Error("Diese E-Mail-Adresse wird bereits verwendet.");
@@ -29,7 +27,7 @@ export function useUpdateInstructor(instructorId: string) {
         throw error;
       }
 
-      return data;
+      return { id: instructorId };
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["instructor", instructorId] });
