@@ -41,6 +41,7 @@ import type { GroupCourseWithSchedules, GroupCourseFormData, CourseType } from '
 import { DISCIPLINES, DAYS_OF_WEEK, COURSE_COLORS, COURSE_TYPES, OFFICE_TIME_PRESETS } from '@/types/group-courses';
 import { generateSaturdays, calculatePeriodEndDate } from '@/lib/dates/saturday-generator';
 import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
 
 const formSchema = z.object({
   name: z.string().min(1, 'Name ist erforderlich'),
@@ -189,6 +190,19 @@ export function TrainingFormModal({ open, onOpenChange, course, mode }: Training
   };
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
+    if (values.course_type === 'saturday_course') {
+      if (!values.period_start_date || !values.period_end_date || previewSaturdays.length === 0) {
+        toast.error('Bitte gültige Samstage für die Kursperiode wählen.');
+        return;
+      }
+      const sorted = [...timeSlots].sort((a, b) => a.start_time.localeCompare(b.start_time));
+      if (sorted.some((slot, index) => !slot.start_time || !slot.end_time ||
+        slot.start_time >= slot.end_time ||
+        (index > 0 && sorted[index - 1].end_time > slot.start_time))) {
+        toast.error('Bitte gültige, nicht überlappende Unterrichtszeiten wählen.');
+        return;
+      }
+    }
     // For office mode, get time from preset or custom
     let officeTimes = timeSlots;
     if (values.course_type === 'office') {
@@ -215,11 +229,7 @@ export function TrainingFormModal({ open, onOpenChange, course, mode }: Training
       sort_order: isOfficeMode ? 100 : values.sort_order,
       schedules: {
         days: values.course_type === 'saturday_course' ? [6] : selectedDays,
-        time_slots: values.course_type === 'saturday_course' 
-          ? [{ start_time: '10:00', end_time: '14:00' }]
-          : values.course_type === 'office'
-            ? officeTimes
-            : timeSlots,
+        time_slots: values.course_type === 'office' ? officeTimes : timeSlots,
       },
     };
 
@@ -407,11 +417,46 @@ export function TrainingFormModal({ open, onOpenChange, course, mode }: Training
                   </div>
                 )}
 
+                <div className="space-y-2">
+                  <FormLabel>Unterrichtszeiten am Samstag</FormLabel>
+                  {timeSlots.map((slot, index) => (
+                    <div key={index} className="flex items-center gap-2">
+                      <Input
+                        type="time"
+                        aria-label={`Beginn Zeitblock ${index + 1}`}
+                        value={slot.start_time}
+                        onChange={e => updateTimeSlot(index, 'start_time', e.target.value)}
+                        className="w-28"
+                      />
+                      <span>–</span>
+                      <Input
+                        type="time"
+                        aria-label={`Ende Zeitblock ${index + 1}`}
+                        value={slot.end_time}
+                        onChange={e => updateTimeSlot(index, 'end_time', e.target.value)}
+                        className="w-28"
+                      />
+                      {timeSlots.length > 1 && (
+                        <Button type="button" variant="ghost" size="icon"
+                          aria-label={`Zeitblock ${index + 1} entfernen`}
+                          onClick={() => removeTimeSlot(index)}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                  <Button type="button" variant="outline" size="sm" onClick={addTimeSlot}>
+                    <Plus className="h-4 w-4 mr-1" /> Zeitblock hinzufügen
+                  </Button>
+                  <p className="text-xs text-muted-foreground">
+                    Nur die tatsächlich angebotenen Blöcke erfassen (z. B. 10:00–12:00 oder 14:00–16:00).
+                  </p>
+                </div>
+
                 <div className="flex items-start gap-2 text-sm text-muted-foreground">
                   <Info className="h-4 w-4 mt-0.5 shrink-0" />
                   <span>
-                    Samstagskurse laufen über 5 aufeinanderfolgende Samstage. 
-                    Das Enddatum wird automatisch berechnet.
+                    Die konkreten Samstage werden aus Beginn und Ende berechnet. Prüfe die Vorschau vor dem Speichern.
                   </span>
                 </div>
               </div>

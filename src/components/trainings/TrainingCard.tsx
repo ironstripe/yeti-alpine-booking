@@ -51,9 +51,8 @@ export function TrainingCard({ course, onEdit, onCopy, onViewCapacity, onDelete 
   // Check if product is linked
   const hasLinkedProduct = !!course.product;
 
-  // Saturday course dates count
-  const saturdayCount = course.course_dates?.length || 
-    (course.period_start_date && course.period_end_date ? 5 : 0);
+  // Never imply five dates or a 10–14 block when neither is stored.
+  const saturdayCount = course.course_dates?.filter(date => !date.is_cancelled).length ?? 0;
 
   return (
     <Card className="overflow-hidden hover:shadow-md transition-shadow">
@@ -126,8 +125,14 @@ export function TrainingCard({ course, onEdit, onCopy, onViewCapacity, onDelete 
             </div>
             <div className="flex items-center gap-2 text-muted-foreground ml-6">
               <Clock className="h-4 w-4" />
-              <span>{saturdayCount} Samstage • 10:00-14:00</span>
+              <span>{saturdayCount} Samstage</span>
             </div>
+            {timeSlots.map((slot, index) => (
+              <div key={index} className="flex items-center gap-2 text-muted-foreground ml-6">
+                <Clock className="h-4 w-4" />
+                <span>{slot}</span>
+              </div>
+            ))}
           </div>
         ) : (
           <div className="space-y-1.5 text-sm">

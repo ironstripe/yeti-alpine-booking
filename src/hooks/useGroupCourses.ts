@@ -266,16 +266,16 @@ export function useCreateGroupCourse() {
           if (datesError) throw datesError;
         }
 
-        // Also create a schedule entry for Saturday
+        // Persist each authored Saturday teaching block, not an invented 10–14 slot.
         const { error: schedError } = await supabase
           .from('group_course_schedules')
-          .insert({
+          .insert(formData.schedules.time_slots.map(slot => ({
             course_id: course.id,
             day_of_week: 6, // Saturday
-            start_time: '10:00',
-            end_time: '14:00',
+            start_time: slot.start_time,
+            end_time: slot.end_time,
             is_active: true,
-          });
+          })));
 
         if (schedError) throw schedError;
       }
@@ -300,6 +300,36 @@ export function useUpdateGroupCourse() {
   return useMutation({
     mutationFn: async ({ id, data }: { id: string; data: Partial<GroupCourseFormData> }) => {
       const { schedules, ...courseData } = data;
+
+      // Preflight before writing: never remove a Saturday date with an instructor
+      // or a generated instance. Deleting date rows would erase audit identity.
+      let targetSaturdayDates: string[] = [];
+      let oldSaturdayDates: { id: string; date: string; instructor_id: string | null; is_cancelled: boolean }[] = [];
+      if (data.course_type === 'saturday_course' && data.period_start_date && data.period_end_date) {
+        targetSaturdayDates = generateSaturdays(
+          new Date(data.period_start_date), new Date(data.period_end_date)
+        ).map(date => format(date, 'yyyy-MM-dd'));
+        if (!targetSaturdayDates.length) throw new Error('Die Kursperiode enthält keine Samstage.');
+        const { data: dates, error: datesError } = await supabase
+          .from('training_course_dates')
+          .select('id, date, instructor_id, is_cancelled')
+          .eq('training_id', id);
+        if (datesError) throw datesError;
+        oldSaturdayDates = dates || [];
+        const removed = oldSaturdayDates.filter(date => !targetSaturdayDates.includes(date.date) && !date.is_cancelled);
+        if (removed.some(date => date.instructor_id)) {
+          throw new Error('Zugewiesene Samstage können nicht durch eine Periodenänderung entfernt werden.');
+        }
+        if (removed.length) {
+          const { count, error: instancesError } = await supabase
+            .from('group_course_instances')
+            .select('id', { count: 'exact', head: true })
+            .eq('course_id', id)
+            .in('date', removed.map(date => date.date));
+          if (instancesError) throw instancesError;
+          if (count) throw new Error('Samstage mit geplanten Instanzen zuerst separat prüfen.');
+        }
+      }
 
       // Build update data - no longer includes skill_level_id
       const updateData: Record<string, unknown> = {
@@ -343,32 +373,47 @@ export function useUpdateGroupCourse() {
         }
       }
 
-      // Regenerate course dates if Saturday course dates changed
+      // Sync Saturday dates without deleting existing IDs or assignment history.
       if (data.course_type === 'saturday_course' && data.period_start_date && data.period_end_date) {
-        // Delete existing course dates
-        await supabase
-          .from('training_course_dates')
-          .delete()
-          .eq('training_id', id);
-
-        // Generate and insert new dates
-        const saturdays = generateSaturdays(
-          new Date(data.period_start_date),
-          new Date(data.period_end_date)
-        );
-
-        const courseDatesInserts = saturdays.map(date => ({
-          training_id: id,
-          date: format(date, 'yyyy-MM-dd'),
-          is_cancelled: false,
-        }));
-
-        if (courseDatesInserts.length > 0) {
-          const { error: datesError } = await supabase
-            .from('training_course_dates')
-            .insert(courseDatesInserts);
-
-          if (datesError) throw datesError;
+        const existing = new Set(oldSaturdayDates.map(date => date.date));
+        const added = targetSaturdayDates.filter(date => !existing.has(date));
+        if (added.length) {
+          const { error } = await supabase.from('training_course_dates')
+            .insert(added.map(date => ({ training_id: id, date, is_cancelled: false })));
+          if (error) throw error;
+        }
+        for (const date of oldSaturdayDates) {
+          const cancel = !targetSaturdayDates.includes(date.date);
+          if (date.is_cancelled !== cancel) {
+            const { error } = await supabase.from('training_course_dates')
+              .update({ is_cancelled: cancel }).eq('id', date.id);
+            if (error) throw error;
+          }
+        }
+        if (schedules) {
+          const { data: stored, error: schedError } = await supabase
+            .from('group_course_schedules')
+            .select('id, start_time, end_time, is_active')
+            .eq('course_id', id).eq('day_of_week', 6);
+          if (schedError) throw schedError;
+          const key = (start: string, end: string) => `${start.slice(0, 5)}-${end.slice(0, 5)}`;
+          const desired = new Set(schedules.time_slots.map(slot => key(slot.start_time, slot.end_time)));
+          for (const saved of stored || []) {
+            const active = desired.has(key(saved.start_time, saved.end_time));
+            if (saved.is_active !== active) {
+              const { error } = await supabase.from('group_course_schedules')
+                .update({ is_active: active }).eq('id', saved.id);
+              if (error) throw error;
+            }
+          }
+          const present = new Set((stored || []).map(slot => key(slot.start_time, slot.end_time)));
+          const addedSlots = schedules.time_slots.filter(slot => !present.has(key(slot.start_time, slot.end_time)));
+          if (addedSlots.length) {
+            const { error } = await supabase.from('group_course_schedules')
+              .insert(addedSlots.map(slot => ({ course_id: id, day_of_week: 6,
+                start_time: slot.start_time, end_time: slot.end_time, is_active: true })));
+            if (error) throw error;
+          }
         }
       }
     },

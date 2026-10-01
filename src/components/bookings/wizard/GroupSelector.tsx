@@ -127,17 +127,32 @@ export function GroupSelector({
       if (error) throw error;
       if (!coursesData) return [];
 
+      const saturdayIds = coursesData.filter(course => course.course_type === "saturday_course").map(course => course.id);
+      const { data: courseDates, error: datesError } = saturdayIds.length
+        ? await supabase.from("training_course_dates")
+            .select("training_id, date")
+            .in("training_id", saturdayIds)
+            .in("date", selectedDates)
+            .eq("is_cancelled", false)
+        : { data: [], error: null };
+      if (datesError) throw datesError;
+
       // Get day of week for selected dates (0 = Sunday, 6 = Saturday)
       const selectedDaysOfWeek = selectedDates.map(dateStr => {
-        const date = new Date(dateStr);
-        return date.getDay();
+        // Date-only values must not shift to Friday in browsers west of UTC.
+        const date = new Date(`${dateStr}T00:00:00Z`);
+        return date.getUTCDay();
       });
 
       // Filter courses that have schedules matching selected days
       const matchingCourses = coursesData.filter(course => {
-        // For Saturday courses, check if any selected date is Saturday (6)
+        // All selected days must belong to this exact Saturday series.
         if (course.course_type === "saturday_course") {
-          return selectedDaysOfWeek.includes(6);
+          if (!selectedDaysOfWeek.every(day => day === 6)) return false;
+          const validDates = new Set((courseDates || [])
+            .filter(date => date.training_id === course.id)
+            .map(date => date.date));
+          return selectedDates.every(date => validDates.has(date));
         }
         
         // For weekly courses, check schedules
