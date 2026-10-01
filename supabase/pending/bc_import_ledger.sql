@@ -228,9 +228,10 @@ DECLARE
   c_apply constant text[] := ARRAY['first_name','last_name','email','phone','birth_date','gender','street','zip','city','country'];
   c_pay   constant text[] := ARRAY['hourly_rate','bank_name','iban','ahv_number'];
   c_vol   constant text[] := ARRAY['real_time_status'];
-  v_ok int := 0; v_stop int := 0;
+  v_ok int := 0; v_stop int := 0; v_run record; v_hrdiff text[]; v_capids uuid[];
 BEGIN
-  IF NOT EXISTS (SELECT 1 FROM instructor_import_runs WHERE id = p_run) THEN RAISE EXCEPTION 'run_not_found'; END IF;
+  SELECT * INTO v_run FROM instructor_import_runs WHERE id = p_run;
+  IF v_run.id IS NULL THEN RAISE EXCEPTION 'run_not_found'; END IF;
 
   FOR L IN SELECT * FROM instructor_import_ledger
            WHERE run_id = p_run AND (p_instructor_ids IS NULL OR instructor_id = ANY(p_instructor_ids))
@@ -261,9 +262,23 @@ BEGIN
           v_reasons := v_reasons || (CASE WHEN k = ANY(c_pay) THEN 'pay_changed:' ELSE 'profile_changed:' END || k);
         END IF;
       END LOOP;
-      IF EXISTS (SELECT 1 FROM instructor_hr_private h WHERE h.instructor_id = L.instructor_id
-                 AND (h.source_import_run_id IS DISTINCT FROM p_run OR h.updated_at > s.applied_at + interval '1 minute')) THEN
-        v_reasons := v_reasons || 'hr_private_changed_after_import'::text;
+      -- HR: compare the live row with exactly what this run wrote (ledger before-image + staging payload,
+      -- same expressions as bc_apply_batch). No time window; updated_at ignored.
+      SELECT array_agg(f ORDER BY f) INTO v_hrdiff FROM (
+        SELECT f FROM instructor_hr_private h,
+          LATERAL (VALUES
+            ('wage_raw',   to_jsonb(h.wage_raw)  IS DISTINCT FROM to_jsonb(coalesce(s.private_payload->>'wage_raw', L.hr_private_row->>'wage_raw'))),
+            ('bank_raw',   to_jsonb(h.bank_raw)  IS DISTINCT FROM to_jsonb(coalesce(s.private_payload->>'bank_raw', L.hr_private_row->>'bank_raw'))),
+            ('ahv_raw',    to_jsonb(h.ahv_raw)   IS DISTINCT FROM to_jsonb(coalesce(s.private_payload->>'ahv_raw',  L.hr_private_row->>'ahv_raw'))),
+            ('unresolved', h.unresolved IS DISTINCT FROM (coalesce(L.hr_private_row->'unresolved','{}'::jsonb) || coalesce(s.private_payload->'unresolved','{}'::jsonb))),
+            ('assignments', h.assignments IS DISTINCT FROM s.assignments),
+            ('source_provenance', h.source_provenance IS DISTINCT FROM jsonb_build_object('source_system', v_run.source_system, 'rollout', v_run.rollout,
+                 'source_id', L.source_id, 'run_id', p_run, 'xlsx_sha256', v_run.xlsx_sha256, 'assignments_mapped', false)),
+            ('source_import_run_id', h.source_import_run_id IS DISTINCT FROM p_run)) AS c(f, changed)
+        WHERE h.instructor_id = L.instructor_id AND c.changed
+        UNION ALL SELECT 'row_missing' WHERE NOT EXISTS (SELECT 1 FROM instructor_hr_private h WHERE h.instructor_id = L.instructor_id)) z;
+      IF v_hrdiff IS NOT NULL THEN
+        v_reasons := v_reasons || ARRAY(SELECT 'hr_private_changed_after_import:' || x FROM unnest(v_hrdiff) x);
       END IF;
     END IF;
 
@@ -272,16 +287,25 @@ BEGIN
                  AND sl.last_import_run_id IS DISTINCT FROM p_run) THEN
         v_reasons := v_reasons || 'later_import_touched'::text;
       END IF;
+      -- Photos: identity/metadata comparison against the captured photo_rows (no wall-clock ordering).
+      SELECT coalesce(array_agg((e->>'id')::uuid), '{}') INTO v_capids FROM jsonb_array_elements(L.photo_rows) e;
       IF EXISTS (SELECT 1 FROM instructor_photos ph WHERE ph.instructor_id = L.instructor_id
-                 AND ph.origin = 'manual_upload' AND ph.created_at >= L.captured_at) THEN
+                 AND ph.origin = 'manual_upload' AND NOT (ph.id = ANY(v_capids))) THEN
         v_reasons := v_reasons || 'manual_photo_after_import'::text;
       END IF;
-      IF L.kind = 'updated' AND NOT (s.photo_status = 'applied' AND (SELECT count(*) = 1 AND coalesce(bool_and(ph.origin = 'booking_import' AND ph.created_at >= L.captured_at), false)
-            FROM instructor_photos ph WHERE ph.instructor_id = L.instructor_id AND ph.is_current))
-         AND (SELECT coalesce(jsonb_agg(ph.id ORDER BY ph.id) FILTER (WHERE ph.is_current), '[]')
-            FROM instructor_photos ph WHERE ph.instructor_id = L.instructor_id AND ph.created_at < L.captured_at)
-         IS DISTINCT FROM (SELECT coalesce(jsonb_agg(e->'id' ORDER BY e->>'id') FILTER (WHERE (e->>'is_current')::boolean), '[]')
-            FROM jsonb_array_elements(L.photo_rows) e) THEN
+      IF EXISTS (SELECT 1 FROM jsonb_array_elements(L.photo_rows) e
+                 LEFT JOIN instructor_photos ph ON ph.id = (e->>'id')::uuid
+                 WHERE ph.id IS NULL OR (to_jsonb(ph) - 'is_current') IS DISTINCT FROM (e - 'is_current')) THEN
+        v_reasons := v_reasons || 'photo_metadata_changed'::text;
+      END IF;
+      IF L.kind = 'updated'
+         AND NOT (s.photo_status = 'applied' AND (SELECT count(*) = 1 AND coalesce(bool_and(ph.origin = 'booking_import' AND NOT (ph.id = ANY(v_capids))), false)
+                  FROM instructor_photos ph WHERE ph.instructor_id = L.instructor_id AND ph.is_current))
+         AND (SELECT coalesce(array_agg(ph.id ORDER BY ph.id) FILTER (WHERE ph.is_current), '{}')
+                FROM instructor_photos ph WHERE ph.instructor_id = L.instructor_id)
+             IS DISTINCT FROM
+             (SELECT coalesce(array_agg((e->>'id')::uuid ORDER BY (e->>'id')::uuid) FILTER (WHERE (e->>'is_current')::boolean), '{}')
+                FROM jsonb_array_elements(L.photo_rows) e) THEN
         v_reasons := v_reasons || 'photo_current_changed'::text;
       END IF;
       SELECT count(*) INTO v_n FROM ticket_items t WHERE t.instructor_id = L.instructor_id AND t.created_at >= L.captured_at;
@@ -322,7 +346,8 @@ BEGIN
       'would_remove', jsonb_build_object(
         'source_link', L.kind = 'created' OR NOT coalesce(L.source_link_present, false),
         'deployment_windows', (SELECT count(*) FROM instructor_deployment_windows d WHERE d.instructor_id = L.instructor_id AND d.import_run_id = p_run),
-        'import_photos', (SELECT count(*) FROM instructor_photos ph WHERE ph.instructor_id = L.instructor_id AND ph.origin = 'booking_import' AND ph.created_at >= L.captured_at)));
+        'import_photos', (SELECT count(*) FROM instructor_photos ph WHERE ph.instructor_id = L.instructor_id AND ph.origin = 'booking_import'
+                           AND NOT (ph.id = ANY(coalesce(ARRAY(SELECT (e->>'id')::uuid FROM jsonb_array_elements(L.photo_rows) e), '{}'))))));
   END LOOP;
 
   RETURN jsonb_build_object('mode', 'dry_run_only', 'run_id', p_run,
