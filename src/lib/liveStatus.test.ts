@@ -12,7 +12,7 @@ describe("isExternalStatusChange", () => {
   });
 
   it("flags a genuinely different status from another device", () => {
-    expect(isExternalStatusChange("on_course", "available", null)).toBe(false === true ? false : true);
+    expect(isExternalStatusChange("on_course", "available", null)).toBe(true);
   });
 
   it("does not flag the status this device just set (event may arrive before the refetch)", () => {
