@@ -72,6 +72,8 @@ BEGIN
     SELECT count(*) INTO n FROM public.instructor_self();
     IF n <> 1 THEN RAISE EXCEPTION 'FAIL: instructor_self count %', n; END IF;
     PERFORM pg_temp.must_pass($q$SELECT public.instructor_self_update('{"phone":"+41 79 000 00 00"}')$q$, 'teacher own phone');
+    -- restore so the row-hash check at the end stays exact
+    PERFORM public.instructor_self_update(jsonb_build_object('phone', (SELECT phone FROM public.instructor_self())));
     PERFORM pg_temp.must_fail($q$SELECT public.instructor_self_update('{"email":"x@y.z"}')$q$, 'teacher own email');
     PERFORM pg_temp.must_fail($q$SELECT public.instructor_self_update('{"hourly_rate":99}')$q$, 'teacher own pay');
     PERFORM pg_temp.must_fail($q$SELECT public.instructor_self_update('{"show_on_website":true}')$q$, 'teacher own website flag');
