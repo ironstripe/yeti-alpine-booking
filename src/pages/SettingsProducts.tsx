@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Loader2, Plus, Package, MoreHorizontal, Pencil, Trash2, Link2, TrendingDown } from "lucide-react";
 import { SettingsLayout } from "@/components/settings/SettingsLayout";
 import { Card, CardContent } from "@/components/ui/card";
@@ -35,6 +36,8 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { useProducts, useDeleteProduct, ProductWithTiers } from "@/hooks/useProducts";
 import { useSeasons, useCurrentSeason } from "@/hooks/useSeasons";
 import { ProductFormModal } from "@/components/settings/ProductFormModal";
+import { BookingCornerTariffDialog } from "@/components/settings/BookingCornerTariffDialog";
+import { supabase } from "@/integrations/supabase/client";
 import { getProductPriceDisplay, formatPriceCHF } from "@/lib/pricing-utils";
 import {
   AlertDialog,
@@ -80,10 +83,22 @@ export default function SettingsProducts() {
   const activeSeasonId = selectedSeasonId || currentSeason?.id;
 
   const { data: products, isLoading } = useProducts({ seasonId: activeSeasonId });
+  const { data: importedSources } = useQuery({
+    queryKey: ["bc-product-draft-ids", activeSeasonId],
+    enabled: !!activeSeasonId,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("bc_product_tariff_sources")
+        .select("product_id").eq("season_id", activeSeasonId!).eq("import_status", "draft");
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+  const importedDraftIds = new Set(importedSources?.map(row => row.product_id).filter(Boolean));
   const deleteProduct = useDeleteProduct();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<ProductWithTiers | null>(null);
   const [productToDelete, setProductToDelete] = useState<ProductWithTiers | null>(null);
+  const [tariffProduct, setTariffProduct] = useState<ProductWithTiers | null>(null);
 
   const handleEdit = (product: ProductWithTiers) => {
     setSelectedProduct(product);
@@ -176,6 +191,7 @@ export default function SettingsProducts() {
                   {products.map((product) => {
                     const pricingType = (product.pricing_type as string) || "fixed";
                     const pricingInfo = pricingTypeLabels[pricingType] || pricingTypeLabels.fixed;
+                    const draft = importedDraftIds.has(product.id);
                     
                     return (
                       <TableRow key={product.id}>
@@ -187,7 +203,10 @@ export default function SettingsProducts() {
                             </span>
                           </div>
                         </TableCell>
-                        <TableCell className="font-medium">{product.name}</TableCell>
+                        <TableCell className="font-medium">
+                          {product.name}
+                          {draft && <Button variant="link" size="sm" className="block h-auto p-0 text-xs" onClick={() => setTariffProduct(product)}>Booking-Tarife ansehen</Button>}
+                        </TableCell>
                         <TableCell>
                           <Badge variant="outline" className="text-xs">
                             <span className="mr-1">{pricingInfo.icon}</span>
@@ -220,12 +239,14 @@ export default function SettingsProducts() {
                                 </TooltipContent>
                               </Tooltip>
                             </TooltipProvider>
+                          ) : draft && product.type === "private" ? (
+                            <span>ab {formatPriceCHF(product.price)}/h <span className="text-muted-foreground">(1 Person; weitere Preise siehe Tarifmatrix)</span></span>
                           ) : pricingType === "hourly" ? (
                             <span>{formatPriceCHF(product.price)}/h</span>
                           ) : (
                             <span>{formatPriceCHF(product.price)}</span>
                           )}
-                          {pricingType !== "tiered" && product.duration_minutes && (
+                          {pricingType !== "tiered" && !(draft && product.type === "private") && product.duration_minutes && (
                             <span className="text-muted-foreground">
                               /{product.duration_minutes >= 60 ? `${product.duration_minutes / 60}h` : `${product.duration_minutes}min`}
                             </span>
@@ -250,7 +271,7 @@ export default function SettingsProducts() {
                         </TableCell>
                         <TableCell>
                           <Badge variant={product.is_active ? "default" : "secondary"}>
-                            {product.is_active ? "Aktiv" : "Inaktiv"}
+                            {draft ? "Entwurf · gesperrt" : product.is_active ? "Aktiv" : "Inaktiv"}
                           </Badge>
                         </TableCell>
                         <TableCell>
@@ -266,6 +287,7 @@ export default function SettingsProducts() {
                                 Bearbeiten
                               </DropdownMenuItem>
                               <DropdownMenuItem 
+                                disabled={draft}
                                 className="text-destructive"
                                 onClick={() => setProductToDelete(product)}
                               >
@@ -289,8 +311,11 @@ export default function SettingsProducts() {
         open={isModalOpen}
         onOpenChange={handleCloseModal}
         product={selectedProduct}
+        isBookingCornerDraft={!!selectedProduct && importedDraftIds.has(selectedProduct.id)}
         seasonId={activeSeasonId}
       />
+
+      <BookingCornerTariffDialog product={tariffProduct} onOpenChange={(open) => { if (!open) setTariffProduct(null); }} />
 
       <AlertDialog open={!!productToDelete} onOpenChange={() => setProductToDelete(null)}>
         <AlertDialogContent>
