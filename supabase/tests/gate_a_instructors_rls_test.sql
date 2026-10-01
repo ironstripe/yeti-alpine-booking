@@ -37,7 +37,7 @@ CREATE OR REPLACE FUNCTION pg_temp.must_pass(sql text, label text) RETURNS void 
 BEGIN EXECUTE sql; RAISE NOTICE 'ok: %', label; END $$;
 
 DO $$
-DECLARE t uuid; own uuid; other uuid; n int;
+DECLARE t uuid; own uuid; other uuid; n int; old_phone text;
 BEGIN
   SELECT teacher INTO t FROM ids;
   PERFORM pg_temp.as_user(t);
@@ -71,9 +71,10 @@ BEGIN
   IF own IS NOT NULL THEN
     SELECT count(*) INTO n FROM public.instructor_self();
     IF n <> 1 THEN RAISE EXCEPTION 'FAIL: instructor_self count %', n; END IF;
+    SELECT phone INTO old_phone FROM public.instructor_self();
     PERFORM pg_temp.must_pass($q$SELECT public.instructor_self_update('{"phone":"+41 79 000 00 00"}')$q$, 'teacher own phone');
     -- restore so the row-hash check at the end stays exact
-    PERFORM public.instructor_self_update(jsonb_build_object('phone', (SELECT phone FROM public.instructor_self())));
+    PERFORM public.instructor_self_update(jsonb_build_object('phone', old_phone));
     PERFORM pg_temp.must_fail($q$SELECT public.instructor_self_update('{"email":"x@y.z"}')$q$, 'teacher own email');
     PERFORM pg_temp.must_fail($q$SELECT public.instructor_self_update('{"hourly_rate":99}')$q$, 'teacher own pay');
     PERFORM pg_temp.must_fail($q$SELECT public.instructor_self_update('{"show_on_website":true}')$q$, 'teacher own website flag');
