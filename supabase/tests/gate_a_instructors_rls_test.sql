@@ -1,5 +1,6 @@
 -- Security Gate A role test – executable in the Lovable Cloud SQL editor (runs as postgres).
--- Self-contained: BEGIN → applies the pending lock INSIDE the transaction → probes each real
+-- Self-contained: BEGIN → if the lock is not live yet, applies it INSIDE the transaction
+-- (mode=simulated_lock_rolled_back); after the real lock it tests the live state (mode=live_lock) → probes each real
 -- role via SET LOCAL ROLE + request.jwt.claims → prints a result table → ROLLBACK.
 -- Nothing persists: no lock, no role change, no row change. Identities are picked from the
 -- CURRENT user_roles rows (no role is added/removed to fake a pass). If a required identity
@@ -20,6 +21,16 @@ CREATE TABLE gate_a_test.fp AS SELECT
   (SELECT count(*) FROM public.instructors WHERE show_on_website AND status = 'active') AS team;
 
 -- ---------- pending lock (identical to supabase/pending/gate_a_instructors_lock.sql) ----------
+-- ---------- lock: applied in-transaction ONLY if not already live (pre-lock simulation) ----------
+CREATE TABLE gate_a_test.mode(m text);
+DO $lock$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='instructors'
+             AND policyname='gate_a_instructors_directory_select') THEN
+    INSERT INTO gate_a_test.mode VALUES ('live_lock');
+  ELSE
+    INSERT INTO gate_a_test.mode VALUES ('simulated_lock_rolled_back');
+    EXECUTE $sql$
 DROP POLICY IF EXISTS "Authenticated users can view all instructors" ON public.instructors;
 DROP POLICY IF EXISTS "Authenticated users can insert instructors" ON public.instructors;
 DROP POLICY IF EXISTS "Authenticated users can update instructors" ON public.instructors;
@@ -44,6 +55,10 @@ CREATE POLICY "gate_a_avatars_staff_delete" ON storage.objects FOR DELETE TO aut
   USING (bucket_id = 'instructor-avatars' AND public.is_staff(auth.uid()));
 
 -- ---------- identities from real roles ----------
+    $sql$;
+  END IF;
+END $lock$;
+
 CREATE TABLE gate_a_test.who AS
 WITH r AS (SELECT user_id, array_agg(role::text) rs FROM public.user_roles GROUP BY user_id)
 SELECT
@@ -67,7 +82,10 @@ BEGIN
     EXECUTE 'RESET ROLE';
     RETURN 'ok';
   EXCEPTION WHEN OTHERS THEN
-    RETURN 'denied';
+    -- only a genuine refusal counts: privilege/RLS/role check (42501) or an empty result
+    -- from an RLS-filtered read ('assert'). Anything else (typo, missing object) is an error.
+    IF SQLSTATE = '42501' OR SQLERRM = 'assert' THEN RETURN 'denied'; END IF;
+    RETURN 'error:' || SQLSTATE || ' ' || left(SQLERRM, 80);
   END;
 END $$;
 
@@ -169,6 +187,7 @@ INSERT INTO gate_a_test.res(actor,test,expect,got) SELECT 'info','office-only ac
 INSERT INTO gate_a_test.res(actor,test,expect,got) SELECT 'info','standalone super_admin exists',
   CASE WHEN sa_only IS NULL THEN 'none' ELSE 'yes' END, CASE WHEN sa_only IS NULL THEN 'none' ELSE 'yes' END FROM gate_a_test.who;
 
+INSERT INTO gate_a_test.res(actor,test,expect,got) SELECT 'info','mode', m, m FROM gate_a_test.mode;
 SELECT n, actor, test, expect, got, (expect = got) AS pass FROM gate_a_test.res
 UNION ALL
 SELECT 999, 'system', 'SUMMARY', 'all pass', count(*) FILTER (WHERE expect <> got)::text || ' failures', bool_and(expect = got) FROM gate_a_test.res
