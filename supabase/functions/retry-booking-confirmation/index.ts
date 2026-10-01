@@ -1,6 +1,6 @@
 // Office/admin-only manual retry of a failed booking confirmation email.
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { z } from "npm:zod@3.23.8";
+import { z } from "https://esm.sh/zod@3.23.8";
 import { requireRole } from "../_shared/staffAuth.ts";
 import { activeConfirmationTemplate, attemptConfirmation } from "../_shared/bookingDelivery.ts";
 

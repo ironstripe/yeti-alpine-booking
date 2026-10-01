@@ -3,7 +3,7 @@
 // Effect: ticket status -> "cancelled", items -> "cancelled", instructor/slot released instantly.
 
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { z } from "npm:zod@3.23.8";
+import { z } from "https://esm.sh/zod@3.23.8";
 import { corsHeaders, checkApiKey, json } from "../_shared/intakeAuth.ts";
 
 const Payload = z.object({

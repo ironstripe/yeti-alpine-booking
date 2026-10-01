@@ -1,5 +1,5 @@
 // Input schema + status mapping for the `private-appointments` staff endpoint.
-import { z } from "npm:zod@3.23.8";
+import { z } from "https://esm.sh/zod@3.23.8";
 
 const uuid = z.string().uuid();
 const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
