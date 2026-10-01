@@ -43,8 +43,13 @@ Deno.serve(async (req) => {
     case "finish": {
       const { data, error } = await sb.rpc("bc_finish_run", { p_run: runId });
       if (error) return json({ error: "finish_failed" }, 500);
-      if (data?.finished) await sb.storage.from(SOURCE_BUCKET).remove([`${runId}/photos.zip`]);
-      return json({ ok: true, ...data });
+      let source_removed: boolean | undefined;
+      if (data?.finished) {
+        const rm = await sb.storage.from(SOURCE_BUCKET).remove([`${runId}/photos.zip`]);
+        source_removed = !rm.error;
+        if (rm.error) console.error("apply_source_remove_failed"); // finish can be called again to retry removal
+      }
+      return json({ ok: true, ...data, source_removed });
     }
     case "status": return status(sb, runId);
     case "retry_failed_photos": {
