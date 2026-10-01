@@ -1563,7 +1563,7 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
             internal_notes,
             instructor_notes,
             product:products!ticket_items_product_id_fkey (id, name, type),
-            instructor:instructors!ticket_items_instructor_id_fkey (*),
+            instructor:instructors!ticket_items_instructor_id_fkey (id, first_name, last_name, level, specialization, status, avatar_url, roles, languages, real_time_status, instructor_type, gender, created_at, role, show_on_website, website_teaser),
             participant:customer_participants!ticket_items_participant_id_fkey (*)
           )
         `)
