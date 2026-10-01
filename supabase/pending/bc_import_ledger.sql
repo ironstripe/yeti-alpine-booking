@@ -273,20 +273,20 @@ BEGIN
         v_reasons := v_reasons || 'later_import_touched'::text;
       END IF;
       IF EXISTS (SELECT 1 FROM instructor_photos ph WHERE ph.instructor_id = L.instructor_id
-                 AND ph.origin = 'manual_upload' AND ph.created_at > L.captured_at) THEN
+                 AND ph.origin = 'manual_upload' AND ph.created_at >= L.captured_at) THEN
         v_reasons := v_reasons || 'manual_photo_after_import'::text;
       END IF;
-      IF L.kind = 'updated' AND NOT (s.photo_status = 'applied' AND (SELECT count(*) = 1 AND bool_and(ph.origin = 'booking_import' AND ph.created_at > L.captured_at)
+      IF L.kind = 'updated' AND NOT (s.photo_status = 'applied' AND (SELECT count(*) = 1 AND coalesce(bool_and(ph.origin = 'booking_import' AND ph.created_at >= L.captured_at), false)
             FROM instructor_photos ph WHERE ph.instructor_id = L.instructor_id AND ph.is_current))
          AND (SELECT coalesce(jsonb_agg(ph.id ORDER BY ph.id) FILTER (WHERE ph.is_current), '[]')
-            FROM instructor_photos ph WHERE ph.instructor_id = L.instructor_id AND ph.created_at <= L.captured_at)
+            FROM instructor_photos ph WHERE ph.instructor_id = L.instructor_id AND ph.created_at < L.captured_at)
          IS DISTINCT FROM (SELECT coalesce(jsonb_agg(e->'id' ORDER BY e->>'id') FILTER (WHERE (e->>'is_current')::boolean), '[]')
             FROM jsonb_array_elements(L.photo_rows) e) THEN
         v_reasons := v_reasons || 'photo_current_changed'::text;
       END IF;
-      SELECT count(*) INTO v_n FROM ticket_items t WHERE t.instructor_id = L.instructor_id AND t.created_at > L.captured_at;
+      SELECT count(*) INTO v_n FROM ticket_items t WHERE t.instructor_id = L.instructor_id AND t.created_at >= L.captured_at;
       IF v_n > 0 THEN v_reasons := v_reasons || 'bookings_since_import'::text; END IF;
-      SELECT count(*) INTO v_n FROM private_appointments pa WHERE pa.instructor_id = L.instructor_id AND pa.created_at > L.captured_at;
+      SELECT count(*) INTO v_n FROM private_appointments pa WHERE pa.instructor_id = L.instructor_id AND pa.created_at >= L.captured_at;
       IF v_n > 0 THEN v_reasons := v_reasons || 'private_appointments_since_import'::text; END IF;
 
       IF L.kind = 'created' THEN
@@ -322,7 +322,7 @@ BEGIN
       'would_remove', jsonb_build_object(
         'source_link', L.kind = 'created' OR NOT coalesce(L.source_link_present, false),
         'deployment_windows', (SELECT count(*) FROM instructor_deployment_windows d WHERE d.instructor_id = L.instructor_id AND d.import_run_id = p_run),
-        'import_photos', (SELECT count(*) FROM instructor_photos ph WHERE ph.instructor_id = L.instructor_id AND ph.origin = 'booking_import' AND ph.created_at > L.captured_at)));
+        'import_photos', (SELECT count(*) FROM instructor_photos ph WHERE ph.instructor_id = L.instructor_id AND ph.origin = 'booking_import' AND ph.created_at >= L.captured_at)));
   END LOOP;
 
   RETURN jsonb_build_object('mode', 'dry_run_only', 'run_id', p_run,
