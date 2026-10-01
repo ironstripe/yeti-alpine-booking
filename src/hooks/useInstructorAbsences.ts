@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
+import { fetchInstructor } from "@/lib/instructorsApi";
 
 export type AbsenceType = "vacation" | "sick" | "organization" | "office_duty" | "other";
 export type AbsenceStatus = "pending" | "confirmed" | "rejected";
@@ -58,9 +59,7 @@ export function useCreateAbsence() {
           status,
           instructors!inner (
             first_name,
-            last_name,
-            email,
-            phone
+            last_name
           )
         `)
         .single();
@@ -70,11 +69,12 @@ export function useCreateAbsence() {
       // If admin created a confirmed absence, trigger notification to teacher
       if (status === "confirmed") {
         try {
+          const contact = await fetchInstructor(data.instructor_id);
           await supabase.functions.invoke("notify-absence", {
             body: {
               instructorId: data.instructor_id,
-              instructorEmail: data.instructors.email,
-              instructorPhone: data.instructors.phone,
+              instructorEmail: contact?.email ?? null,
+              instructorPhone: contact?.phone ?? null,
               absenceType: data.type,
               startDate: data.start_date,
               endDate: data.end_date,
