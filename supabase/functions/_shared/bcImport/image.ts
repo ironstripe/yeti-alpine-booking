@@ -97,9 +97,13 @@ export type Rendition = { bytes: Uint8Array; width: number; height: number; orie
 export function makeRendition(input: Uint8Array, maxEdge = MAX_EDGE): Rendition {
   const orientation = readOrientation(input);
   const dec = jpeg.decode(input, { useTArray: true, formatAsRGBA: true, maxResolutionInMP: 60, maxMemoryUsageInMB: 512 }) as Img;
-  const img = orient(downscale(dec, maxEdge), orientation);
-  const enc = jpeg.encode(img, 88).data as Uint8Array;
+  const img = orient(downscale({ width: dec.width, height: dec.height, data: dec.data }, maxEdge), orientation);
+  // Always hand the encoder a fresh plain raw-pixel object: a jpeg-js decoder result
+  // carries `exifBuffer` (and other fields), which the encoder would copy into the output.
+  const plain = { width: img.width, height: img.height, data: new Uint8Array(img.data) };
+  const enc = jpeg.encode(plain, 88).data as Uint8Array;
   const bytes = new Uint8Array(enc);
   if (hasMetadataSegments(bytes)) throw new Error("rendition_unsafe");
-  return { bytes, width: img.width, height: img.height, orientation };
+  return { bytes, width: plain.width, height: plain.height, orientation };
 }
+

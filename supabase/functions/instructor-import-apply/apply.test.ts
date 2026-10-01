@@ -51,6 +51,41 @@ Deno.test("image: large photo downscaled to max edge, aspect kept; garbage rejec
   assertThrows(() => makeRendition(new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0, 4, 1, 2])));
 });
 
+// Regression: orientation 1 + no downscale used to hand the decoder object (with its
+// exifBuffer) to the encoder, which copied the original APP1/GPS into the output.
+Deno.test("image: EXIF stripped even when no rotation and no downscale happen", () => {
+  const src = synthJpeg(80, 40, 1);
+  assertEquals(readOrientation(src), 1);
+  assert(hasAscii(src, "GPS_47.1"));
+  const r = makeRendition(src);
+  assertEquals([r.width, r.height], [80, 40]); // untouched geometry
+  assert(!hasMetadataSegments(r.bytes));
+  assert(!hasAscii(r.bytes, "Exif") && !hasAscii(r.bytes, "GPS_47.1"));
+});
+
+Deno.test("image: all EXIF orientations sanitized and applied, never upscaled", () => {
+  // [orientation, expected w, expected h, expected red quadrant]
+  const cases: Array<[number, number, number, "left" | "right" | "top" | "bottom"]> = [
+    [1, 80, 40, "left"], [2, 80, 40, "right"], [3, 80, 40, "right"],
+    [4, 80, 40, "left"], [5, 40, 80, "top"], [6, 40, 80, "top"],
+    [7, 40, 80, "bottom"], [8, 40, 80, "bottom"],
+  ];
+  for (const [o, w, h, red] of cases) {
+    const r = makeRendition(synthJpeg(80, 40, o));
+    assertEquals([r.width, r.height], [w, h], `orientation ${o} geometry`);
+    assertEquals(r.orientation, o);
+    assert(!hasMetadataSegments(r.bytes), `orientation ${o} metadata`);
+    assert(!hasAscii(r.bytes, "Exif") && !hasAscii(r.bytes, "GPS_47.1"), `orientation ${o} exif/gps`);
+    const d = jpeg.decode(r.bytes, { useTArray: true });
+    const at = (x: number, y: number) => (y * w + x) * 4;
+    const p = red === "left" ? at(Math.round(w * 0.25), Math.round(h / 2))
+      : red === "right" ? at(Math.round(w * 0.75), Math.round(h / 2))
+      : red === "top" ? at(Math.round(w / 2), Math.round(h * 0.25))
+      : at(Math.round(w / 2), Math.round(h * 0.75));
+    assert(d.data[p] > 180 && d.data[p + 2] < 80, `orientation ${o} pixels (${red} should be red)`);
+  }
+});
+
 const profile = (o: Partial<SourceProfile> = {}): SourceProfile => ({
   sourceId: "1", firstName: "Test", lastName: "Muster", birthDate: null, email: null, phone: null, street: null, zip: null,
   city: null, country: null, gender: null, sourceWebsiteVisible: false, window: null, hasCurrentWindow: false, photoFile: null,
