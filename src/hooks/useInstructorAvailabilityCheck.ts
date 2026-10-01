@@ -168,6 +168,17 @@ export function useInstructorAvailabilityCheck() {
         }
       }
 
+      // 4. Deployment window (Booking-Corner-linked people only; legacy people return no gate rows)
+      const { data: gates } = await supabase.rpc("instructor_deployment_gates");
+      const mine = (gates || []).filter((g: { instructor_id: string }) => g.instructor_id === instructorId) as
+        { valid_from: string | null; valid_until: string | null }[];
+      if (mine.length > 0) {
+        for (const dateStr of dateStrings) {
+          const inside = mine.some((g) => g.valid_from && g.valid_until && dateStr >= g.valid_from && dateStr <= g.valid_until);
+          if (!inside) conflicts.push({ date: dateStr, conflictType: "absence", description: "Kein Einsatzfenster" });
+        }
+      }
+
       // Sort conflicts by date
       conflicts.sort((a, b) => a.date.localeCompare(b.date));
 
