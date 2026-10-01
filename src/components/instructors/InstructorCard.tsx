@@ -10,11 +10,12 @@ import { getInitials, getAvatarColor } from "@/lib/participant-utils";
 
 interface InstructorCardProps {
   instructor: InstructorWithBookings;
+  photoUrl?: string;
   isPulsing?: boolean;
   onClick?: () => void;
 }
 
-export function InstructorCard({ instructor, isPulsing, onClick }: InstructorCardProps) {
+export function InstructorCard({ instructor, photoUrl, isPulsing, onClick }: InstructorCardProps) {
   const statusConfig = getStatusConfig(instructor.real_time_status);
   const fullName = `${instructor.first_name} ${instructor.last_name}`;
   const initials = getInitials(instructor.first_name, instructor.last_name);
@@ -31,8 +32,8 @@ export function InstructorCard({ instructor, isPulsing, onClick }: InstructorCar
           {/* Avatar with status dot */}
           <div className="relative">
             <Avatar className="h-12 w-12">
-              {instructor.avatar_url && (
-                <AvatarImage src={instructor.avatar_url} alt={fullName} />
+              {(photoUrl || instructor.avatar_url) && (
+                <AvatarImage src={photoUrl || instructor.avatar_url} alt={fullName} />
               )}
               <AvatarFallback className={cn("text-white font-medium", avatarColor)}>
                 {initials}

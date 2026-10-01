@@ -11,10 +11,15 @@ import { InstructorEmptyState } from "@/components/instructors/InstructorEmptySt
 import { InstructorGridSkeleton } from "@/components/instructors/InstructorCardSkeleton";
 import { NewInstructorModal } from "@/components/instructors/NewInstructorModal";
 import { BulkUploadModal } from "@/components/instructors/BulkUploadModal";
+import { useStaffInstructorPhotos } from "@/hooks/useStaffInstructorPhotos";
+import { useUserRole } from "@/hooks/useUserRole";
+import { useIsSuperAdmin } from "@/hooks/useIsSuperAdmin";
 
 const Instructors = () => {
   const navigate = useNavigate();
   const { data: instructors = [], isLoading, pulsingIds } = useInstructors();
+  const { isAdminOrOffice } = useUserRole();
+  const isSuperAdmin = useIsSuperAdmin();
 
   // Modal state
   const [isNewInstructorModalOpen, setIsNewInstructorModalOpen] = useState(false);
@@ -101,6 +106,9 @@ const Instructors = () => {
     realTimeStatusFilter,
   ]);
 
+  const visibleIds = useMemo(() => filteredInstructors.map((instructor) => instructor.id), [filteredInstructors]);
+  const { data: staffPhotoUrls = {} } = useStaffInstructorPhotos(visibleIds, isAdminOrOffice || isSuperAdmin);
+
   const hasFilters =
     searchQuery !== "" ||
     specializationFilter !== "all" ||
@@ -178,6 +186,7 @@ const Instructors = () => {
                 <InstructorCard
                   key={instructor.id}
                   instructor={instructor}
+                  photoUrl={staffPhotoUrls[instructor.id]}
                   isPulsing={pulsingIds.has(instructor.id)}
                   onClick={() => handleInstructorClick(instructor)}
                 />
