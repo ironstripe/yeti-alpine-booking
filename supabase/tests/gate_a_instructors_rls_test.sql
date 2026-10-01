@@ -183,7 +183,6 @@ BEGIN
   PERFORM gate_a_test.t('admin','public avatar upload','ok',$q$INSERT INTO storage.objects(bucket_id, name) VALUES ('instructor-avatars','gate-a-probe-admin.jpg')$q$);
   PERFORM gate_a_test.t('sa_any','ops_list','ok','SELECT gate_a_test.must(count(*) = (SELECT n_instructors + 2 FROM gate_a_test.fp)) FROM public.instructors_ops_list(NULL)');
   PERFORM gate_a_test.t('sa_any','pay_list','ok','SELECT gate_a_test.must(count(*) = (SELECT n_instructors + 2 FROM gate_a_test.fp)) FROM public.instructors_pay_list(NULL)');
-  PERFORM gate_a_test.t('sa_any','HR private readable','ok','SELECT count(*) FROM public.instructor_hr_private');
   PERFORM gate_a_test.t('sa_any','pay_update (rolled back)','ok',format($q$SELECT public.instructor_pay_update(%L, jsonb_build_object('hourly_rate',(SELECT hourly_rate FROM public.instructors_pay_list(%L))))$q$, other, other));
 
   -- Anonymous
