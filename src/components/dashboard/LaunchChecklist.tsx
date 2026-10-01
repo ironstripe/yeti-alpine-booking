@@ -49,7 +49,7 @@ const CHECKLIST_ITEMS: ChecklistItem[] = [
     label: 'Skilehrer erfasst',
     description: 'Mindestens ein aktiver Lehrer',
     check: async () => {
-      const { count } = await supabase.from('instructors').select('*', { count: 'exact', head: true }).eq('status', 'active');
+      const { count } = await supabase.from('instructors').select('id', { count: 'exact', head: true }).eq('status', 'active');
       return (count || 0) > 0;
     },
     link: '/instructors'
