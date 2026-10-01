@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isExternalStatusChange } from "./liveStatus";
+import { isExternalStatusChange } from "../src/lib/liveStatus";
 
 // Realistic realtime payloads with REPLICA IDENTITY DEFAULT: `old` holds only the primary key.
 const oldPkOnly = { instructor_id: "a1" } as Record<string, unknown>;
