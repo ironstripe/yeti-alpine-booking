@@ -37,12 +37,8 @@ Deno.serve(async (req) => {
   if (up.error) { console.error("manual_photo_upload_failed"); return json({ error: "upload_failed" }, 500); }
   const { error } = await sb.rpc("bc_register_manual_photo", { p_instructor: id, p_path: path, p_width: r.width, p_height: r.height });
   if (error) { console.error("manual_photo_register_failed"); return json({ error: "register_failed" }, 500); }
-  // Staff deliberately chose this as the display portrait (unchanged UX): publish the metadata-free
-  // rendition as the avatar. Booking-Corner import photos are never written to the public bucket.
-  const pub = await sb.storage.from("instructor-avatars").upload(`${id}.jpg`, r.bytes, { upsert: true, contentType: "image/jpeg" });
-  if (pub.error) { console.error("manual_avatar_publish_failed"); return json({ error: "avatar_failed" }, 500); }
-  const url = `${sb.storage.from("instructor-avatars").getPublicUrl(`${id}.jpg`).data.publicUrl}?t=${Date.now()}`;
-  const { error: uErr } = await sb.from("instructors").update({ avatar_url: url }).eq("id", id);
-  if (uErr) { console.error("manual_avatar_url_failed"); return json({ error: "avatar_failed" }, 500); }
-  return json({ ok: true, avatar_url: url, width: r.width, height: r.height });
+  // Internal portrait stays PRIVATE: never written to the public avatar bucket or to avatar_url.
+  // Publication is a separate, explicit action. The editor gets a short-lived signed URL only.
+  const signed = await sb.storage.from("instructor-hr-photos").createSignedUrl(path, 300);
+  return json({ ok: true, private: true, signed_url: signed.data?.signedUrl ?? null, expires_in: 300, width: r.width, height: r.height });
 });

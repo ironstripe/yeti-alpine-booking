@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -103,13 +103,18 @@ export function EditInstructorModal({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Initialize avatar URL from instructor
+  // Current portrait via staff-only short-lived signed URL (5 min); refreshed before expiry and on load error.
+  const retriedFor = useRef<string | null>(null);
+  const loadPhoto = useCallback(async () => {
+    const { data, error } = await supabase.functions.invoke("instructor-photo-url", { body: { instructor_id: instructor.id } });
+    setAvatarUrl(error ? instructor.avatar_url ?? null : data?.url ?? null);
+  }, [instructor.id, instructor.avatar_url]);
   useEffect(() => {
-    if (instructor?.avatar_url) {
-      setAvatarUrl(instructor.avatar_url);
-    } else {
-      setAvatarUrl(null);
-    }
-  }, [instructor]);
+    if (!open) return;
+    loadPhoto();
+    const t = setInterval(loadPhoto, 4 * 60 * 1000);
+    return () => clearInterval(t);
+  }, [open, loadPhoto]);
 
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -139,8 +144,8 @@ export function EditInstructorModal({
       fd.append("instructor_id", instructor.id);
       fd.append("file", new File([jpeg], "portrait.jpg", { type: "image/jpeg" }));
       const { data, error } = await supabase.functions.invoke("instructor-photo-upload", { body: fd });
-      if (error || !data?.avatar_url) throw error ?? new Error("upload");
-      setAvatarUrl(data.avatar_url);
+      if (error || !data?.ok) throw error ?? new Error("upload");
+      setAvatarUrl(data.signed_url ?? null);
       await queryClient.invalidateQueries({ queryKey: ["instructors"] });
       toast.success("Profilbild aktualisiert");
     } catch (err) {
@@ -280,7 +285,7 @@ export function EditInstructorModal({
             <div className="flex flex-col items-center gap-3">
               <div className="relative group cursor-pointer" onClick={() => fileInputRef.current?.click()}>
                 <Avatar className="h-20 w-20 text-xl">
-                  <AvatarImage src={avatarUrl || undefined} alt="Profilbild" />
+                  <AvatarImage src={avatarUrl || undefined} alt="Profilbild" onError={() => { if (avatarUrl && retriedFor.current !== avatarUrl) { retriedFor.current = avatarUrl; loadPhoto(); } }} />
                   <AvatarFallback className="bg-primary/10 text-primary">
                     {getInitials()}
                   </AvatarFallback>
@@ -323,7 +328,7 @@ export function EditInstructorModal({
                   </p>
                 </div>
               </div>
-              {showOnWebsite && !avatarUrl && (
+              {showOnWebsite && !instructor.avatar_url && (
                 <p className="text-xs text-amber-600">
                   Für die Anzeige auf der Website fehlt noch ein Profilbild.
                 </p>
