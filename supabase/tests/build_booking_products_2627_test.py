@@ -5,7 +5,7 @@ from hashlib import sha256
 import re
 
 root = Path(__file__).resolve().parents[2]
-source = root / 'supabase/pending/20261001_malbun_2627_product_drafts.sql'
+source = root / 'supabase/migrations/20261001194500_malbun_2627_product_drafts.sql'
 target = root / 'supabase/tests/booking_products_2627_rollback_test.sql'
 body = source.read_text()
 assert body.startswith('-- Booking-Corner Malbun 26/27: INACTIVE PRODUCT DRAFTS ONLY.')

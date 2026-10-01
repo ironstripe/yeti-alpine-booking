@@ -17,7 +17,7 @@ from pathlib import Path
 SOURCE = Path(__file__).resolve().parents[1] / 'supabase/seed/booking_corner_tariffs_2026_27.csv'
 EXPECTED_SHA256 = 'b5db33ab54a9c9565edd6541461a3b982afc4a5f78ded6bbd833e99ee3f14d67'
 NAMESPACE = uuid.UUID('7b7c6738-680a-4763-a704-c25e02daa42c')
-TARGET = Path(__file__).resolve().parents[1] / 'supabase/pending/20261001_malbun_2627_product_drafts.sql'
+TARGET = Path(__file__).resolve().parents[1] / 'supabase/migrations/20261001194500_malbun_2627_product_drafts.sql'
 
 
 def normalize(row: dict[str, str]) -> dict:
