@@ -3,7 +3,7 @@ BEGIN;
 SET LOCAL statement_timeout = '90s';
 -- Booking-Corner 2026/27 competency backfill. Apply once to YETI Cloud in one transaction.
 -- Source: already imported private instructor_hr_private.assignments, NOT a new upload.
--- LIVE STATUS: NOT APPLIED when written. Never use as a general reimport tool.
+-- LIVE STATUS: APPLIED manually in YETI Lovable Cloud on 2026-10-01; do not rerun manually.
 -- Expected source: 87 non-archived Booking-Corner links, 3,254 raw assignments,
 -- 1,529 competency rows of which 8 are explicit "no entries" markers.
 -- Source labels have priority over the nine pre-import YETI test assignments that
