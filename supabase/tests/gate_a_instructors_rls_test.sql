@@ -40,6 +40,9 @@ CREATE POLICY "gate_a_avatars_staff_update" ON storage.objects FOR UPDATE TO aut
 CREATE POLICY "gate_a_avatars_staff_delete" ON storage.objects FOR DELETE TO authenticated
   USING (bucket_id = 'instructor-avatars' AND public.is_staff(auth.uid()));
 
+-- scratch schema for helpers (created inside the transaction, rolled back)
+CREATE SCHEMA gate_a_test;
+
 -- ---------- identities from real roles ----------
 CREATE TEMP TABLE who AS
 WITH r AS (SELECT user_id, array_agg(role::text) rs FROM public.user_roles GROUP BY user_id)
@@ -52,7 +55,7 @@ SELECT
 
 CREATE TEMP TABLE res(n serial, actor text, test text, expect text, got text);
 
-CREATE FUNCTION pg_temp.probe(uid uuid, r text, q text) RETURNS text LANGUAGE plpgsql AS $$
+CREATE FUNCTION gate_a_test.probe(uid uuid, r text, q text) RETURNS text LANGUAGE plpgsql AS $$
 BEGIN
   IF r = 'authenticated' AND uid IS NULL THEN RETURN 'UNAVAILABLE'; END IF;
   BEGIN
@@ -67,20 +70,21 @@ BEGIN
   END;
 END $$;
 
-CREATE FUNCTION pg_temp.t(actor text, test text, expect text, q text) RETURNS void LANGUAGE plpgsql AS $$
+CREATE FUNCTION gate_a_test.t(actor text, test text, expect text, q text) RETURNS void LANGUAGE plpgsql AS $$
 DECLARE uid uuid; r text := 'authenticated';
 BEGIN
   IF actor = 'anon' THEN r := 'anon';
   ELSIF actor = 'service' THEN r := 'service_role';
   ELSE EXECUTE format('SELECT %I FROM who', actor) INTO uid; END IF;
-  INSERT INTO res(actor, test, expect, got) VALUES (actor, test, expect, pg_temp.probe(uid, r, q));
+  INSERT INTO res(actor, test, expect, got) VALUES (actor, test, expect, gate_a_test.probe(uid, r, q));
   EXECUTE 'RESET ROLE';
 END $$;
 
 -- helpers used inside probes (assert → error when false)
-CREATE FUNCTION pg_temp.must(b boolean) RETURNS void LANGUAGE plpgsql AS $$
+CREATE FUNCTION gate_a_test.must(b boolean) RETURNS void LANGUAGE plpgsql AS $$
 BEGIN IF b IS NOT TRUE THEN RAISE EXCEPTION 'assert'; END IF; END $$;
-GRANT USAGE ON SCHEMA pg_temp TO authenticated, anon, service_role;
+GRANT USAGE ON SCHEMA gate_a_test TO authenticated, anon, service_role;
+GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA gate_a_test TO authenticated, anon, service_role;
 
 DO $$
 DECLARE other uuid; own uuid;
@@ -89,61 +93,61 @@ BEGIN
   SELECT id INTO other FROM public.instructors WHERE id IS DISTINCT FROM own ORDER BY id LIMIT 1;
 
   -- Teacher: negative
-  PERFORM pg_temp.t('teacher','select *','denied','SELECT * FROM public.instructors');
-  PERFORM pg_temp.t('teacher','email','denied','SELECT email FROM public.instructors');
-  PERFORM pg_temp.t('teacher','phone','denied','SELECT phone FROM public.instructors');
-  PERFORM pg_temp.t('teacher','birth_date','denied','SELECT birth_date FROM public.instructors');
-  PERFORM pg_temp.t('teacher','address','denied','SELECT street, zip, city, country FROM public.instructors');
-  PERFORM pg_temp.t('teacher','notes/entry_date','denied','SELECT notes, entry_date FROM public.instructors');
-  PERFORM pg_temp.t('teacher','hourly_rate','denied','SELECT hourly_rate FROM public.instructors');
-  PERFORM pg_temp.t('teacher','bank/iban/ahv','denied','SELECT bank_name, iban, ahv_number FROM public.instructors');
-  PERFORM pg_temp.t('teacher','filter on email','denied',$q$SELECT 1 FROM public.instructors WHERE email ILIKE '%a%'$q$);
-  PERFORM pg_temp.t('teacher','join email via ticket_items','denied','SELECT i.email FROM public.ticket_items ti JOIN public.instructors i ON i.id = ti.instructor_id');
-  PERFORM pg_temp.t('teacher','ops_list RPC','denied','SELECT * FROM public.instructors_ops_list(NULL)');
-  PERFORM pg_temp.t('teacher','pay_list RPC','denied','SELECT * FROM public.instructors_pay_list(NULL)');
-  PERFORM pg_temp.t('teacher','direct UPDATE other','denied',format($q$UPDATE public.instructors SET first_name = first_name WHERE id = %L$q$, other));
-  PERFORM pg_temp.t('teacher','direct UPDATE own','denied',format($q$UPDATE public.instructors SET first_name = first_name WHERE id = %L$q$, own));
-  PERFORM pg_temp.t('teacher','direct DELETE','denied',format($q$DELETE FROM public.instructors WHERE id = %L$q$, other));
-  PERFORM pg_temp.t('teacher','direct INSERT','denied',$q$INSERT INTO public.instructors(first_name,last_name) VALUES ('x','y')$q$);
-  PERFORM pg_temp.t('teacher','ops_upsert other','denied',format($q$SELECT public.instructor_ops_upsert(jsonb_build_object('id',%L,'first_name','x'))$q$, other));
-  PERFORM pg_temp.t('teacher','instructor_delete','denied',format($q$SELECT public.instructor_delete(%L)$q$, other));
-  PERFORM pg_temp.t('teacher','self_update email','denied',$q$SELECT public.instructor_self_update('{"email":"x@example.invalid"}')$q$);
-  PERFORM pg_temp.t('teacher','self_update hourly_rate','denied',$q$SELECT public.instructor_self_update('{"hourly_rate":99}')$q$);
-  PERFORM pg_temp.t('teacher','HR source links','denied','SELECT pg_temp.must(count(*) > 0) FROM public.instructor_source_links');
-  PERFORM pg_temp.t('teacher','HR private','denied','SELECT pg_temp.must(count(*) > 0) FROM public.instructor_hr_private');
-  PERFORM pg_temp.t('teacher','import staging','denied','SELECT pg_temp.must(count(*) > 0) FROM public.instructor_import_staging');
-  PERFORM pg_temp.t('teacher','private HR photos objects','denied',$q$SELECT pg_temp.must(count(*) > 0) FROM storage.objects WHERE bucket_id = 'instructor-hr-photos'$q$);
-  PERFORM pg_temp.t('teacher','public avatar upload','denied',$q$INSERT INTO storage.objects(bucket_id, name) VALUES ('instructor-avatars','gate-a-probe.jpg')$q$);
+  PERFORM gate_a_test.t('teacher','select *','denied','SELECT * FROM public.instructors');
+  PERFORM gate_a_test.t('teacher','email','denied','SELECT email FROM public.instructors');
+  PERFORM gate_a_test.t('teacher','phone','denied','SELECT phone FROM public.instructors');
+  PERFORM gate_a_test.t('teacher','birth_date','denied','SELECT birth_date FROM public.instructors');
+  PERFORM gate_a_test.t('teacher','address','denied','SELECT street, zip, city, country FROM public.instructors');
+  PERFORM gate_a_test.t('teacher','notes/entry_date','denied','SELECT notes, entry_date FROM public.instructors');
+  PERFORM gate_a_test.t('teacher','hourly_rate','denied','SELECT hourly_rate FROM public.instructors');
+  PERFORM gate_a_test.t('teacher','bank/iban/ahv','denied','SELECT bank_name, iban, ahv_number FROM public.instructors');
+  PERFORM gate_a_test.t('teacher','filter on email','denied',$q$SELECT 1 FROM public.instructors WHERE email ILIKE '%a%'$q$);
+  PERFORM gate_a_test.t('teacher','join email via ticket_items','denied','SELECT i.email FROM public.ticket_items ti JOIN public.instructors i ON i.id = ti.instructor_id');
+  PERFORM gate_a_test.t('teacher','ops_list RPC','denied','SELECT * FROM public.instructors_ops_list(NULL)');
+  PERFORM gate_a_test.t('teacher','pay_list RPC','denied','SELECT * FROM public.instructors_pay_list(NULL)');
+  PERFORM gate_a_test.t('teacher','direct UPDATE other','denied',format($q$UPDATE public.instructors SET first_name = first_name WHERE id = %L$q$, other));
+  PERFORM gate_a_test.t('teacher','direct UPDATE own','denied',format($q$UPDATE public.instructors SET first_name = first_name WHERE id = %L$q$, own));
+  PERFORM gate_a_test.t('teacher','direct DELETE','denied',format($q$DELETE FROM public.instructors WHERE id = %L$q$, other));
+  PERFORM gate_a_test.t('teacher','direct INSERT','denied',$q$INSERT INTO public.instructors(first_name,last_name) VALUES ('x','y')$q$);
+  PERFORM gate_a_test.t('teacher','ops_upsert other','denied',format($q$SELECT public.instructor_ops_upsert(jsonb_build_object('id',%L,'first_name','x'))$q$, other));
+  PERFORM gate_a_test.t('teacher','instructor_delete','denied',format($q$SELECT public.instructor_delete(%L)$q$, other));
+  PERFORM gate_a_test.t('teacher','self_update email','denied',$q$SELECT public.instructor_self_update('{"email":"x@example.invalid"}')$q$);
+  PERFORM gate_a_test.t('teacher','self_update hourly_rate','denied',$q$SELECT public.instructor_self_update('{"hourly_rate":99}')$q$);
+  PERFORM gate_a_test.t('teacher','HR source links','denied','SELECT gate_a_test.must(count(*) > 0) FROM public.instructor_source_links');
+  PERFORM gate_a_test.t('teacher','HR private','denied','SELECT gate_a_test.must(count(*) > 0) FROM public.instructor_hr_private');
+  PERFORM gate_a_test.t('teacher','import staging','denied','SELECT gate_a_test.must(count(*) > 0) FROM public.instructor_import_staging');
+  PERFORM gate_a_test.t('teacher','private HR photos objects','denied',$q$SELECT gate_a_test.must(count(*) > 0) FROM storage.objects WHERE bucket_id = 'instructor-hr-photos'$q$);
+  PERFORM gate_a_test.t('teacher','public avatar upload','denied',$q$INSERT INTO storage.objects(bucket_id, name) VALUES ('instructor-avatars','gate-a-probe.jpg')$q$);
   -- Teacher: positive
-  PERFORM pg_temp.t('teacher','directory (all names)','ok','SELECT pg_temp.must(count(*) = 31) FROM (SELECT id, first_name, last_name, status, real_time_status FROM public.instructors) s');
-  PERFORM pg_temp.t('teacher','own profile instructor_self','ok','SELECT pg_temp.must(count(*) = 1) FROM public.instructor_self()');
-  PERFORM pg_temp.t('teacher','self_update phone','ok',$q$SELECT public.instructor_self_update(jsonb_build_object('phone', (SELECT phone FROM public.instructor_self())))$q$);
-  PERFORM pg_temp.t('teacher','live status feed','ok','SELECT pg_temp.must(count(*) = 31) FROM public.instructor_live_status');
+  PERFORM gate_a_test.t('teacher','directory (all names)','ok','SELECT gate_a_test.must(count(*) = 31) FROM (SELECT id, first_name, last_name, status, real_time_status FROM public.instructors) s');
+  PERFORM gate_a_test.t('teacher','own profile instructor_self','ok','SELECT gate_a_test.must(count(*) = 1) FROM public.instructor_self()');
+  PERFORM gate_a_test.t('teacher','self_update phone','ok',$q$SELECT public.instructor_self_update(jsonb_build_object('phone', (SELECT phone FROM public.instructor_self())))$q$);
+  PERFORM gate_a_test.t('teacher','live status feed','ok','SELECT gate_a_test.must(count(*) = 31) FROM public.instructor_live_status');
 
   -- Office / Admin / standalone super_admin
-  PERFORM pg_temp.t('office','ops_list incl. personnel','ok','SELECT pg_temp.must(count(*) = 31) FROM (SELECT email, phone, street, zip, city, country, birth_date, entry_date, notes FROM public.instructors_ops_list(NULL)) s');
-  PERFORM pg_temp.t('office','pay_list','denied','SELECT * FROM public.instructors_pay_list(NULL)');
-  PERFORM pg_temp.t('office','direct hourly_rate','denied','SELECT hourly_rate FROM public.instructors');
-  PERFORM pg_temp.t('office','ops_upsert personnel (no wage)','ok',format($q$SELECT public.instructor_ops_upsert(jsonb_build_object('id',%L,'notes',(SELECT notes FROM public.instructors_ops_list(%L))))$q$, other, other));
-  PERFORM pg_temp.t('office','ops_upsert with iban','denied',format($q$SELECT public.instructor_ops_upsert(jsonb_build_object('id',%L,'iban','CH00'))$q$, other));
-  PERFORM pg_temp.t('office','pay_update','denied',format($q$SELECT public.instructor_pay_update(%L,'{"hourly_rate":1}')$q$, other));
-  PERFORM pg_temp.t('admin','ops_list incl. personnel','ok','SELECT pg_temp.must(count(*) = 31) FROM (SELECT email, birth_date, notes FROM public.instructors_ops_list(NULL)) s');
-  PERFORM pg_temp.t('admin','pay_list','denied','SELECT * FROM public.instructors_pay_list(NULL)');
-  PERFORM pg_temp.t('admin','ops_upsert with hourly_rate','denied',format($q$SELECT public.instructor_ops_upsert(jsonb_build_object('id',%L,'hourly_rate',1))$q$, other));
-  PERFORM pg_temp.t('admin','instructor_delete (rolled back)','ok',format($q$SELECT public.instructor_delete(%L)$q$, (SELECT id FROM public.instructors i WHERE NOT EXISTS (SELECT 1 FROM public.ticket_items WHERE instructor_id=i.id) ORDER BY id DESC LIMIT 1)));
-  PERFORM pg_temp.t('admin','public avatar upload','ok',$q$INSERT INTO storage.objects(bucket_id, name) VALUES ('instructor-avatars','gate-a-probe-admin.jpg')$q$);
-  PERFORM pg_temp.t('sa_only','ops_list','ok','SELECT pg_temp.must(count(*) >= 30) FROM public.instructors_ops_list(NULL)');
-  PERFORM pg_temp.t('sa_only','pay_list','ok','SELECT pg_temp.must(count(*) >= 30) FROM public.instructors_pay_list(NULL)');
-  PERFORM pg_temp.t('sa_only','HR private readable','ok','SELECT count(*) FROM public.instructor_hr_private');
-  PERFORM pg_temp.t('sa_any','pay_update (rolled back)','ok',format($q$SELECT public.instructor_pay_update(%L, jsonb_build_object('hourly_rate',(SELECT hourly_rate FROM public.instructors_pay_list(%L))))$q$, other, other));
+  PERFORM gate_a_test.t('office','ops_list incl. personnel','ok','SELECT gate_a_test.must(count(*) = 31) FROM (SELECT email, phone, street, zip, city, country, birth_date, entry_date, notes FROM public.instructors_ops_list(NULL)) s');
+  PERFORM gate_a_test.t('office','pay_list','denied','SELECT * FROM public.instructors_pay_list(NULL)');
+  PERFORM gate_a_test.t('office','direct hourly_rate','denied','SELECT hourly_rate FROM public.instructors');
+  PERFORM gate_a_test.t('office','ops_upsert personnel (no wage)','ok',format($q$SELECT public.instructor_ops_upsert(jsonb_build_object('id',%L,'notes',(SELECT notes FROM public.instructors_ops_list(%L))))$q$, other, other));
+  PERFORM gate_a_test.t('office','ops_upsert with iban','denied',format($q$SELECT public.instructor_ops_upsert(jsonb_build_object('id',%L,'iban','CH00'))$q$, other));
+  PERFORM gate_a_test.t('office','pay_update','denied',format($q$SELECT public.instructor_pay_update(%L,'{"hourly_rate":1}')$q$, other));
+  PERFORM gate_a_test.t('admin','ops_list incl. personnel','ok','SELECT gate_a_test.must(count(*) = 31) FROM (SELECT email, birth_date, notes FROM public.instructors_ops_list(NULL)) s');
+  PERFORM gate_a_test.t('admin','pay_list','denied','SELECT * FROM public.instructors_pay_list(NULL)');
+  PERFORM gate_a_test.t('admin','ops_upsert with hourly_rate','denied',format($q$SELECT public.instructor_ops_upsert(jsonb_build_object('id',%L,'hourly_rate',1))$q$, other));
+  PERFORM gate_a_test.t('admin','instructor_delete (rolled back)','ok',format($q$SELECT public.instructor_delete(%L)$q$, (SELECT id FROM public.instructors i WHERE NOT EXISTS (SELECT 1 FROM public.ticket_items WHERE instructor_id=i.id) ORDER BY id DESC LIMIT 1)));
+  PERFORM gate_a_test.t('admin','public avatar upload','ok',$q$INSERT INTO storage.objects(bucket_id, name) VALUES ('instructor-avatars','gate-a-probe-admin.jpg')$q$);
+  PERFORM gate_a_test.t('sa_only','ops_list','ok','SELECT gate_a_test.must(count(*) >= 30) FROM public.instructors_ops_list(NULL)');
+  PERFORM gate_a_test.t('sa_only','pay_list','ok','SELECT gate_a_test.must(count(*) >= 30) FROM public.instructors_pay_list(NULL)');
+  PERFORM gate_a_test.t('sa_only','HR private readable','ok','SELECT count(*) FROM public.instructor_hr_private');
+  PERFORM gate_a_test.t('sa_any','pay_update (rolled back)','ok',format($q$SELECT public.instructor_pay_update(%L, jsonb_build_object('hourly_rate',(SELECT hourly_rate FROM public.instructors_pay_list(%L))))$q$, other, other));
 
   -- Anonymous
-  PERFORM pg_temp.t('anon','select id','denied','SELECT id FROM public.instructors');
-  PERFORM pg_temp.t('anon','ops_list','denied','SELECT * FROM public.instructors_ops_list(NULL)');
-  PERFORM pg_temp.t('anon','live status','denied','SELECT pg_temp.must(count(*) > 0) FROM public.instructor_live_status');
+  PERFORM gate_a_test.t('anon','select id','denied','SELECT id FROM public.instructors');
+  PERFORM gate_a_test.t('anon','ops_list','denied','SELECT * FROM public.instructors_ops_list(NULL)');
+  PERFORM gate_a_test.t('anon','live status','denied','SELECT gate_a_test.must(count(*) > 0) FROM public.instructor_live_status');
 
   -- Public Team API path (Edge Function uses service_role)
-  PERFORM pg_temp.t('service','public Team read','ok',$q$SELECT pg_temp.must(count(*) = 2) FROM public.instructors WHERE status='active' AND show_on_website$q$);
+  PERFORM gate_a_test.t('service','public Team read','ok',$q$SELECT gate_a_test.must(count(*) = 2) FROM public.instructors WHERE status='active' AND show_on_website$q$);
 END $$;
 
 RESET ROLE;
