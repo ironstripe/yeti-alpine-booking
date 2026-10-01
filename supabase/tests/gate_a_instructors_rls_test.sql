@@ -133,7 +133,6 @@ BEGIN
   PERFORM gate_a_test.t('admin','ops_list incl. personnel','ok','SELECT gate_a_test.must(count(*) = 31) FROM (SELECT email, birth_date, notes FROM public.instructors_ops_list(NULL)) s');
   PERFORM gate_a_test.t('admin','pay_list','denied','SELECT * FROM public.instructors_pay_list(NULL)');
   PERFORM gate_a_test.t('admin','ops_upsert with hourly_rate','denied',format($q$SELECT public.instructor_ops_upsert(jsonb_build_object('id',%L,'hourly_rate',1))$q$, other));
-  PERFORM gate_a_test.t('admin','instructor_delete (rolled back)','ok',format($q$SELECT public.instructor_delete(%L)$q$, (SELECT id FROM public.instructors i WHERE NOT EXISTS (SELECT 1 FROM public.ticket_items WHERE instructor_id=i.id) ORDER BY id DESC LIMIT 1)));
   PERFORM gate_a_test.t('admin','public avatar upload','ok',$q$INSERT INTO storage.objects(bucket_id, name) VALUES ('instructor-avatars','gate-a-probe-admin.jpg')$q$);
   PERFORM gate_a_test.t('sa_only','ops_list','ok','SELECT gate_a_test.must(count(*) >= 30) FROM public.instructors_ops_list(NULL)');
   PERFORM gate_a_test.t('sa_only','pay_list','ok','SELECT gate_a_test.must(count(*) >= 30) FROM public.instructors_pay_list(NULL)');
@@ -147,6 +146,14 @@ BEGIN
 
   -- Public Team API path (Edge Function uses service_role)
   PERFORM gate_a_test.t('service','public Team read','ok',$q$SELECT gate_a_test.must(count(*) = 2) FROM public.instructors WHERE status='active' AND show_on_website$q$);
+  -- fingerprint after all non-destructive probes (before the delete probe)
+  INSERT INTO gate_a_test.res(actor,test,expect,got)
+  SELECT 'system','fingerprint unchanged (31 rows hash, 14 roles, team=2, flags)','ok',
+    CASE WHEN f.rows_hash = (SELECT md5(string_agg(t::text, '' ORDER BY id)) FROM public.instructors t)
+          AND f.n_instructors = 31 AND f.n_roles = 14 AND f.team = 2
+          AND f.roles_hash = (SELECT md5(string_agg(user_id::text||role::text, ',' ORDER BY user_id, role)) FROM public.user_roles)
+         THEN 'ok' ELSE 'changed' END FROM gate_a_test.fp f;
+  PERFORM gate_a_test.t('admin','instructor_delete (rolled back)','ok',format($q$SELECT public.instructor_delete(%L)$q$, (SELECT id FROM public.instructors i WHERE NOT EXISTS (SELECT 1 FROM public.ticket_items WHERE instructor_id=i.id) ORDER BY id DESC LIMIT 1)));
 END $$;
 
 RESET ROLE;
