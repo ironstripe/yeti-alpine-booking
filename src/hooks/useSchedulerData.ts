@@ -277,6 +277,38 @@ export function useSchedulerData({ startDate, endDate, instructorId }: UseSchedu
     },
   });
 
+  // Deployment-window gates (Booking-Corner-linked people; unlinked legacy people are not returned)
+  const deploymentGatesQuery = useQuery({
+    queryKey: ["scheduler-deployment-gates"],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("instructor_deployment_gates");
+      if (error) throw error;
+      return (data || []) as { instructor_id: string; valid_from: string | null; valid_until: string | null }[];
+    },
+  });
+
+  // Days outside every deployment window are shown as full-day unavailable (never stored as absences)
+  const expandDeploymentGates = (): SchedulerAbsence[] => {
+    const byInstructor = new Map<string, { from: string; until: string }[]>();
+    for (const g of deploymentGatesQuery.data || []) {
+      if (!byInstructor.has(g.instructor_id)) byInstructor.set(g.instructor_id, []);
+      if (g.valid_from && g.valid_until) byInstructor.get(g.instructor_id)!.push({ from: g.valid_from, until: g.valid_until });
+    }
+    const out: SchedulerAbsence[] = [];
+    for (const [id, wins] of byInstructor) {
+      if (instructorId && id !== instructorId) continue;
+      for (let d = startDate; d <= endDate; d = addDays(d, 1)) {
+        const ds = format(d, "yyyy-MM-dd");
+        if (wins.some((w) => ds >= w.from && ds <= w.until)) continue;
+        out.push({
+          id: `deployment-${id}-${ds}`, instructorId: id, startDate: ds, endDate: ds,
+          type: "other", status: "confirmed", reason: "Kein Einsatzfenster", isFullDay: true,
+        });
+      }
+    }
+    return out;
+  };
+
   // Helper function to expand recurring blocks into daily absences
   const expandRecurringBlocks = (): SchedulerAbsence[] => {
     const blocks = recurringBlocksQuery.data || [];
@@ -554,7 +586,7 @@ export function useSchedulerData({ startDate, endDate, instructorId }: UseSchedu
     }));
 
   // Combine one-time absences with expanded recurring blocks
-  const absences: SchedulerAbsence[] = [...oneTimeAbsences, ...expandRecurringBlocks()];
+  const absences: SchedulerAbsence[] = [...oneTimeAbsences, ...expandRecurringBlocks(), ...expandDeploymentGates()];
 
   return {
     instructors,

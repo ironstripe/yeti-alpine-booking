@@ -43,6 +43,8 @@ export function BlockingBar({ absence, slotWidth }: BlockingBarProps) {
 
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
+    // Missing deployment window is derived, not an absence record: nothing to open.
+    if (absence.id.startsWith("deployment-")) return;
     // For recurring blocks, navigate to instructor page with recurring tab focused
     if (absence.id.startsWith("recurring-")) {
       // Extract the actual block ID from the expanded absence ID (format: recurring-{blockId}-{date})
