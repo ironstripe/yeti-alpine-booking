@@ -33,6 +33,31 @@ export class ErrorBoundary extends Component<Props, State> {
     this.setState({ hasError: false, error: null, errorInfo: null });
   };
 
+  handleRefreshApp = async () => {
+    try {
+      if ('serviceWorker' in navigator) {
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(registrations
+          .filter((registration) => new URL(registration.scope).origin === window.location.origin)
+          .map((registration) => registration.unregister()));
+      }
+      if ('caches' in window) {
+        const names = await caches.keys();
+        await Promise.all(names
+          .filter((name) => (name.startsWith('workbox-precache-') && name.includes(window.location.origin))
+            || name === 'supabase-rest-cache')
+          .map((name) => caches.delete(name)));
+      }
+    } catch (error) {
+      console.error('Local app cache refresh failed:', error);
+    } finally {
+      // Keep the current route and login; bypass a cached index.html on the next navigation.
+      const url = new URL(window.location.href);
+      url.searchParams.set('_app_refresh', Date.now().toString());
+      window.location.replace(url.toString());
+    }
+  };
+
   render() {
     if (this.state.hasError) {
       return (
@@ -71,6 +96,14 @@ export class ErrorBoundary extends Component<Props, State> {
                   <Home className="mr-2 h-4 w-4" />
                   Zur Startseite
                 </Button>
+              </div>
+              <div className="text-center space-y-2">
+                <Button variant="link" onClick={this.handleRefreshApp}>
+                  App-Version aktualisieren (Cache leeren)
+                </Button>
+                <p className="text-xs text-muted-foreground">
+                  Nur lokale YETI-Zwischenspeicher werden entfernt. Ungespeicherte Eingaben gehen beim Neuladen verloren.
+                </p>
               </div>
             </CardContent>
           </Card>
