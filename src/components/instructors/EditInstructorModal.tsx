@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -94,6 +95,7 @@ export function EditInstructorModal({
   instructor,
 }: EditInstructorModalProps) {
   const updateInstructor = useUpdateInstructor(instructor.id);
+  const queryClient = useQueryClient();
   const [ibanValue, setIbanValue] = useState("");
   const [ahvValue, setAhvValue] = useState("");
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
