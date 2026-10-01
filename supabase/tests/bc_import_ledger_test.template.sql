@@ -190,7 +190,10 @@ BEGIN
 END $$;
 
 -- ---------- recovery dry-run ----------
+-- All edits below happen in the SAME transaction as the apply (identical now()); detection must not rely on time.
 UPDATE public.instructors SET hourly_rate = 99 WHERE id = (SELECT t_fail FROM ledger_test.fx);   -- intervening pay edit
+-- intervening HR edit seconds after apply (same transaction, so same now()): must still be detected
+UPDATE public.instructor_hr_private SET bank_raw = 'edited-by-staff' WHERE instructor_id = (SELECT t_fail FROM ledger_test.fx);
 CREATE TABLE ledger_test.dry1 AS SELECT public.bc_recovery_dry_run((SELECT run FROM ledger_test.fx)) AS d;
 INSERT INTO public.instructor_photos(instructor_id, storage_path, origin, is_current)
   SELECT applied_instructor_id, 'ledger-test/new-manual.jpg', 'manual_upload', true
@@ -217,10 +220,19 @@ BEGIN
     NOT EXISTS (SELECT 1 FROM jsonb_array_elements(d1->'rows') e, jsonb_array_elements_text(e->'reasons') x
                 WHERE x LIKE 'profile_changed:%'), d1::text);
   PERFORM ledger_test.ok('dry-run: unreferenced create = candidate only', rc1->>'verdict' = 'unreferenced_create_candidate', rc1::text);
+  PERFORM ledger_test.ok('dry-run: HR edit within 60 s detected (field name only)',
+    rf->'reasons' ? 'hr_private_changed_after_import:bank_raw', rf->'reasons'::text);
+  PERFORM ledger_test.ok('dry-run: no false HR change on untouched rows (create + update)',
+    NOT EXISTS (SELECT 1 FROM jsonb_array_elements_text(rc1->'reasons' || ru->'reasons') x WHERE x LIKE 'hr_private_changed%'),
+    (rc1->'reasons' || ru->'reasons')::text);
+  PERFORM ledger_test.ok('dry-run: no false photo_metadata_changed (own photo step only flips is_current)',
+    NOT (rf->'reasons' ? 'photo_metadata_changed') AND NOT (ru->'reasons' ? 'photo_metadata_changed'), rf->'reasons'::text);
+  -- manual photo inserted in the same transaction (created_at = captured_at): detected by photo identity
   PERFORM ledger_test.ok('dry-run: create with manual photo → stop, referenced, no delete',
     rc2->>'verdict' = 'stop' AND rc2->'reasons' ? 'manual_photo_after_import' AND rc2->'reasons' ? 'referenced_cannot_delete', rc2->'reasons'::text);
   PERFORM ledger_test.ok('dry-run output carries no field values',
-    position('+41 79' in d2::text) = 0 AND position('ledger-u@' in d2::text) = 0 AND position('CH00' in d2::text) = 0);
+    position('+41 79' in d2::text) = 0 AND position('ledger-u@' in d2::text) = 0 AND position('CH00' in d2::text) = 0
+    AND position('edited-by-staff' in d2::text) = 0 AND position('synthetic' in d2::text) = 0);
   PERFORM ledger_test.ok('dry-run wrote nothing (instructors unchanged by it)',
     (SELECT count(*) FROM public.instructors WHERE email = 'ledger-new@test.invalid') = 1);
 END $$;
