@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchInstructors, fetchInstructor } from "@/lib/instructorsApi";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -35,8 +36,7 @@ export function usePendingAbsences() {
           created_at,
           instructors!inner (
             first_name,
-            last_name,
-            email
+            last_name
           )
         `)
         .eq("status", "pending")
@@ -44,11 +44,13 @@ export function usePendingAbsences() {
 
       if (error) throw error;
 
+      // Contact fields come from the staff-only projection, never from a nested join.
+      const contactById = new Map((await fetchInstructors()).map((i) => [i.id, i]));
       return data.map((row): PendingAbsence => ({
         id: row.id,
         instructorId: row.instructor_id,
         instructorName: `${row.instructors.first_name} ${row.instructors.last_name}`,
-        instructorEmail: row.instructors.email,
+        instructorEmail: contactById.get(row.instructor_id)?.email ?? null,
         startDate: row.start_date,
         endDate: row.end_date,
         type: row.type,
@@ -83,20 +85,19 @@ export function useApproveAbsence() {
           type,
           instructors!inner (
             first_name,
-            last_name,
-            email,
-            phone
+            last_name
           )
         `)
         .single();
 
       if (error) throw error;
+      const contact = await fetchInstructor(data.instructor_id);
 
       // Trigger notification
       await triggerNotification({
         instructorId: data.instructor_id,
-        instructorEmail: data.instructors.email,
-        instructorPhone: data.instructors.phone,
+        instructorEmail: contact?.email ?? null,
+        instructorPhone: contact?.phone ?? null,
         absenceType: data.type,
         startDate: data.start_date,
         endDate: data.end_date,
@@ -140,20 +141,19 @@ export function useRejectAbsence() {
           type,
           instructors!inner (
             first_name,
-            last_name,
-            email,
-            phone
+            last_name
           )
         `)
         .single();
 
       if (error) throw error;
+      const contact = await fetchInstructor(data.instructor_id);
 
       // Trigger notification
       await triggerNotification({
         instructorId: data.instructor_id,
-        instructorEmail: data.instructors.email,
-        instructorPhone: data.instructors.phone,
+        instructorEmail: contact?.email ?? null,
+        instructorPhone: contact?.phone ?? null,
         absenceType: data.type,
         startDate: data.start_date,
         endDate: data.end_date,

@@ -129,16 +129,7 @@ export default function InstructorProfile() {
     mutationFn: async () => {
       if (!instructorId) throw new Error("No instructor ID");
 
-      const { error } = await supabase
-        .from("instructors")
-        .update({
-          phone,
-          email,
-          languages,
-        })
-        .eq("id", instructorId);
-
-      if (error) throw error;
+      await updateInstructorSelf({ phone, languages });
     },
     onSuccess: () => {
       toast.success("Profil aktualisiert");
