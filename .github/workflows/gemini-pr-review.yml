@@ -1,0 +1,80 @@
+name: Gemini Pragmatism Gatekeeper
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Hole PR Diff
+        id: diff
+        run: |
+          git fetch origin ${{ github.base_ref }}
+          git diff origin/${{ github.base_ref }}...HEAD > pr_diff.txt
+
+      - name: Gemini Review durchführen
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python3 - << 'EOF'
+          import os, json, urllib.request
+
+          api_key = os.environ.get('GEMINI_API_KEY')
+          pr_num = os.environ.get('PR_NUMBER')
+          repo = os.environ.get('REPO')
+          gh_token = os.environ.get('GH_TOKEN')
+
+          if not api_key:
+              raise SystemExit("GEMINI_API_KEY secret fehlt!")
+
+          with open('pr_diff.txt', 'r', encoding='utf-8', errors='ignore') as f:
+              diff = f.read()
+
+          # Begrenzung für sehr große PRs
+          diff_sample = diff[:50000]
+
+          prompt = f"""
+          Du bist der pragmatische Tech-Lead und Gatekeeper. Dein Ziel: Schnelles Shipping (MVP), saubere Architektur, null Overengineering.
+          Verhindere das 'Agent Rabbit Hole' (endlose Loops aus Refactoring, Mini-Tests, unnötigen Abstraktionen).
+
+          Analysiere den folgenden Git-Diff dieses Pull Requests:
+          ```
+          {diff_sample}
+          ```
+
+          Antworte nach exakt diesem Schema:
+          1. **Verdict**: [SHIP IT 🚀] oder [BLOCK 🛑] (Nur blocken bei echten Showstoppern/Bugs oder extremem Scope Creep!)
+          2. **Pragmatismus-Check**: Wurde hier unnötiges Zeug gebaut, das niemand bestellt hat?
+          3. **Maximal 2-3 konkrete Bulletpoints**: Was muss zwingend gefixt werden (falls BLOCK), oder was ist die Essenz des PRs (falls SHIP IT).
+          Halte dich kurz, direkt und lösungsorientiert.
+          """
+
+          url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
+          data = json.dumps({"contents": [{"parts": [{"text": prompt}]}]}).encode('utf-8')
+          
+          req = urllib.request.Request(url, data=data, headers={'Content-Type': 'application/json'})
+          resp = urllib.request.urlopen(req)
+          result = json.loads(resp.read().decode('utf-8'))
+          review_comment = result['candidates'][0]['content']['parts'][0]['text']
+
+          comment_url = f"https://api.github.com/repos/{repo}/issues/{pr_num}/comments"
+          comment_data = json.dumps({"body": f"### 🤖 Gemini Pragmatism Review\n\n{review_comment}"}).encode('utf-8')
+          req_gh = urllib.request.Request(comment_url, data=comment_data, headers={
+              'Authorization': f'Bearer {gh_token}',
+              'Accept': 'application/vnd.github.v3+json',
+              'Content-Type': 'application/json'
+          })
+          urllib.request.urlopen(req_gh)
+          EOF
