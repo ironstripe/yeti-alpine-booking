@@ -57,6 +57,11 @@ jobs:
         run: node tests/bcAge.integration.mjs
       - name: 26/27 source-specific course levels — hard gate
         run: node tests/bcCourseLevels.integration.mjs
+      - name: 26/27 course-draft import and 3210 lesson instances — hard gate
+        run: |
+          python3 scripts/build_bc_2627_course_import.py data/bc-2627/course-manifest-not-active.csv /tmp/bc-2627-course-import-ci.sql
+          cmp /tmp/bc-2627-course-import-ci.sql supabase/migrations/20261002230000_bc_2627_course_drafts.sql
+          node tests/bcCourseImport.integration.mjs
       - name: Build — hard gate
         run: bun run build
       - name: Working tree unchanged — hard gate
