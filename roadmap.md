@@ -33,21 +33,20 @@
 - [x] Phase 2 fix: advisory slot locks + DB-unique submission_key (2-session live proof pending: needs privileged DB URL)
 
 ## Booking-Corner Lehrer-Import (Admin-Dry-Run)
-- [x] Prerequisite migration applied (schema + RLS + private storage policy); super_admin only ivo@ivo.ch
+- [x] Prerequisite schema/RLS and private storage are live; Christoph's approved `super_admin` role remains alongside the owner's (two superadmins observed 2026-10-01).
 - [x] Private bucket `instructor-hr-photos` created (10 MB)
 - [x] Dry-run preview (function + super_admin dialog + synthetic parser/matching tests + RLS test)
-- [ ] Real-file dry-run by owner, then separate Apply step (waiting: owner runs preview with real files)
-- [ ] Christoph FreeSurf account (blocked: identity clarification)
+- [x] Real-file preview twice, latest `d2711047-6f18-4f4a-8614-605270e18760`: 67 creates, 16 candidates, 4 owner-approved reviews; all 87 source checksums and 20 target UUIDs unchanged; no Apply, 31 instructors and 0 Booking source links.
+- [x] Christoph `christoph@powersurf.li` granted `super_admin` with owner approval; never remove this role during import work.
 - [ ] Public Team candidate list (after verified real import)
-- [ ] Before-image ledger + recovery dry-run: files ready (pending/bc_import_ledger.sql, test, rollback, RECOVERY.md) (blocked: owner review before Cloud SQL; then run test, apply, re-run Gate A/scheduler tests)
+- [ ] Before-image ledger + selective recovery dry-run: corrected files in `supabase/pending/bc_import_ledger.sql` and associated test/rollback/runbook; **not applied**. Stop gate: review and execute the fully rolled-back synthetic ledger test, approve migration separately, then re-run Gate A/scheduler/ledger role tests and verify live counts.
 - [ ] Old YETI test hourly rates: separate gate, never treated as verified Booking wages
-- [ ] BC Apply plan revision: authoritative source on reviewed links, preserve Zuordnungen per ID, manual photo provenance, no-window gating staff+web, batch_status constraint
+- [ ] Refresh selective preimport snapshots and durable backup, then separately approve a 1-create+1-update pilot; full 67+20 Apply only after pilot checks. Preserve UUIDs, raw assignments, manual photos and website flags; do not invent absences or publish imported profiles.
 
 ## Security Gate A – instructors access control (pre-import)
-- [ ] Plan rev. 2 approval (split ops/HR, stable user link, live-status realtime, exact rollback)
-- [ ] Additive migration + link backfill + frontend switch
-- [ ] Lock migration + role tests + real teacher login (blocked: teacher test account/approval)
-- [ ] Future Apply decision recorded: links 20308/21309/21095/15916 approved; Booking wins phones + "Viktoria"; never overwrite UUID/bookings/roles/manual photos/website flags (blocked: backup gate + Gate A)
+- [x] Role model, staff/superadmin RPCs, stable user links, PII-free live status and frontend switch; Gate A lock applied to live Cloud and 59/59 synthetic role tests passed with rollback. The direct Cloud recurring-blocks policy compatibility fix is also live; scheduler, booking list, instructor list and detail load as superadmin.
+- [ ] Reconcile live Gate A and scheduler fix into source control: [PR #3](https://github.com/ironstripe/yeti-alpine-booking/pull/3) is open, not merged. Do not re-run the historical pending lock; check migration/deploy impact before merge.
+- [ ] Real teacher-only and office-only browser UAT (synthetic SQL role tests do not replace separate account sessions); stale PWA bundles can show 0 instructors until client cache clears.
+- [x] Future Apply identity review: Booking IDs 20308/21309/21095/15916 are approved to link their existing UUIDs; Booking source values win for import-owned fields. No import has executed.
 - [ ] Gate A2 (only if found): teacher access to customer contacts/prices
-- [ ] Real-browser office/admin/super_admin role test (blocked: separate user permission to sign in as staff)
-- [ ] Lock migration review: published app shares backend → old published frontend breaks for office until republished (needs user decision)
+- [ ] Real-browser office/admin role verification (superadmin smoke tests passed); preserve the shared published backend and YETI UX.
