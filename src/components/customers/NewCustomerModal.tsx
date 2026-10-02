@@ -1,4 +1,3 @@
-import { useState, useEffect } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -33,6 +32,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
+import { UnsavedChangesDialog } from "@/components/ui/unsaved-changes-dialog";
+import { useGuardedFormDismiss } from "@/hooks/useGuardedFormDismiss";
 
 import { useCreateCustomer } from "@/hooks/useCreateCustomer";
 import { normalizePhoneNumber, capitalizeName } from "@/lib/phone-utils";
@@ -105,7 +106,6 @@ interface NewCustomerModalProps {
 export function NewCustomerModal({ open, onOpenChange }: NewCustomerModalProps) {
   const navigate = useNavigate();
   const createCustomer = useCreateCustomer();
-  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
   const form = useForm<CustomerFormData>({
     resolver: zodResolver(customerSchema),
@@ -150,42 +150,24 @@ export function NewCustomerModal({ open, onOpenChange }: NewCustomerModalProps) 
     name: "contacts",
   });
 
-  const { isDirty } = form.formState;
-
-  useEffect(() => {
-    setHasUnsavedChanges(isDirty);
-  }, [isDirty]);
-
-  const handleOpenChange = (open: boolean) => {
-    if (open) {
-      onOpenChange(true);
-      return;
-    }
-    
-    // Closing - check for unsaved changes
-    if (hasUnsavedChanges) {
-      const confirmed = window.confirm(
-        "Du hast ungespeicherte Änderungen. Möchtest du wirklich schliessen?"
-      );
-      if (!confirmed) return;
-    }
-    
-    form.reset();
-    setHasUnsavedChanges(false);
-    onOpenChange(false);
-  };
+  const dismiss = useGuardedFormDismiss({
+    dirty: form.formState.isDirty,
+    pending: createCustomer.isPending,
+    onDiscard: () => form.reset(),
+    onOpenChange,
+  });
 
   const handlePhoneBlur = (e: React.FocusEvent<HTMLInputElement>) => {
     const normalized = normalizePhoneNumber(e.target.value);
     if (normalized !== e.target.value) {
-      form.setValue("phone", normalized);
+      form.setValue("phone", normalized, { shouldDirty: true });
     }
   };
 
   const handleAdditionalPhoneBlur = (index: number) => (e: React.FocusEvent<HTMLInputElement>) => {
     const normalized = normalizePhoneNumber(e.target.value);
     if (normalized !== e.target.value) {
-      form.setValue(`additional_phones.${index}.number`, normalized);
+      form.setValue(`additional_phones.${index}.number`, normalized, { shouldDirty: true });
     }
   };
 
@@ -194,16 +176,16 @@ export function NewCustomerModal({ open, onOpenChange }: NewCustomerModalProps) 
   ) => {
     const capitalized = capitalizeName(e.target.value);
     if (capitalized !== e.target.value) {
-      form.setValue(field, capitalized);
+      form.setValue(field, capitalized, { shouldDirty: true });
     }
   };
 
   const handlePlzChange = (value: string) => {
-    form.setValue("zip", value);
+    form.setValue("zip", value, { shouldDirty: true });
     const result = lookupPlz(value);
     if (result) {
-      form.setValue("city", result.city);
-      form.setValue("country", result.country);
+      form.setValue("city", result.city, { shouldDirty: true });
+      form.setValue("country", result.country, { shouldDirty: true });
       toast.success(`${result.city} erkannt`, { duration: 1500 });
     }
   };
@@ -211,13 +193,13 @@ export function NewCustomerModal({ open, onOpenChange }: NewCustomerModalProps) 
   const handleContactPhoneBlur = (index: number) => (e: React.FocusEvent<HTMLInputElement>) => {
     const normalized = normalizePhoneNumber(e.target.value);
     if (normalized !== e.target.value) {
-      form.setValue(`contacts.${index}.phone`, normalized);
+      form.setValue(`contacts.${index}.phone`, normalized, { shouldDirty: true });
     }
   };
 
   const setPrimaryContact = (index: number) => {
     contactFields.forEach((_, i) => {
-      form.setValue(`contacts.${i}.is_primary`, i === index);
+      form.setValue(`contacts.${i}.is_primary`, i === index, { shouldDirty: true });
     });
   };
 
@@ -255,9 +237,7 @@ export function NewCustomerModal({ open, onOpenChange }: NewCustomerModalProps) 
 
       const newCustomer = await createCustomer.mutateAsync(customerData);
       
-      form.reset();
-      setHasUnsavedChanges(false);
-      onOpenChange(false);
+      dismiss.closeSaved();
       
       toast.success(isSchool ? "Schule erfolgreich erstellt" : "Kunde erfolgreich erstellt", {
         action: isSchool ? {
@@ -275,8 +255,8 @@ export function NewCustomerModal({ open, onOpenChange }: NewCustomerModalProps) 
   };
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+    <Dialog open={open} onOpenChange={dismiss.requestClose}>
+      <DialogContent hideCloseButton={createCustomer.isPending} className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Neuer Kunde</DialogTitle>
         </DialogHeader>
@@ -812,11 +792,11 @@ export function NewCustomerModal({ open, onOpenChange }: NewCustomerModalProps) 
                       <FormControl>
                         <CityAutocomplete
                           value={field.value || ""}
-                          onChange={(value) => form.setValue("city", value)}
+                          onChange={(value) => form.setValue("city", value, { shouldDirty: true })}
                           onSelect={(match: CityMatch) => {
-                            form.setValue("city", match.city);
-                            form.setValue("zip", match.plz);
-                            form.setValue("country", match.country);
+                            form.setValue("city", match.city, { shouldDirty: true });
+                            form.setValue("zip", match.plz, { shouldDirty: true });
+                            form.setValue("country", match.country, { shouldDirty: true });
                             toast.success(`${match.city} (${match.plz}) erkannt`, { duration: 1500 });
                           }}
                           placeholder="Ort eingeben..."
@@ -990,11 +970,12 @@ export function NewCustomerModal({ open, onOpenChange }: NewCustomerModalProps) 
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => handleOpenChange(false)}
+                onClick={() => dismiss.requestClose(false)}
+                disabled={createCustomer.isPending}
               >
                 Abbrechen
               </Button>
-              <Button type="submit" disabled={createCustomer.isPending}>
+              <Button type="submit" disabled={createCustomer.isPending || !form.formState.isDirty}>
                 {createCustomer.isPending && (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 )}
@@ -1004,6 +985,7 @@ export function NewCustomerModal({ open, onOpenChange }: NewCustomerModalProps) 
           </form>
         </Form>
       </DialogContent>
+      <UnsavedChangesDialog open={dismiss.discardOpen} onOpenChange={dismiss.setDiscardOpen} onDiscard={dismiss.confirmDiscard} />
     </Dialog>
   );
 }
