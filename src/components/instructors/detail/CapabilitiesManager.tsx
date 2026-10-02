@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useCapabilities, groupCapabilitiesByCategory } from "@/hooks/useCapabilities";
 import { useInstructorCapabilities } from "@/hooks/useInstructorCapabilities";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -27,14 +27,19 @@ export function CapabilitiesManager({ instructorId }: CapabilitiesManagerProps) 
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [hasChanges, setHasChanges] = useState(false);
+  const previousInstructorId = useRef(instructorId);
 
-  // Initialize selected state from fetched data
+  // A background refetch must not overwrite pending edits; a profile switch must.
   useEffect(() => {
-    if (capabilityIds.length > 0 || !instructorCapabilitiesLoading) {
-      setSelected(new Set(capabilityIds));
+    if (previousInstructorId.current !== instructorId) {
+      previousInstructorId.current = instructorId;
       setHasChanges(false);
+      return;
     }
-  }, [capabilityIds, instructorCapabilitiesLoading]);
+    if (!hasChanges && !instructorCapabilitiesLoading) {
+      setSelected(new Set(capabilityIds));
+    }
+  }, [capabilityIds, instructorCapabilitiesLoading, hasChanges, instructorId]);
 
   const handleToggle = (capabilityId: string, checked: boolean) => {
     setSelected((prev) => {
@@ -49,9 +54,13 @@ export function CapabilitiesManager({ instructorId }: CapabilitiesManagerProps) 
     setHasChanges(true);
   };
 
-  const handleSave = () => {
-    setCapabilities(Array.from(selected));
-    setHasChanges(false);
+  const handleSave = async () => {
+    try {
+      await setCapabilities(Array.from(selected));
+      setHasChanges(false);
+    } catch {
+      // The hook shows the error; keep the selection and enable retry.
+    }
   };
 
   if (capabilitiesLoading || instructorCapabilitiesLoading) {
@@ -104,6 +113,7 @@ export function CapabilitiesManager({ instructorId }: CapabilitiesManagerProps) 
                     >
                       <Checkbox
                         checked={selected.has(cap.id)}
+                        disabled={isSaving}
                         onCheckedChange={(checked) => handleToggle(cap.id, !!checked)}
                       />
                       <span className="text-sm">{cap.name}</span>
@@ -124,7 +134,7 @@ export function CapabilitiesManager({ instructorId }: CapabilitiesManagerProps) 
         {isSaving ? (
           <>
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            Speichern...
+            Wird gespeichert…
           </>
         ) : (
           <>
