@@ -3,6 +3,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireRole } from "../_shared/staffAuth.ts";
 import { makeRendition } from "../_shared/bcImport/image.ts";
+import { isAllowedPrivatePublishPath } from "../_shared/instructorPhotoPath.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -10,8 +11,7 @@ const cors = {
 };
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...cors, "Content-Type": "application/json" } });
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const HASHED_JPEG = /\/(?:import|manual)-[0-9a-f]{64}\.jpg$/;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
@@ -54,7 +54,7 @@ Deno.serve(async (req) => {
       .eq("instructor_id", id).eq("is_current", true).maybeSingle();
     if (photoError) return json({ error: "photo_lookup_failed" }, 500);
     if (!photo || !["booking_import", "manual_upload"].includes(photo.origin) ||
-        !photo.storage_path.startsWith(`${id}/`) || !HASHED_JPEG.test(photo.storage_path)) {
+        !isAllowedPrivatePublishPath(id, photo.storage_path)) {
       return json({ error: "photo_changed" }, 409);
     }
 
