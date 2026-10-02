@@ -16,6 +16,9 @@ export type CountryScope = "CH_LI" | "SEPA" | "INTERNATIONAL";
 export type AccountType = "iban" | "qr_iban";
 export type Currency = "CHF" | "EUR";
 
+/** SIX IG 2.3 transition ends in November 2027; use a conservative prior month-end. */
+export const EUR_QRR_LAST_DUE_DATE = "2027-10-31";
+
 export interface StructuredAddress {
   street?: string | null;
   houseNumber?: string | null;
@@ -308,8 +311,10 @@ export function validatePaymentProfile(profile: Partial<PaymentProfile>): Profil
 
   if (profile.reference_type === "QRR") {
     if (accountType !== "qr_iban") errors.push("QRR ist nur mit einer QR-IBAN zulässig");
-    if (profile.currency !== "CHF") errors.push("QRR ist nur für CHF zulässig");
     if (profile.presentation_type !== "swiss_qr") errors.push("QRR ist nur für Swiss QR zulässig");
+    if (profile.currency === "EUR" && (!profile.valid_until || profile.valid_until > EUR_QRR_LAST_DUE_DATE)) {
+      errors.push(`EUR mit QR-IBAN ist befristet: Gültig bis spätestens ${EUR_QRR_LAST_DUE_DATE} setzen`);
+    }
   } else if (accountType === "qr_iban") {
     errors.push("Eine QR-IBAN darf nur mit der Referenzart QRR verwendet werden");
   }
@@ -370,12 +375,15 @@ export function findCompatibleProfiles(
   presentation: PresentationType,
   currency: Currency,
   today = new Date().toISOString().slice(0, 10),
+  dueDate: string | null = null,
 ): PaymentProfile[] {
   return profiles
     .filter((p) => profileIsSelectable(p) && profileIsValidNow(p, today))
     .filter((p) => p.currency === currency && p.presentation_type === presentation)
-    // Swiss QR for EUR must never use a QR-IBAN + QRR combination.
-    .filter((p) => !(presentation === "swiss_qr" && currency === "EUR" && p.account_type === "qr_iban"))
+    // Transitional EUR QR-IBAN invoices must also be payable before the cutoff.
+    .filter((p) => !(presentation === "swiss_qr" && currency === "EUR" && p.account_type === "qr_iban")
+      || (today <= EUR_QRR_LAST_DUE_DATE && !!dueDate && dueDate <= EUR_QRR_LAST_DUE_DATE
+        && !!p.valid_until && p.valid_until <= EUR_QRR_LAST_DUE_DATE))
     .sort((a, b) => Number(b.is_default) - Number(a.is_default));
 }
 
@@ -415,7 +423,8 @@ export function routePayment(input: RoutingInput): RoutingResult {
   }
 
   const presentation = determinePresentation(billingCountry, currency as Currency);
-  const compatible = findCompatibleProfiles(input.profiles, presentation, currency as Currency);
+  const compatible = findCompatibleProfiles(input.profiles, presentation, currency as Currency,
+    new Date().toISOString().slice(0, 10), input.dueDate);
 
   let profile = compatible[0];
   let overridden = false;
@@ -493,7 +502,7 @@ export function routePayment(input: RoutingInput): RoutingResult {
   };
 
   if (presentation === "swiss_qr") {
-    const payload = buildSwissQRPayload({
+    const payloadInput: SwissQRPayloadInput = {
       creditorIBAN: snapshot.iban,
       creditorName: snapshot.account_holder,
       creditorStreet: profile.account_holder_street ?? "",
@@ -512,8 +521,13 @@ export function routePayment(input: RoutingInput): RoutingResult {
       referenceType: profile.reference_type === "QRR" ? "QRR" : profile.reference_type === "SCOR" ? "SCOR" : "NON",
       reference,
       message,
-    });
-    snapshot.qr_payload = payload;
+      dueDate: input.dueDate,
+    };
+    const payloadCheck = validateSwissQRPayloadInput(payloadInput);
+    if (!payloadCheck.valid) {
+      return { ok: false, error_code: "INVALID_QR_PAYLOAD", error: payloadCheck.errors.join("; ") };
+    }
+    snapshot.qr_payload = buildSwissQRPayload(payloadInput);
   }
 
   const scope = determineCountryScope(billingCountry);
@@ -556,6 +570,8 @@ export interface SwissQRPayloadInput {
   reference?: string;
   message?: string;
   billingInformation?: string;
+  /** Required when using transitional EUR QR-IBAN / QRR. Not encoded in the QR payload. */
+  dueDate?: string | null;
 }
 
 const cut = (value: string | undefined, max: number) => (value ?? "").toString().slice(0, max);
@@ -622,7 +638,9 @@ export function validateSwissQRPayloadInput(data: SwissQRPayloadInput): QRPayloa
 
   if (data.referenceType === "QRR") {
     if (ibanResult.accountType !== "qr_iban") errors.push("QRR erfordert eine QR-IBAN");
-    if (data.currency !== "CHF") errors.push("QRR ist nur für CHF zulässig");
+    if (data.currency === "EUR" && (!data.dueDate || data.dueDate > EUR_QRR_LAST_DUE_DATE)) {
+      errors.push(`EUR-QR-Referenz nur mit Fälligkeit bis ${EUR_QRR_LAST_DUE_DATE} zulässig`);
+    }
     if (!isValidQRReference(data.reference ?? "")) errors.push("QR-Referenz ist ungültig");
   } else {
     if (ibanResult.accountType === "qr_iban") errors.push("QR-IBAN darf nicht mit SCOR/NON kombiniert werden");

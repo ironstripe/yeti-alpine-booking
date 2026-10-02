@@ -145,6 +145,7 @@ export async function issueInvoice(
 
   // 3. Currency — from the invoice/ticket, never inferred from country.
   const currency = (input.currency ?? "CHF").toUpperCase();
+  const dueDate = addDays(input.dueDays ?? 14);
 
   // 4. Dry-run routing before anything is written.
   const profiles = await loadPaymentProfiles(supabase);
@@ -152,6 +153,7 @@ export async function issueInvoice(
     billingCountry: debtor.country,
     currency,
     invoiceIdentifier: "PREFLIGHT-1",
+    dueDate,
     profiles,
     overrideProfileId: input.overrideProfileId,
     overrideReason: input.overrideReason,
@@ -161,7 +163,6 @@ export async function issueInvoice(
   }
 
   // 5. Create the invoice so the invoice number exists (reference is derived from it).
-  const dueDate = addDays(input.dueDays ?? 14);
   const { data: created, error: createError } = await supabase
     .from("invoices")
     .insert({
@@ -265,6 +266,7 @@ export async function previewRouting(
     billingCountry: debtor.country,
     currency: (input.currency ?? "CHF").toUpperCase(),
     invoiceIdentifier: "PREVIEW-1",
+    dueDate: addDays(14),
     profiles,
     overrideProfileId: input.overrideProfileId,
     overrideReason: input.overrideReason ?? "Vorschau",

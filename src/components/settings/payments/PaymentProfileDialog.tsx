@@ -58,7 +58,7 @@ const empty: PaymentProfileInput = {
 function derivePresentation(values: PaymentProfileInput): PaymentProfileInput["presentation_type"] {
   if (values.country_scope === "SEPA") return "sepa_transfer";
   if (values.country_scope === "INTERNATIONAL") return "international_transfer";
-  return values.currency === "CHF" ? "swiss_qr" : "international_transfer";
+  return "swiss_qr";
 }
 
 export function PaymentProfileDialog({ open, onOpenChange, profile, initial }: Props) {
@@ -193,7 +193,6 @@ export function PaymentProfileDialog({ open, onOpenChange, profile, initial }: P
                 <SelectContent>
                   <SelectItem value="CHF">CHF</SelectItem>
                   <SelectItem value="EUR">EUR</SelectItem>
-                  <SelectItem value="USD">USD</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -245,6 +244,17 @@ export function PaymentProfileDialog({ open, onOpenChange, profile, initial }: P
               />
             </div>
           </div>
+
+          {values.currency === "EUR" && values.country_scope === "CH_LI" && ibanCheck?.accountType === "qr_iban" && (
+            <Alert>
+              <AlertDescription>
+                EUR mit QR-IBAN und QR-Referenz ist nur für Rechnungen in CH/LI mit
+                Fälligkeit bis 31.10.2027 vorgesehen. Trage oben ein Gültigkeitsende
+                bis spätestens zu diesem Datum ein. Für EU-Überweisungen ist eine
+                separate normale EUR-IBAN erforderlich.
+              </AlertDescription>
+            </Alert>
+          )}
 
           {check.valid ? (
             <Alert>
