@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { Check, Loader2, Globe } from "lucide-react";
+import { Check, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useCreateInstructor } from "@/hooks/useCreateInstructor";
 import { normalizePhoneNumber } from "@/lib/phone-utils";
@@ -287,21 +287,6 @@ export function NewInstructorModal({ open, onOpenChange }: NewInstructorModalPro
                   )}
                 </div>
               )}
-            </div>
-
-            <Separator />
-
-            {/* Website release requires the separately confirmed portrait + teaser flow. */}
-            <div className="rounded-lg border bg-muted/40 p-4 flex items-start gap-3">
-              <Globe className="h-4 w-4 mt-0.5 shrink-0 text-muted-foreground" />
-              <div className="space-y-1">
-                <h3 className="text-sm font-medium">Website-Freigabe nach dem Erstellen</h3>
-                <p className="text-xs text-muted-foreground">
-                  Neue Profile sind zunächst nur intern sichtbar. Öffne danach das Profil,
-                  lade ein Foto hoch und bestätige Name, Foto und Kurzbeschreibung über
-                  „Website-Freigabe speichern“.
-                </p>
-              </div>
             </div>
 
             <Separator />

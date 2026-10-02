@@ -25,12 +25,6 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Check, Loader2, Camera } from "lucide-react";
-import { Checkbox } from "@/components/ui/checkbox";
-import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { DEFAULT_WEBSITE_TEASER, WEBSITE_TEASER_MAX } from "@/lib/website-profile";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useUpdateInstructor } from "@/hooks/useUpdateInstructor";
 import { normalizePhoneNumber } from "@/lib/phone-utils";
@@ -100,20 +94,14 @@ export function EditInstructorModal({
 }: EditInstructorModalProps) {
   const isSuperAdmin = useIsSuperAdmin();
   const { isAdminOrOffice } = useUserRole();
-  const canManageWebsite = isAdminOrOffice || isSuperAdmin;
+  const canManagePhoto = isAdminOrOffice || isSuperAdmin;
   const updateInstructor = useUpdateInstructor(instructor.id);
   const queryClient = useQueryClient();
   const [ibanValue, setIbanValue] = useState("");
   const [ahvValue, setAhvValue] = useState("");
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
-  const [currentPhotoId, setCurrentPhotoId] = useState<string | null>(null);
-  const [publicAvatarUrl, setPublicAvatarUrl] = useState<string | null>(instructor.avatar_url);
-  const [websiteEnabled, setWebsiteEnabled] = useState(instructor.show_on_website ?? false);
-  const [websiteTeaser, setWebsiteTeaser] = useState(instructor.website_teaser || DEFAULT_WEBSITE_TEASER);
-  const [useCurrentPhotoOnWebsite, setUseCurrentPhotoOnWebsite] = useState(false);
-  const [websiteConfirmOpen, setWebsiteConfirmOpen] = useState(false);
-  const [isSavingWebsite, setIsSavingWebsite] = useState(false);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  const [photoSaved, setPhotoSaved] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Initialize avatar URL from instructor
@@ -122,7 +110,6 @@ export function EditInstructorModal({
   const loadPhoto = useCallback(async () => {
     const { data, error } = await supabase.functions.invoke("instructor-photo-url", { body: { instructor_id: instructor.id } });
     setAvatarUrl(error ? instructor.avatar_url ?? null : data?.url ?? null);
-    setCurrentPhotoId(!error && data?.private ? data.photo_id ?? null : null);
   }, [instructor.id, instructor.avatar_url]);
   useEffect(() => {
     if (!open) return;
@@ -134,6 +121,7 @@ export function EditInstructorModal({
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    setPhotoSaved(false);
 
     if (!file.type.startsWith("image/")) {
       toast.error("Bitte wähle eine Bilddatei aus.");
@@ -162,13 +150,12 @@ export function EditInstructorModal({
       if (error || !data?.ok) throw error ?? new Error("upload");
       setAvatarUrl(data.signed_url ?? null);
       await loadPhoto();
-      setUseCurrentPhotoOnWebsite(false);
       await queryClient.invalidateQueries({ queryKey: ["instructors"] });
       await queryClient.invalidateQueries({ queryKey: ["staff-instructor-photos"] });
-      toast.success("Profilbild aktualisiert");
+      setPhotoSaved(true);
     } catch (err) {
       console.error("Avatar upload error:", err);
-      toast.error("Fehler beim Hochladen des Profilbilds");
+      toast.error("Foto konnte nicht gespeichert werden. Bitte erneut versuchen.");
     } finally {
       setIsUploadingAvatar(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
@@ -226,10 +213,7 @@ export function EditInstructorModal({
       });
       setIbanValue(instructor.iban || "");
       setAhvValue(instructor.ahv_number || "");
-      setPublicAvatarUrl(instructor.avatar_url);
-      setWebsiteEnabled(instructor.show_on_website ?? false);
-      setWebsiteTeaser(instructor.website_teaser || DEFAULT_WEBSITE_TEASER);
-      setUseCurrentPhotoOnWebsite(false);
+      setPhotoSaved(false);
     }
   }, [open, instructor, reset]);
 
@@ -261,54 +245,6 @@ export function EditInstructorModal({
     });
 
     onOpenChange(false);
-  };
-
-  const prepareWebsiteSave = () => {
-    if (!canManageWebsite || isSavingWebsite) return;
-    if (websiteEnabled) {
-      if (instructor.status !== "active") {
-        toast.error("Nur aktive Profile können auf der Website erscheinen.");
-        return;
-      }
-      if (!websiteTeaser.trim() || websiteTeaser.trim().length > WEBSITE_TEASER_MAX) {
-        toast.error("Bitte eine Kurzbeschreibung mit höchstens 280 Zeichen eingeben.");
-        return;
-      }
-      if (!publicAvatarUrl && !currentPhotoId) {
-        toast.error("Bitte zuerst oben ein Profilbild hochladen.");
-        return;
-      }
-    }
-    setWebsiteConfirmOpen(true);
-  };
-
-  const saveWebsite = async () => {
-    setIsSavingWebsite(true);
-    try {
-      const publishPhoto = websiteEnabled && !!currentPhotoId &&
-        (!publicAvatarUrl || useCurrentPhotoOnWebsite);
-      const { data, error } = await supabase.functions.invoke("instructor-website-publish", {
-        body: {
-          instructor_id: instructor.id,
-          show_on_website: websiteEnabled,
-          website_teaser: websiteTeaser.trim(),
-          ...(publishPhoto ? { source_photo_id: currentPhotoId } : {}),
-        },
-      });
-      if (error || !data?.ok) throw new Error(data?.error || error?.message || "website_save_failed");
-      if (data.avatar_url) setPublicAvatarUrl(data.avatar_url);
-      setWebsiteEnabled(!!data.published);
-      setUseCurrentPhotoOnWebsite(false);
-      await queryClient.invalidateQueries({ queryKey: ["instructor", instructor.id] });
-      await queryClient.invalidateQueries({ queryKey: ["instructors"] });
-      toast.success(data.published ? "Website-Profil freigegeben" : "Website-Profil ausgeblendet");
-      setWebsiteConfirmOpen(false);
-    } catch (err) {
-      console.error("Website profile release failed:", err);
-      toast.error("Website-Freigabe fehlgeschlagen. Bitte das Profil erneut prüfen.");
-    } finally {
-      setIsSavingWebsite(false);
-    }
   };
 
   const handleClose = () => {
@@ -345,89 +281,33 @@ export function EditInstructorModal({
 
         <ScrollArea className="max-h-[calc(90vh-140px)]">
           <form onSubmit={handleSubmit(onSubmit)} className="px-6 pb-6 space-y-6">
-            {/* Avatar Upload */}
-            <div className="flex flex-col items-center gap-3">
-              <div className="relative group cursor-pointer" onClick={() => fileInputRef.current?.click()}>
+            {/* Photo uploads save immediately and remain private, independently of form submit. */}
+            {canManagePhoto && <div className="flex flex-col items-center gap-2">
+              <button type="button" className="group flex flex-col items-center gap-2 rounded-lg p-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                onClick={() => fileInputRef.current?.click()} disabled={isUploadingAvatar}
+                aria-label={avatarUrl ? "Internes Foto ändern" : "Internes Foto hochladen"}>
+                <div className="relative">
                 <Avatar className="h-20 w-20 text-xl">
                   <AvatarImage src={avatarUrl || undefined} alt="Profilbild" onError={() => { if (avatarUrl && retriedFor.current !== avatarUrl) { retriedFor.current = avatarUrl; loadPhoto(); } }} />
                   <AvatarFallback className="bg-primary/10 text-primary">
                     {getInitials()}
                   </AvatarFallback>
                 </Avatar>
-                <div className="absolute inset-0 rounded-full bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                <div className={`absolute inset-0 rounded-full bg-black/40 transition-opacity flex items-center justify-center ${isUploadingAvatar ? "opacity-100" : "opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100"}`}>
                   {isUploadingAvatar ? (
                     <Loader2 className="h-5 w-5 text-white animate-spin" />
                   ) : (
                     <Camera className="h-5 w-5 text-white" />
                   )}
                 </div>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp"
-                  className="hidden"
-                  onChange={handleAvatarUpload}
-                  disabled={isUploadingAvatar}
-                />
-              </div>
-              <p className="text-xs text-muted-foreground">Klicken um Foto zu ändern</p>
-            </div>
-
-            <Separator />
-
-            {/* Website publishing is deliberately separate from the HR form. */}
-            {canManageWebsite && <div className="space-y-4">
-              <h3 className="text-sm font-medium text-muted-foreground">Website</h3>
-              <div className="flex items-start gap-3">
-                <Checkbox
-                  id="show_on_website"
-                  checked={websiteEnabled}
-                  onCheckedChange={(v) => setWebsiteEnabled(v === true)}
-                />
-                <div className="space-y-1">
-                  <Label htmlFor="show_on_website">Auf Website anzeigen</Label>
-                  <p className="text-xs text-muted-foreground">
-                    Die Änderung wird erst mit „Website-Freigabe speichern“ wirksam.
-                    Ein internes Foto wird dabei nur nach deiner ausdrücklichen Bestätigung öffentlich.
-                  </p>
                 </div>
-              </div>
-              {websiteEnabled && !publicAvatarUrl && currentPhotoId && (
-                <p className="text-xs text-amber-600">
-                  Das vorhandene Foto ist bisher nur intern sichtbar. Bei der Freigabe
-                  kannst du genau dieses Foto für die Website veröffentlichen.
-                </p>
-              )}
-              {websiteEnabled && !publicAvatarUrl && !currentPhotoId && (
-                <p className="text-xs text-amber-600">Es ist noch kein Foto vorhanden. Bitte oben ein Profilbild hochladen.</p>
-              )}
-              {websiteEnabled && instructor.status !== "active" && (
-                <p className="text-xs text-amber-600">Das Profil muss zuerst als „Aktiv“ gespeichert werden.</p>
-              )}
-              {websiteEnabled && !!publicAvatarUrl && !!currentPhotoId && (
-                <div className="flex items-start gap-3">
-                  <Checkbox id="website-use-current-photo" checked={useCurrentPhotoOnWebsite}
-                    onCheckedChange={(v) => setUseCurrentPhotoOnWebsite(v === true)} />
-                  <Label htmlFor="website-use-current-photo" className="text-sm leading-snug">
-                    Aktuelles internes Foto statt bisherigem Website-Foto verwenden
-                  </Label>
-                </div>
-              )}
-              <div className="space-y-2">
-                <Label htmlFor="website_teaser">Kurzbeschreibung für die Website</Label>
-                <Textarea id="website_teaser" rows={3} maxLength={WEBSITE_TEASER_MAX}
-                  value={websiteTeaser} onChange={(e) => setWebsiteTeaser(e.target.value)} />
-                <p className="text-xs text-muted-foreground text-right">
-                  {websiteTeaser.length}/{WEBSITE_TEASER_MAX}
-                </p>
-              </div>
-              <Button type="button" variant="outline" disabled={isSavingWebsite} onClick={prepareWebsiteSave}>
-                {isSavingWebsite && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Website-Freigabe speichern
-              </Button>
-              <p className="text-xs text-muted-foreground">
-                Unabhängig von „Speichern“ für die übrigen Personaldaten. Die Webseite aktualisiert die Teamliste mit bis zu fünf Minuten Verzögerung.
-              </p>
+                <span className="text-sm font-medium">{avatarUrl ? "Foto ändern" : "Foto hochladen"}</span>
+              </button>
+              <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp"
+                className="hidden" onChange={handleAvatarUpload} disabled={isUploadingAvatar} />
+              <span className="text-xs text-muted-foreground" aria-live="polite">
+                {isUploadingAvatar ? "Foto wird gespeichert…" : photoSaved ? "Foto gespeichert · nur intern" : "Nur intern"}
+              </span>
             </div>}
 
             <Separator />
@@ -759,45 +639,6 @@ export function EditInstructorModal({
             </div>
           </form>
         </ScrollArea>
-        <AlertDialog open={websiteConfirmOpen} onOpenChange={setWebsiteConfirmOpen}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>
-                {websiteEnabled ? "Dieses Profil auf der Website veröffentlichen?" : "Dieses Profil von der Website nehmen?"}
-              </AlertDialogTitle>
-              <AlertDialogDescription asChild>
-                <div className="space-y-3">
-                  <p>
-                    {websiteEnabled
-                      ? "Sichtbar für alle Besucher: Name, Rolle, dieses Foto und die folgende Kurzbeschreibung. Private Kontaktdaten, Notizen und Lohndaten werden nicht veröffentlicht."
-                      : "Das Profil verschwindet aus der Teamliste. Ein bereits öffentliches Foto wird dadurch nicht automatisch gelöscht."}
-                  </p>
-                  <p className="font-medium text-foreground">{instructor.first_name} {instructor.last_name}</p>
-                  {websiteEnabled && (
-                    <>
-                      <Avatar className="h-20 w-20">
-                        <AvatarImage src={currentPhotoId && (!publicAvatarUrl || useCurrentPhotoOnWebsite)
-                          ? avatarUrl ?? undefined : publicAvatarUrl ?? undefined} alt="Foto für Website" />
-                        <AvatarFallback>{getInitials()}</AvatarFallback>
-                      </Avatar>
-                      <p className="whitespace-pre-wrap text-foreground">{websiteTeaser.trim()}</p>
-                      {currentPhotoId && (!publicAvatarUrl || useCurrentPhotoOnWebsite) && (
-                        <p>Das bislang private Foto wird als bereinigte Kopie öffentlich zugänglich. Importbilder können klein sein und später ersetzt werden.</p>
-                      )}
-                    </>
-                  )}
-                </div>
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel disabled={isSavingWebsite}>Abbrechen</AlertDialogCancel>
-              <AlertDialogAction disabled={isSavingWebsite}
-                onClick={(e) => { e.preventDefault(); void saveWebsite(); }}>
-                {isSavingWebsite ? "Bitte warten…" : websiteEnabled ? "Dieses Profil veröffentlichen" : "Von Website nehmen"}
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
       </DialogContent>
     </Dialog>
   );
