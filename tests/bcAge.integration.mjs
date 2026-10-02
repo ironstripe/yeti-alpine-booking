@@ -6,6 +6,7 @@ const text=fs.readFileSync(new URL('20261001194500_malbun_2627_product_drafts.sq
 const src=JSON.parse(text.match(/\$bc_json\$(\{.*?\})\$bc_json\$/s)?.[1]??'null');
 assert.equal(src.products.length,15);
 const sql=fs.readFileSync(new URL('20261002221000_bc_2627_group_age_policy.sql',root),'utf8');
+const toddlerUnion=fs.readFileSync(new URL('20261002223000_bc_2627_toddler_shared_product_age.sql',root),'utf8');
 async function fixture(){
  const db=new PGlite();
  await db.exec(`CREATE TABLE public.seasons(id uuid PRIMARY KEY,name text,start_date date,end_date date,is_current boolean);
@@ -31,6 +32,10 @@ assert.deepEqual([by('group','mixed','snowboard').min_age,by('group','mixed','sn
 assert.equal(by('private','mixed','ski').min_age,null);
 assert.equal(by('private','mixed','snowboard').max_age,null);
 await assert.rejects(db.exec(sql),/preimage drift/); // no second overwrite
+await db.exec(toddlerUnion);
+const toddler=(await db.query(`SELECT count(*)::int AS n FROM public.products WHERE type='group_toddler' AND min_age=3 AND max_age=6 AND is_active=false`)).rows;
+assert.equal(toddler[0].n,2);
+await assert.rejects(db.exec(toddlerUnion),/preimage drift/);
 await db.close();
 db=await fixture();
 await db.query(`UPDATE public.products SET min_age=5 WHERE id=$1`,[src.products.find(x=>x.type==='group').product_id]);
@@ -38,4 +43,10 @@ await assert.rejects(db.exec(sql),/preimage drift/);
 const after=await db.query('SELECT count(*)::int AS n FROM public.products WHERE min_age IS NOT NULL');
 assert.equal(after.rows[0].n,1); // atomically nothing else was changed
 await db.close();
-console.log('26/27 group ages: 5 adult exceptions, 6 ski youth, 2 snowboard youth; private unchanged; rerun and drift rejected');
+db=await fixture();
+await db.exec(sql);
+await db.query(`UPDATE public.products SET max_age=5 WHERE id=$1`,[src.products.find(x=>x.type==='group_toddler').product_id]);
+await assert.rejects(db.exec(toddlerUnion),/preimage drift/);
+assert.equal((await db.query(`SELECT count(*)::int AS n FROM public.products WHERE type='group_toddler' AND max_age=6`)).rows[0].n,0);
+await db.close();
+console.log('26/27 group ages: adult exceptions, youth, toddler union 3–6; private unchanged; rerun/drift rejected');
