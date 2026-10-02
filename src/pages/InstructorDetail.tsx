@@ -14,6 +14,7 @@ import { RolesCapabilitiesCard } from "@/components/instructors/detail/RolesCapa
 import { RecurringBlocksTab } from "@/components/instructor/RecurringBlocksTab";
 import { InstructorRentalsCard } from "@/components/instructors/detail/InstructorRentalsCard";
 import { EditInstructorModal } from "@/components/instructors/EditInstructorModal";
+import { WebsiteProfileDialog } from "@/components/instructors/WebsiteProfileDialog";
 import { Badge } from "@/components/ui/badge";
 import { Globe } from "lucide-react";
 
@@ -35,6 +36,7 @@ export default function InstructorDetail() {
   const { data: staffPhotoUrls = {} } = useStaffInstructorPhotos(id ? [id] : [], isAdminOrOffice || isSuperAdmin);
   const inviteMutation = useInviteInstructor();
   const [editModalOpen, setEditModalOpen] = useState(false);
+  const [websiteDialogOpen, setWebsiteDialogOpen] = useState(false);
   const {
     instructor,
     isLoading,
@@ -80,6 +82,9 @@ export default function InstructorDetail() {
   const getInitials = () => {
     return `${instructor.first_name?.charAt(0) || ""}${instructor.last_name?.charAt(0) || ""}`.toUpperCase();
   };
+  const canManageWebsite = isAdminOrOffice || isSuperAdmin;
+  const isWebsitePublic = instructor.show_on_website && instructor.status === "active" &&
+    !!instructor.avatar_url && !!instructor.website_teaser?.trim();
 
   const formatLastChanged = () => {
     // This would ideally come from a last_status_changed_at column
@@ -145,16 +150,20 @@ export default function InstructorDetail() {
             </p>
           </div>
 
-          {/* Website-Profil (kompakt) */}
-          {instructor.show_on_website && instructor.status === "active" &&
-            !!instructor.avatar_url && !!instructor.website_teaser?.trim() && (
+          {/* Website publication is separate from changing an internal portrait. */}
+          {(canManageWebsite || isWebsitePublic) && (
             <div className="max-w-md space-y-2">
               <Badge variant="secondary" className="gap-1">
                 <Globe className="h-3 w-3" />
-                Auf Website
+                {isWebsitePublic ? "Auf Website" : "Nur intern"}
               </Badge>
-              {instructor.website_teaser && (
+              {isWebsitePublic && instructor.website_teaser && (
                 <p className="text-sm text-muted-foreground">{instructor.website_teaser}</p>
+              )}
+              {canManageWebsite && (
+                <div><Button variant="link" size="sm" onClick={() => setWebsiteDialogOpen(true)}>
+                  Websiteprofil bearbeiten
+                </Button></div>
               )}
             </div>
           )}
@@ -206,6 +215,14 @@ export default function InstructorDetail() {
           key={instructor.id}
           open={editModalOpen}
           onOpenChange={setEditModalOpen}
+          instructor={instructor}
+        />
+      )}
+      {canManageWebsite && instructor && (
+        <WebsiteProfileDialog
+          key={instructor.id}
+          open={websiteDialogOpen}
+          onOpenChange={setWebsiteDialogOpen}
           instructor={instructor}
         />
       )}
