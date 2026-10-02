@@ -55,6 +55,8 @@ jobs:
           cmp /tmp/bc-2627-course-manifest.csv data/bc-2627/course-manifest-not-active.csv
       - name: 26/27 group age and adult-exception contract — hard gate
         run: node tests/bcAge.integration.mjs
+      - name: 26/27 source-specific course levels — hard gate
+        run: node tests/bcCourseLevels.integration.mjs
       - name: Build — hard gate
         run: bun run build
       - name: Working tree unchanged — hard gate
