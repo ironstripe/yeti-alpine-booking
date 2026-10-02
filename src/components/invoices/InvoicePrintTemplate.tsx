@@ -60,8 +60,21 @@ export const InvoicePrintTemplate = forwardRef<HTMLDivElement, InvoicePrintTempl
     const customerName = [customer.first_name, customer.last_name].filter(Boolean).join(' ');
     const snapshot = invoice.payment_snapshot ?? null;
     const presentation = snapshot?.presentation_type ?? invoice.payment_presentation_type ?? null;
-    const schoolStreet = [school.street, school.house_number].filter(Boolean).join(' ');
+    const issuerName = snapshot?.account_holder ?? school.name;
+    const issuerAddress = snapshot?.account_holder_address;
+    const schoolStreet = [issuerAddress?.street ?? school.street, issuerAddress?.houseNumber ?? school.house_number].filter(Boolean).join(' ');
+    const schoolZip = issuerAddress?.zip ?? school.zip;
+    const schoolCity = issuerAddress?.city ?? school.city;
     const customerStreet = [customer.street, customer.house_number].filter(Boolean).join(' ');
+    const qrLines = snapshot?.qr_payload?.split('\r\n');
+    // The printed debtor must reflect the immutable QR payload, not a later edit to a customer.
+    const qrDebtor = qrLines?.[20] === 'S' ? {
+      name: qrLines[21],
+      street: qrLines[22],
+      houseNumber: qrLines[23],
+      zip: qrLines[24],
+      city: qrLines[25],
+    } : undefined;
 
     return (
       <div
@@ -84,13 +97,16 @@ export const InvoicePrintTemplate = forwardRef<HTMLDivElement, InvoicePrintTempl
           {/* Logo & School Info */}
           <div>
             {school.logo_url ? (
-              <img src={school.logo_url} alt={school.name} className="h-12 mb-2" />
+              <>
+                <img src={school.logo_url} alt={issuerName} className="h-12 mb-2" />
+                <p className="font-bold">{issuerName}</p>
+              </>
             ) : (
-              <h1 className="text-2xl font-bold">{school.name}</h1>
+              <h1 className="text-2xl font-bold">{issuerName}</h1>
             )}
             <div className="text-sm text-gray-600">
               {schoolStreet && <p>{schoolStreet}</p>}
-              {school.zip && school.city && <p>{school.zip} {school.city}</p>}
+              {schoolZip && schoolCity && <p>{schoolZip} {schoolCity}</p>}
               {school.phone && <p>Tel: {formatPhoneDisplay(school.phone)}</p>}
               {school.email && <p>{school.email}</p>}
             </div>
@@ -209,20 +225,13 @@ export const InvoicePrintTemplate = forwardRef<HTMLDivElement, InvoicePrintTempl
             <SwissQRPaymentPart
               snapshot={snapshot}
               amount={invoice.total}
-              debtor={{
-                name: customerName,
-                street: customer.street,
-                houseNumber: customer.house_number,
-                zip: customer.zip,
-                city: customer.city,
-              }}
-              additionalInfo={`Rechnung ${invoice.invoice_number}`}
+              debtor={qrDebtor}
             />
           </>
         )}
 
         {/* Legacy invoices issued before payment profiles keep their original slip */}
-        {!snapshot && school.iban && (
+        {!snapshot && invoice.is_legacy_payment && school.iban && (
           <div className="invoice-body p-8 print:p-0">
             <QRPaymentSlip
               creditor={{

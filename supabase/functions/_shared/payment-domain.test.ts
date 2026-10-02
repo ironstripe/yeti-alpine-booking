@@ -58,6 +58,10 @@ const eurSwissProfile = profile({
   id: "p3", iban: LI_NORMAL_IBAN, account_type: "iban", reference_type: "SCOR",
   currency: "EUR", is_default: true,
 });
+const eurQrProfile = profile({
+  id: "p6", iban: LI_QR_IBAN, currency: "EUR", is_default: true,
+  valid_until: "2027-10-31",
+});
 const sepaProfile = profile({
   id: "p4", presentation_type: "sepa_transfer", country_scope: "SEPA", currency: "EUR",
   iban: DE_IBAN, account_type: "iban", reference_type: "SCOR", account_holder_country: "DE",
@@ -148,6 +152,11 @@ describe("profile validation", () => {
   it("accepts a correct QR profile", () => {
     expect(validatePaymentProfile(qrProfile).valid).toBe(true);
   });
+  it("accepts a time-limited EUR QRR profile but rejects one without an end date", () => {
+    expect(validatePaymentProfile(eurQrProfile).valid).toBe(true);
+    expect(validatePaymentProfile({ ...eurQrProfile, valid_until: null }).valid).toBe(false);
+    expect(validatePaymentProfile({ ...eurQrProfile, valid_until: "2027-11-01" }).valid).toBe(false);
+  });
 });
 
 describe("routing", () => {
@@ -176,10 +185,15 @@ describe("routing", () => {
     expect(r.snapshot!.account_type).toBe("iban");
     expect(r.reference_type).toBe("SCOR");
   });
-  it("LI + EUR never selects a QR-IBAN profile", () => {
-    const eurQr = profile({ id: "bad", currency: "EUR", reference_type: "QRR" });
-    const list = findCompatibleProfiles([eurQr], "swiss_qr", "EUR");
-    expect(list).toHaveLength(0);
+  it("LI + EUR uses a QR-IBAN only before cutoff and with an explicit due date", () => {
+    const r = routePayment({ ...base, profiles: [eurQrProfile], billingCountry: "LI", currency: "EUR", dueDate: "2027-04-30" });
+    expect(r.ok).toBe(true);
+    expect(r.reference_type).toBe("QRR");
+    expect(r.snapshot!.qr_payload!.split("\r\n")[19]).toBe("EUR");
+    expect(findCompatibleProfiles([eurQrProfile], "swiss_qr", "EUR", "2027-10-31", "2027-11-01")).toHaveLength(0);
+    expect(findCompatibleProfiles([eurQrProfile], "swiss_qr", "EUR", "2027-11-01", "2027-11-02")).toHaveLength(0);
+    expect(findCompatibleProfiles([eurQrProfile], "swiss_qr", "EUR", "2026-10-02")).toHaveLength(0);
+    expect(routePayment({ ...base, profiles: [eurQrProfile], billingCountry: "DE", currency: "EUR", dueDate: "2027-04-30" }).ok).toBe(false);
   });
   it("DE + EUR -> SEPA, no Swiss QR", () => {
     const r = routePayment({ ...base, billingCountry: "DE", currency: "EUR" });
@@ -313,9 +327,10 @@ describe("Swiss QR payload", () => {
     expect(r.valid).toBe(false);
   });
 
-  it("blocks QRR in EUR", () => {
-    const r = validateSwissQRPayloadInput({ ...payloadInput, currency: "EUR" });
-    expect(r.errors.join(" ")).toContain("CHF");
+  it("allows EUR QRR only with a due date before the 2027 transition ends", () => {
+    expect(validateSwissQRPayloadInput({ ...payloadInput, currency: "EUR" }).valid).toBe(false);
+    expect(validateSwissQRPayloadInput({ ...payloadInput, currency: "EUR", dueDate: "2027-04-30" }).valid).toBe(true);
+    expect(validateSwissQRPayloadInput({ ...payloadInput, currency: "EUR", dueDate: "2027-11-01" }).valid).toBe(false);
   });
 
   it("accepts a complete QRR payload", () => {

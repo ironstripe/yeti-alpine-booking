@@ -132,6 +132,23 @@ const BookingDetail = () => {
   const handlePrintInvoice = useReactToPrint({
     contentRef: invoicePrintRef,
     documentTitle: `Rechnung-${invoices[0]?.invoice_number || "neu"}`,
+    onBeforePrint: async () => {
+      const invoice = invoices[0];
+      if (!invoice || invoice.is_legacy_payment) return;
+      if (!invoice.payment_snapshot) {
+        throw new Error("Rechnung ohne Zahlungsangaben. Bitte vor dem Druck prüfen.");
+      }
+      if (invoice.payment_snapshot.presentation_type !== "swiss_qr") return;
+
+      // QRCode.toString renders asynchronously; never print its empty placeholder.
+      const deadline = Date.now() + 5000;
+      while (Date.now() < deadline) {
+        if (invoicePrintRef.current?.querySelector('[data-testid="swiss-qr-matrix"] > svg')) return;
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+      throw new Error("Der QR-Code ist noch nicht bereit. Bitte erneut drucken.");
+    },
+    onPrintError: (_location, error) => toast.error(error.message),
   });
   
   const handleCreateInvoice = async () => {
@@ -604,7 +621,6 @@ const BookingDetail = () => {
           
           {latestInvoice && schoolSettings && ticket.customer && (
             <InvoicePrintTemplate
-              ref={invoicePrintRef}
               invoice={{
                 invoice_number: latestInvoice.invoice_number,
                 invoice_date: latestInvoice.invoice_date,
@@ -613,6 +629,10 @@ const BookingDetail = () => {
                 subtotal: latestInvoice.subtotal,
                 discount: latestInvoice.discount,
                 total: latestInvoice.total,
+                currency: latestInvoice.currency,
+                payment_snapshot: latestInvoice.payment_snapshot,
+                payment_presentation_type: latestInvoice.payment_presentation_type,
+                is_legacy_payment: latestInvoice.is_legacy_payment,
               }}
               school={{
                 name: schoolSettings.name || 'Skischule YETY',
@@ -665,6 +685,10 @@ const BookingDetail = () => {
               subtotal: latestInvoice.subtotal,
               discount: latestInvoice.discount,
               total: latestInvoice.total,
+              currency: latestInvoice.currency,
+              payment_snapshot: latestInvoice.payment_snapshot,
+              payment_presentation_type: latestInvoice.payment_presentation_type,
+              is_legacy_payment: latestInvoice.is_legacy_payment,
             }}
             school={{
               name: schoolSettings.name || 'Skischule YETY',

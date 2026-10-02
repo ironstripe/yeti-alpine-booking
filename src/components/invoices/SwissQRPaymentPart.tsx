@@ -40,7 +40,8 @@ function formatReference(snapshot: PaymentSnapshot): string {
  * 46 x 46 mm QR code with the official 7 x 7 mm Swiss cross.
  */
 export function SwissQRPaymentPart({ snapshot, amount, debtor, additionalInfo }: Props) {
-  const [qrSvg, setQrSvg] = useState<string>("");
+  const [qr, setQr] = useState<{ payload: string; svg: string } | null>(null);
+  const qrSvg = qr?.payload === snapshot.qr_payload ? qr.svg : "";
 
   useEffect(() => {
     let cancelled = false;
@@ -51,7 +52,7 @@ export function SwissQRPaymentPart({ snapshot, amount, debtor, additionalInfo }:
       margin: 0,
     })
       .then((svg) => {
-        if (!cancelled) setQrSvg(svg);
+        if (!cancelled) setQr({ payload: snapshot.qr_payload!, svg });
       })
       .catch((error) => console.error("QR-Code konnte nicht erzeugt werden:", error));
     return () => {
@@ -123,6 +124,7 @@ export function SwissQRPaymentPart({ snapshot, amount, debtor, additionalInfo }:
             <div className="relative" style={{ width: "46mm", height: "46mm" }}>
               {qrSvg ? (
                 <div
+                  data-testid="swiss-qr-matrix"
                   className="w-full h-full [&>svg]:w-full [&>svg]:h-full"
                   dangerouslySetInnerHTML={{ __html: qrSvg }}
                 />
