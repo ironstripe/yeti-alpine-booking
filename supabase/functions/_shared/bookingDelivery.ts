@@ -31,15 +31,23 @@ export function placeholders(tpl: string): string[] {
   return [...new Set([...tpl.matchAll(/\{\{\s*([a-zA-Z0-9_.]+)\s*\}\}/g)].map((m) => m[1]))];
 }
 
-/** Flat fill. Returns unknown placeholders instead of silently leaving them. */
+/**
+ * Flat fill. Returns unknown placeholders instead of silently leaving them.
+ *
+ * `opts.raw` lists keys that are injected unescaped. It exists only for
+ * server-generated markup (e.g. the Swiss QR payment block) that must not be
+ * escaped; every value that originates from data stays escaped.
+ */
 export function fillTemplate(
   tpl: string,
   vars: Record<string, string>,
   html: boolean,
+  opts: { raw?: readonly string[] } = {},
 ): { text: string; unknown: string[] } {
+  const rawKeys = new Set(opts.raw ?? []);
   const unknown = placeholders(tpl).filter((k) => !(k in vars));
   const text = tpl.replace(/\{\{\s*([a-zA-Z0-9_.]+)\s*\}\}/g, (m, k) =>
-    k in vars ? (html ? esc(vars[k]) : vars[k]) : m,
+    k in vars ? (html && !rawKeys.has(k) ? esc(vars[k]) : vars[k]) : m,
   );
   return { text, unknown };
 }
@@ -181,4 +189,31 @@ export async function attemptConfirmation(
   } catch (e) {
     return await fail("exception", e instanceof Error ? e.message : String(e));
   }
+}
+
+/**
+ * Ensures the delivery row exists and makes the single automatic attempt.
+ * Returns "no_recipient" (and sends nothing) while the ticket has no customer
+ * e-mail yet, e.g. a paid reservation that is not finalised.
+ */
+export async function sendConfirmationIfPossible(
+  sb: Client,
+  ticketId: string,
+  opts: { salutation?: string } = {},
+): Promise<string> {
+  const { data: ticket } = await sb
+    .from("tickets")
+    .select("id, customer_id, customer:customers(email, salutation)")
+    .eq("id", ticketId)
+    .maybeSingle();
+  const email = ticket?.customer?.email ?? null;
+  if (!ticket || !email) return "no_recipient";
+
+  const delivery = await ensureConfirmationDelivery(sb, ticketId, email);
+  if (!delivery) return "not_found";
+  if (delivery.status !== "pending") return delivery.status;
+  const result = await attemptConfirmation(sb, delivery.id, {
+    salutation: opts.salutation ?? ticket.customer?.salutation ?? "",
+  });
+  return result === "not_claimed" ? "sending" : result;
 }
