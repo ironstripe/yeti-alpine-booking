@@ -88,7 +88,7 @@ BEGIN
        '26/27 '||(CASE WHEN c.item->>'period_type'='saturday_series' THEN 'Samstag ' ELSE '' END)||(c.item->>'label'),
        'Booking-Corner 26/27: quellengeplante Vorlage. Preis nur aus Produkt-/Tarifquote.',
        CASE WHEN c.item->>'label' LIKE 'Snowboard %' THEN 'snowboard' ELSE 'ski' END,
-       c.item->>'level',(c.item->>'age_min')::int,(c.item->>'age_max')::int,(c.item->>'capacity')::int,
+       c.item->>'level',greatest(1,(c.item->>'age_min')::int),least(99,(c.item->>'age_max')::int),(c.item->>'capacity')::int,
        0,(c.item->>'primary_product')::uuid,false,false,
        CASE WHEN c.item->>'period_type'='saturday_series' THEN 'saturday_course' ELSE 'weekly' END,
        DATE '2026-12-01',DATE '2027-04-15');
