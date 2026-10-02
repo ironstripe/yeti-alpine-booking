@@ -1,4 +1,4 @@
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import {
@@ -15,9 +15,10 @@ import { formatPhoneDisplay } from "@/lib/phone-utils";
 
 interface CustomerTableProps {
   customers: CustomerWithCount[];
+  returnTo: string;
 }
 
-export function CustomerTable({ customers }: CustomerTableProps) {
+export function CustomerTable({ customers, returnTo }: CustomerTableProps) {
   const navigate = useNavigate();
 
   return (
@@ -38,13 +39,19 @@ export function CustomerTable({ customers }: CustomerTableProps) {
             <TableRow
               key={customer.id}
               className="cursor-pointer"
-              onClick={() => navigate(`/customers/${customer.id}`)}
+              onClick={(event) => {
+                if (event.target instanceof Element && event.target.closest("a, button, [role='checkbox']")) return;
+                navigate(`/customers/${customer.id}`, { state: { returnTo } });
+              }}
             >
               <TableCell className="font-mono text-xs text-muted-foreground">
                 {customer.customer_number || "–"}
               </TableCell>
               <TableCell className="font-medium">
-                <div>{customer.first_name} {customer.last_name}</div>
+                <Link to={`/customers/${customer.id}`} state={{ returnTo }}
+                  className="text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm"
+                  aria-label={`Kunde ${customer.first_name || ""} ${customer.last_name} ansehen`}
+                >{customer.first_name} {customer.last_name}</Link>
                 {customer.match_reason && customer.match_reason !== "Namenstreffer" && (
                   <div className="text-xs font-normal text-muted-foreground">
                     {customer.match_reason}
