@@ -67,7 +67,8 @@ Deno.serve(async (req) => {
     }
 
     // Top-level customer_number, derived solely from the ticket's customer relation.
-    const customerNumber: string | null = ticket.customers?.customer_number ?? null;
+    const cust = ticket.customers as unknown as { customer_number?: string | null } | { customer_number?: string | null }[] | null;
+    const customerNumber: string | null = (Array.isArray(cust) ? cust[0]?.customer_number : cust?.customer_number) ?? null;
 
     return json({
       success: true,
