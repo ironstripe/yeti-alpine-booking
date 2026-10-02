@@ -47,7 +47,7 @@ export function BookingMigrationPrep() {
       let raw: unknown;
       try { raw = JSON.parse(await file.text()); } catch { setErrors(["json_invalid"]); return; }
       const v = validatePackage(raw);
-      if (!v.ok) { setErrors(v.errors); return; }
+      if (v.ok === false) { setErrors(v.errors); return; }
 
       const { data: seasons } = await supabase.from("seasons").select("name, start_date, end_date").ilike("name", "%26/27%");
       if (!seasons || seasons.length !== 1) { setErrors([seasons?.length ? "season_ambiguous" : "season_missing"]); return; }
