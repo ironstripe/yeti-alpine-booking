@@ -23,6 +23,8 @@ import {
 } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import { UnsavedChangesDialog } from "@/components/ui/unsaved-changes-dialog";
+import { useGuardedFormDismiss } from "@/hooks/useGuardedFormDismiss";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Check, Loader2, Camera } from "lucide-react";
 import { useUserRole } from "@/hooks/useUserRole";
@@ -103,6 +105,7 @@ export function EditInstructorModal({
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [photoSaved, setPhotoSaved] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const initializedInstructor = useRef<string | null>(null);
 
   // Initialize avatar URL from instructor
   // Current portrait via staff-only short-lived signed URL (5 min); refreshed before expiry and on load error.
@@ -169,7 +172,7 @@ export function EditInstructorModal({
   const {
     register,
     handleSubmit,
-    formState: { errors },
+    formState: { errors, isDirty },
     setValue,
     watch,
     reset,
@@ -183,9 +186,29 @@ export function EditInstructorModal({
   const gender = watch("gender");
   const country = watch("country");
   const isInstructor = hasTeachingRole(roles || []);
+  const pending = updateInstructor.isPending || isUploadingAvatar;
+  const hasUnsavedFields = isDirty || (isSuperAdmin && (
+    ibanValue !== (instructor.iban || "") || ahvValue !== (instructor.ahv_number || "")
+  ));
+  const dismiss = useGuardedFormDismiss({
+    dirty: hasUnsavedFields,
+    pending,
+    onDiscard: () => {
+      reset();
+      setIbanValue(instructor.iban || "");
+      setAhvValue(instructor.ahv_number || "");
+    },
+    onOpenChange,
+  });
 
   // Reset form when modal opens or instructor changes
   useEffect(() => {
+    if (!open) {
+      initializedInstructor.current = null;
+      return;
+    }
+    if (initializedInstructor.current === instructor.id) return;
+    initializedInstructor.current = instructor.id;
     if (open && instructor) {
       // Derive roles from existing data or use roles array
       const instructorRoles = instructor.roles?.length > 0
@@ -221,7 +244,8 @@ export function EditInstructorModal({
     const normalizedPhone = normalizePhoneNumber(data.phone);
     const specialization = getDisciplineFromRoles(data.roles);
 
-    await updateInstructor.mutateAsync({
+    try {
+      await updateInstructor.mutateAsync({
       first_name: data.first_name.trim(),
       last_name: data.last_name.trim(),
       email: data.email.trim().toLowerCase(),
@@ -242,13 +266,11 @@ export function EditInstructorModal({
       iban: ibanValue ? formatIBAN(ibanValue) : null,
       ahv_number: ahvValue ? formatAHVNumber(ahvValue) : null,
       notes: data.notes?.trim() || null,
-    });
-
-    onOpenChange(false);
-  };
-
-  const handleClose = () => {
-    onOpenChange(false);
+      });
+      dismiss.closeSaved();
+    } catch {
+      // The mutation displays the error; retain inputs for correction/retry.
+    }
   };
 
   const handleIbanChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -273,8 +295,8 @@ export function EditInstructorModal({
   };
 
   return (
-    <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-[600px] max-h-[90vh] p-0">
+    <Dialog open={open} onOpenChange={dismiss.requestClose}>
+      <DialogContent hideCloseButton={pending} className="max-w-[600px] max-h-[90vh] p-0">
         <DialogHeader className="px-6 pt-6 pb-4">
           <DialogTitle>Skilehrer bearbeiten</DialogTitle>
         </DialogHeader>
@@ -356,7 +378,7 @@ export function EditInstructorModal({
                 </div>
                 <div className="space-y-2">
                   <Label>Geschlecht</Label>
-                  <Select value={gender || ""} onValueChange={(v) => setValue("gender", v)}>
+                  <Select value={gender || ""} onValueChange={(v) => setValue("gender", v, { shouldDirty: true })}>
                     <SelectTrigger>
                       <SelectValue placeholder="Auswählen..." />
                     </SelectTrigger>
@@ -445,7 +467,7 @@ export function EditInstructorModal({
                 </div>
                 <div className="space-y-2">
                   <Label>Land</Label>
-                  <Select value={country || "LI"} onValueChange={(v) => setValue("country", v)}>
+                  <Select value={country || "LI"} onValueChange={(v) => setValue("country", v, { shouldDirty: true })}>
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
@@ -470,7 +492,7 @@ export function EditInstructorModal({
               </h3>
               <RoleSelector
                 value={roles || []}
-                onChange={(newRoles) => setValue("roles", newRoles)}
+                onChange={(newRoles) => setValue("roles", newRoles, { shouldDirty: true })}
                 error={errors.roles?.message}
               />
               
@@ -478,7 +500,7 @@ export function EditInstructorModal({
               {isInstructor && (
                 <div className="space-y-2">
                   <Label>Ausbildungsstufe</Label>
-                  <Select value={level || ""} onValueChange={(v) => setValue("level", v)}>
+                  <Select value={level || ""} onValueChange={(v) => setValue("level", v, { shouldDirty: true })}>
                     <SelectTrigger>
                       <SelectValue placeholder="Stufe wählen..." />
                     </SelectTrigger>
@@ -523,7 +545,7 @@ export function EditInstructorModal({
 )}
               <div className="space-y-2">
                 <Label>Status</Label>
-                <Select value={status || "active"} onValueChange={(v) => setValue("status", v)}>
+                <Select value={status || "active"} onValueChange={(v) => setValue("status", v, { shouldDirty: true })}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -627,10 +649,10 @@ export function EditInstructorModal({
 
             {/* Footer */}
             <div className="flex justify-end gap-3 pt-4">
-              <Button type="button" variant="outline" onClick={handleClose}>
+              <Button type="button" variant="outline" onClick={() => dismiss.requestClose(false)} disabled={pending}>
                 Abbrechen
               </Button>
-              <Button type="submit" disabled={updateInstructor.isPending}>
+              <Button type="submit" disabled={pending || !hasUnsavedFields}>
                 {updateInstructor.isPending && (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 )}
@@ -640,6 +662,7 @@ export function EditInstructorModal({
           </form>
         </ScrollArea>
       </DialogContent>
+      <UnsavedChangesDialog open={dismiss.discardOpen} onOpenChange={dismiss.setDiscardOpen} onDiscard={dismiss.confirmDiscard} savedPhotoSeparately />
     </Dialog>
   );
 }

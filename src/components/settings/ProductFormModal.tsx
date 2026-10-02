@@ -32,10 +32,12 @@ import {
 } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { ProductWithTiers, useCreateProduct, useUpdateProduct } from "@/hooks/useProducts";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { cn } from "@/lib/utils";
 import { calculateSavingsPercent, formatPriceCHF, getDefaultPriceTiers } from "@/lib/pricing-utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { UnsavedChangesDialog } from "@/components/ui/unsaved-changes-dialog";
+import { useGuardedFormDismiss } from "@/hooks/useGuardedFormDismiss";
 
 const priceTierSchema = z.object({
   day_count: z.number().min(1).max(7),
@@ -97,12 +99,27 @@ export function ProductFormModal({ open, onOpenChange, product, seasonId, isBook
       price_tiers: getDefaultPriceTiers(),
     },
   });
+  const isPending = createProduct.isPending || updateProduct.isPending;
+  const dismiss = useGuardedFormDismiss({
+    dirty: form.formState.isDirty,
+    pending: isPending,
+    onDiscard: () => form.reset(),
+    onOpenChange,
+  });
 
   const productType = form.watch("type");
   const pricingType = form.watch("pricing_type");
   const priceTiers = form.watch("price_tiers") || [];
+  const initializedProduct = useRef<string | null>(null);
 
   useEffect(() => {
+    if (!open) {
+      initializedProduct.current = null;
+      return;
+    }
+    const productKey = product?.id ?? "new";
+    if (initializedProduct.current === productKey) return;
+    initializedProduct.current = productKey;
     if (product) {
       const existingTiers = product.price_tiers?.length 
         ? product.price_tiers.map(t => ({
@@ -168,7 +185,7 @@ export function ProductFormModal({ open, onOpenChange, product, seasonId, isBook
   const updateTierPrice = (index: number, price: number) => {
     const newTiers = [...priceTiers];
     newTiers[index] = { ...newTiers[index], cumulative_price: price };
-    form.setValue("price_tiers", newTiers);
+    form.setValue("price_tiers", newTiers, { shouldDirty: true });
   };
 
   const onSubmit = (data: FormData) => {
@@ -200,21 +217,19 @@ export function ProductFormModal({ open, onOpenChange, product, seasonId, isBook
     if (isEditing) {
       updateProduct.mutate(
         { id: product.id, ...payload },
-        { onSuccess: () => onOpenChange(false) }
+        { onSuccess: dismiss.closeSaved }
       );
     } else {
       createProduct.mutate(
         payload,
-        { onSuccess: () => onOpenChange(false) }
+        { onSuccess: dismiss.closeSaved }
       );
     }
   };
 
-  const isPending = createProduct.isPending || updateProduct.isPending;
-
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
+    <Dialog open={open} onOpenChange={dismiss.requestClose}>
+      <DialogContent hideCloseButton={isPending} className="max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
         <DialogHeader>
           <DialogTitle>{isEditing ? "Produkt bearbeiten" : "Neues Produkt"}</DialogTitle>
         </DialogHeader>
@@ -682,15 +697,16 @@ export function ProductFormModal({ open, onOpenChange, product, seasonId, isBook
           </Form>
         </ScrollArea>
         <DialogFooter className="pt-4 border-t">
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+          <Button type="button" variant="outline" onClick={() => dismiss.requestClose(false)} disabled={isPending}>
             Abbrechen
           </Button>
-          <Button onClick={form.handleSubmit(onSubmit)} disabled={isPending}>
+          <Button onClick={form.handleSubmit(onSubmit)} disabled={isPending || !form.formState.isDirty}>
             {isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
             {isEditing ? "Speichern" : "Erstellen"}
           </Button>
         </DialogFooter>
       </DialogContent>
+      <UnsavedChangesDialog open={dismiss.discardOpen} onOpenChange={dismiss.setDiscardOpen} onDiscard={dismiss.confirmDiscard} />
     </Dialog>
   );
 }
