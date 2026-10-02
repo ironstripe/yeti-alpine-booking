@@ -2,12 +2,14 @@ import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Globe, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { publicInstructorTitle } from "../../../supabase/functions/_shared/publicInstructorTitle";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
 import { WEBSITE_TEASER_MAX } from "@/lib/website-profile";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Textarea } from "@/components/ui/textarea";
@@ -27,6 +29,9 @@ type PrivatePhoto = { id: string; url: string };
 export function WebsiteProfileDialog({ open, onOpenChange, instructor }: WebsiteProfileDialogProps) {
   const queryClient = useQueryClient();
   const [teaser, setTeaser] = useState("");
+  const [websiteTitle, setWebsiteTitle] = useState("");
+  const [loadingTitle, setLoadingTitle] = useState(false);
+  const [titleError, setTitleError] = useState(false);
   const [photoChoice, setPhotoChoice] = useState<"public" | "private">("private");
   const [privatePhoto, setPrivatePhoto] = useState<PrivatePhoto | null>(null);
   const [loadingPhoto, setLoadingPhoto] = useState(false);
@@ -39,6 +44,17 @@ export function WebsiteProfileDialog({ open, onOpenChange, instructor }: Website
     if (!open) return;
     let active = true;
     setTeaser(instructor.website_teaser ?? "");
+    setWebsiteTitle("");
+    setTitleError(false);
+    setLoadingTitle(true);
+    void Promise.resolve(supabase.from("instructors").select("website_role_title").eq("id", instructor.id).maybeSingle())
+      .then(({ data, error }) => {
+        if (!active) return;
+        if (error || !data) { setTitleError(true); return; }
+        setWebsiteTitle(data.website_role_title ?? "");
+      })
+      .catch(() => { if (active) setTitleError(true); })
+      .finally(() => { if (active) setLoadingTitle(false); });
     setPhotoChoice(instructor.avatar_url ? "public" : "private");
     setPrivatePhoto(null);
     setLoadingPhoto(true);
@@ -54,9 +70,17 @@ export function WebsiteProfileDialog({ open, onOpenChange, instructor }: Website
   }, [open, instructor.id, instructor.avatar_url, instructor.website_teaser]);
 
   const trimmedTeaser = teaser.trim();
+  const trimmedTitle = websiteTitle.trim();
+  const automaticTitle = publicInstructorTitle({
+    specialization: instructor.specialization,
+    roles: instructor.roles,
+    gender: instructor.gender,
+    website_role_title: null,
+  });
+  const effectiveTitle = trimmedTitle || automaticTitle;
   const chosenPhotoUrl = photoChoice === "private" ? privatePhoto?.url : instructor.avatar_url;
-  const canPublish = instructor.status === "active" && !loadingPhoto &&
-    !!chosenPhotoUrl && trimmedTeaser.length > 0 && trimmedTeaser.length <= WEBSITE_TEASER_MAX;
+  const canPublish = instructor.status === "active" && !loadingPhoto && !loadingTitle && !titleError &&
+    trimmedTitle.length <= 80 && !!chosenPhotoUrl && trimmedTeaser.length > 0 && trimmedTeaser.length <= WEBSITE_TEASER_MAX;
 
   const handleConfirm = async () => {
     if (!confirmAction || saving || (confirmAction === "publish" && !canPublish)) return;
@@ -68,6 +92,7 @@ export function WebsiteProfileDialog({ open, onOpenChange, instructor }: Website
           instructor_id: instructor.id,
           show_on_website: publishing,
           website_teaser: trimmedTeaser,
+          ...(publishing ? { website_role_title: trimmedTitle || null } : {}),
           ...(publishing && photoChoice === "private" && privatePhoto
             ? { source_photo_id: privatePhoto.id } : {}),
         },
@@ -97,6 +122,14 @@ export function WebsiteProfileDialog({ open, onOpenChange, instructor }: Website
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-5">
+            <div className="space-y-2">
+              <Label htmlFor="website-role-title">Titel auf der Website</Label>
+              <Input id="website-role-title" maxLength={80} value={websiteTitle}
+                onChange={(event) => setWebsiteTitle(event.target.value)} disabled={loadingTitle || titleError || saving}
+                placeholder="Automatisch aus Unterrichtsart und Geschlecht" />
+              <p className="text-xs text-muted-foreground">Leer lassen für «{automaticTitle}». Nur die Website-Anzeige wird geändert.</p>
+              {titleError && <p className="text-xs text-destructive">Titel konnte nicht geladen werden. Bitte Dialog erneut öffnen.</p>}
+            </div>
             <div className="space-y-2">
               <Label htmlFor="website-teaser">Kurzbeschreibung</Label>
               <Textarea id="website-teaser" rows={3} maxLength={WEBSITE_TEASER_MAX}
@@ -151,8 +184,9 @@ export function WebsiteProfileDialog({ open, onOpenChange, instructor }: Website
                   <p>Das Profil verschwindet aus der Teamliste. Das bisherige Website-Foto bleibt gespeichert.</p>
                 ) : (
                   <>
-                    <p>Folgendes wird öffentlich sichtbar: Name, Rolle, dieses Foto und die Kurzbeschreibung. Private Personaldaten bleiben intern.</p>
+                    <p>Folgendes wird öffentlich sichtbar: Name, dieser Titel, dieses Foto und die Kurzbeschreibung. Private Personaldaten bleiben intern.</p>
                     <p className="font-medium text-foreground">{instructor.first_name} {instructor.last_name}</p>
+                    <p className="text-foreground">{effectiveTitle}</p>
                     <Avatar className="h-20 w-20"><AvatarImage src={chosenPhotoUrl ?? undefined} alt="Foto für Website" /><AvatarFallback>–</AvatarFallback></Avatar>
                     <p className="whitespace-pre-wrap text-foreground">{trimmedTeaser}</p>
                     {photoChoice === "private" && <p>Das bisher private Foto wird als Kopie öffentlich zugänglich.</p>}

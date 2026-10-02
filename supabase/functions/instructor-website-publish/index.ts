@@ -25,9 +25,19 @@ Deno.serve(async (req) => {
   const enabled = input?.show_on_website;
   const teaser = typeof input?.website_teaser === "string" ? input.website_teaser.trim() : "";
   const photoId = input?.source_photo_id;
+  const hasTitle = Object.hasOwn(input, "website_role_title");
+  const rawTitle = input?.website_role_title;
+  const title = typeof rawTitle === "string" ? rawTitle.trim() : null;
   if (typeof id !== "string" || !UUID.test(id) || typeof enabled !== "boolean" ||
       (photoId !== undefined && (typeof photoId !== "string" || !UUID.test(photoId)))) {
     return json({ error: "invalid_request" }, 400);
+  }
+  if (hasTitle && rawTitle !== null && (typeof rawTitle !== "string" ||
+      (title?.length ?? 0) > 80 || [...rawTitle].some((char) => {
+        const code = char.codePointAt(0) ?? 0;
+        return code < 32 || code === 127;
+      }))) {
+    return json({ error: "invalid_website_title" }, 422);
   }
   if (enabled && (!teaser || teaser.length > 280)) return json({ error: "teaser_required" }, 422);
   if (!enabled && photoId !== undefined) return json({ error: "photo_not_allowed_for_unpublish" }, 400);
@@ -84,10 +94,12 @@ Deno.serve(async (req) => {
   }
   if (!publicUrl) return json({ error: "public_photo_required" }, 422);
 
-  // Only the three public-profile fields change. Never write payroll, contact,
+  // Only public-profile fields change. An omitted title remains untouched for old clients.
+  // Never write payroll, contact,
   // Booking source links, the private photo row or unrelated instructor fields.
   const { data: saved, error: saveError } = await sb.from("instructors")
-    .update({ avatar_url: publicUrl, website_teaser: teaser, show_on_website: true })
+    .update({ avatar_url: publicUrl, website_teaser: teaser, show_on_website: true,
+      ...(hasTitle ? { website_role_title: title || null } : {}) })
     .eq("id", id).eq("status", "active").select("id").maybeSingle();
   if (saveError || !saved) return json({ error: "publish_failed" }, 409);
   return json({ ok: true, published: true, avatar_url: publicUrl });
