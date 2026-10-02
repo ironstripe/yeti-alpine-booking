@@ -11,6 +11,7 @@ import {
 } from "@/lib/scheduler-utils";
 import { useRealtimeSubscription } from "./useRealtimeSubscription";
 import { toast } from "sonner";
+import { collapseAppointmentRows } from "@/lib/schedulerCollapse";
 
 interface UseSchedulerDataOptions {
   startDate: Date;
@@ -416,14 +417,7 @@ export function useSchedulerData({ startDate, endDate, instructorId }: UseSchedu
     ]);
     if (!appointmentSports.has(link.appointment_id)) appointmentSports.set(link.appointment_id, participant.sport);
   }
-  const seenAppointments = new Set<string>();
-  const collapsedStandalone = standaloneBookings.filter((b) => {
-    const apptId = (b as { appointment_id?: string | null }).appointment_id;
-    if (!apptId) return true;
-    if (seenAppointments.has(apptId)) return false;
-    seenAppointments.add(apptId);
-    return true;
-  });
+  const collapsedStandalone = collapseAppointmentRows(standaloneBookings);
 
   // Process standalone bookings normally
   const bookings: SchedulerBooking[] = collapsedStandalone.map((b) => {
