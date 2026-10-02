@@ -14,11 +14,12 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Hole PR Diff
         id: diff
         run: |
-          git fetch origin ${{ github.base_ref }}
           git diff origin/${{ github.base_ref }}...HEAD > pr_diff.txt
 
       - name: Gemini Review durchführen
@@ -61,7 +62,7 @@ jobs:
           Halte dich kurz, direkt und lösungsorientiert.
           """
 
-          url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
+          url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
           data = json.dumps({"contents": [{"parts": [{"text": prompt}]}]}).encode('utf-8')
           
           req = urllib.request.Request(url, data=data, headers={'Content-Type': 'application/json'})
