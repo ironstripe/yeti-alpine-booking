@@ -110,10 +110,11 @@ def main():
         # A 4h product runs in two genuine 2h lessons, not a 10–14 block.
         blocks = '10:00-12:00|14:00-16:00' if 240 in durations else '10:00-12:00'
         adult_exception = label.startswith('Ski Erwachsene ')
-        # No unsupported age floor for generic youth groups; the Windel
-        # Wedel level already has a 3–4 age range in the YETI level catalog.
+        # Do not force one toddler product's age onto both distinct levels:
+        # the pre-existing YETI catalog has Windel Wedel 3–4 and Snow Kids 4–6.
         age_min, age_max = ((17,120) if adult_exception else
-                            ((3,4) if label=='Ski Windel-Wedelkurs' else (0,16)))
+                            ((3,4) if label=='Ski Windel-Wedelkurs' else
+                             (4,6) if label=='Ski Swiss Snow Kids Village' else (0,16)))
         results.append({
             'period_type':kind, 'period_start':r['period_start'],'period_end':r['period_end'],
             'week_start':r['week_start'],'series':r['series'],
