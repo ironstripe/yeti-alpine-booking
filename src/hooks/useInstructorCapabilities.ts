@@ -36,9 +36,11 @@ export function useInstructorCapabilities(instructorId: string | undefined) {
 
       if (error) throw error;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["instructor-capabilities", instructorId] });
-      queryClient.invalidateQueries({ queryKey: ["instructor", instructorId] });
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["instructor-capabilities", instructorId] }),
+        queryClient.invalidateQueries({ queryKey: ["instructor", instructorId] }),
+      ]);
       toast.success("Qualifikationen gespeichert");
     },
     onError: (error) => {
@@ -53,7 +55,7 @@ export function useInstructorCapabilities(instructorId: string | undefined) {
     capabilityIds: query.data || [],
     isLoading: query.isLoading,
     error: query.error,
-    setCapabilities: setCapabilitiesMutation.mutate,
+    setCapabilities: setCapabilitiesMutation.mutateAsync,
     isSaving: setCapabilitiesMutation.isPending,
   };
 }
