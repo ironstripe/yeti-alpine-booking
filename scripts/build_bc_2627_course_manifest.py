@@ -32,10 +32,10 @@ LEVELS = {
     'Ski Erwachsene Anfänger': 'ski_adult_green',
     'Ski Erwachsene Fortgeschritten': 'ski_adult_blue',
     'Ski Erwachsene Wiedereinsteiger': 'NEW:ski_adult_returners',
-    # Source does not distinguish ages; adult IDs below are placeholders for
-    # scheduling, not permission to reject child snowboarders online.
-    'Snowboard Anfänger': 'REVIEW:sb_adult_green',
-    'Snowboard Fortgeschritten': 'REVIEW:sb_adult_blue',
+    # Owner decision 2026-10-03: snowboard groups are for children/youth up to
+    # and including 16, not the existing adult snowboard skill level IDs.
+    'Snowboard Anfänger': 'NEW:sb_youth_beginner',
+    'Snowboard Fortgeschritten': 'NEW:sb_youth_advanced',
 }
 
 
@@ -109,6 +109,11 @@ def main():
             raise ValueError('Empty or oversized scheduling period')
         # A 4h product runs in two genuine 2h lessons, not a 10–14 block.
         blocks = '10:00-12:00|14:00-16:00' if 240 in durations else '10:00-12:00'
+        adult_exception = label.startswith('Ski Erwachsene ')
+        # No unsupported age floor for generic youth groups; the Windel
+        # Wedel level already has a 3–4 age range in the YETI level catalog.
+        age_min, age_max = ((17,120) if adult_exception else
+                            ((3,4) if label=='Ski Windel-Wedelkurs' else (0,16)))
         results.append({
             'period_type':kind, 'period_start':r['period_start'],'period_end':r['period_end'],
             'week_start':r['week_start'],'series':r['series'],
@@ -118,6 +123,8 @@ def main():
             'variant_day_counts':json.dumps({pid: sorted({t['day_count'] for t in options[pid]}) for pid in variants},sort_keys=True),
             'teaching_dates':'|'.join(day_dates),'schedule_time_blocks':blocks,
             'capacity_max':str(min(products[next(k for k,p in products.items() if p['product_id']==pid)]['capacity_max'] for pid in variants)),
+            'age_min':age_min,'age_max':age_max,
+            'audience_policy':'ADULT_GROUP_EXCEPTION' if adult_exception else 'YOUTH_GROUP_UP_TO_16',
             'instructor_id':'', 'lunch_included':'false', 'status':'PREPARED_NOT_ACTIVE',
             'source_snapshot_sha256':SOURCE_SHA,
         })
@@ -125,11 +132,12 @@ def main():
         raise ValueError('Output cardinality mismatch')
     output.parent.mkdir(parents=True,exist_ok=True)
     with output.open('w',encoding='utf-8',newline='') as handle:
-        writer=csv.DictWriter(handle,fieldnames=results[0].keys());writer.writeheader();writer.writerows(results)
+        writer=csv.DictWriter(handle,fieldnames=results[0].keys(),lineterminator='\n');writer.writeheader();writer.writerows(results)
     print('SOURCE-BACKED DRY RUN',len(results),'level-periods',
           Counter(x['period_type'] for x in results),'instances',
           sum(len(x['teaching_dates'].split('|'))*len(x['schedule_time_blocks'].split('|')) for x in results),
-          'new/review mappings',Counter(x['skill_level_id'] for x in results if x['skill_level_id'].startswith(('NEW:','REVIEW:'))))
+          'new mappings',Counter(x['skill_level_id'] for x in results if x['skill_level_id'].startswith('NEW:')),
+          'audiences',Counter(x['audience_policy'] for x in results))
 
 
 if __name__ == '__main__':

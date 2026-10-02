@@ -4,6 +4,7 @@
 
 Pro Niveau und Woche/Serie ist nur **eine Ausgangsgruppe** vorgesehen; 2h und 4h sind Produktvarianten derselben Niveaugruppe, kein doppelter Lehrer. 2h: 10–12 (später manuell auf 14–16 änderbar). 4h: zwei Blöcke, 10–12 und 14–16. Mittagspause/Mittagsbetreuung gehört nie automatisch zum 4h-Angebot und ist bei Bedarf separat zu buchen. Das Manifest projiziert maximal 3210 potenzielle **2h-Unterrichtsblöcke** über die 370 Ausgangsgruppen, nicht 3210 unabhängige Gruppen. `variant_day_counts` enthält nur die tatsächlich belegten Quellstaffeln. Das Quellen-SHA ist pro Zeile festgehalten.
 
+
 **Vor jedem Live-Import zwingend auflösen:**
 
 1. Die drei exakten Booking-Level `Ski Schwarzer König/Königin`, `Ski Kinder Fortgeschritten` und `Ski Erwachsene Wiedereinsteiger` fehlen im aktuellen YETI-`skill_levels`-Verzeichnis. Die Markierung `NEW:` darf nie als vorhandene ID verwendet werden. Die beiden Snowboard-Aktivitäten sind in Booking altersübergreifend, während YETIs bestehende `sb_adult_*`-IDs Erwachsene meinen. Die Markierung `REVIEW:` ist kein stillschweigendes Altersmapping. Passende Ziellevels/Alterssicht und deren Staff-UI sind vor Apply zu prüfen.

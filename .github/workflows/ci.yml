@@ -53,6 +53,8 @@ jobs:
         run: |
           python3 scripts/build_bc_2627_course_manifest.py data/bc-2627/source-course-candidates.csv /tmp/bc-2627-course-manifest.csv
           cmp /tmp/bc-2627-course-manifest.csv data/bc-2627/course-manifest-not-active.csv
+      - name: 26/27 group age and adult-exception contract — hard gate
+        run: node tests/bcAge.integration.mjs
       - name: Build — hard gate
         run: bun run build
       - name: Working tree unchanged — hard gate
