@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useForm } from "react-hook-form";
+import { useNavigate } from "react-router-dom";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useIsSuperAdmin } from "@/hooks/useIsSuperAdmin";
@@ -22,7 +23,7 @@ import {
 } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { Check, Loader2 } from "lucide-react";
+import { Check, Loader2, Globe } from "lucide-react";
 import { toast } from "sonner";
 import { useCreateInstructor } from "@/hooks/useCreateInstructor";
 import { normalizePhoneNumber } from "@/lib/phone-utils";
@@ -35,8 +36,6 @@ import {
   STATUS_OPTIONS,
 } from "@/lib/instructor-utils";
 import { RoleSelector, getDisciplineFromRoles, hasTeachingRole } from "./RoleSelector";
-import { Checkbox } from "@/components/ui/checkbox";
-import { DEFAULT_WEBSITE_TEASER, WEBSITE_TEASER_MAX } from "@/lib/website-profile";
 
 const instructorSchema = z.object({
   first_name: z.string().min(1, "Vorname ist erforderlich"),
@@ -55,8 +54,6 @@ const instructorSchema = z.object({
   iban: z.string().optional(),
   ahv_number: z.string().optional(),
   notes: z.string().optional(),
-  show_on_website: z.boolean().default(false),
-  website_teaser: z.string().max(WEBSITE_TEASER_MAX, `Maximal ${WEBSITE_TEASER_MAX} Zeichen`).optional(),
 });
 
 type InstructorFormData = z.infer<typeof instructorSchema>;
@@ -67,6 +64,7 @@ interface NewInstructorModalProps {
 }
 
 export function NewInstructorModal({ open, onOpenChange }: NewInstructorModalProps) {
+  const navigate = useNavigate();
   const isSuperAdmin = useIsSuperAdmin();
   const createInstructor = useCreateInstructor();
   const [ibanValue, setIbanValue] = useState("");
@@ -86,16 +84,12 @@ export function NewInstructorModal({ open, onOpenChange }: NewInstructorModalPro
       roles: ["ski"],
       level: "",
       hourly_rate: undefined,
-      show_on_website: false,
-      website_teaser: DEFAULT_WEBSITE_TEASER,
     },
   });
 
   const roles = watch("roles");
   const level = watch("level");
   const status = watch("status");
-  const showOnWebsite = watch("show_on_website");
-  const websiteTeaser = watch("website_teaser") ?? "";
   const isInstructor = hasTeachingRole(roles || []);
 
   const onSubmit = async (data: InstructorFormData) => {
@@ -105,7 +99,7 @@ export function NewInstructorModal({ open, onOpenChange }: NewInstructorModalPro
       // Derive discipline from roles for backward compatibility
       const specialization = getDisciplineFromRoles(data.roles);
 
-      await createInstructor.mutateAsync({
+      const created = await createInstructor.mutateAsync({
         first_name: data.first_name.trim(),
         last_name: data.last_name.trim(),
         email: data.email.trim().toLowerCase(),
@@ -121,11 +115,11 @@ export function NewInstructorModal({ open, onOpenChange }: NewInstructorModalPro
         ahv_number: ahvValue ? formatAHVNumber(ahvValue) : null,
         notes: data.notes?.trim() || null,
         real_time_status: "unavailable",
-        show_on_website: data.show_on_website ?? false,
-        website_teaser: (data.website_teaser || DEFAULT_WEBSITE_TEASER).trim(),
       });
 
-      toast.success("Skilehrer erfolgreich erstellt");
+      toast.success("Skilehrer erstellt – noch nicht auf der Website", {
+        action: { label: "Profil öffnen", onClick: () => navigate(`/instructors/${created.id}`) },
+      });
       handleClose(false);
     } catch (error) {
       if (error instanceof Error) {
@@ -297,37 +291,16 @@ export function NewInstructorModal({ open, onOpenChange }: NewInstructorModalPro
 
             <Separator />
 
-            {/* Section 3b: Website */}
-            <div className="space-y-4">
-              <h3 className="text-sm font-medium text-muted-foreground">Website</h3>
-              <div className="flex items-start gap-3">
-                <Checkbox
-                  id="show_on_website"
-                  checked={showOnWebsite === true}
-                  onCheckedChange={(v) => setValue("show_on_website", v === true)}
-                />
-                <div className="space-y-1">
-                  <Label htmlFor="show_on_website">Auf Website anzeigen</Label>
-                  <p className="text-xs text-muted-foreground">
-                    Das Profil erscheint auf der Website, sobald ein Profilbild und eine
-                    Kurzbeschreibung vorhanden sind.
-                  </p>
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="website_teaser">Kurzbeschreibung für die Website</Label>
-                <Textarea
-                  id="website_teaser"
-                  rows={3}
-                  maxLength={WEBSITE_TEASER_MAX}
-                  {...register("website_teaser")}
-                />
-                <p className="text-xs text-muted-foreground text-right">
-                  {websiteTeaser.length}/{WEBSITE_TEASER_MAX}
+            {/* Website release requires the separately confirmed portrait + teaser flow. */}
+            <div className="rounded-lg border bg-muted/40 p-4 flex items-start gap-3">
+              <Globe className="h-4 w-4 mt-0.5 shrink-0 text-muted-foreground" />
+              <div className="space-y-1">
+                <h3 className="text-sm font-medium">Website-Freigabe nach dem Erstellen</h3>
+                <p className="text-xs text-muted-foreground">
+                  Neue Profile sind zunächst nur intern sichtbar. Öffne danach das Profil,
+                  lade ein Foto hoch und bestätige Name, Foto und Kurzbeschreibung über
+                  „Website-Freigabe speichern“.
                 </p>
-                {errors.website_teaser && (
-                  <p className="text-xs text-destructive">{errors.website_teaser.message}</p>
-                )}
               </div>
             </div>
 
