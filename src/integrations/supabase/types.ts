@@ -2885,6 +2885,7 @@ export type Database = {
           specialization: string | null
           status: string | null
           street: string | null
+          website_role_title: string | null
           website_teaser: string
           zip: string | null
         }
@@ -2916,6 +2917,7 @@ export type Database = {
           specialization?: string | null
           status?: string | null
           street?: string | null
+          website_role_title?: string | null
           website_teaser?: string
           zip?: string | null
         }
@@ -2947,6 +2949,7 @@ export type Database = {
           specialization?: string | null
           status?: string | null
           street?: string | null
+          website_role_title?: string | null
           website_teaser?: string
           zip?: string | null
         }

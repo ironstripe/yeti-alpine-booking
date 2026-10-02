@@ -3,16 +3,7 @@
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders, checkApiKey, json } from "../_shared/intakeAuth.ts";
-
-function roleLabel(specialization: string | null, roles: string[] | null): string {
-  const hay = [specialization ?? "", ...(roles ?? [])].join(" ").toLowerCase();
-  const ski = hay.includes("ski");
-  const snowboard = hay.includes("snowboard") || hay.includes("board");
-  if (ski && snowboard) return "Ski- und Snowboardlehrperson";
-  if (snowboard) return "Snowboardlehrperson";
-  if (ski) return "Skilehrperson";
-  return "Schneesportlehrperson";
-}
+import { publicInstructorTitle } from "../_shared/publicInstructorTitle.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -29,7 +20,7 @@ Deno.serve(async (req) => {
   try {
     const { data, error } = await supabase
       .from("instructors")
-      .select("first_name, last_name, specialization, roles, avatar_url, website_teaser")
+      .select("first_name, last_name, specialization, roles, gender, website_role_title, avatar_url, website_teaser")
       .eq("status", "active")
       .eq("show_on_website", true)
       .order("first_name", { ascending: true })
@@ -48,7 +39,12 @@ Deno.serve(async (req) => {
         if (!teaser || !portraitUrl || portraitUrl.includes("instructor-hr-photos") || portraitUrl.includes("/object/sign/")) return null;
         return {
           display_name: displayName,
-          role_label: roleLabel(r.specialization ?? null, r.roles ?? null),
+          role_label: publicInstructorTitle({
+            specialization: r.specialization ?? null,
+            roles: r.roles ?? null,
+            gender: r.gender ?? null,
+            website_role_title: r.website_role_title ?? null,
+          }),
           teaser,
           portrait_url: portraitUrl,
         };
