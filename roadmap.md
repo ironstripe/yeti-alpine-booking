@@ -51,3 +51,9 @@
 - [ ] Gate A2 (only if found): teacher access to customer contacts/prices
 - [ ] Real-browser office/admin/super_admin role test (blocked: separate user permission to sign in as staff)
 - [ ] Lock migration review: published app shares backend → old published frontend breaks for office until republished (needs user decision)
+
+## Buchungsübernahme 26/27 (preparation, read-only)
+- [x] Normalized package contract v1, pure evaluator, scheduler projection tests, staff dry-run card
+- [ ] Original BC export adapter (blocked: CSV schema not obtained)
+- [ ] Rechnung/refund/online-payment semantics + group planning source (blocked: owner/BC answers)
+- [ ] Server absence/collision/capability checks; migration-mode triggers; server apply + journal (later milestone)
