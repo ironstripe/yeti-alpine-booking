@@ -47,6 +47,8 @@ jobs:
           exit 0 # diagnostic never fails the job
       - name: Install (frozen lockfile) — hard gate
         run: bun install --frozen-lockfile
+      - name: 26/27 source-tariff PostgreSQL quote contract — hard gate
+        run: node tests/bcQuote.integration.mjs
       - name: Build — hard gate
         run: bun run build
       - name: Working tree unchanged — hard gate
