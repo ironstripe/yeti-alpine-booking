@@ -1,4 +1,4 @@
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { ArrowLeft, Edit, Plus, Building2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -9,10 +9,13 @@ import { CustomerInfoCard } from "@/components/customers/detail/CustomerInfoCard
 import { FamilyHub } from "@/components/customers/detail/FamilyHub";
 import { BookingHistoryCard } from "@/components/customers/detail/BookingHistoryCard";
 import { ContactPersonsCard } from "@/components/customers/detail/ContactPersonsCard";
+import { customerReturnUrl } from "@/lib/customerReturnUrl";
 
 export default function CustomerDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
+  const listUrl = customerReturnUrl((location.state as { returnTo?: unknown } | null)?.returnTo);
   const { data: customer, isLoading: isLoadingCustomer } = useCustomerDetail(id);
   const { data: tickets = [], isLoading: isLoadingTickets } = useCustomerTickets(id);
   const { data: contacts = [] } = useCustomerContacts(id);
@@ -52,7 +55,7 @@ export default function CustomerDetail() {
         <Button
           variant="outline"
           className="mt-4"
-          onClick={() => navigate("/customers")}
+          onClick={() => navigate(listUrl)}
         >
           <ArrowLeft className="mr-2 h-4 w-4" />
           Zurück zur Kundenliste
@@ -75,7 +78,8 @@ export default function CustomerDetail() {
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => navigate("/customers")}
+            onClick={() => navigate(listUrl)}
+            aria-label="Zurück zur Kundenliste"
             className="shrink-0"
           >
             <ArrowLeft className="h-5 w-5" />

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Plus } from "lucide-react";
 import { PageHeader } from "@/components/layout";
 import { Button } from "@/components/ui/button";
@@ -15,10 +16,20 @@ import {
 import { NewCustomerModal } from "@/components/customers/NewCustomerModal";
 
 const Customers = () => {
-  const [searchInput, setSearchInput] = useState("");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const searchInput = searchParams.get("q") ?? "";
+  const setSearchInput = (value: string) => {
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      if (value) next.set("q", value);
+      else next.delete("q");
+      return next;
+    }, { replace: true });
+  };
   const [isModalOpen, setIsModalOpen] = useState(false);
   const debouncedSearch = useDebounce(searchInput, 300);
   const { data: customers, isLoading, error } = useCustomers(debouncedSearch);
+  const returnTo = `/customers${searchParams.toString() ? `?${searchParams.toString()}` : ""}`;
 
   if (error) {
     return (
@@ -58,8 +69,8 @@ const Customers = () => {
         </>
       ) : customers && customers.length > 0 ? (
         <>
-          <CustomerTable customers={customers} />
-          <CustomerCards customers={customers} />
+          <CustomerTable customers={customers} returnTo={returnTo} />
+          <CustomerCards customers={customers} returnTo={returnTo} />
         </>
       ) : (
         <CustomerEmptyState

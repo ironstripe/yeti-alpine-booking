@@ -1,4 +1,4 @@
-import { useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { ChevronRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import type { CustomerWithCount } from "@/hooks/useCustomers";
@@ -6,18 +6,19 @@ import { formatPhoneDisplay } from "@/lib/phone-utils";
 
 interface CustomerCardsProps {
   customers: CustomerWithCount[];
+  returnTo: string;
 }
 
-export function CustomerCards({ customers }: CustomerCardsProps) {
-  const navigate = useNavigate();
-
+export function CustomerCards({ customers, returnTo }: CustomerCardsProps) {
   return (
     <div className="md:hidden space-y-3">
       {customers.map((customer) => (
-        <div
+        <Link
           key={customer.id}
-          className="bg-card rounded-lg border p-4 cursor-pointer hover:bg-muted/50 transition-colors"
-          onClick={() => navigate(`/customers/${customer.id}`)}
+          to={`/customers/${customer.id}`}
+          state={{ returnTo }}
+          aria-label={`Kunde ${customer.first_name || ""} ${customer.last_name} ansehen`}
+          className="block bg-card rounded-lg border p-4 hover:bg-muted/50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           <div className="flex items-center justify-between">
             <div className="flex-1 min-w-0">
@@ -40,7 +41,7 @@ export function CustomerCards({ customers }: CustomerCardsProps) {
             </div>
             <ChevronRight className="h-5 w-5 text-muted-foreground shrink-0 ml-2" />
           </div>
-        </div>
+        </Link>
       ))}
     </div>
   );
