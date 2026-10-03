@@ -60,3 +60,11 @@
 - [ ] Original BC export adapter (blocked: CSV schema not obtained)
 - [ ] Rechnung/refund/online-payment semantics + group planning source (blocked: owner/BC answers)
 - [ ] Server absence/collision/capability checks; migration-mode triggers; server apply + journal (later milestone)
+
+## Issues #15/#22/#36 (see docs/issues-15-36-status.md)
+- [x] #22 offline function check script (`bun run check:functions`)
+- [x] #15 get-products fail-closed + website visibility; staff group preflight before writes
+- [x] #36 online payment refused until provider verification exists
+- [ ] #15 atomic server booking RPC (blocked: Carving dates/capacities/tariff binding)
+- [ ] #36 capacity policy (blocked: owner decision soft vs hard capacity)
+- [ ] #36 payment provider + OnePager (blocked: provider; Robin repo push=false)
