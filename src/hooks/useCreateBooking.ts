@@ -77,7 +77,7 @@ async function runGroupPreflight(lines: GroupLineRequest[]): Promise<Map<string,
     seasons: seasons ?? [],
     sourceBoundProductIds: new Set((sources ?? []).map((s: { product_id: string }) => s.product_id)),
   });
-  if (!result.ok) throw new Error(`Buchung nicht erstellt: ${result.errors.join(" ")}`);
+  if ("errors" in result) throw new Error(`Buchung nicht erstellt: ${result.errors.join(" ")}`);
   return result.priced;
 }
 

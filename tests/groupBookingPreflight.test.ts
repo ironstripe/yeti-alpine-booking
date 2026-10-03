@@ -42,7 +42,7 @@ describe("group booking preflight (#15)", () => {
   it("rejects 26/27 source-bound products without legacy fallback", () => {
     const r = preflightGroupLines(one("c-2627", ["2027-01-13"]));
     expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.errors[0]).toContain("Booking-Corner");
+    if ("errors" in r) expect(r.errors[0]).toContain("Booking-Corner");
   });
   it("rejects products with tariff source evidence even in older seasons", () => {
     expect(preflightGroupLines(one("c-src")).ok).toBe(false);
@@ -56,6 +56,6 @@ describe("group booking preflight (#15)", () => {
       { label: "Ben", courseId: "c-zero", dates: ["2026-01-10"] },
     ]));
     expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.errors).toHaveLength(1);
+    if ("errors" in r) expect(r.errors).toHaveLength(1);
   });
 });
