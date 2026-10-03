@@ -575,16 +575,30 @@ BEGIN
            OR NOT (v_days = ANY(ARRAY(SELECT x::int FROM jsonb_array_elements_text(v_period.eligible_variants->v_product.id::text) x))) THEN
           RAISE EXCEPTION 'tier_unavailable: Kein Tarif für % Tage', v_days;
         END IF;
+        -- Exact block IDs only: 'blocks' (string[]) per contract; legacy scalar 'block' for 2h.
+        IF v_s ? 'blocks' AND (jsonb_typeof(v_s->'blocks') IS DISTINCT FROM 'array'
+             OR EXISTS (SELECT 1 FROM jsonb_array_elements(v_s->'blocks') x WHERE jsonb_typeof(x) IS DISTINCT FROM 'string')) THEN
+          RAISE EXCEPTION 'invalid_selection: blocks muss eine Liste von Block-IDs sein';
+        END IF;
         IF v_product.duration_minutes = 240 THEN
-          IF v_s ? 'block' AND v_s->>'block' IS DISTINCT FROM '10:00-12:00+14:00-16:00' THEN
-            RAISE EXCEPTION 'invalid_selection: 4h-Kurs umfasst 10-12 und 14-16';
+          IF v_s ? 'block' THEN
+            RAISE EXCEPTION 'invalid_selection: 4h-Kurs umfasst 10:00-12:00 und 14:00-16:00 (blocks)';
+          END IF;
+          IF v_s ? 'blocks' AND (SELECT array_agg(x ORDER BY x) FROM jsonb_array_elements_text(v_s->'blocks') x)
+                                 IS DISTINCT FROM ARRAY['10:00-12:00','14:00-16:00'] THEN
+            RAISE EXCEPTION 'invalid_selection: 4h-Kurs umfasst 10:00-12:00 und 14:00-16:00';
           END IF;
           v_blocks := ARRAY['10:00-12:00','14:00-16:00'];
         ELSIF v_product.duration_minutes = 120 THEN
-          IF COALESCE(v_s->>'block','') NOT IN ('10:00-12:00','14:00-16:00') THEN
-            RAISE EXCEPTION 'invalid_selection: block (10:00-12:00 oder 14:00-16:00) wählen';
+          IF v_s ? 'blocks' AND v_s ? 'block' THEN
+            RAISE EXCEPTION 'invalid_selection: entweder block oder blocks';
           END IF;
-          v_blocks := ARRAY[v_s->>'block'];
+          v_b := CASE WHEN v_s ? 'blocks' AND jsonb_array_length(v_s->'blocks') = 1 THEN v_s->'blocks'->>0
+                      WHEN v_s ? 'blocks' THEN NULL ELSE v_s->>'block' END;
+          IF COALESCE(v_b,'') NOT IN ('10:00-12:00','14:00-16:00') THEN
+            RAISE EXCEPTION 'invalid_selection: genau einen Block (10:00-12:00 oder 14:00-16:00) wählen';
+          END IF;
+          v_blocks := ARRAY[v_b];
         ELSE
           RAISE EXCEPTION 'product_unavailable: Unbekannte Produktdauer';
         END IF;
