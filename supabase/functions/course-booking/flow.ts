@@ -34,6 +34,10 @@ export async function reserve(sb: Client, body: Record<string, any>): Promise<Re
   }
   const d = await rpc(sb, "bc_2627_reserve", { p_payload: r });
   if (d?.status !== "success") return { status: httpFor(d?.code), body: err(d?.code ?? "reserve_failed", d?.message ?? "") };
+  if (d.replayed && d.state === "released") {
+    // A cancelled/expired hold is never revived: the client must start over with a NEW idempotency_key.
+    return { status: 409, body: err("reservation_released", "Reservation wurde freigegeben; bitte mit neuem Schlüssel neu reservieren") };
+  }
   const total = positiveAmount(d.total_amount);
   if (total === null) return { status: 500, body: err("internal", "Ungültiger Betrag", true) };
   return {

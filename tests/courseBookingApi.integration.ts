@@ -206,6 +206,10 @@ try {
     const c = await call({ ...body, reservation: { ...body.reservation, selections: [groupSel("r", ["2027-01-07"])] } });
     assertEquals(c.status, 409); assertEquals(c.body.code, "idempotency_conflict");
     await call({ action: "cancel", ticket_id: a.body.ticket_id, reservation_token: a.body.reservation_token });
+    const d = await call(body);
+    cap("reserve_released_needs_new_key", body, d);
+    assertEquals(d.status, 409); assertEquals(d.body.code, "reservation_released");
+    assertEquals((await call({ ...body, reservation: { ...body.reservation, idempotency_key: key() } })).status, 201);
   });
 
   await t("parallel first completes of the SAME ticket: exactly one invoice, one mail per kind", async () => {
