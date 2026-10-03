@@ -44,6 +44,7 @@ try {
   // ---------------- synthetic fixtures (post pricing-release state) ----------------
   await sql.unsafe(`
   INSERT INTO seasons(id,name,start_date,end_date) VALUES ('${S}','Winter 26/27','2026-12-01','2027-04-15');
+  INSERT INTO skill_levels(id,name,discipline,target_group,sort_order) VALUES ('ski_blauer_koenig','BK','ski','child',1),('ski_adult_green','AG','ski','adult',2);
   INSERT INTO products(id,name,type,duration_minutes,price,season_id,discipline,is_active,show_on_website,min_age,max_age,pricing_type) VALUES
    ('${K4}','Kinder 4h','group',240,0,'${S}','ski',true,true,4,16,'tiered'),
    ('${K2}','Kinder 2h','group',120,0,'${S}','ski',true,true,4,16,'tiered'),
