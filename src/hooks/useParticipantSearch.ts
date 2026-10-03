@@ -36,6 +36,7 @@ export function useParticipantSearch(query: string) {
           )
         `)
         .or(`first_name.ilike.%${debouncedQuery}%,last_name.ilike.%${debouncedQuery}%`)
+        .is("merged_into_id", null)
         .limit(10);
 
       if (error) throw error;
