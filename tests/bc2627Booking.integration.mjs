@@ -280,12 +280,13 @@ try {
   });
 
   await t('concurrent above-threshold group bookings all succeed; counts exact', async () => {
+    const before = { '10:00': (await cp(C1, '2027-01-07', '10:00')).n, '14:00': (await cp(C1, '2027-01-07', '14:00')).n };
     const rs = await Promise.all(Array.from({ length: 12 }, (_, i) => reserve({ idempotency_key: key(), participants: [kid(`k${i}`)],
       selections: [{ kind: 'group', participant_ref: `k${i}`, period_key: BK, product_id: K4, dates: ['2027-01-07'] }] })));
     assert.ok(rs.every((r) => r.status === 'success'), JSON.stringify(rs.find((r) => r.status !== 'success')));
     const done = await Promise.all(rs.map((r, i) => complete(r, [named(kid(`k${i}`))])));
     assert.ok(done.every((x) => x.c?.status === 'success'), JSON.stringify(done.find((x) => x.c?.status !== 'success')));
-    for (const s of ['10:00', '14:00']) { const c = await cp(C1, '2027-01-07', s); assert.equal(c.n, 3 + 12); assert.equal(c.c, c.n); }
+    for (const s of ['10:00', '14:00']) { const c = await cp(C1, '2027-01-07', s); assert.equal(c.n, before[s] + 12, `${s} before=${before[s]}`); assert.equal(c.c, c.n, 'counter equals real enrollments'); }
   });
 
   await t('concurrent identical retries create exactly one booking', async () => {
