@@ -90,7 +90,7 @@ export function ParticipantCard({ participant, customerId }: ParticipantCardProp
     defaultValues: {
       first_name: participant.first_name,
       last_name: participant.last_name || "",
-      birth_date: new Date(participant.birth_date),
+      birth_date: participant.birth_date ? new Date(participant.birth_date) : undefined,
       level_last_season: participant.level_last_season || "",
       level_current_season: participant.level_current_season || "",
       sport: participant.sport || "ski",
