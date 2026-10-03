@@ -28,8 +28,13 @@ Containment only. Nothing here is deployed, published or applied to Cloud data.
 ## #15 – remaining
 - The browser still writes ticket, items, payments in several steps; a late failure can still
   leave a partial booking. Needs a server-side atomic booking RPC using `quote_bc_2627_product`.
-- Missing business values: Carving operating dates/slots (Wed/Sun 2h), group capacities,
-  tariff binding to source IDs. Not invented.
+- Generic atomic group booking (server RPC) can proceed now; it is not blocked by Carving.
+- Carving *activation* is blocked by missing business values: operating dates/slots (Wed/Sun 2h)
+  and tariff binding to source IDs. Not invented.
+- Preflight (2026-10-03 fix): course must be `is_active === true`; linked product type must be
+  `group`/`group_toddler`; dates must be real ISO calendar dates without duplicates; product price is
+  used as day price only for `pricing_type = fixed` (tiered/flat/hourly never → fail closed).
+- `get-products` always excludes `office_shift`, like `get-website-products`.
 
 ## #36 – done (containment)
 - `confirm-booking` refuses `payment_method=online` with 503 `payment_provider_unavailable`
@@ -38,8 +43,10 @@ Containment only. Nothing here is deployed, published or applied to Cloud data.
   PR2 not merged; no verified payments fabricated.
 
 ## #36 – remaining
-- Provider integration with server-side verification (then remove the gate).
+- Online payment needs provider integration with server-side verification (then remove the gate).
+  Invoice-only booking does **not** need a provider; what is missing there is invoice delivery,
+  which is not implemented in current main.
 - Website course-option list, 26/27 reservation, finalize (enrollments + exactly one invoice).
-- **Requirements conflict (undecided):** Ivo's prior business rule says group courses are always
+- **Outstanding dependency – capacity policy (undecided):** Ivo's prior business rule says group courses are always
   bookable (soft capacity); #36 asks for hard capacity blocking. Neither policy has been adopted.
-- OnePager: Robin repo permissions checked: push=false, pull=true → no OnePager change possible.
+- **Outstanding dependency – Robin write access.** OnePager: Robin repo permissions checked: push=false, pull=true → no OnePager change possible.
