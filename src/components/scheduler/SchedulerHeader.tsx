@@ -83,8 +83,8 @@ export function SchedulerHeader({
             <PopoverTrigger asChild>
               <Button
                 variant="outline"
-                className="text-action min-w-[90px] justify-start px-2 text-left text-xs font-normal md:min-w-[110px]"
-                aria-label="Datum wählen"
+                className="control-target min-w-[90px] justify-start px-2 text-left text-xs font-normal md:min-w-[110px]"
+                aria-label={`Datum wählen: ${format(date, "EEEE, dd. MMMM yyyy", { locale: de })}`}
               >
                 <CalendarIcon className="mr-1.5 h-3.5 w-3.5 shrink-0" />
                 {format(date, isMobile ? "dd.MM." : "EEE, dd.MM.", { locale: de })}
@@ -129,10 +129,10 @@ export function SchedulerHeader({
             className="bg-muted rounded-md p-0.5"
             aria-label="Mobile Darstellung"
           >
-            <ToggleGroupItem value="list" className="text-action px-3 text-xs data-[state=on]:bg-background">
+            <ToggleGroupItem value="list" className="control-target px-3 text-xs data-[state=on]:bg-background">
               Liste
             </ToggleGroupItem>
-            <ToggleGroupItem value="grid" className="text-action px-3 text-xs data-[state=on]:bg-background">
+            <ToggleGroupItem value="grid" className="control-target px-3 text-xs data-[state=on]:bg-background">
               Raster
             </ToggleGroupItem>
           </ToggleGroup>
@@ -149,19 +149,19 @@ export function SchedulerHeader({
         >
           <ToggleGroupItem 
             value="daily" 
-            className="text-action px-3 text-xs data-[state=on]:bg-background"
+            className="control-target px-3 text-xs data-[state=on]:bg-background"
           >
             Tag
           </ToggleGroupItem>
           <ToggleGroupItem 
             value="3days" 
-            className="text-action px-3 text-xs data-[state=on]:bg-background"
+            className="control-target px-3 text-xs data-[state=on]:bg-background"
           >
             3T
           </ToggleGroupItem>
           <ToggleGroupItem 
             value="weekly" 
-            className="text-action px-3 text-xs data-[state=on]:bg-background"
+            className="control-target px-3 text-xs data-[state=on]:bg-background"
           >
             Woche
           </ToggleGroupItem>
@@ -195,13 +195,13 @@ export function SchedulerHeader({
             className="bg-muted rounded-md p-0.5"
             aria-label="Buchungsart filtern"
           >
-            <ToggleGroupItem value="all" className="text-action px-2 text-xs data-[state=on]:bg-background">
+            <ToggleGroupItem value="all" className="control-target px-2 text-xs data-[state=on]:bg-background">
               Alle
             </ToggleGroupItem>
-            <ToggleGroupItem value="group" className="text-action px-2 text-xs data-[state=on]:bg-background">
+            <ToggleGroupItem value="group" className="control-target px-2 text-xs data-[state=on]:bg-background">
               Gruppen
             </ToggleGroupItem>
-            <ToggleGroupItem value="private" className="text-action px-2 text-xs data-[state=on]:bg-background">
+            <ToggleGroupItem value="private" className="control-target px-2 text-xs data-[state=on]:bg-background">
               Privat
             </ToggleGroupItem>
           </ToggleGroup>

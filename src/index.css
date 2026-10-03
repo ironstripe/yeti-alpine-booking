@@ -186,7 +186,7 @@
     @apply h-9 min-h-9 w-9 min-w-9;
   }
 
-  .text-action {
+  .control-target {
     @apply min-h-9;
   }
 
@@ -196,7 +196,7 @@
     }
 
 
-    .text-action {
+    .control-target {
       @apply min-h-11;
     }
   }

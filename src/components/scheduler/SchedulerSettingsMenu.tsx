@@ -76,7 +76,14 @@ export function SchedulerSettingsMenu({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="icon" className="icon-action relative" aria-label="Scheduler-Einstellungen öffnen">
+        <Button
+          variant="outline"
+          size="icon"
+          className="icon-action relative"
+          aria-label={activeFilterCount > 0
+            ? `Scheduler-Einstellungen öffnen, ${activeFilterCount} aktive Filter`
+            : "Scheduler-Einstellungen öffnen"}
+        >
           <Settings className="h-4 w-4" />
           {activeFilterCount > 0 && (
             <span className="absolute -right-1 -top-1 flex h-4 min-h-4 w-4 min-w-4 items-center justify-center rounded-full bg-muted-foreground text-[10px] text-background" aria-hidden="true">

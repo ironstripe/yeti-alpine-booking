@@ -73,6 +73,8 @@ UI-04 applies the shared control sizing and accessible names to scheduler naviga
 
 Scheduler booking details now use the established right-hand sheet with a stable record header, scrollable body and stable action footer. Conflict and change-confirmation dialogs remain separate sibling overlays with their existing state and handlers. Calendar bars, colors, grid geometry, density, drag/drop and booking semantics are unchanged.
 
+UI-04 browser verification covered scheduler controls, responsive wrapping, selection-toolbar visibility, and coarse-pointer targets. Booking-detail read/edit/cancel behavior and nested conflict/change-confirmation focus and Escape behavior were not reached with safe local data and remain unverified; build success is not treated as interaction evidence.
+
 ## Future proposals — not implemented in UI-01 through UI-04
 
 - **Approval and detail follow-up:** review complex ticket-edit dialogs, history, and related information after their workflows receive individual review. The standalone UI-02 approval-sheet browser check remains pending.
