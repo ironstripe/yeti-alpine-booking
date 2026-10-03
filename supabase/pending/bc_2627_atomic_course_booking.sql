@@ -778,7 +778,7 @@ GRANT EXECUTE ON FUNCTION public.bc_2627_reserve(jsonb) TO service_role;
 -- any replay answer; a retry with different input is rejected. Identity policy
 -- (same as finalize_provisional_reservation): an existing customer is reused only
 -- on a unique e-mail match and is NEVER updated from caller claims; nothing about
--- an existing customer is returned. Ambiguous e-mail -> new customer (no guessing).
+-- an existing customer is returned. Ambiguous e-mail -> rejected (no guessing, no duplicate).
 -- ---------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.bc_2627_finalize(p_ticket_id uuid, p_token text, p_customer jsonb,
   p_participants jsonb, p_notes text DEFAULT NULL)
@@ -842,7 +842,12 @@ BEGIN
 
   SELECT count(*), min(id::text)::uuid INTO v_matches, v_customer FROM public.customers
    WHERE lower(trim(email)) = v_email AND merged_into_id IS NULL AND is_archived IS NOT TRUE;
-  IF v_matches <> 1 THEN
+  -- customers.email is UNIQUE (exact). >1 active match = case variants; 0 active but a merged/archived
+  -- row holding the address would collide. Never guess or link: office must resolve.
+  IF v_matches > 1 OR (v_matches = 0 AND EXISTS (SELECT 1 FROM public.customers WHERE lower(trim(email)) = v_email)) THEN
+    RETURN public.bc_2627_err('customer_ambiguous','Kundenkonto mit dieser E-Mail nicht eindeutig; bitte Büro kontaktieren');
+  END IF;
+  IF v_matches = 0 THEN
     INSERT INTO public.customers(first_name,last_name,email,phone,street,zip,city,country,holiday_address,customer_type)
     VALUES (trim(p_customer->>'first_name'),trim(p_customer->>'last_name'),v_email,p_customer->>'phone',p_customer->>'street',
             p_customer->>'zip',p_customer->>'city',COALESCE(NULLIF(p_customer->>'country',''),'CH'),'','private')

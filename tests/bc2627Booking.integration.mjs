@@ -119,9 +119,18 @@ try {
       ${sql.json(c)}, ${sql.json(people)}, ${null}) r`)[0].r;
   const begin = async (r) => (await sql`SELECT bc_2627_begin_invoice(${r.ticket_id}, ${r.reservation_token}) r`)[0].r;
   // Same DB effect as invoice-service.issueInvoice: one open invoice for the server-bound customer/total.
-  const issue = async (b) => sql`INSERT INTO invoices(invoice_number,ticket_id,customer_id,subtotal,total,qr_reference,due_date,status,issued_at)
-      VALUES ('', ${b.ticket_id}, ${b.customer_id}, ${b.total_amount}, ${b.total_amount}, '', CURRENT_DATE+14, 'open', now())
-      ON CONFLICT DO NOTHING RETURNING id`;
+  // Production generate_invoice_number() is MAX+1 without a lock, so concurrent issuance can hit
+  // invoices_invoice_number_key; the flow treats that as retryable (counted below).
+  let invoiceRetries = 0;
+  const issue = async (b) => {
+    for (let i = 0; ; i++) {
+      try {
+        return await sql`INSERT INTO invoices(invoice_number,ticket_id,customer_id,subtotal,total,qr_reference,due_date,status,issued_at)
+          VALUES ('', ${b.ticket_id}, ${b.customer_id}, ${b.total_amount}, ${b.total_amount}, '', CURRENT_DATE+14, 'open', now())
+          ON CONFLICT (ticket_id) WHERE status = 'open' DO NOTHING RETURNING id`;
+      } catch (e) { if (e.constraint_name !== 'invoices_invoice_number_key' || i > 20) throw e; invoiceRetries++; }
+    }
+  };
   const confirm = async (r) => (await sql`SELECT bc_2627_confirm(${r.ticket_id}, ${r.reservation_token}) r`)[0].r;
   const complete = async (r, people, c) => {
     const f = await finalize(r, people, c); if (f.status !== 'success') return { f };
@@ -210,7 +219,7 @@ try {
     assert.equal(r.recipient_email, 'familie@example.invalid');
   });
 
-  await t('identity: existing customer reused by unique e-mail but never updated; ambiguous e-mail -> new customer', async () => {
+  await t('identity: existing customer reused by unique e-mail but never updated; ambiguous e-mail rejected', async () => {
     const [{ id: cid }] = await sql`INSERT INTO customers(email,first_name,last_name,street,city) VALUES ('Known@Example.invalid','Real','Owner','Echtweg 1','Vaduz') RETURNING id`;
     const r = await reserve({ idempotency_key: key(), participants: [kid('k')], selections: [{ kind: 'group', participant_ref: 'k', period_key: BK, product_id: K4, dates: ['2027-01-05'] }] });
     const f = await finalize(r, [named(kid('k'))], cust('known@example.invalid', { first_name: 'Fake', last_name: 'Name', street: 'Andere 9' }));
@@ -219,9 +228,9 @@ try {
     assert.deepEqual({ ...c }, { first_name: 'Real', last_name: 'Owner', street: 'Echtweg 1' });
     await sql`INSERT INTO customers(email,first_name,last_name) VALUES ('dup@example.invalid','X','Y'),('DUP@example.invalid','Z','W')`;
     const r2 = await reserve({ idempotency_key: key(), participants: [kid('d')], selections: [{ kind: 'group', participant_ref: 'd', period_key: BK, product_id: K4, dates: ['2027-01-05'] }] });
-    await finalize(r2, [named(kid('d'))], cust('dup@example.invalid'));
+    assert.equal((await finalize(r2, [named(kid('d'))], cust('dup@example.invalid'))).code, 'customer_ambiguous');
     const [{ n }] = await sql`SELECT count(*)::int n FROM customers WHERE lower(email)='dup@example.invalid'`;
-    assert.equal(n, 3, 'ambiguous e-mail creates new customer instead of guessing');
+    assert.equal(n, 2, 'no guessing and no new duplicate');
   });
 
   await t('confirm/invoice retries: one invoice, no duplicate enrollments', async () => {
@@ -340,7 +349,7 @@ try {
       const [{ n }] = await sql`SELECT count(*)::int n FROM private_appointments WHERE instructor_id=${I1} AND date=${d} AND status<>'cancelled'`;
       assert.equal(n, 1); wins += wOk ? 1 : 0;
     }
-    results.push(`info website won ${wins}/5 races`);
+    results.push(`info website won ${wins}/5 races; invoice-number collisions retried so far: ${invoiceRetries}`);
   });
 
   await t('expiry: expired hold cannot finalize/begin; released lazily; slot freed', async () => {
