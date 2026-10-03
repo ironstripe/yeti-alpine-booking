@@ -62,7 +62,7 @@ async function runGroupPreflight(lines: GroupLineRequest[]): Promise<Map<string,
   const productIds = [...new Set((courses ?? []).map((c) => c.product_id).filter((x): x is string => !!x))];
   const [{ data: prods, error: pErr }, { data: seasons, error: sErr }, { data: sources, error: srcErr }] = await Promise.all([
     productIds.length
-      ? supabase.from("products").select("id, name, is_active, season_id, price, type").in("id", productIds)
+      ? supabase.from("products").select("id, name, is_active, season_id, price, type, pricing_type").in("id", productIds)
       : Promise.resolve({ data: [], error: null }),
     supabase.from("seasons").select("id, name, start_date, end_date"),
     productIds.length

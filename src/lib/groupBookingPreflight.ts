@@ -12,7 +12,7 @@ export interface GroupLineRequest {
 }
 
 export interface PreflightCourse { id: string; name: string; product_id: string | null; price_per_day: number | null; is_active: boolean | null }
-export interface PreflightProduct { id: string; name: string; is_active: boolean | null; season_id: string; price: number | null; type: string }
+export interface PreflightProduct { id: string; name: string; is_active: boolean | null; season_id: string; price: number | null; type: string; pricing_type?: string | null }
 export interface PreflightSeason { id: string; name: string; start_date: string; end_date: string }
 
 export interface PreflightInput {
@@ -32,6 +32,17 @@ export type PreflightResult =
   | { ok: false; errors: string[] };
 
 const DEFAULT_SOURCE_SEASONS = ["Winter 26/27"];
+/** Real YETI group-course product types; private/office_shift/lunch are rejected. */
+const GROUP_PRODUCT_TYPES = new Set(["group", "group_toddler"]);
+/** Only "fixed" means product.price is a per-day price (price × days). tiered/flat/hourly are not. */
+const DAILY_PRICING_TYPES = new Set(["fixed"]);
+/** Strict YYYY-MM-DD that is a real calendar date. */
+export function isRealIsoDate(d: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return false;
+  const [y, m, day] = d.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, day));
+  return dt.getUTCFullYear() === y && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === day;
+}
 const positive = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v) && v > 0;
 
 export function preflightGroupLines(input: PreflightInput): PreflightResult {
@@ -43,9 +54,13 @@ export function preflightGroupLines(input: PreflightInput): PreflightResult {
     const who = line.label;
     if (!line.courseId) { errors.push(`${who}: Kein Gruppenkurs ausgewählt.`); continue; }
     if (line.dates.length === 0) { errors.push(`${who}: Keine Kursdaten ausgewählt.`); continue; }
+    const invalid = line.dates.filter((d) => !isRealIsoDate(d));
+    if (invalid.length > 0) { errors.push(`${who}: Ungültiges Datum ${invalid.join(", ")}.`); continue; }
+    const dupes = [...new Set(line.dates.filter((d, i) => line.dates.indexOf(d) !== i))];
+    if (dupes.length > 0) { errors.push(`${who}: Datum ${dupes.join(", ")} ist mehrfach ausgewählt.`); continue; }
     const course = input.courses.find((c) => c.id === line.courseId);
     if (!course) { errors.push(`${who}: Gruppenkurs nicht gefunden.`); continue; }
-    if (course.is_active === false) { errors.push(`${who}: Gruppenkurs „${course.name}“ ist nicht aktiv.`); continue; }
+    if (course.is_active !== true) { errors.push(`${who}: Gruppenkurs „${course.name}“ ist nicht aktiv.`); continue; }
     if (!course.product_id) {
       errors.push(`${who}: Gruppenkurs „${course.name}“ ist mit keinem Produkt verknüpft. Bitte im Kurs ein Produkt hinterlegen.`);
       continue;
@@ -53,6 +68,10 @@ export function preflightGroupLines(input: PreflightInput): PreflightResult {
     const product = input.products.find((p) => p.id === course.product_id);
     if (!product) { errors.push(`${who}: Verknüpftes Produkt von „${course.name}“ nicht gefunden.`); continue; }
     if (product.is_active !== true) { errors.push(`${who}: Produkt „${product.name}“ ist nicht aktiv.`); continue; }
+    if (!GROUP_PRODUCT_TYPES.has(product.type)) {
+      errors.push(`${who}: Produkt „${product.name}“ ist kein Gruppenkurs-Produkt (Typ ${product.type}).`);
+      continue;
+    }
 
     const season = input.seasons.find((s) => s.id === product.season_id);
     if (!season) { errors.push(`${who}: Saison von „${product.name}“ nicht gefunden.`); continue; }
@@ -69,8 +88,10 @@ export function preflightGroupLines(input: PreflightInput): PreflightResult {
       continue;
     }
 
-    // Legacy supported path: course day price, else product price. Never 0/NaN.
-    const unitPrice = positive(course.price_per_day) ? course.price_per_day : positive(product.price) ? product.price : null;
+    // Legacy supported path: course day price; product price only if it is an explicit per-day ("fixed") price.
+    // Cumulative/tiered/flat/hourly product prices are never read as a day price. Never 0/NaN.
+    const dailyProductPrice = DAILY_PRICING_TYPES.has(String(product.pricing_type ?? "")) && positive(product.price) ? product.price : null;
+    const unitPrice = positive(course.price_per_day) ? course.price_per_day : dailyProductPrice;
     if (unitPrice === null) {
       errors.push(`${who}: Für „${course.name}“ ist kein gültiger Preis (> 0) hinterlegt.`);
       continue;
