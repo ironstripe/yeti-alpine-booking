@@ -37,6 +37,7 @@ import {
 } from "@/components/ui/collapsible";
 import { mapLevelToCourseSkill, getLevelLabel } from "@/lib/level-utils";
 import type { SelectedParticipant, ParticipantBookingDetails } from "@/contexts/BookingWizardContext";
+import { checkAgeRange } from "@/lib/participant-utils";
 
 interface ParticipantBookingCardProps {
   participant: SelectedParticipant;
