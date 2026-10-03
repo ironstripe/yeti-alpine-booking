@@ -23,6 +23,6 @@ ALTER TABLE public.booking_email_deliveries ADD CONSTRAINT booking_email_deliver
 -- Reservation snapshots are evidence (delete is blocked by trigger); drop only after export:
 -- DROP TABLE public.bc_2627_reservations;
 -- Delivery lease columns (only drop when unused):
--- ALTER TABLE public.booking_email_deliveries DROP COLUMN claimed_at, DROP COLUMN provider_idempotency_key, DROP COLUMN first_claimed_at;
+-- ALTER TABLE public.booking_email_deliveries DROP COLUMN claimed_at, DROP COLUMN provider_idempotency_key, DROP COLUMN first_claimed_at, DROP COLUMN frozen_payload, DROP COLUMN payload_digest;
 -- generate_invoice_number(): the serialized version keeps the same number format; to revert,
 -- restore the previous body from tests/sql/production_schema_baseline.sql (no data impact).
