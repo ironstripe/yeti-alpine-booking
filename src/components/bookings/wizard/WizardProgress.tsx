@@ -9,7 +9,7 @@ interface WizardProgressProps {
 
 const steps = [
   { step: 1 as WizardStep, label: "Produkt & Teilnehmer" },
-  { step: 2 as WizardStep, label: "Kunde & Zahlung" },
+  { step: 2 as WizardStep, label: "Kunde" },
   { step: 3 as WizardStep, label: "Abschluss" },
 ];
 
