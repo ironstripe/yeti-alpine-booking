@@ -52,8 +52,7 @@ try {
       ${sql.json(c)}, ${sql.json(people)}, ${null}) r`)[0].r;
   const begin = async (r) => (await sql`SELECT bc_2627_begin_invoice(${r.ticket_id}, ${r.reservation_token}) r`)[0].r;
   // Same DB effect as invoice-service.issueInvoice: one open invoice for the server-bound customer/total.
-  // Production generate_invoice_number() is MAX+1 without a lock, so concurrent issuance can hit
-  // invoices_invoice_number_key; the flow treats that as retryable (counted below).
+  // Pending SQL serializes generate_invoice_number(); a number collision now fails the test.
   let invoiceRetries = 0;
   const issue = async (b) => {
     for (let i = 0; ; i++) {
@@ -61,7 +60,7 @@ try {
         return await sql`INSERT INTO invoices(invoice_number,ticket_id,customer_id,subtotal,total,qr_reference,due_date,status,issued_at)
           VALUES ('', ${b.ticket_id}, ${b.customer_id}, ${b.total_amount}, ${b.total_amount}, '', CURRENT_DATE+14, 'open', now())
           ON CONFLICT (ticket_id) WHERE status = 'open' DO NOTHING RETURNING id`;
-      } catch (e) { if (e.constraint_name !== 'invoices_invoice_number_key' || i > 20) throw e; invoiceRetries++; }
+      } catch (e) { invoiceRetries++; throw e; } // serialized numbering: no retry allowed
     }
   };
   const confirm = async (r) => (await sql`SELECT bc_2627_confirm(${r.ticket_id}, ${r.reservation_token}) r`)[0].r;

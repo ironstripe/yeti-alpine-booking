@@ -40,6 +40,8 @@ async function jwt(role: string) {
 }
 
 let passed = 0; const results: string[] = [];
+const fx: Record<string, unknown> = {};
+const cap = (name: string, request: unknown, res: { status: number; body: unknown }) => { fx[name] = { request, http_status: res.status, response: res.body }; };
 async function t(name: string, fn: () => Promise<void>) {
   try { await fn(); passed++; results.push(`ok   ${name}`); }
   catch (e) { results.push(`FAIL ${name}: ${(e as Error).message}`); }
@@ -132,6 +134,7 @@ try {
 
   await t("options contract: exact block IDs string[], tiers, no sales cap flag", async () => {
     const o = await call({ action: "options" });
+    cap("options", { action: "options" }, { status: o.status, body: { ...o.body, options: o.body.options.filter((x: any) => [K4, SAT].includes(x.product_id) && [BK, SA].includes(x.period_key)) } });
     assertEquals(o.status, 200); assertEquals(o.body.success, true); assertEquals(o.body.currency, "CHF");
     const k4 = o.body.options.find((x: any) => x.period_key === BK && x.product_id === K4);
     assertEquals(k4.blocks, ["10:00-12:00", "14:00-16:00"]); assertEquals(k4.block_mode, "all"); assertEquals(k4.bookable, true);
@@ -143,13 +146,16 @@ try {
   let fam: Record<string, any> = {}; let famPeople: Record<string, string>[] = [];
   await t("full flow: family above threshold -> one booking, one open invoice with QR snapshot, invoice+confirmation mails rendered", async () => {
     famPeople = [kid("a"), kid("b"), kid("c"), adult("m")];
-    const r = await call(reserveBody(famPeople, [groupSel("a"), groupSel("b"), groupSel("c"),
-      { kind: "group", participant_ref: "m", period_key: AG, product_id: E4, dates: ["2027-01-04"], blocks: ["10:00-12:00", "14:00-16:00"] }]));
+    const rb = reserveBody(famPeople, [groupSel("a"), groupSel("b"), groupSel("c"),
+      { kind: "group", participant_ref: "m", period_key: AG, product_id: E4, dates: ["2027-01-04"], blocks: ["10:00-12:00", "14:00-16:00"] }]);
+    const r = await call(rb);
+    cap("reserve_success", rb, r);
     assertEquals(r.status, 201, JSON.stringify(r.body));
     assertEquals(r.body.status, "held"); assertEquals(r.body.total_amount, 3 * 200 + 120); assertEquals(r.body.currency, "CHF");
     assert(!Number.isNaN(Date.parse(r.body.reservation_expires_at)));
     fam = r.body;
     const c = await call(completeBody(fam, famPeople));
+    cap("complete_success", completeBody(fam, famPeople), c);
     assertEquals(c.status, 200, JSON.stringify(c.body));
     assertEquals(c.body.status, "confirmed"); assertEquals(c.body.total_amount, 720); assertEquals(c.body.already_confirmed, false);
     assertEquals(c.body.delivery, { invoice: "sent", booking_confirmation: "sent" });
@@ -178,6 +184,7 @@ try {
   await t("lost response: identical complete returns same confirmed booking/invoice, no second invoice or mail", async () => {
     const before = sent.length;
     const c = await call(completeBody(fam, famPeople));
+    cap("complete_already_confirmed", completeBody(fam, famPeople), c);
     assertEquals(c.status, 200); assertEquals(c.body.already_confirmed, true); assertEquals(c.body.status, "confirmed");
     assertEquals((await invoicesOf(fam.ticket_id)).length, 1);
     assertEquals(sent.length, before);
@@ -188,6 +195,7 @@ try {
 
   await t("changed complete body after confirmation rejected (bound customer/recipient)", async () => {
     const c = await call(completeBody(fam, famPeople, "attacker@example.invalid"));
+    cap("complete_finalize_conflict", completeBody(fam, famPeople, "attacker@example.invalid"), c);
     assertEquals(c.status, 409); assertEquals(c.body.code, "finalize_conflict");
   });
 
@@ -229,6 +237,7 @@ try {
     await sql`UPDATE tickets SET reservation_expires_at = now() - interval '1 minute' WHERE id=${r.ticket_id}`;
     const before = sent.length;
     const c = await call(completeBody(r, people));
+    cap("complete_expired", completeBody(r, people), c);
     assertEquals(c.status, 410); assertEquals(c.body.code, "expired"); assertEquals(c.body.success, false);
     assertEquals((await invoicesOf(r.ticket_id)).length, 0); assertEquals(sent.length, before);
   });
@@ -237,14 +246,17 @@ try {
     const people = [kid("k")];
     const r = (await call(reserveBody(people, [groupSel("k", ["2027-01-06"])]))).body;
     const a = await call({ action: "cancel", ticket_id: r.ticket_id, reservation_token: r.reservation_token });
+    cap("cancel_success", { action: "cancel", ticket_id: r.ticket_id, reservation_token: r.reservation_token }, a);
     assertEquals(a.status, 200); assertEquals(a.body.status, "released"); assertEquals(a.body.already_released, false);
     const b = await call({ action: "cancel", ticket_id: r.ticket_id, reservation_token: r.reservation_token });
+    cap("cancel_already_released", { action: "cancel", ticket_id: r.ticket_id, reservation_token: r.reservation_token }, b);
     assertEquals(b.body.already_released, true);
     const [{ items }] = await sql`SELECT count(*)::int items FROM ticket_items WHERE ticket_id=${r.ticket_id} AND status<>'cancelled'`;
     assertEquals(items, 0);
     const c = await call(completeBody(r, people));
     assertEquals(c.body.success, false); assertEquals((await invoicesOf(r.ticket_id)).length, 0);
     const d = await call({ action: "cancel", ticket_id: fam.ticket_id, reservation_token: fam.reservation_token });
+    cap("cancel_after_confirm", { action: "cancel", ticket_id: fam.ticket_id, reservation_token: fam.reservation_token }, d);
     assertEquals(d.status, 409); assertEquals(d.body.code, "invalid_status");
     const w = await call({ action: "cancel", ticket_id: r.ticket_id, reservation_token: "x".repeat(64) });
     assertEquals(w.status, 404);
@@ -268,6 +280,7 @@ try {
     await sql`UPDATE payment_profiles SET is_active=false, is_default=false`;
     const before = sent.length;
     const c = await call(completeBody(r, people));
+    cap("complete_invoice_issue_failed", completeBody(r, people), c);
     assertEquals(c.status, 503); assertEquals(c.body.code, "invoice_issue_failed"); assertEquals(c.body.retryable, true);
     assertEquals((await invoicesOf(r.ticket_id)).length, 0); assertEquals(sent.length, before);
     // hold passed the point of no return: expiry/cancel cannot release it now
@@ -286,6 +299,7 @@ try {
     mode = "fail";
     const c = await call(completeBody(r, people, "fail@example.invalid"));
     mode = "ok";
+    cap("complete_delivery_failed", completeBody(r, people, "fail@example.invalid"), c);
     assertEquals(c.status, 200); assertEquals(c.body.delivery, { invoice: "failed", booking_confirmation: "failed" });
     const rows = await deliveriesOf(r.ticket_id);
     assertEquals(rows.map((x) => x.status), ["failed", "failed"]); assert(rows.every((x) => x.last_error_code === "provider_error"));
@@ -381,6 +395,12 @@ try {
     const r = await call(reserveBody([kid("bb")], [{ ...groupSel("bb"), blocks: ["10:00-12:00"] }]));
     assertEquals(r.status, 400); assertEquals(r.body.code, "invalid_selection");
   });
+  if (Deno.env.get("BC_WRITE_FIXTURES") === "1") {
+    const dir = new URL("supabase/functions/course-booking/fixtures/", root);
+    await Deno.mkdir(dir, { recursive: true });
+    for (const [k, v] of Object.entries(fx)) await Deno.writeTextFile(new URL(`${k}.json`, dir), JSON.stringify(v, null, 2) + "\n");
+    results.push(`info wrote ${Object.keys(fx).length} fixtures`);
+  }
 } finally {
   console.log(results.join("\n"));
   console.log(`${passed}/${results.length} passed`);

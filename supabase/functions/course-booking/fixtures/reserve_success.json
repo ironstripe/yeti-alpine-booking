@@ -1,0 +1,302 @@
+{
+  "request": {
+    "action": "reserve",
+    "reservation": {
+      "idempotency_key": "api-key-1-1791062196980",
+      "participants": [
+        {
+          "ref": "a",
+          "birth_date": "2018-05-01",
+          "discipline": "ski",
+          "skill_level": "ski_blauer_koenig"
+        },
+        {
+          "ref": "b",
+          "birth_date": "2018-05-01",
+          "discipline": "ski",
+          "skill_level": "ski_blauer_koenig"
+        },
+        {
+          "ref": "c",
+          "birth_date": "2018-05-01",
+          "discipline": "ski",
+          "skill_level": "ski_blauer_koenig"
+        },
+        {
+          "ref": "m",
+          "birth_date": "1985-03-03",
+          "discipline": "ski",
+          "skill_level": "ski_adult_green"
+        }
+      ],
+      "selections": [
+        {
+          "kind": "group",
+          "participant_ref": "a",
+          "period_key": "weekday:2027-01-04:BK",
+          "product_id": "00000000-0000-4000-8000-000000000164",
+          "dates": [
+            "2027-01-04",
+            "2027-01-05"
+          ],
+          "blocks": [
+            "10:00-12:00",
+            "14:00-16:00"
+          ]
+        },
+        {
+          "kind": "group",
+          "participant_ref": "b",
+          "period_key": "weekday:2027-01-04:BK",
+          "product_id": "00000000-0000-4000-8000-000000000164",
+          "dates": [
+            "2027-01-04",
+            "2027-01-05"
+          ],
+          "blocks": [
+            "10:00-12:00",
+            "14:00-16:00"
+          ]
+        },
+        {
+          "kind": "group",
+          "participant_ref": "c",
+          "period_key": "weekday:2027-01-04:BK",
+          "product_id": "00000000-0000-4000-8000-000000000164",
+          "dates": [
+            "2027-01-04",
+            "2027-01-05"
+          ],
+          "blocks": [
+            "10:00-12:00",
+            "14:00-16:00"
+          ]
+        },
+        {
+          "kind": "group",
+          "participant_ref": "m",
+          "period_key": "weekday:2027-01-04:AG",
+          "product_id": "00000000-0000-4000-8000-000000000228",
+          "dates": [
+            "2027-01-04"
+          ],
+          "blocks": [
+            "10:00-12:00",
+            "14:00-16:00"
+          ]
+        }
+      ]
+    }
+  },
+  "http_status": 201,
+  "response": {
+    "success": true,
+    "status": "held",
+    "replayed": false,
+    "ticket_id": "63e52cab-6b87-4fdf-bb24-a4c2023a01a9",
+    "ticket_number": "T-2026-000001",
+    "reservation_token": "621579b776cd446ab7664131ea566ba6de09cee3bd8842079eefc7f2abaf01f7",
+    "reservation_expires_at": "2026-10-03T21:36:36.981746+00:00",
+    "total_amount": 720,
+    "currency": "CHF",
+    "quote": {
+      "lines": [
+        {
+          "kind": "group",
+          "dates": [
+            "2027-01-04",
+            "2027-01-05"
+          ],
+          "quote": {
+            "currency": "CHF",
+            "day_count": 2,
+            "product_id": "00000000-0000-4000-8000-000000000164",
+            "total_amount": 200,
+            "quote_version": "bc-2627-exact-v3-unlimited-group",
+            "participant_count": 1,
+            "source_tariff_ids": [
+              "k4-2"
+            ]
+          },
+          "blocks": [
+            "10:00-12:00",
+            "14:00-16:00"
+          ],
+          "course_id": "00000000-0000-4000-8000-000000000193",
+          "period_key": "weekday:2027-01-04:BK",
+          "product_id": "00000000-0000-4000-8000-000000000164",
+          "course_name": "26/27 Ski BK",
+          "skill_level": "ski_blauer_koenig",
+          "instance_ids": [
+            "b4453521-605b-9323-3461-d6b41954a324",
+            "d924b7f5-1d55-7566-8180-a6b0f27cea44",
+            "0850c4ca-9941-8948-ef23-0d5580276227",
+            "1405d12b-1705-6e84-50b4-3dc41dbf43f5"
+          ],
+          "source_sha256": "sha",
+          "participant_ref": "a",
+          "ticket_item_ids": [
+            "05a32ab1-4df0-471e-a2bd-5016b0bf55eb"
+          ],
+          "tariff_source_ids": [
+            "k4-1"
+          ],
+          "training_group_id": "00000000-0000-4000-8000-000000000177"
+        },
+        {
+          "kind": "group",
+          "dates": [
+            "2027-01-04",
+            "2027-01-05"
+          ],
+          "quote": {
+            "currency": "CHF",
+            "day_count": 2,
+            "product_id": "00000000-0000-4000-8000-000000000164",
+            "total_amount": 200,
+            "quote_version": "bc-2627-exact-v3-unlimited-group",
+            "participant_count": 1,
+            "source_tariff_ids": [
+              "k4-2"
+            ]
+          },
+          "blocks": [
+            "10:00-12:00",
+            "14:00-16:00"
+          ],
+          "course_id": "00000000-0000-4000-8000-000000000193",
+          "period_key": "weekday:2027-01-04:BK",
+          "product_id": "00000000-0000-4000-8000-000000000164",
+          "course_name": "26/27 Ski BK",
+          "skill_level": "ski_blauer_koenig",
+          "instance_ids": [
+            "b4453521-605b-9323-3461-d6b41954a324",
+            "d924b7f5-1d55-7566-8180-a6b0f27cea44",
+            "0850c4ca-9941-8948-ef23-0d5580276227",
+            "1405d12b-1705-6e84-50b4-3dc41dbf43f5"
+          ],
+          "source_sha256": "sha",
+          "participant_ref": "b",
+          "ticket_item_ids": [
+            "71ba2889-9743-49ff-9fa2-ab14e18678ed"
+          ],
+          "tariff_source_ids": [
+            "k4-1"
+          ],
+          "training_group_id": "00000000-0000-4000-8000-000000000177"
+        },
+        {
+          "kind": "group",
+          "dates": [
+            "2027-01-04",
+            "2027-01-05"
+          ],
+          "quote": {
+            "currency": "CHF",
+            "day_count": 2,
+            "product_id": "00000000-0000-4000-8000-000000000164",
+            "total_amount": 200,
+            "quote_version": "bc-2627-exact-v3-unlimited-group",
+            "participant_count": 1,
+            "source_tariff_ids": [
+              "k4-2"
+            ]
+          },
+          "blocks": [
+            "10:00-12:00",
+            "14:00-16:00"
+          ],
+          "course_id": "00000000-0000-4000-8000-000000000193",
+          "period_key": "weekday:2027-01-04:BK",
+          "product_id": "00000000-0000-4000-8000-000000000164",
+          "course_name": "26/27 Ski BK",
+          "skill_level": "ski_blauer_koenig",
+          "instance_ids": [
+            "b4453521-605b-9323-3461-d6b41954a324",
+            "d924b7f5-1d55-7566-8180-a6b0f27cea44",
+            "0850c4ca-9941-8948-ef23-0d5580276227",
+            "1405d12b-1705-6e84-50b4-3dc41dbf43f5"
+          ],
+          "source_sha256": "sha",
+          "participant_ref": "c",
+          "ticket_item_ids": [
+            "c7f185e9-3a3d-4317-bb53-922fda5df068"
+          ],
+          "tariff_source_ids": [
+            "k4-1"
+          ],
+          "training_group_id": "00000000-0000-4000-8000-000000000177"
+        },
+        {
+          "kind": "group",
+          "dates": [
+            "2027-01-04"
+          ],
+          "quote": {
+            "currency": "CHF",
+            "day_count": 1,
+            "product_id": "00000000-0000-4000-8000-000000000228",
+            "total_amount": 120,
+            "quote_version": "bc-2627-exact-v3-unlimited-group",
+            "participant_count": 1,
+            "source_tariff_ids": [
+              "e4-1"
+            ]
+          },
+          "blocks": [
+            "10:00-12:00",
+            "14:00-16:00"
+          ],
+          "course_id": "00000000-0000-4000-8000-000000000195",
+          "period_key": "weekday:2027-01-04:AG",
+          "product_id": "00000000-0000-4000-8000-000000000228",
+          "course_name": "26/27 Ski Erwachsene",
+          "skill_level": "ski_adult_green",
+          "instance_ids": [
+            "ad6c351f-bb70-4f28-e7c5-8d2748e4b763",
+            "7454e031-4507-5e62-20ce-549c43008bc2"
+          ],
+          "source_sha256": "sha",
+          "participant_ref": "m",
+          "ticket_item_ids": [
+            "155db9ab-e8e5-400d-b4a8-57985ae105b1"
+          ],
+          "tariff_source_ids": [
+            "e4-1"
+          ],
+          "training_group_id": "00000000-0000-4000-8000-000000000179"
+        }
+      ],
+      "currency": "CHF",
+      "created_at": "2026-10-03T21:16:36.981746+00:00",
+      "participants": [
+        {
+          "ref": "a",
+          "birth_date": "2018-05-01",
+          "discipline": "ski",
+          "skill_level": "ski_blauer_koenig"
+        },
+        {
+          "ref": "b",
+          "birth_date": "2018-05-01",
+          "discipline": "ski",
+          "skill_level": "ski_blauer_koenig"
+        },
+        {
+          "ref": "c",
+          "birth_date": "2018-05-01",
+          "discipline": "ski",
+          "skill_level": "ski_blauer_koenig"
+        },
+        {
+          "ref": "m",
+          "birth_date": "1985-03-03",
+          "discipline": "ski",
+          "skill_level": "ski_adult_green"
+        }
+      ],
+      "total_amount": 720,
+      "quote_version": "bc-2627-exact-v3-unlimited-group"
+    }
+  }
+}

@@ -1,0 +1,44 @@
+{
+  "request": {
+    "action": "complete",
+    "ticket_id": "5423434c-25b8-4aa6-a9ee-c233f80e5777",
+    "reservation_token": "b70b135a35ae4d8e9e5906a0791009a5ddadb5d47e7a462ca8bd961a19920300",
+    "customer": {
+      "email": "fail@example.invalid",
+      "first_name": "Test",
+      "last_name": "Familie",
+      "street": "Weg",
+      "zip": "9490",
+      "city": "Vaduz",
+      "country": "LI"
+    },
+    "participants": [
+      {
+        "ref": "f",
+        "birth_date": "2018-05-01",
+        "discipline": "ski",
+        "skill_level": "ski_blauer_koenig",
+        "first_name": "P-f",
+        "last_name": "Familie"
+      }
+    ]
+  },
+  "http_status": 200,
+  "response": {
+    "success": true,
+    "status": "confirmed",
+    "payment_status": "invoice_open",
+    "payment_method": "invoice",
+    "ticket_id": "5423434c-25b8-4aa6-a9ee-c233f80e5777",
+    "ticket_number": "T-2026-000023",
+    "total_amount": 100,
+    "currency": "CHF",
+    "invoice_number": "R-2026-00014",
+    "due_date": "2026-10-17",
+    "already_confirmed": false,
+    "delivery": {
+      "booking_confirmation": "failed",
+      "invoice": "failed"
+    }
+  }
+}
