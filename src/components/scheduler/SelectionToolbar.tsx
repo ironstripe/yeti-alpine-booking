@@ -221,10 +221,10 @@ export function SelectionToolbar({ className, bookings = [] }: SelectionToolbarP
         </div>
 
         {/* Divider */}
-        <div className="hidden h-6 w-px bg-border lg:block" />
+        <div className="hidden h-6 w-px bg-border xl:block" />
 
         {/* Actions */}
-        <div className="flex flex-wrap items-center justify-end gap-2">
+        <div className="flex w-full flex-wrap items-center justify-end gap-2 xl:w-auto">
           <Button
             variant="ghost"
             size="sm"
