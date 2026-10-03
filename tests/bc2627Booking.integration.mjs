@@ -157,13 +157,16 @@ try {
     assert.ok(!keys.some((x) => x.startsWith(OFF)), 'inactive course offered');
     assert.ok(!keys.some((x) => x.endsWith(INACTIVE) || x.endsWith(CARV)), 'inactive/Carving offered');
     const k4 = o.options.find((x) => x.period_key === BK && x.product_id === K4);
-    assert.deepEqual(k4.blocks[0].dates, W4, '4h excludes 2027-01-08 (afternoon block times drifted)');
+    assert.deepEqual(k4.blocks, ['10:00-12:00', '14:00-16:00']); assert.equal(k4.block_mode, 'all');
+    assert.deepEqual(k4.dates, W4, '4h excludes 2027-01-08 (afternoon block times drifted)');
     const k2 = o.options.find((x) => x.product_id === K2);
-    assert.ok(k2.blocks.find((b) => b.block === '10:00-12:00').dates.includes('2027-01-08'));
-    assert.ok(!k2.blocks.find((b) => b.block === '14:00-16:00').dates.includes('2027-01-08'));
+    assert.equal(k2.block_mode, 'choose_one');
+    assert.ok(k2.block_dates['10:00-12:00'].includes('2027-01-08'));
+    assert.ok(!k2.block_dates['14:00-16:00'].includes('2027-01-08'));
     assert.deepEqual(k2.tiers.map((x) => x.day_count), [1]);
     const sat = o.options.find((x) => x.product_id === SAT);
-    assert.ok(!sat.blocks[0].dates.includes('2027-01-30') && sat.cancelled_dates.includes('2027-01-30'));
+    assert.deepEqual(sat.blocks, ['10:00-12:00']);
+    assert.ok(!sat.dates.includes('2027-01-30') && sat.cancelled_dates.includes('2027-01-30'));
   });
 
   let family;
