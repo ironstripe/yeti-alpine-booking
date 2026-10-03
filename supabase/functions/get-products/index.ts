@@ -3,6 +3,7 @@
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders, checkApiKey, json } from "../_shared/intakeAuth.ts";
+import { eligibleProducts, resolveCurrentSeason } from "./logic.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -17,27 +18,33 @@ Deno.serve(async (req) => {
   );
 
   try {
-    // Current season by today's date
+    // Exactly one season must cover today; otherwise fail closed (#15).
     const today = new Date().toISOString().slice(0, 10);
-    const { data: season } = await supabase
+    const { data: seasonRows, error: seasonErr } = await supabase
       .from("seasons")
       .select("id, name, start_date, end_date")
       .lte("start_date", today)
-      .gte("end_date", today)
-      .order("start_date", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+      .gte("end_date", today);
 
-    let query = supabase
+    const resolved = resolveCurrentSeason(seasonRows, seasonErr, today);
+    if (!resolved.ok) {
+      console.error("get-products season unresolved:", resolved.code);
+      return json({ success: false, code: resolved.code, error: "Aktuelle Saison nicht eindeutig verfügbar" }, resolved.status);
+    }
+    const season = resolved.season;
+
+    const { data: rawProducts, error } = await supabase
       .from("products")
-      .select("id, name, description, type, duration_minutes, price, currency, vat_rate, pricing_type, min_age, max_age, sort_order, season_id")
+      .select("id, name, description, type, duration_minutes, price, currency, vat_rate, pricing_type, min_age, max_age, sort_order, season_id, is_active, show_on_website")
       .eq("is_active", true)
+      .eq("show_on_website", true)
+      .eq("season_id", season.id)
       .order("sort_order", { ascending: true });
-
-    if (season) query = query.eq("season_id", season.id);
-
-    const { data: products, error } = await query;
     if (error) throw new Error(error.message);
+
+    // Preserve the previous output shape (no visibility flags in the payload).
+    const products = eligibleProducts(rawProducts, season.id)
+      .map(({ is_active: _a, show_on_website: _w, ...p }) => p);
 
     // Attach price tiers
     const ids = (products ?? []).map((p) => p.id);
