@@ -184,6 +184,7 @@ export default function SettingsProducts() {
                     <TableHead>Preis</TableHead>
                     <TableHead>Kurs</TableHead>
                     <TableHead>Status</TableHead>
+                    <TableHead>Website</TableHead>
                     <TableHead className="w-12"></TableHead>
                   </TableRow>
                 </TableHeader>
@@ -272,6 +273,11 @@ export default function SettingsProducts() {
                         <TableCell>
                           <Badge variant={product.is_active ? "default" : "secondary"}>
                             {draft ? "Entwurf · gesperrt" : product.is_active ? "Aktiv" : "Inaktiv"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={product.show_on_website ? "default" : "outline"}>
+                            {product.show_on_website ? "Anzeigen" : "Ausgeblendet"}
                           </Badge>
                         </TableCell>
                         <TableCell>

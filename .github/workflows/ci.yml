@@ -62,6 +62,8 @@ jobs:
           python3 scripts/build_bc_2627_course_import.py data/bc-2627/course-manifest-not-active.csv /tmp/bc-2627-course-import-ci.sql
           cmp /tmp/bc-2627-course-import-ci.sql supabase/migrations/20261002230000_bc_2627_course_drafts.sql
           node tests/bcCourseImport.integration.mjs
+      - name: Product website visibility and 17-card preservation — hard gate
+        run: node tests/productWebsiteVisibility.integration.mjs
       - name: Build — hard gate
         run: bun run build
       - name: Working tree unchanged — hard gate
