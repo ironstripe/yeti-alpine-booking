@@ -74,8 +74,8 @@ export function SchedulerHeader({
     <div className="flex flex-col border-b bg-card w-full">
       <div className="flex flex-wrap items-center gap-2 px-3 py-2">
         {/* Date Navigation Group */}
-        <div className="flex items-center gap-1">
-          <Button variant="outline" size="icon" className="h-11 w-11 md:h-8 md:w-8" onClick={goToPreviousDay}>
+        <div className="flex flex-wrap items-center gap-1" role="group" aria-label="Datum auswählen">
+          <Button variant="outline" size="icon" className="icon-action" onClick={goToPreviousDay} aria-label="Vorheriger Tag">
             <ChevronLeft className="h-4 w-4" />
           </Button>
 
@@ -83,7 +83,8 @@ export function SchedulerHeader({
             <PopoverTrigger asChild>
               <Button
                 variant="outline"
-                className="h-11 md:h-8 min-w-[90px] md:min-w-[110px] justify-start text-left font-normal px-2 text-xs"
+                className="text-action min-w-[90px] justify-start px-2 text-left text-xs font-normal md:min-w-[110px]"
+                aria-label="Datum wählen"
               >
                 <CalendarIcon className="mr-1.5 h-3.5 w-3.5 shrink-0" />
                 {format(date, isMobile ? "dd.MM." : "EEE, dd.MM.", { locale: de })}
@@ -101,16 +102,17 @@ export function SchedulerHeader({
             </PopoverContent>
           </Popover>
 
-          <Button variant="outline" size="icon" className="h-11 w-11 md:h-8 md:w-8" onClick={goToNextDay}>
+          <Button variant="outline" size="icon" className="icon-action" onClick={goToNextDay} aria-label="Nächster Tag">
             <ChevronRight className="h-4 w-4" />
           </Button>
 
           <Button 
             variant="ghost" 
             size="icon" 
-            className="h-11 w-11 md:h-8 md:w-8" 
+            className="icon-action" 
             onClick={goToToday}
             title="Heute"
+            aria-label="Heute anzeigen"
           >
             <Target className="h-4 w-4" />
           </Button>
@@ -125,11 +127,12 @@ export function SchedulerHeader({
             value={mobileView}
             onValueChange={(v) => v && onMobileViewChange?.(v as "list" | "grid")}
             className="bg-muted rounded-md p-0.5"
+            aria-label="Mobile Darstellung"
           >
-            <ToggleGroupItem value="list" className="px-3 h-9 text-xs data-[state=on]:bg-background">
+            <ToggleGroupItem value="list" className="text-action px-3 text-xs data-[state=on]:bg-background">
               Liste
             </ToggleGroupItem>
-            <ToggleGroupItem value="grid" className="px-3 h-9 text-xs data-[state=on]:bg-background">
+            <ToggleGroupItem value="grid" className="text-action px-3 text-xs data-[state=on]:bg-background">
               Raster
             </ToggleGroupItem>
           </ToggleGroup>
@@ -142,22 +145,23 @@ export function SchedulerHeader({
           value={viewMode} 
           onValueChange={(v) => v && onViewModeChange(v as ViewMode)}
           className="bg-muted rounded-md p-0.5"
+          aria-label="Zeitraum"
         >
           <ToggleGroupItem 
             value="daily" 
-            className="px-3 h-7 text-xs data-[state=on]:bg-background"
+            className="text-action px-3 text-xs data-[state=on]:bg-background"
           >
             Tag
           </ToggleGroupItem>
           <ToggleGroupItem 
             value="3days" 
-            className="px-3 h-7 text-xs data-[state=on]:bg-background"
+            className="text-action px-3 text-xs data-[state=on]:bg-background"
           >
             3T
           </ToggleGroupItem>
           <ToggleGroupItem 
             value="weekly" 
-            className="px-3 h-7 text-xs data-[state=on]:bg-background"
+            className="text-action px-3 text-xs data-[state=on]:bg-background"
           >
             Woche
           </ToggleGroupItem>
@@ -165,10 +169,10 @@ export function SchedulerHeader({
         )}
 
         {/* Spacer */}
-        <div className="hidden md:block flex-1" />
+        <div className="hidden flex-1 md:block" />
 
         {/* Right-aligned Actions */}
-        <div className="flex flex-wrap items-center gap-1.5">
+        <div className="flex min-w-0 flex-wrap items-center gap-1.5">
           {!isMobileScheduler && <MultiSelectToggle />}
 
           {/* Universal Search */}
@@ -189,14 +193,15 @@ export function SchedulerHeader({
               bookingTypeFilter: v === "all" ? null : v 
             })}
             className="bg-muted rounded-md p-0.5"
+            aria-label="Buchungsart filtern"
           >
-            <ToggleGroupItem value="all" className="px-2 h-7 text-xs data-[state=on]:bg-background">
+            <ToggleGroupItem value="all" className="text-action px-2 text-xs data-[state=on]:bg-background">
               Alle
             </ToggleGroupItem>
-            <ToggleGroupItem value="group" className="px-2 h-7 text-xs data-[state=on]:bg-background">
+            <ToggleGroupItem value="group" className="text-action px-2 text-xs data-[state=on]:bg-background">
               Gruppen
             </ToggleGroupItem>
-            <ToggleGroupItem value="private" className="px-2 h-7 text-xs data-[state=on]:bg-background">
+            <ToggleGroupItem value="private" className="text-action px-2 text-xs data-[state=on]:bg-background">
               Privat
             </ToggleGroupItem>
           </ToggleGroup>

@@ -116,8 +116,9 @@ export function SchedulerSearchTrigger({ onClick }: SchedulerSearchTriggerProps)
     <Button
       variant="outline"
       size="sm"
-      className="h-8 w-8 p-0 md:w-[130px] md:px-3 md:justify-start"
+      className="icon-action p-0 md:w-[130px] md:min-w-[130px] md:justify-start md:px-3"
       onClick={onClick}
+      aria-label="Scheduler durchsuchen"
     >
       <Search className="h-4 w-4 md:mr-2" />
       <span className="hidden md:inline text-xs text-muted-foreground">Suchen...</span>

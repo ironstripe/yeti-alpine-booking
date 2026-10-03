@@ -67,11 +67,17 @@ UI-03 applies the form anatomy to the customer, instructor, course, and product 
 
 Multi-column field groups stack at narrow widths, repeating rows can wrap without horizontal clipping, and touched icon-only remove or primary-contact controls use the shared accessible target convention. UI-03 does not standardize every form in the application or alter shared dialog behavior.
 
-## Future proposals — not implemented in UI-01 or UI-02
+## UI-04 implementation
 
-- **Approval and detail follow-up:** review complex ticket-edit dialogs, history, and related information after their workflows receive individual review.
+UI-04 applies the shared control sizing and accessible names to scheduler navigation, view/filter groups, search and settings. The selection toolbar wraps without clipping, retains one leading booking action, and keeps secondary planning actions neutral.
+
+Scheduler booking details now use the established right-hand sheet with a stable record header, scrollable body and stable action footer. Conflict and change-confirmation dialogs remain separate sibling overlays with their existing state and handlers. Calendar bars, colors, grid geometry, density, drag/drop and booking semantics are unchanged.
+
+## Future proposals — not implemented in UI-01 through UI-04
+
+- **Approval and detail follow-up:** review complex ticket-edit dialogs, history, and related information after their workflows receive individual review. The standalone UI-02 approval-sheet browser check remains pending.
 - **Booking wizard follow-up:** review earlier-step field grouping, error placement, and cross-step pricing without changing booking rules.
-- **Scheduler:** separately review dense planning controls, calendar geometry, selection, drag/drop, and touch behavior.
+- **Scheduler follow-up:** separately review calendar type recognition, legend, geometry, density, selection, drag/drop, and touch behavior.
 - **Remaining modules:** progressively adopt the standard after individual workflow review; no app-wide redesign is implied by UI-01 through UI-03.
 
 Existing confirmation-resend, duplicate-booking, and cancellation placeholder handlers remain out of scope until their workflows are implemented separately.
