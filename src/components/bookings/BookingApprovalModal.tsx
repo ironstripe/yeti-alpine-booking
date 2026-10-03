@@ -166,8 +166,6 @@ export function BookingApprovalModal({
           </div>
         </div>
 
-        </div>
-
         <SheetFooter className="shrink-0 gap-2 border-t bg-background px-5 py-4 sm:px-6">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Abbrechen
