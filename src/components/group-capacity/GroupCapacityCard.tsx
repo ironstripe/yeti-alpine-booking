@@ -159,7 +159,7 @@ export function GroupCapacityCard({
                           {participant.firstName} {participant.lastName}
                         </span>
                         <span className="text-muted-foreground">
-                          {participant.age} J.
+                          {participant.age ?? "?"} J.
                         </span>
                       </div>
                     ))}

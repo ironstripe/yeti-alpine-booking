@@ -8,7 +8,8 @@ export interface GroupParticipant {
   firstName: string;
   lastName: string | null;
   birthDate: string;
-  age: number;
+  /** null = Geburtsdatum unbekannt */
+  age: number | null;
   instanceId: string;
 }
 
@@ -48,7 +49,8 @@ export interface CapacityStats {
   okCount: number;
 }
 
-function calculateAge(birthDate: string): number {
+function calculateAge(birthDate: string | null): number | null {
+  if (!birthDate) return null;
   const today = new Date();
   const birth = new Date(birthDate);
   let age = today.getFullYear() - birth.getFullYear();
@@ -84,6 +86,7 @@ export function useGroupCapacityData(weekStart: Date) {
             color,
             discipline,
             skill_level_id,
+            is_active,
             min_participants,
             max_participants
           ),
@@ -133,7 +136,6 @@ export function useGroupCapacityData(weekStart: Date) {
             )
           `)
           .eq('course_type', 'weekly')
-          .eq('is_active', true)
           .gte('group_course_instances.date', weekStartStr)
           .lte('group_course_instances.date', weekEndStr);
 
@@ -160,8 +162,15 @@ export function useGroupCapacityData(weekStart: Date) {
           });
         }
 
+        // Inactive courses stay visible internally only when they have real bookings this week
+        // (e.g. booked 26/27 courses); public/active flags are not changed.
+        const visibleCourses = (courses || []).filter((course: any) =>
+          course.is_active === true ||
+          course.group_course_instances?.some((inst: any) => (inst.group_course_enrollments || []).length > 0)
+        );
+
         // Transform to capacity info without training_groups
-        const groups: GroupCapacityInfo[] = (courses || []).map(course => {
+        const groups: GroupCapacityInfo[] = visibleCourses.map(course => {
           const allEnrollments = course.group_course_instances?.flatMap(
             (inst: any) => inst.group_course_enrollments || []
           ) || [];

@@ -87,7 +87,7 @@ function SortableParticipant({ participant, groupIndex }: { participant: GroupPa
         {participant.firstName} {participant.lastName}
       </span>
       <span className="text-sm text-muted-foreground">
-        {participant.age} J.
+        {participant.age ?? "?"} J.
       </span>
     </div>
   );

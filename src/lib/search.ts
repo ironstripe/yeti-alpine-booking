@@ -73,6 +73,7 @@ export async function searchParticipants(query: string): Promise<ParticipantSear
       customers (first_name, last_name)
     `)
     .or(`first_name.ilike.%${query}%,last_name.ilike.%${query}%`)
+    .is("merged_into_id", null)
     .limit(5);
 
   if (error) throw error;
