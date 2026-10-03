@@ -45,14 +45,14 @@ try {
    ('00000000-0000-4000-8000-0000000000d1','Privat 1h','private',60,'00000000-0000-4000-8000-000000000001','ski',true,true);
   -- tiers + exact source tariffs (kids 4h: 1-5 days, kids 2h only 1 day, adults 1-5, Saturday 5)
   INSERT INTO product_price_tiers(product_id,day_count,cumulative_price)
-   SELECT '00000000-0000-4000-8000-0000000000a4',d,100*d FROM generate_series(1,5) d
+   SELECT '00000000-0000-4000-8000-0000000000a4'::uuid,d,100*d FROM generate_series(1,5) d
    UNION ALL SELECT '00000000-0000-4000-8000-0000000000a2',1,60
    UNION ALL SELECT '00000000-0000-4000-8000-0000000000e4',d,120*d FROM generate_series(1,5) d
    UNION ALL SELECT '00000000-0000-4000-8000-0000000000c2',1,99
    UNION ALL SELECT '00000000-0000-4000-8000-0000000000b2',4,240
    UNION ALL SELECT '00000000-0000-4000-8000-0000000000b2',5,290;
   INSERT INTO bc_product_tariff_sources(source_id,season_id,product_id,source_family,import_status,day_count,duration_minutes,persons_per_lesson,price_chf,source_payload)
-   SELECT 'k4-'||d,'00000000-0000-4000-8000-000000000001','00000000-0000-4000-8000-0000000000a4','Gruppe','draft',d,240,1,100*d,'{"group_capacity":2}' FROM generate_series(1,5) d
+   SELECT 'k4-'||d,'00000000-0000-4000-8000-000000000001'::uuid,'00000000-0000-4000-8000-0000000000a4'::uuid,'Gruppe','draft',d,240,1,(100*d)::numeric,'{"group_capacity":2}'::jsonb FROM generate_series(1,5) d
    UNION ALL SELECT 'k2-1','00000000-0000-4000-8000-000000000001','00000000-0000-4000-8000-0000000000a2','Gruppe','draft',1,120,1,60,'{"group_capacity":2}'
    UNION ALL SELECT 'e4-'||d,'00000000-0000-4000-8000-000000000001','00000000-0000-4000-8000-0000000000e4','Gruppe','draft',d,240,1,120*d,'{"group_capacity":2}' FROM generate_series(1,5) d
    UNION ALL SELECT 'c2-1','00000000-0000-4000-8000-000000000001','00000000-0000-4000-8000-0000000000c2','Carving','draft',1,120,1,99,'{"group_capacity":8}'
