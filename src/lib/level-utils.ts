@@ -37,8 +37,8 @@ export const LEVEL_OPTIONS = [
   { value: "red_prince", label: "Roter Prinz/Prinzessin" },
   { value: "red_king", label: "Roter König/Königin" },
   { value: "red_star", label: "Roter Star" },
-  { value: "black_prince", label: "Schwarzer Prinz/Prinzessin" },
-  { value: "black_king", label: "Academy" },
+  { value: "black_prince", label: "Academy Rookie" },
+  { value: "black_king", label: "Swiss Snow Academy" },
 ] as const;
 
 // =============================================

@@ -112,10 +112,10 @@ const LEVEL_LABELS: Record<string, string> = {
   roter_koenig: "Roter König",
   red_star: "Roter Star",
   roter_star: "Roter Star",
-  black_prince: "Schwarzer Prinz",
-  schwarzer_prinz: "Schwarzer Prinz",
-  black_king: "Academy",
-  academy: "Academy",
+  black_prince: "Academy Rookie",
+  schwarzer_prinz: "Academy Rookie",
+  black_king: "Swiss Snow Academy",
+  academy: "Swiss Snow Academy",
 };
 
 // ── Helpers ────────────────────────────────────────────────────────
