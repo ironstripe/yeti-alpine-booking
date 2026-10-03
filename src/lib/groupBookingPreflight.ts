@@ -12,7 +12,7 @@ export interface GroupLineRequest {
 }
 
 export interface PreflightCourse { id: string; name: string; product_id: string | null; price_per_day: number | null; is_active: boolean | null }
-export interface PreflightProduct { id: string; name: string; is_active: boolean | null; season_id: string; price: number | null; type: string }
+export interface PreflightProduct { id: string; name: string; is_active: boolean | null; season_id: string; price: number | null; type: string; pricing_type: string | null }
 export interface PreflightSeason { id: string; name: string; start_date: string; end_date: string }
 
 export interface PreflightInput {
@@ -34,6 +34,12 @@ export type PreflightResult =
 const DEFAULT_SOURCE_SEASONS = ["Winter 26/27"];
 const positive = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v) && v > 0;
 
+const isCalendarDate = (value: string): boolean => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const parsed = new Date(value + "T00:00:00Z");
+  return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+};
+
 export function preflightGroupLines(input: PreflightInput): PreflightResult {
   const errors: string[] = [];
   const priced = new Map<string, PricedCourse>();
@@ -43,9 +49,13 @@ export function preflightGroupLines(input: PreflightInput): PreflightResult {
     const who = line.label;
     if (!line.courseId) { errors.push(`${who}: Kein Gruppenkurs ausgewählt.`); continue; }
     if (line.dates.length === 0) { errors.push(`${who}: Keine Kursdaten ausgewählt.`); continue; }
+    if (line.dates.some((d) => !isCalendarDate(d)) || new Set(line.dates).size !== line.dates.length) {
+      errors.push(`${who}: Kursdaten sind ungültig oder doppelt vorhanden.`);
+      continue;
+    }
     const course = input.courses.find((c) => c.id === line.courseId);
     if (!course) { errors.push(`${who}: Gruppenkurs nicht gefunden.`); continue; }
-    if (course.is_active === false) { errors.push(`${who}: Gruppenkurs „${course.name}“ ist nicht aktiv.`); continue; }
+    if (course.is_active !== true) { errors.push(`${who}: Gruppenkurs „${course.name}“ ist nicht aktiv.`); continue; }
     if (!course.product_id) {
       errors.push(`${who}: Gruppenkurs „${course.name}“ ist mit keinem Produkt verknüpft. Bitte im Kurs ein Produkt hinterlegen.`);
       continue;
@@ -54,11 +64,15 @@ export function preflightGroupLines(input: PreflightInput): PreflightResult {
     if (!product) { errors.push(`${who}: Verknüpftes Produkt von „${course.name}“ nicht gefunden.`); continue; }
     if (product.is_active !== true) { errors.push(`${who}: Produkt „${product.name}“ ist nicht aktiv.`); continue; }
 
+    if (!["group", "group_toddler"].includes(product.type)) {
+      errors.push(`${who}: Das verknüpfte Produkt „${product.name}“ ist kein Gruppenkursprodukt.`);
+      continue;
+    }
     const season = input.seasons.find((s) => s.id === product.season_id);
     if (!season) { errors.push(`${who}: Saison von „${product.name}“ nicht gefunden.`); continue; }
     if (input.sourceBoundProductIds.has(product.id) || sourceSeasons.includes(season.name)) {
       errors.push(
-        `${who}: „${product.name}“ (${season.name}) ist an Booking-Corner-Tarife gebunden und kann hier noch nicht gebucht werden. ` +
+        `${who}: „${product.name}“ (${season.name}) kann über diesen Buchungsweg noch nicht gebucht werden. ` +
           `Die Buchung über die serverseitige Tarifberechnung ist noch nicht freigeschaltet.`,
       );
       continue;
@@ -69,8 +83,15 @@ export function preflightGroupLines(input: PreflightInput): PreflightResult {
       continue;
     }
 
-    // Legacy supported path: course day price, else product price. Never 0/NaN.
-    const unitPrice = positive(course.price_per_day) ? course.price_per_day : positive(product.price) ? product.price : null;
+    // An explicit legacy course day price is authoritative. A product fallback
+    // is only supported for fixed pricing, never a tier/package or hourly rate.
+    if (course.price_per_day !== null && (!Number.isFinite(course.price_per_day) || course.price_per_day < 0)) {
+      errors.push(`${who}: Für „${course.name}“ ist ein ungültiger Tagespreis hinterlegt.`);
+      continue;
+    }
+    const unitPrice = positive(course.price_per_day)
+      ? course.price_per_day
+      : product.pricing_type === "fixed" && positive(product.price) ? product.price : null;
     if (unitPrice === null) {
       errors.push(`${who}: Für „${course.name}“ ist kein gültiger Preis (> 0) hinterlegt.`);
       continue;

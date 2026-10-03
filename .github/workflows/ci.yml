@@ -64,6 +64,8 @@ jobs:
           node tests/bcCourseImport.integration.mjs
       - name: Product website visibility and 17-card preservation — hard gate
         run: node tests/productWebsiteVisibility.integration.mjs
+      - name: Group booking containment regressions — hard gate
+        run: bun test tests/groupBookingPreflight.test.ts
       - name: Build — hard gate
         run: bun run build
       - name: Working tree unchanged — hard gate
