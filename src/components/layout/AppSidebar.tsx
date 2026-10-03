@@ -1,48 +1,18 @@
 import { useState, useEffect } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
-  Home,
-  Inbox,
-  Calendar,
-  Users,
-  UserCheck,
-  GraduationCap,
-  LayoutGrid,
   ChevronLeft,
   ChevronRight,
   LogOut,
   Loader2,
-  FileText,
-  Calculator,
-  ShoppingCart,
-  Gift,
-  BarChart3,
-  Settings,
-  Trophy,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { useConversationCounts } from "@/hooks/useConversations";
+import { appNavigationItems, isNavigationItemActive } from "@/components/layout/navigation";
 
 const SIDEBAR_COLLAPSED_KEY = "yety-sidebar-collapsed";
-
-const navItems = [
-  { title: "Dashboard", url: "/", icon: Home },
-  { title: "Posteingang", url: "/inbox", icon: Inbox, hasDynamicBadge: true },
-  { title: "Buchungen", url: "/bookings", icon: Calendar },
-  { title: "Stundenplan", url: "/scheduler", icon: LayoutGrid },
-  { title: "Kunden", url: "/customers", icon: Users },
-  { title: "Skilehrer", url: "/instructors", icon: UserCheck },
-  { title: "Listen", url: "/lists", icon: FileText },
-  { title: "Shop", url: "/shop", icon: ShoppingCart },
-  { title: "Gutscheine", url: "/vouchers", icon: Gift },
-  { title: "Berichte", url: "/reports", icon: BarChart3 },
-  { title: "Tagesabschluss", url: "/reconciliation", icon: Calculator },
-  { title: "Kurse", url: "/trainings", icon: GraduationCap },
-  { title: "Events", url: "/events", icon: Trophy },
-  { title: "Einstellungen", url: "/settings", icon: Settings },
-];
 
 export function AppSidebar() {
   const [collapsed, setCollapsed] = useState(() => {
@@ -119,8 +89,8 @@ export function AppSidebar() {
       {/* Navigation */}
       <nav className="flex-1 py-4 overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
         <ul className="space-y-1 px-2">
-          {navItems.map((item) => {
-            const isActive = location.pathname === item.url;
+          {appNavigationItems.map((item) => {
+            const isActive = isNavigationItemActive(location.pathname, item.url);
             const badgeCount = item.hasDynamicBadge ? getBadgeCount(item.url) : null;
             return (
               <li key={item.title}>

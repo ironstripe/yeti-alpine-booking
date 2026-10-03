@@ -1,5 +1,8 @@
 # Roadmap
 
+## Mobile navigation
+- [x] Share desktop/mobile navigation, expose Einstellungen in both mobile menus, preserve live inbox counts and short-screen scrolling
+
 ## Security P0.2
 - [x] Step 1A: anon `get-booking-request` Edge Function + RequestConfirmation switched to it
 - [x] Step 1B: lock down SECURITY DEFINER functions (grants + role checks)
