@@ -5,6 +5,8 @@
 import postgres from 'postgres';
 import fs from 'node:fs';
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
 const adminUrl = process.env.BC_TEST_DATABASE_URL ?? 'postgres://postgres@127.0.0.1:55432/postgres';
 const u = new URL(adminUrl);
@@ -36,10 +38,12 @@ const BK = 'weekday:2027-01-04:BK', AG = 'weekday:2027-01-04:AG', SA = 'saturday
 const W4 = ['2027-01-04', '2027-01-05', '2027-01-06', '2027-01-07'];
 
 try {
-  await sql.unsafe(read('tests/sql/baseline_prelude.sql'));
-  await sql.unsafe(read("tests/sql/production_schema_baseline.sql"));
-  await sql.unsafe("SET search_path = public, extensions");
-  await sql.unsafe(read('supabase/pending/bc_2627_atomic_course_booking.sql'));
+  // Load SQL files with psql (byte-faithful, same as the migration path), not via the JS driver.
+  for (const f of ['tests/sql/baseline_prelude.sql', 'tests/sql/production_schema_baseline.sql', 'supabase/pending/bc_2627_atomic_course_booking.sql']) {
+    const r = spawnSync('psql', [u.toString(), '-q', '-v', 'ON_ERROR_STOP=1', '-f', fileURLToPath(new URL(f, root))],
+      { encoding: 'utf8', env: { ...process.env, PGSSLMODE: 'disable' } });
+    if (r.status !== 0) throw new Error(`psql ${f}: ${r.stderr}`);
+  }
 
   // ---------------- synthetic fixtures (post pricing-release state) ----------------
   await sql.unsafe(`
