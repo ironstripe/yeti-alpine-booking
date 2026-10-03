@@ -14,6 +14,30 @@ export function getAgeDisplay(age: number | null | undefined): string {
   return age === 1 ? "1 Jahr" : `${age} Jahre`;
 }
 
+export type AgeCheckState = "ok" | "too_young" | "too_old" | "unknown";
+
+/**
+ * Age-range check with an explicit "unknown" (manual check) state for missing birth dates.
+ * Known ages keep the normal min/max evaluation; unknown never passes or fails silently.
+ */
+export function checkAgeRange(
+  age: number | null | undefined,
+  minAge: number | null | undefined,
+  maxAge: number | null | undefined
+): AgeCheckState {
+  if (age === null || age === undefined || isNaN(age)) return "unknown";
+  if (minAge != null && age < minAge) return "too_young";
+  if (maxAge != null && age > maxAge) return "too_old";
+  return "ok";
+}
+
+/** Birth year for display, null when unknown (never 1970). */
+export function getBirthYear(birthDate: string | null | undefined): number | null {
+  if (!birthDate) return null;
+  const d = new Date(birthDate);
+  return isNaN(d.getTime()) ? null : d.getFullYear();
+}
+
 /**
  * Birth date to persist when editing an existing participant. An empty form field means
  * "unchanged": a known date is never erased and an unknown (NULL) date is never invented.
