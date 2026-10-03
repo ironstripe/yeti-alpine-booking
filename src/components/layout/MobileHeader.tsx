@@ -1,55 +1,13 @@
 import { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Menu, X, LogOut, Loader2 } from "lucide-react";
+import { Menu, LogOut, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
-import {
-  Home,
-  Inbox,
-  Calendar,
-  Users,
-  UserCheck,
-  GraduationCap,
-  LayoutGrid,
-  FileText,
-  Calculator,
-  ShoppingCart,
-  Gift,
-  BarChart3,
-} from "lucide-react";
-
-const allNavItems = [
-  { title: "Dashboard", url: "/", icon: Home },
-  { title: "Inbox", url: "/inbox", icon: Inbox, badge: 3 },
-  { title: "Buchungen", url: "/bookings", icon: Calendar },
-  { title: "Stundenplan", url: "/scheduler", icon: LayoutGrid },
-  { title: "Kunden", url: "/customers", icon: Users },
-  { title: "Skilehrer", url: "/instructors", icon: UserCheck },
-  { title: "Kurse", url: "/trainings", icon: GraduationCap },
-  { title: "Shop", url: "/shop", icon: ShoppingCart },
-  { title: "Gutscheine", url: "/vouchers", icon: Gift },
-  { title: "Berichte", url: "/reports", icon: BarChart3 },
-  { title: "Listen", url: "/lists", icon: FileText },
-  { title: "Tagesabschluss", url: "/reconciliation", icon: Calculator },
-];
-
-const pageTitles: Record<string, string> = {
-  "/": "Dashboard",
-  "/inbox": "Inbox",
-  "/bookings": "Buchungen",
-  "/scheduler": "Stundenplan",
-  "/customers": "Kunden",
-  "/instructors": "Skilehrer",
-  "/trainings": "Kurse",
-  "/shop": "Shop",
-  "/vouchers": "Gutscheine",
-  "/reports": "Berichte",
-  "/lists": "Listen",
-  "/reconciliation": "Tagesabschluss",
-};
+import { useConversationCounts } from "@/hooks/useConversations";
+import { appNavigationItems, getNavigationTitle, isNavigationItemActive } from "@/components/layout/navigation";
 
 export function MobileHeader() {
   const [open, setOpen] = useState(false);
@@ -57,8 +15,9 @@ export function MobileHeader() {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
+  const { data: conversationCounts } = useConversationCounts();
 
-  const currentPageTitle = pageTitles[location.pathname] || "YETY";
+  const currentPageTitle = getNavigationTitle(location.pathname);
 
   const handleNavClick = (url: string) => {
     navigate(url);
@@ -96,23 +55,26 @@ export function MobileHeader() {
             <Menu className="h-5 w-5" />
           </Button>
         </SheetTrigger>
-        <SheetContent side="left" className="w-80 p-0">
+        <SheetContent side="left" className="z-[51] flex h-full w-80 flex-col p-0">
           <SheetHeader className="h-14 px-4 border-b border-border flex flex-row items-center justify-between">
             <SheetTitle className="font-display font-bold text-xl text-primary">
               YETY
             </SheetTitle>
           </SheetHeader>
 
-          <nav className="flex-1 py-2 overflow-y-auto max-h-[calc(100vh-140px)]">
+          <nav className="min-h-0 flex-1 overflow-y-auto py-2 pb-24">
             <ul className="space-y-1 px-2">
-              {allNavItems.map((item) => {
-                const isActive = location.pathname === item.url;
+              {appNavigationItems.map((item) => {
+                const isActive = isNavigationItemActive(location.pathname, item.url);
+                const badgeCount = item.hasDynamicBadge ? conversationCounts?.unread ?? 0 : 0;
                 return (
                   <li key={item.title}>
-                    <button
+                    <Button
+                      type="button"
+                      variant="ghost"
                       onClick={() => handleNavClick(item.url)}
                       className={cn(
-                        "flex items-center gap-3 w-full px-3 py-3 rounded-lg text-sm font-medium transition-all duration-200 min-h-[48px]",
+                        "flex min-h-[48px] w-full items-center justify-start gap-3 px-3 py-3 text-sm font-medium transition-all duration-200",
                         isActive
                           ? "bg-primary text-primary-foreground"
                           : "text-foreground hover:bg-muted"
@@ -120,12 +82,12 @@ export function MobileHeader() {
                     >
                       <item.icon className="h-5 w-5 shrink-0" />
                       <span className="flex-1 text-left">{item.title}</span>
-                      {item.badge && (
+                      {badgeCount > 0 && (
                         <span className="flex items-center justify-center min-w-5 h-5 px-1.5 text-xs font-semibold rounded-full bg-destructive text-destructive-foreground">
-                          {item.badge}
+                          {badgeCount}
                         </span>
                       )}
-                    </button>
+                    </Button>
                   </li>
                 );
               })}
