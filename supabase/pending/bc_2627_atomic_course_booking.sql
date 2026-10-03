@@ -282,7 +282,7 @@ RETURNS jsonb LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public 
 DECLARE
   v_out jsonb := '[]'::jsonb;
   r record; v record;
-  v_tiers jsonb; v_blocks jsonb; v_days date[]; v_block_dates date[]; b text;
+  v_tiers jsonb; v_blocks jsonb; v_days date[]; v_block_dates date[]; b text; v_bdates jsonb; v_maxdays int;
 BEGIN
   FOR r IN
     SELECT ps.source_key, ps.course_id, ps.training_group_id, ps.teaching_dates, ps.eligible_variants,
@@ -304,7 +304,9 @@ BEGIN
          AND p.type IN ('group','group_toddler') AND p.name NOT ILIKE '%carving%'
          AND p.duration_minutes IN (120,240)
     LOOP
-      v_blocks := '[]'::jsonb; v_days := ARRAY[]::date[];
+      -- Contract: blocks are exact block IDs (string[]). 4h = both blocks every day
+      -- (block_mode 'all'); 2h = choose exactly one block (block_mode 'choose_one').
+      v_blocks := '[]'::jsonb; v_days := ARRAY[]::date[]; v_bdates := '{}'::jsonb; v_maxdays := 0;
       IF v.duration_minutes = 240 THEN
         v_block_dates := ARRAY(SELECT d FROM unnest(r.teaching_dates) d
                                 WHERE d >= CURRENT_DATE
@@ -312,8 +314,9 @@ BEGIN
                                   AND public.bc_2627_live_instance(r.source_key, r.course_id, d, '14:00-16:00') IS NOT NULL
                                 ORDER BY d);
         IF cardinality(v_block_dates) > 0 THEN
-          v_blocks := jsonb_build_array(jsonb_build_object('block','10:00-12:00+14:00-16:00','dates',to_jsonb(v_block_dates)));
-          v_days := v_block_dates;
+          v_blocks := '["10:00-12:00","14:00-16:00"]'::jsonb;
+          v_days := v_block_dates; v_maxdays := cardinality(v_block_dates);
+          v_bdates := jsonb_build_object('10:00-12:00', to_jsonb(v_block_dates), '14:00-16:00', to_jsonb(v_block_dates));
         END IF;
       ELSE
         FOREACH b IN ARRAY ARRAY['10:00-12:00','14:00-16:00'] LOOP
@@ -322,8 +325,10 @@ BEGIN
                                     AND public.bc_2627_live_instance(r.source_key, r.course_id, d, b) IS NOT NULL
                                   ORDER BY d);
           IF cardinality(v_block_dates) > 0 THEN
-            v_blocks := v_blocks || jsonb_build_object('block', b, 'dates', to_jsonb(v_block_dates));
-            v_days := v_days || v_block_dates;
+            v_blocks := v_blocks || to_jsonb(b);
+            v_bdates := v_bdates || jsonb_build_object(b, to_jsonb(v_block_dates));
+            v_days := ARRAY(SELECT DISTINCT x FROM unnest(v_days || v_block_dates) x ORDER BY x);
+            v_maxdays := greatest(v_maxdays, cardinality(v_block_dates));
           END IF;
         END LOOP;
       END IF;
@@ -343,7 +348,7 @@ BEGIN
                GROUP BY t.day_count
               HAVING count(*) = 1
                  AND (SELECT count(*) FROM public.product_price_tiers t2 WHERE t2.product_id = v.id AND t2.day_count = t.day_count) = 1) x
-       WHERE x.day_count <= (SELECT max(jsonb_array_length(bb->'dates')) FROM jsonb_array_elements(v_blocks) bb);
+       WHERE x.day_count <= v_maxdays;
       IF jsonb_array_length(v_tiers) = 0 THEN CONTINUE; END IF;
       v_out := v_out || jsonb_build_object(
         'period_key', r.source_key, 'course_id', r.course_id, 'course_name', r.name,
@@ -352,7 +357,8 @@ BEGIN
         'cancelled_dates', (SELECT COALESCE(jsonb_agg(d.date ORDER BY d.date),'[]'::jsonb) FROM public.training_course_dates d
                               WHERE d.training_id = r.course_id AND d.is_cancelled IS TRUE AND d.date = ANY(r.teaching_dates)),
         'product_id', v.id, 'product_name', v.name, 'duration_minutes', v.duration_minutes,
-        'blocks', v_blocks, 'lunch_included', false, 'tiers', v_tiers,
+        'blocks', v_blocks, 'block_mode', CASE WHEN v.duration_minutes = 240 THEN 'all' ELSE 'choose_one' END,
+        'dates', to_jsonb(v_days), 'block_dates', v_bdates, 'lunch_included', false, 'tiers', v_tiers,
         -- planning threshold only; never used to refuse a group booking
         'planning_threshold', r.max_participants, 'bookable', true);
     END LOOP;
@@ -569,16 +575,30 @@ BEGIN
            OR NOT (v_days = ANY(ARRAY(SELECT x::int FROM jsonb_array_elements_text(v_period.eligible_variants->v_product.id::text) x))) THEN
           RAISE EXCEPTION 'tier_unavailable: Kein Tarif für % Tage', v_days;
         END IF;
+        -- Exact block IDs only: 'blocks' (string[]) per contract; legacy scalar 'block' for 2h.
+        IF v_s ? 'blocks' AND (jsonb_typeof(v_s->'blocks') IS DISTINCT FROM 'array'
+             OR EXISTS (SELECT 1 FROM jsonb_array_elements(v_s->'blocks') x WHERE jsonb_typeof(x) IS DISTINCT FROM 'string')) THEN
+          RAISE EXCEPTION 'invalid_selection: blocks muss eine Liste von Block-IDs sein';
+        END IF;
         IF v_product.duration_minutes = 240 THEN
-          IF v_s ? 'block' AND v_s->>'block' IS DISTINCT FROM '10:00-12:00+14:00-16:00' THEN
-            RAISE EXCEPTION 'invalid_selection: 4h-Kurs umfasst 10-12 und 14-16';
+          IF v_s ? 'block' THEN
+            RAISE EXCEPTION 'invalid_selection: 4h-Kurs umfasst 10:00-12:00 und 14:00-16:00 (blocks)';
+          END IF;
+          IF v_s ? 'blocks' AND (SELECT array_agg(x ORDER BY x) FROM jsonb_array_elements_text(v_s->'blocks') x)
+                                 IS DISTINCT FROM ARRAY['10:00-12:00','14:00-16:00'] THEN
+            RAISE EXCEPTION 'invalid_selection: 4h-Kurs umfasst 10:00-12:00 und 14:00-16:00';
           END IF;
           v_blocks := ARRAY['10:00-12:00','14:00-16:00'];
         ELSIF v_product.duration_minutes = 120 THEN
-          IF COALESCE(v_s->>'block','') NOT IN ('10:00-12:00','14:00-16:00') THEN
-            RAISE EXCEPTION 'invalid_selection: block (10:00-12:00 oder 14:00-16:00) wählen';
+          IF v_s ? 'blocks' AND v_s ? 'block' THEN
+            RAISE EXCEPTION 'invalid_selection: entweder block oder blocks';
           END IF;
-          v_blocks := ARRAY[v_s->>'block'];
+          v_b := CASE WHEN v_s ? 'blocks' AND jsonb_array_length(v_s->'blocks') = 1 THEN v_s->'blocks'->>0
+                      WHEN v_s ? 'blocks' THEN NULL ELSE v_s->>'block' END;
+          IF COALESCE(v_b,'') NOT IN ('10:00-12:00','14:00-16:00') THEN
+            RAISE EXCEPTION 'invalid_selection: genau einen Block (10:00-12:00 oder 14:00-16:00) wählen';
+          END IF;
+          v_blocks := ARRAY[v_b];
         ELSE
           RAISE EXCEPTION 'product_unavailable: Unbekannte Produktdauer';
         END IF;
@@ -1029,3 +1049,39 @@ END;
 $fn$;
 REVOKE ALL ON FUNCTION public.bc_2627_confirm(uuid,text) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.bc_2627_confirm(uuid,text) TO service_role;
+
+
+-- ---------------------------------------------------------------------------
+-- Invoice numbers: serialize generation. The production trigger computes MAX+1
+-- without a lock, so two concurrent issuances could get the same number and the
+-- second insert failed on invoices_invoice_number_key. A transaction-scoped
+-- advisory lock makes MAX+1 see the previous committed number (each statement in
+-- a plpgsql function takes a fresh READ COMMITTED snapshot after the lock).
+-- Same number format as before.
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.generate_invoice_number()
+RETURNS trigger LANGUAGE plpgsql SET search_path TO 'public' AS $$
+DECLARE
+  year_str TEXT;
+  next_num INTEGER;
+BEGIN
+  PERFORM pg_advisory_xact_lock(hashtextextended('public.invoices.invoice_number', 0));
+  year_str := to_char(CURRENT_DATE, 'YYYY');
+  SELECT COALESCE(MAX(
+    CAST(SUBSTRING(invoice_number FROM 'R-' || year_str || '-([0-9]+)') AS INTEGER)
+  ), 0) + 1
+  INTO next_num
+  FROM public.invoices
+  WHERE invoice_number LIKE 'R-' || year_str || '-%';
+  NEW.invoice_number := 'R-' || year_str || '-' || LPAD(next_num::TEXT, 5, '0');
+  RETURN NEW;
+END;
+$$;
+
+-- Delivery lease: when a sender claims a row it stamps claimed_at. A row stuck in
+-- 'sending' past the lease is recoverable; within 24h the same provider
+-- idempotency key is reused (provider dedupes), after that the outcome is unknown
+-- and only an explicit staff decision may resend under a new key.
+ALTER TABLE public.booking_email_deliveries ADD COLUMN IF NOT EXISTS claimed_at timestamptz;
+ALTER TABLE public.booking_email_deliveries ADD COLUMN IF NOT EXISTS provider_idempotency_key text;
+ALTER TABLE public.booking_email_deliveries ADD COLUMN IF NOT EXISTS first_claimed_at timestamptz;

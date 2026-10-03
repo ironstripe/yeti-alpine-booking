@@ -75,4 +75,4 @@
 - [x] UI: capacity view shows booked inactive courses; unknown DOB shown as "unbekannt" / "? J." (family card, edit forms, capacity)
 - [x] Merged people hidden in participant search pickers
 - [x] Booking wizard/lists: age rules for people with unknown DOB (needs a decision: which course age checks apply when DOB unknown)
-- [ ] #36 26/27 website course booking: review blockers 1-5,7,8 fixed in pending SQL; 43/43 local tests on real production schema copy (synthetic data). Open: full invoice e-mail/QR reuse + staff retry/stuck-sending recovery (review item 6), course-booking function update to new SQL, apply/deploy approval, OnePager client.
+- [ ] #36 26/27 website course booking: SQL + API + invoice/confirmation delivery + staff resend implemented and tested locally (SQL 43/43, API 19/19). Blocked: owner approval to apply SQL/deploy; production school e-mail (sender) missing; OnePager client switch to contract v1.

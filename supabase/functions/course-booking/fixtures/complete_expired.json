@@ -1,0 +1,33 @@
+{
+  "request": {
+    "action": "complete",
+    "ticket_id": "38103ba8-46d8-46ee-a50e-5ef48d9647b2",
+    "reservation_token": "c623638685e641649271dfb1ac56d16848e1a717701f4b808c1f7626ad7830de",
+    "customer": {
+      "email": "familie@example.invalid",
+      "first_name": "Test",
+      "last_name": "Familie",
+      "street": "Weg",
+      "zip": "9490",
+      "city": "Vaduz",
+      "country": "LI"
+    },
+    "participants": [
+      {
+        "ref": "e",
+        "birth_date": "2018-05-01",
+        "discipline": "ski",
+        "skill_level": "ski_blauer_koenig",
+        "first_name": "P-e",
+        "last_name": "Familie"
+      }
+    ]
+  },
+  "http_status": 410,
+  "response": {
+    "success": false,
+    "code": "expired",
+    "message": "Reservation expired",
+    "retryable": false
+  }
+}

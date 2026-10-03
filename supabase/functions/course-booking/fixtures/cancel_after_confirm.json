@@ -1,0 +1,14 @@
+{
+  "request": {
+    "action": "cancel",
+    "ticket_id": "baaa20e6-5acf-4e4c-82a9-cae54ec8e177",
+    "reservation_token": "4a7a7c12e6674e7085c2b80398d8122da782731307ba40a3b93cab28fe145ffc"
+  },
+  "http_status": 409,
+  "response": {
+    "success": false,
+    "code": "invalid_status",
+    "message": "Rechnungsstellung läuft bereits; nur Büro kann stornieren",
+    "retryable": false
+  }
+}

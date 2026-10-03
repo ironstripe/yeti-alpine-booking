@@ -1,0 +1,130 @@
+{
+  "request": {
+    "action": "options"
+  },
+  "http_status": 200,
+  "response": {
+    "success": true,
+    "status": "ok",
+    "contract_version": "bc-2627-website-v1",
+    "currency": "CHF",
+    "quote_version": "bc-2627-exact-v3-unlimited-group",
+    "options": [
+      {
+        "dates": [
+          "2027-01-04",
+          "2027-01-05",
+          "2027-01-06",
+          "2027-01-07"
+        ],
+        "tiers": [
+          {
+            "price": 100,
+            "day_count": 1,
+            "source_tariff_id": "k4-1"
+          },
+          {
+            "price": 200,
+            "day_count": 2,
+            "source_tariff_id": "k4-2"
+          },
+          {
+            "price": 300,
+            "day_count": 3,
+            "source_tariff_id": "k4-3"
+          },
+          {
+            "price": 400,
+            "day_count": 4,
+            "source_tariff_id": "k4-4"
+          }
+        ],
+        "blocks": [
+          "10:00-12:00",
+          "14:00-16:00"
+        ],
+        "age_max": 16,
+        "age_min": 4,
+        "bookable": true,
+        "course_id": "00000000-0000-4000-8000-000000000193",
+        "block_mode": "all",
+        "discipline": "ski",
+        "period_key": "weekday:2027-01-04:BK",
+        "product_id": "00000000-0000-4000-8000-000000000164",
+        "block_dates": {
+          "10:00-12:00": [
+            "2027-01-04",
+            "2027-01-05",
+            "2027-01-06",
+            "2027-01-07"
+          ],
+          "14:00-16:00": [
+            "2027-01-04",
+            "2027-01-05",
+            "2027-01-06",
+            "2027-01-07"
+          ]
+        },
+        "course_name": "26/27 Ski BK",
+        "course_type": "weekly",
+        "product_name": "Kinder 4h",
+        "lunch_included": false,
+        "skill_level_id": "ski_blauer_koenig",
+        "cancelled_dates": [],
+        "duration_minutes": 240,
+        "planning_threshold": 2
+      },
+      {
+        "dates": [
+          "2027-01-09",
+          "2027-01-16",
+          "2027-01-23",
+          "2027-02-06"
+        ],
+        "tiers": [
+          {
+            "price": 240,
+            "day_count": 4,
+            "source_tariff_id": "sa-4"
+          }
+        ],
+        "blocks": [
+          "10:00-12:00"
+        ],
+        "age_max": 16,
+        "age_min": 4,
+        "bookable": true,
+        "course_id": "00000000-0000-4000-8000-000000000197",
+        "block_mode": "choose_one",
+        "discipline": "ski",
+        "period_key": "saturday_series:2027-01-09:BK",
+        "product_id": "00000000-0000-4000-8000-000000000178",
+        "block_dates": {
+          "10:00-12:00": [
+            "2027-01-09",
+            "2027-01-16",
+            "2027-01-23",
+            "2027-02-06"
+          ]
+        },
+        "course_name": "26/27 Samstag Ski BK",
+        "course_type": "saturday_course",
+        "product_name": "Samstag 2h",
+        "lunch_included": false,
+        "skill_level_id": "ski_blauer_koenig",
+        "cancelled_dates": [
+          "2027-01-30"
+        ],
+        "duration_minutes": 120,
+        "planning_threshold": 2
+      }
+    ],
+    "informational": [
+      {
+        "reason": "Betriebsdaten noch nicht freigegeben",
+        "product": "Carving",
+        "bookable": false
+      }
+    ]
+  }
+}

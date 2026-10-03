@@ -1,0 +1,35 @@
+{
+  "request": {
+    "action": "complete",
+    "ticket_id": "e7a0e4d5-2c27-437b-a16b-df39bedad7c3",
+    "reservation_token": "c395befad07e4af3a0399fc7fb8cb71f9c1d1e4ec0dc428a8238571faad739ce",
+    "customer": {
+      "email": "familie@example.invalid",
+      "first_name": "Test",
+      "last_name": "Familie",
+      "street": "Weg",
+      "zip": "9490",
+      "city": "Vaduz",
+      "country": "LI"
+    },
+    "participants": [
+      {
+        "ref": "p",
+        "birth_date": "2018-05-01",
+        "discipline": "ski",
+        "skill_level": "ski_blauer_koenig",
+        "first_name": "P-p",
+        "last_name": "Familie"
+      }
+    ]
+  },
+  "http_status": 503,
+  "response": {
+    "success": false,
+    "code": "invoice_issue_failed",
+    "message": "Rechnung konnte nicht erstellt werden; bitte dieselbe Anfrage wiederholen",
+    "retryable": true,
+    "reason": "NO_COMPATIBLE_PROFILE",
+    "status": "invoicing"
+  }
+}

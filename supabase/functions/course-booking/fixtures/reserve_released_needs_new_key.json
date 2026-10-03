@@ -1,0 +1,38 @@
+{
+  "request": {
+    "action": "reserve",
+    "reservation": {
+      "idempotency_key": "api-key-2-1791062241793",
+      "participants": [
+        {
+          "ref": "r",
+          "birth_date": "2018-05-01",
+          "discipline": "ski",
+          "skill_level": "ski_blauer_koenig"
+        }
+      ],
+      "selections": [
+        {
+          "kind": "group",
+          "participant_ref": "r",
+          "period_key": "weekday:2027-01-04:BK",
+          "product_id": "00000000-0000-4000-8000-000000000164",
+          "dates": [
+            "2027-01-06"
+          ],
+          "blocks": [
+            "10:00-12:00",
+            "14:00-16:00"
+          ]
+        }
+      ]
+    }
+  },
+  "http_status": 409,
+  "response": {
+    "success": false,
+    "code": "reservation_released",
+    "message": "Reservation wurde freigegeben; bitte mit neuem Schlüssel neu reservieren",
+    "retryable": false
+  }
+}

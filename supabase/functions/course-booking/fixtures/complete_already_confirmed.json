@@ -1,0 +1,68 @@
+{
+  "request": {
+    "action": "complete",
+    "ticket_id": "baaa20e6-5acf-4e4c-82a9-cae54ec8e177",
+    "reservation_token": "4a7a7c12e6674e7085c2b80398d8122da782731307ba40a3b93cab28fe145ffc",
+    "customer": {
+      "email": "familie@example.invalid",
+      "first_name": "Test",
+      "last_name": "Familie",
+      "street": "Weg",
+      "zip": "9490",
+      "city": "Vaduz",
+      "country": "LI"
+    },
+    "participants": [
+      {
+        "ref": "a",
+        "birth_date": "2018-05-01",
+        "discipline": "ski",
+        "skill_level": "ski_blauer_koenig",
+        "first_name": "P-a",
+        "last_name": "Familie"
+      },
+      {
+        "ref": "b",
+        "birth_date": "2018-05-01",
+        "discipline": "ski",
+        "skill_level": "ski_blauer_koenig",
+        "first_name": "P-b",
+        "last_name": "Familie"
+      },
+      {
+        "ref": "c",
+        "birth_date": "2018-05-01",
+        "discipline": "ski",
+        "skill_level": "ski_blauer_koenig",
+        "first_name": "P-c",
+        "last_name": "Familie"
+      },
+      {
+        "ref": "m",
+        "birth_date": "1985-03-03",
+        "discipline": "ski",
+        "skill_level": "ski_adult_green",
+        "first_name": "P-m",
+        "last_name": "Familie"
+      }
+    ]
+  },
+  "http_status": 200,
+  "response": {
+    "success": true,
+    "status": "confirmed",
+    "payment_status": "invoice_open",
+    "payment_method": "invoice",
+    "ticket_id": "baaa20e6-5acf-4e4c-82a9-cae54ec8e177",
+    "ticket_number": "T-2026-000001",
+    "total_amount": 720,
+    "currency": "CHF",
+    "invoice_number": "R-2026-00001",
+    "due_date": "2026-10-17",
+    "already_confirmed": true,
+    "delivery": {
+      "booking_confirmation": "sent",
+      "invoice": "sent"
+    }
+  }
+}

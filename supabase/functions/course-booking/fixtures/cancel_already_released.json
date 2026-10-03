@@ -1,0 +1,15 @@
+{
+  "request": {
+    "action": "cancel",
+    "ticket_id": "0af74d4a-81e1-485e-aa4d-6e64ff18b4cd",
+    "reservation_token": "aa0a99370bfa4a56baf9c69651c6c39cc63314dd20034bd0be57d3fd9dfd8557"
+  },
+  "http_status": 200,
+  "response": {
+    "success": true,
+    "status": "released",
+    "ticket_id": "0af74d4a-81e1-485e-aa4d-6e64ff18b4cd",
+    "already_released": true,
+    "ticket_status": null
+  }
+}
