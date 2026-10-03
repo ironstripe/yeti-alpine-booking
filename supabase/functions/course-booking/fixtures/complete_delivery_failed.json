@@ -1,8 +1,8 @@
 {
   "request": {
     "action": "complete",
-    "ticket_id": "5423434c-25b8-4aa6-a9ee-c233f80e5777",
-    "reservation_token": "b70b135a35ae4d8e9e5906a0791009a5ddadb5d47e7a462ca8bd961a19920300",
+    "ticket_id": "a448d850-4719-4b08-a8aa-67b6a3d75fbf",
+    "reservation_token": "bcf7136bdc674f5ebd5addc814960f42a67d828ff10a47fe80966ee618f43653",
     "customer": {
       "email": "fail@example.invalid",
       "first_name": "Test",
@@ -29,8 +29,8 @@
     "status": "confirmed",
     "payment_status": "invoice_open",
     "payment_method": "invoice",
-    "ticket_id": "5423434c-25b8-4aa6-a9ee-c233f80e5777",
-    "ticket_number": "T-2026-000023",
+    "ticket_id": "a448d850-4719-4b08-a8aa-67b6a3d75fbf",
+    "ticket_number": "T-2026-000024",
     "total_amount": 100,
     "currency": "CHF",
     "invoice_number": "R-2026-00014",

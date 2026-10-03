@@ -2,7 +2,7 @@
   "request": {
     "action": "reserve",
     "reservation": {
-      "idempotency_key": "api-key-1-1791062196980",
+      "idempotency_key": "api-key-1-1791062241573",
       "participants": [
         {
           "ref": "a",
@@ -93,10 +93,10 @@
     "success": true,
     "status": "held",
     "replayed": false,
-    "ticket_id": "63e52cab-6b87-4fdf-bb24-a4c2023a01a9",
+    "ticket_id": "baaa20e6-5acf-4e4c-82a9-cae54ec8e177",
     "ticket_number": "T-2026-000001",
-    "reservation_token": "621579b776cd446ab7664131ea566ba6de09cee3bd8842079eefc7f2abaf01f7",
-    "reservation_expires_at": "2026-10-03T21:36:36.981746+00:00",
+    "reservation_token": "4a7a7c12e6674e7085c2b80398d8122da782731307ba40a3b93cab28fe145ffc",
+    "reservation_expires_at": "2026-10-03T21:37:21.574909+00:00",
     "total_amount": 720,
     "currency": "CHF",
     "quote": {
@@ -136,7 +136,7 @@
           "source_sha256": "sha",
           "participant_ref": "a",
           "ticket_item_ids": [
-            "05a32ab1-4df0-471e-a2bd-5016b0bf55eb"
+            "ddc910b7-25f4-42b9-820b-c6f2686718bc"
           ],
           "tariff_source_ids": [
             "k4-1"
@@ -178,7 +178,7 @@
           "source_sha256": "sha",
           "participant_ref": "b",
           "ticket_item_ids": [
-            "71ba2889-9743-49ff-9fa2-ab14e18678ed"
+            "5908f6f3-ba3f-4941-911e-fbff1f422a17"
           ],
           "tariff_source_ids": [
             "k4-1"
@@ -220,7 +220,7 @@
           "source_sha256": "sha",
           "participant_ref": "c",
           "ticket_item_ids": [
-            "c7f185e9-3a3d-4317-bb53-922fda5df068"
+            "b07a33a4-9716-4568-a518-28c0357ab3f5"
           ],
           "tariff_source_ids": [
             "k4-1"
@@ -259,7 +259,7 @@
           "source_sha256": "sha",
           "participant_ref": "m",
           "ticket_item_ids": [
-            "155db9ab-e8e5-400d-b4a8-57985ae105b1"
+            "46c9d64a-fe09-45f2-afbc-fe0c4810ab02"
           ],
           "tariff_source_ids": [
             "e4-1"
@@ -268,7 +268,7 @@
         }
       ],
       "currency": "CHF",
-      "created_at": "2026-10-03T21:16:36.981746+00:00",
+      "created_at": "2026-10-03T21:17:21.574909+00:00",
       "participants": [
         {
           "ref": "a",

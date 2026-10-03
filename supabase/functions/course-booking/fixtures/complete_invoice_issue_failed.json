@@ -1,8 +1,8 @@
 {
   "request": {
     "action": "complete",
-    "ticket_id": "715be416-c311-4d26-905c-683a179d5277",
-    "reservation_token": "480991598b604ce8b17f8301168b9eb2bed1d338054c4f75845400f1150c950e",
+    "ticket_id": "e7a0e4d5-2c27-437b-a16b-df39bedad7c3",
+    "reservation_token": "c395befad07e4af3a0399fc7fb8cb71f9c1d1e4ec0dc428a8238571faad739ce",
     "customer": {
       "email": "familie@example.invalid",
       "first_name": "Test",
