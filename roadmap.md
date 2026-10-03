@@ -65,6 +65,7 @@
 - [x] #22 offline function check script (`bun run check:functions`)
 - [x] #15 get-products fail-closed + website visibility; staff group preflight before writes
 - [x] #36 online payment refused until provider verification exists
-- [ ] #15 atomic server booking RPC (blocked: Carving dates/capacities/tariff binding)
+- [ ] #15 atomic server booking RPC; Carving activation separately awaits verified operating data
 - [ ] #36 capacity policy (blocked: owner decision soft vs hard capacity)
-- [ ] #36 payment provider + OnePager (blocked: provider; Robin repo push=false)
+- [ ] #36 invoice-only checkout + immediate invoice delivery + OnePager (Robin repo push=false)
+- [ ] #36 online payment provider verification (separate from invoice-only checkout)

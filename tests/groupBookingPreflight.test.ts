@@ -6,11 +6,11 @@ const seasons = [
   { id: "s26", name: "Winter 26/27", start_date: "2026-12-01", end_date: "2027-04-15" },
 ];
 const products = [
-  { id: "p-legacy", name: "Gruppe", is_active: true, season_id: "s25", price: 80, type: "group" },
-  { id: "p-zero", name: "Gruppe 0", is_active: true, season_id: "s25", price: 0, type: "group" },
-  { id: "p-off", name: "Alt", is_active: false, season_id: "s25", price: 80, type: "group" },
-  { id: "p-2627", name: "Carving", is_active: true, season_id: "s26", price: 90, type: "group" },
-  { id: "p-src", name: "Quelle", is_active: true, season_id: "s25", price: 90, type: "group" },
+  { id: "p-legacy", name: "Gruppe", is_active: true, season_id: "s25", price: 80, type: "group", pricing_type: "fixed" },
+  { id: "p-zero", name: "Gruppe 0", is_active: true, season_id: "s25", price: 0, type: "group", pricing_type: "fixed" },
+  { id: "p-off", name: "Alt", is_active: false, season_id: "s25", price: 80, type: "group", pricing_type: "fixed" },
+  { id: "p-2627", name: "Carving", is_active: true, season_id: "s26", price: 90, type: "group", pricing_type: "fixed" },
+  { id: "p-src", name: "Quelle", is_active: true, season_id: "s25", price: 90, type: "group", pricing_type: "fixed" },
 ];
 const courses = [
   { id: "c-ok", name: "Kids", product_id: "p-legacy", price_per_day: 70, is_active: true },
@@ -42,7 +42,7 @@ describe("group booking preflight (#15)", () => {
   it("rejects 26/27 source-bound products without legacy fallback", () => {
     const r = preflightGroupLines(one("c-2627", ["2027-01-13"]));
     expect(r.ok).toBe(false);
-    if ("errors" in r) expect(r.errors[0]).toContain("Booking-Corner");
+    if ("errors" in r) expect(r.errors[0]).toContain("serverseitige Tarifberechnung");
   });
   it("rejects products with tariff source evidence even in older seasons", () => {
     expect(preflightGroupLines(one("c-src")).ok).toBe(false);
@@ -57,5 +57,34 @@ describe("group booking preflight (#15)", () => {
     ]));
     expect(r.ok).toBe(false);
     if ("errors" in r) expect(r.errors).toHaveLength(1);
+  });
+});
+
+describe("review counterexamples for group booking containment", () => {
+  it.each(["2026-02-30", "2026-2-01", "not-a-date"])("rejects invalid calendar date %s", (date) => {
+    expect(preflightGroupLines(one("c-ok", [date])).ok).toBe(false);
+  });
+  it("rejects duplicate dates", () => {
+    expect(preflightGroupLines(one("c-ok", ["2026-02-20", "2026-02-20"])).ok).toBe(false);
+  });
+  it("rejects unknown course activation", () => {
+    const input = one("c-ok");
+    input.courses = courses.map(c => c.id === "c-ok" ? {...c, is_active: null} : c);
+    expect(preflightGroupLines(input).ok).toBe(false);
+  });
+  it.each(["office_shift", "private", "lunch"])("rejects linked product type %s", (type) => {
+    const input = one("c-ok");
+    input.products = products.map(p => p.id === "p-legacy" ? {...p, type} : p);
+    expect(preflightGroupLines(input).ok).toBe(false);
+  });
+  it.each(["tiered", "hourly", null])("never treats %s product price as daily fallback", (pricing_type) => {
+    const input = one("c-prodprice");
+    input.products = products.map(p => p.id === "p-legacy" ? {...p, pricing_type} : p);
+    expect(preflightGroupLines(input).ok).toBe(false);
+  });
+  it("rejects a corrupt course price even when product fallback is positive", () => {
+    const input = one("c-ok");
+    input.courses = courses.map(c => c.id === "c-ok" ? {...c, price_per_day: NaN} : c);
+    expect(preflightGroupLines(input).ok).toBe(false);
   });
 });

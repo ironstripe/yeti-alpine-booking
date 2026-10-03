@@ -28,8 +28,8 @@ Containment only. Nothing here is deployed, published or applied to Cloud data.
 ## #15 – remaining
 - The browser still writes ticket, items, payments in several steps; a late failure can still
   leave a partial booking. Needs a server-side atomic booking RPC using `quote_bc_2627_product`.
-- Missing business values: Carving operating dates/slots (Wed/Sun 2h), group capacities,
-  tariff binding to source IDs. Not invented.
+- Missing Carving operating dates/slots (Wed/Sun 2h), capacities and validated price contract block Carving activation, not development of the general atomic RPC. The approved CHF 99 / 120 min draft is not a verified operating schedule.
+- Review correction: office_shift is always excluded from the public catalog. Group preflight requires explicit course activation, a group product, real unique calendar dates and an explicit daily price or fixed-price fallback; tiered/hourly product prices are never interpreted as daily fallback.
 
 ## #36 – done (containment)
 - `confirm-booking` refuses `payment_method=online` with 503 `payment_provider_unavailable`
@@ -38,7 +38,8 @@ Containment only. Nothing here is deployed, published or applied to Cloud data.
   PR2 not merged; no verified payments fabricated.
 
 ## #36 – remaining
-- Provider integration with server-side verification (then remove the gate).
+- Provider integration with server-side verification is required only for online payment (then replace the gate). Invoice-only booking does not depend on connecting a payment provider.
+- Immediate invoice email delivery is still missing in main; confirmation email alone does not satisfy the approved invoice-delivery target.
 - Website course-option list, 26/27 reservation, finalize (enrollments + exactly one invoice).
 - **Requirements conflict (undecided):** Ivo's prior business rule says group courses are always
   bookable (soft capacity); #36 asks for hard capacity blocking. Neither policy has been adopted.

@@ -25,11 +25,11 @@ Deno.test("single covering season resolves (inclusive bounds)", () => {
 
 Deno.test("only active, website-visible products of the season are eligible", () => {
   const rows = [
-    { id: "ok", season_id: "s1", is_active: true, show_on_website: true },
-    { id: "hidden", season_id: "s1", is_active: true, show_on_website: false },
-    { id: "office", season_id: "s1", is_active: true, show_on_website: null },
-    { id: "inactive", season_id: "s1", is_active: false, show_on_website: true },
-    { id: "other", season_id: "s2", is_active: true, show_on_website: true },
+    { id: "ok", season_id: "s1", type: "group", is_active: true, show_on_website: true },
+    { id: "hidden", season_id: "s1", type: "group", is_active: true, show_on_website: false },
+    { id: "office", season_id: "s1", type: "office_shift", is_active: true, show_on_website: true },
+    { id: "inactive", season_id: "s1", type: "group", is_active: false, show_on_website: true },
+    { id: "other", season_id: "s2", type: "group", is_active: true, show_on_website: true },
   ];
   assertEquals(eligibleProducts(rows, "s1").map((p) => p.id), ["ok"]);
   assertEquals(eligibleProducts(null, "s1"), []);
