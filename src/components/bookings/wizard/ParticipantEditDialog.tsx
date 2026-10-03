@@ -106,20 +106,21 @@ export function ParticipantEditDialog({
     },
   });
 
-  // Compute age-aware level options from participant birth date
-  const levelOptions = getLevelOptionsForAge(participant.birth_date);
+  // Private and group bookings share the same age-/sport-specific level list.
+  const levelOptions = getLevelOptionsForAge(form.watch("birth_date") ?? null, form.watch("sport"));
 
   // Watch level_last_season to auto-suggest current season level
   const levelLastSeason = form.watch("level_last_season");
+  const watchedSport = form.watch("sport");
 
   useEffect(() => {
     if (levelLastSeason) {
-      const suggestedLevel = getNextLevel(levelLastSeason);
+      const suggestedLevel = getNextLevel(levelLastSeason, watchedSport);
       if (suggestedLevel && !form.getValues("level_current_season")) {
         form.setValue("level_current_season", suggestedLevel);
       }
     }
-  }, [levelLastSeason, form]);
+  }, [levelLastSeason, watchedSport, form]);
 
   const onSubmit = (data: ParticipantEditFormData) => {
     updateMutation.mutate(data);
@@ -244,7 +245,7 @@ export function ParticipantEditDialog({
                         ))}
                       </SelectContent>
                     </Select>
-                    {levelLastSeason && getNextLevel(levelLastSeason) && (
+                    {levelLastSeason && getNextLevel(levelLastSeason, watchedSport) && (
                       <FormDescription className="text-xs">
                         💡 Vorschlag basierend auf letzter Saison
                       </FormDescription>

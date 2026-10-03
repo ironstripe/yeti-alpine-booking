@@ -30,7 +30,8 @@ export const LEVEL_HIERARCHY = [
 export type LevelValue = (typeof LEVEL_HIERARCHY)[number];
 
 export const LEVEL_OPTIONS = [
-  { value: "anfaenger", label: "Anfänger" },
+  { value: "ski_windel_wedel", label: "Windel Wedel Kurs (YETI)" },
+  { value: "anfaenger", label: "Swiss Snow Kids (Anfänger)" },
   { value: "blue_prince", label: "Blauer Prinz/Prinzessin" },
   { value: "blue_king", label: "Blauer König/Königin" },
   { value: "blue_star", label: "Blauer Star" },
@@ -39,6 +40,18 @@ export const LEVEL_OPTIONS = [
   { value: "red_star", label: "Roter Star" },
   { value: "black_prince", label: "Academy Rookie" },
   { value: "black_king", label: "Swiss Snow Academy" },
+] as const;
+
+// Snowboard shares the blue legacy keys, but uses Red Academy instead of
+// three separate red Ski League steps. YETI-specific course levels remain
+// available in the existing course catalogue, not as guessed Swiss stages.
+export const SNOWBOARD_CHILD_LEVEL_OPTIONS = [
+  { value: "snow_kids_village", label: "Swiss Snow Kids" },
+  { value: "blue_prince", label: "Blauer Prinz/Prinzessin" },
+  { value: "blue_king", label: "Blauer König/Königin" },
+  { value: "blue_star", label: "Blauer Star" },
+  { value: "sb_red_academy", label: "Red Academy" },
+  { value: "sb_academy", label: "Swiss Snow Academy" },
 ] as const;
 
 // =============================================
@@ -55,20 +68,20 @@ export const ADULT_LEVEL_HIERARCHY = [
 export type AdultLevelValue = (typeof ADULT_LEVEL_HIERARCHY)[number];
 
 export const ADULT_LEVEL_OPTIONS = [
-  { value: "green", label: "🟢 Anfänger" },
-  { value: "blue", label: "🔵 Blaue Piste" },
-  { value: "red", label: "🔴 Rote Piste" },
-  { value: "black", label: "⚫ Experte (Schwarze Piste)" },
+  { value: "green", label: "Grün (Anfänger)" },
+  { value: "blue", label: "Blau (blaue Pisten)" },
+  { value: "red", label: "Rot (rote Pisten)" },
+  { value: "black", label: "Schwarz (schwarze Pisten)" },
 ] as const;
 
 /**
  * Get appropriate level options based on participant age
  * Adults (>16) get color-based levels, children get training-based levels
  */
-export function getLevelOptionsForAge(birthDate: string | Date | null): readonly { value: string; label: string }[] {
-  if (!birthDate) return LEVEL_OPTIONS;
+export function getLevelOptionsForAge(birthDate: string | Date | null, discipline: string = "ski"): readonly { value: string; label: string }[] {
+  if (!birthDate) return discipline === "snowboard" ? SNOWBOARD_CHILD_LEVEL_OPTIONS : LEVEL_OPTIONS;
   const age = differenceInYears(new Date(), new Date(birthDate));
-  return age > 16 ? ADULT_LEVEL_OPTIONS : LEVEL_OPTIONS;
+  return age > 16 ? ADULT_LEVEL_OPTIONS : discipline === "snowboard" ? SNOWBOARD_CHILD_LEVEL_OPTIONS : LEVEL_OPTIONS;
 }
 
 // =============================================
@@ -78,14 +91,20 @@ export function getLevelOptionsForAge(birthDate: string | Date | null): readonly
 /**
  * Get next level in progression (supports both child and adult hierarchies)
  */
-export function getNextLevel(currentLevel: string | null): string | null {
+export function getNextLevel(currentLevel: string | null, discipline: string = "ski"): string | null {
   if (!currentLevel) return null;
-  
-  // Check adult hierarchy first
   const adultIndex = ADULT_LEVEL_HIERARCHY.indexOf(currentLevel as AdultLevelValue);
   if (adultIndex !== -1) {
     return adultIndex < ADULT_LEVEL_HIERARCHY.length - 1 ? ADULT_LEVEL_HIERARCHY[adultIndex + 1] : null;
   }
+  if (discipline === "snowboard") {
+    const snowboardLevels = ["snow_kids_village", "blue_prince", "blue_king", "blue_star", "sb_red_academy", "sb_academy"];
+    const index = snowboardLevels.indexOf(currentLevel);
+    if (index >= 0) return snowboardLevels[index + 1] ?? null;
+    if (["red_prince", "red_king", "red_star"].includes(currentLevel)) return "sb_red_academy";
+    return null;
+  }
+  if (currentLevel === "ski_windel_wedel") return "anfaenger";
   
   // Fall back to child hierarchy
   const currentIndex = LEVEL_HIERARCHY.indexOf(currentLevel as LevelValue);
@@ -110,6 +129,8 @@ export function getLevelLabel(levelValue: string | null): string {
   // Check adult level options
   const adultFound = ADULT_LEVEL_OPTIONS.find((l) => l.value === levelValue);
   if (adultFound) return adultFound.label;
+  const snowboardFound = SNOWBOARD_CHILD_LEVEL_OPTIONS.find((l) => l.value === levelValue);
+  if (snowboardFound) return snowboardFound.label;
   
   // Legacy level lookup
   const found = LEVEL_OPTIONS.find((l) => l.value === levelValue);

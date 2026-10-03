@@ -104,16 +104,17 @@ export function ParticipantSelection({
   // Watch level_last_season and birth_date for dynamic level options
   const levelLastSeason = form.watch("level_last_season");
   const watchedBirthDate = form.watch("birth_date");
-  const levelOptions = getLevelOptionsForAge(watchedBirthDate ?? null);
+  const watchedSport = form.watch("sport");
+  const levelOptions = getLevelOptionsForAge(watchedBirthDate ?? null, watchedSport);
 
   useEffect(() => {
     if (levelLastSeason) {
-      const suggestedLevel = getNextLevel(levelLastSeason);
+      const suggestedLevel = getNextLevel(levelLastSeason, watchedSport);
       if (suggestedLevel) {
         form.setValue("level_current_season", suggestedLevel);
       }
     }
-  }, [levelLastSeason, form]);
+  }, [levelLastSeason, watchedSport, form]);
 
   const handleAddParticipant = async (data: ParticipantFormData) => {
     setIsSaving(true);
@@ -364,7 +365,7 @@ export function ParticipantSelection({
                         ))}
                       </SelectContent>
                     </Select>
-                    {levelLastSeason && getNextLevel(levelLastSeason) && (
+                    {levelLastSeason && getNextLevel(levelLastSeason, watchedSport) && (
                       <FormDescription className="text-xs text-muted-foreground">
                         💡 Vorschlag basierend auf letzter Saison
                       </FormDescription>

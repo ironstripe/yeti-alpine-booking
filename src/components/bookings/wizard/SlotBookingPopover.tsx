@@ -26,7 +26,7 @@ import {
 } from "@/components/ui/sheet";
 import { Separator } from "@/components/ui/separator";
 import { MEETING_POINTS } from "@/lib/meeting-point-utils";
-import { LEVEL_OPTIONS } from "@/lib/level-utils";
+import { getLevelOptionsForAge, getLevelLabel } from "@/lib/level-utils";
 import type { Tables } from "@/integrations/supabase/types";
 
 export interface SlotBookingData {
@@ -328,7 +328,7 @@ export function SlotBookingPopover({
                       )}
                       {p.level_current_season && (
                         <Badge variant="outline" className="text-[10px] h-5">
-                          {p.level_current_season}
+                          {getLevelLabel(p.level_current_season)}
                         </Badge>
                       )}
                     </button>
@@ -376,7 +376,7 @@ export function SlotBookingPopover({
                     <SelectValue placeholder="Niveau wählen" />
                   </SelectTrigger>
                   <SelectContent>
-                    {LEVEL_OPTIONS.map((l) => (
+                    {getLevelOptionsForAge(newParticipant.birth_date || null, sport || "ski").map((l) => (
                       <SelectItem key={l.value} value={l.value}>
                         {l.label}
                       </SelectItem>

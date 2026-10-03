@@ -52,8 +52,8 @@ import {
   getInitials,
   getAvatarColor,
   getLevelInfo,
-  LEVEL_OPTIONS,
 } from "@/lib/participant-utils";
+import { getLevelOptionsForAge } from "@/lib/level-utils";
 
 const editSchema = z.object({
   first_name: z.string().min(1, "Vorname ist erforderlich"),
@@ -100,6 +100,7 @@ export function ParticipantCard({ participant, customerId }: ParticipantCardProp
 
   const watchedBirthDate = watch("birth_date");
   const watchedSport = watch("sport");
+  const levelOptions = getLevelOptionsForAge(watchedBirthDate ?? null, watchedSport);
 
   const age = calculateAge(participant.birth_date);
   const initials = getInitials(participant.first_name, participant.last_name);
@@ -191,7 +192,7 @@ export function ParticipantCard({ participant, customerId }: ParticipantCardProp
                   <SelectValue placeholder="Level wählen" />
                 </SelectTrigger>
                 <SelectContent>
-                  {LEVEL_OPTIONS.map((level) => (
+                  {levelOptions.map((level) => (
                     <SelectItem key={level.value} value={level.value}>
                       {level.label}
                     </SelectItem>
@@ -209,7 +210,7 @@ export function ParticipantCard({ participant, customerId }: ParticipantCardProp
                   <SelectValue placeholder="Level wählen" />
                 </SelectTrigger>
                 <SelectContent>
-                  {LEVEL_OPTIONS.map((level) => (
+                  {levelOptions.map((level) => (
                     <SelectItem key={level.value} value={level.value}>
                       {level.label}
                     </SelectItem>

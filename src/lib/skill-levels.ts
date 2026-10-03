@@ -63,14 +63,21 @@ export function getSkillLevelLabel(levelId: string | null): string {
 
   const labels: Record<string, string> = {
     // Adults - these are the only ones still using skill_levels table
-    'ski_adult_green': 'Anfänger',
-    'ski_adult_blue': 'Fortgeschritten',
-    'ski_adult_red': 'Geübt',
-    'ski_adult_black': 'Experte',
-    'sb_adult_green': 'Anfänger',
-    'sb_adult_blue': 'Fortgeschritten',
-    'sb_adult_red': 'Geübt',
-    'sb_adult_black': 'Experte',
+    'ski_adult_green': 'Grün (Anfänger)',
+    'ski_adult_blue': 'Blau (blaue Pisten)',
+    'ski_adult_red': 'Rot (rote Pisten)',
+    'ski_adult_black': 'Schwarz (schwarze Pisten)',
+    'sb_adult_green': 'Grün (Anfänger)',
+    'sb_adult_blue': 'Blau (blaue Pisten)',
+    'sb_adult_red': 'Rot (rote Pisten)',
+    'sb_adult_black': 'Schwarz (schwarze Pisten)',
+    'ski_windel_wedel': 'Windel Wedel Kurs',
+    'ski_kids_advanced': 'Kinder Fortgeschritten (YETI)',
+    'ski_adult_returners': 'Erwachsene Wiedereinsteiger (YETI)',
+    'sb_red_academy': 'Red Academy',
+    'sb_academy': 'Swiss Snow Academy',
+    'sb_youth_beginner': 'Snowboard Anfänger (Jugend, YETI)',
+    'sb_youth_advanced': 'Snowboard Fortgeschritten (Jugend, YETI)',
   };
 
   return labels[levelId] || levelId;
