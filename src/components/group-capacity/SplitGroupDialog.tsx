@@ -174,7 +174,7 @@ export function SplitGroupDialog({
     
     // Sort oldest first (earliest birthDate = oldest)
     const sorted = [...group.participants].sort(
-      (a, b) => new Date(a.birthDate).getTime() - new Date(b.birthDate).getTime()
+      (a, b) => { const ta = a.birthDate ? new Date(a.birthDate).getTime() : NaN; const tb = b.birthDate ? new Date(b.birthDate).getTime() : NaN; if (isNaN(ta)) return isNaN(tb) ? 0 : 1; if (isNaN(tb)) return -1; return ta - tb; }
     );
 
     setSplitGroups(prev => {

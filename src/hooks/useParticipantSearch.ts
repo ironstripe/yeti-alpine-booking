@@ -46,6 +46,8 @@ export function useParticipantSearch(query: string) {
   });
 }
 
-export function getBirthYearFromDate(birthDate: string): number {
-  return new Date(birthDate).getFullYear();
+export function getBirthYearFromDate(birthDate: string | null | undefined): number | string {
+  if (!birthDate) return "unbekannt";
+  const d = new Date(birthDate);
+  return isNaN(d.getTime()) ? "unbekannt" : d.getFullYear();
 }

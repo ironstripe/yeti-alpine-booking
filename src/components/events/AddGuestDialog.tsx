@@ -107,7 +107,7 @@ export function AddGuestDialog({
     setValue("participant_id", participant.id);
     setValue("guest_first_name", participant.first_name);
     setValue("guest_last_name", participant.last_name || "");
-    setValue("guest_birth_year", getBirthYearFromDate(participant.birth_date));
+    { const by = getBirthYearFromDate(participant.birth_date); if (typeof by === "number") setValue("guest_birth_year", by); }
     if (participant.customer?.phone) {
       setValue("guest_phone", participant.customer.phone);
     }

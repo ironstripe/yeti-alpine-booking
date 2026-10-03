@@ -37,6 +37,7 @@ import {
 } from "@/components/ui/collapsible";
 import { mapLevelToCourseSkill, getLevelLabel } from "@/lib/level-utils";
 import type { SelectedParticipant, ParticipantBookingDetails } from "@/contexts/BookingWizardContext";
+import { checkAgeRange } from "@/lib/participant-utils";
 
 interface ParticipantBookingCardProps {
   participant: SelectedParticipant;
@@ -295,11 +296,9 @@ export function ParticipantBookingCard({
                     <span className="font-medium">
                       {participant.first_name} {participant.last_name}
                     </span>
-                    {age !== null && (
-                      <Badge variant="outline" className="text-xs">
-                        {age} J.
-                      </Badge>
-                    )}
+                    <Badge variant="outline" className="text-xs">
+                      {age !== null ? `${age} J.` : "Alter unbekannt"}
+                    </Badge>
                   </div>
                   <div className="flex gap-1 mt-0.5">
                     {participant.level_current_season && (
@@ -427,7 +426,9 @@ export function ParticipantBookingCard({
                       {groupCourses.map((course) => {
                         const isFull = course.currentCount >= course.max_participants;
                         const isRecommended = course.id === recommendedCourseId;
-                        const isAgeWarning = age !== null && course.max_age != null && age > course.max_age;
+                        const ageState = checkAgeRange(age, null, course.max_age);
+                        const isAgeWarning = ageState === "too_old";
+                        const isAgeUnknown = ageState === "unknown" && (course.min_age != null || course.max_age != null);
                         return (
                           <SelectItem
                             key={course.id}
@@ -457,6 +458,11 @@ export function ParticipantBookingCard({
                                 >
                                   <AlertTriangle className="h-2 w-2 mr-0.5" />
                                   &gt;{course.max_age}J
+                                </Badge>
+                              )}
+                              {isAgeUnknown && (
+                                <Badge variant="outline" className="text-[10px] h-4 px-1">
+                                  Alter unbekannt – manuell prüfen
                                 </Badge>
                               )}
                               <Badge

@@ -64,3 +64,24 @@ describe("internal course visibility", () => {
     expect(merged.reduce((s, g) => s + g.participantCount, 0)).toBe(12);
   });
 });
+
+import { checkAgeRange, getBirthYear } from "../src/lib/participant-utils";
+import { getBirthYearFromDate } from "../src/hooks/useParticipantSearch";
+
+describe("age checks with unknown birth date", () => {
+  it("returns explicit unknown/manual-check, never pass or fail", () => {
+    expect(checkAgeRange(null, 6, 12)).toBe("unknown");
+    expect(checkAgeRange(undefined, null, 12)).toBe("unknown");
+  });
+  it("known ages keep normal min/max rules", () => {
+    expect(checkAgeRange(5, 6, 12)).toBe("too_young");
+    expect(checkAgeRange(13, 6, 12)).toBe("too_old");
+    expect(checkAgeRange(8, 6, 12)).toBe("ok");
+    expect(checkAgeRange(40, null, null)).toBe("ok");
+  });
+  it("never shows 1970 as birth year", () => {
+    expect(getBirthYear(null)).toBeNull();
+    expect(getBirthYearFromDate(null)).toBe("unbekannt");
+    expect(getBirthYearFromDate("2015-03-04")).toBe(2015);
+  });
+});
