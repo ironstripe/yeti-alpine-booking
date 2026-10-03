@@ -1008,7 +1008,7 @@ export type Database = {
       }
       customer_participants: {
         Row: {
-          birth_date: string
+          birth_date: string | null
           created_at: string
           current_ski_level_id: string | null
           current_ski_training_id: string | null
@@ -1030,7 +1030,7 @@ export type Database = {
           sport: string | null
         }
         Insert: {
-          birth_date: string
+          birth_date?: string | null
           created_at?: string
           current_ski_level_id?: string | null
           current_ski_training_id?: string | null
@@ -1052,7 +1052,7 @@ export type Database = {
           sport?: string | null
         }
         Update: {
-          birth_date?: string
+          birth_date?: string | null
           created_at?: string
           current_ski_level_id?: string | null
           current_ski_training_id?: string | null

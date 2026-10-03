@@ -68,3 +68,10 @@
 - [ ] #15 atomic server booking RPC (blocked: Carving dates/capacities/tariff binding)
 - [ ] #36 capacity policy (blocked: owner decision soft vs hard capacity)
 - [ ] #36 payment provider + OnePager (blocked: provider; Robin repo push=false)
+
+## Controlled 26/27 lab transfer (run lab-v4-7a9b66d)
+- [ ] Migration: nullable birth_date, protected crosswalk/ledger/runs, gated notification suppression, bc_import_sale + rollback (service_role only)
+- [ ] Dry-run: 51 sales / 142 positions mapped, 136/136 instances, no conflicts
+- [ ] Rollback rehearsal in a rolled-back transaction
+- [ ] Apply 51 sales in checkpoints + readback + idempotent re-run
+- [ ] UI: null-safe DOB, merged-people filters, booked inactive 26/27 courses visible internally, paid unknown
