@@ -75,3 +75,4 @@
 - [x] UI: capacity view shows booked inactive courses; unknown DOB shown as "unbekannt" / "? J." (family card, edit forms, capacity)
 - [x] Merged people hidden in participant search pickers
 - [x] Booking wizard/lists: age rules for people with unknown DOB (needs a decision: which course age checks apply when DOB unknown)
+- [ ] #36 26/27 website course booking: SQL + server function + tests ready in repo (supabase/pending/bc_2627_atomic_course_booking.sql, supabase/functions/course-booking); waiting on approval to apply/deploy and on OnePager client changes.
