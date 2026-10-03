@@ -365,6 +365,8 @@ try {
     assertEquals(rec.body.recovered.find((x: any) => x.id === conf.id).outcome, "sent");
     assertEquals(sent.at(-1)!.idempotencyKey, conf.provider_idempotency_key ?? conf.idempotency_key);
     // stuck beyond provider dedupe window -> needs review, then explicit force -> new key
+    // (no sent evidence in email_logs either, otherwise recovery correctly reconciles to sent)
+    await sql`UPDATE email_logs SET status='failed', provider_message_id=NULL WHERE delivery_id=${conf.id}`;
     await sql`UPDATE booking_email_deliveries SET status='sending', provider_message_id=NULL, claimed_at=now()-interval '25 hours', first_claimed_at=now()-interval '25 hours' WHERE id=${conf.id}`;
     const rec2 = await staffCall({ action: "recover_stuck" });
     assertEquals(rec2.body.recovered.find((x: any) => x.id === conf.id).outcome, "needs_review");
