@@ -99,24 +99,24 @@ export function PaymentModal({ ticket, onClose }: PaymentModalProps) {
 
         <form id="payment-form" onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
           <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-5 py-5 sm:px-6">
-          <div className="rounded-lg bg-muted p-3">
-            <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Total:</span>
-              <span className="font-medium">
-                CHF {(ticket?.total_amount || 0).toFixed(2)}
-              </span>
+            <div className="rounded-lg bg-muted p-3">
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Total:</span>
+                <span className="font-medium">
+                  CHF {(ticket?.total_amount || 0).toFixed(2)}
+                </span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Bereits bezahlt:</span>
+                <span>{ticket?.paid_amount === null || ticket?.paid_amount === undefined ? "unbekannt" : `CHF ${ticket.paid_amount.toFixed(2)}`}</span>
+              </div>
+              <div className="flex justify-between text-sm font-semibold border-t border-border mt-2 pt-2">
+                <span>Offen:</span>
+                <span className="text-brand">
+                  CHF {remainingAmount.toFixed(2)}
+                </span>
+              </div>
             </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Bereits bezahlt:</span>
-              <span>{ticket?.paid_amount === null || ticket?.paid_amount === undefined ? "unbekannt" : `CHF ${ticket.paid_amount.toFixed(2)}`}</span>
-            </div>
-            <div className="flex justify-between text-sm font-semibold border-t border-border mt-2 pt-2">
-              <span>Offen:</span>
-              <span className="text-brand">
-                CHF {remainingAmount.toFixed(2)}
-              </span>
-            </div>
-          </div>
 
           <div className="space-y-2">
             <Label htmlFor="paymentMethod">Zahlungsart</Label>

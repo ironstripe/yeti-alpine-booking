@@ -12,7 +12,7 @@ This standard covers reusable presentation rules for the YETI office application
 ## Semantic color
 
 - Use semantic tokens rather than raw palette classes in feature code.
-- Filled primary actions use `primary` with `primary-foreground`; hover uses `primary-hover`. Regular text must retain at least WCAG AA contrast.
+- Filled primary actions use `action` with `action-foreground`; hover uses `action-hover`. Regular text must retain at least WCAG AA contrast.
 - Standalone links and non-filled emphasis use `brand` and `brand-hover`, preserving the recognizable YETI blue without forcing the action background token into every context.
 - Status colors communicate state only. Source badges are neutral because source is metadata, not status.
 - Muted text remains readable and must not be reduced with extra opacity.

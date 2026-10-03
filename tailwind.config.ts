@@ -26,7 +26,11 @@ export default {
         primary: {
           DEFAULT: "hsl(var(--primary))",
           foreground: "hsl(var(--primary-foreground))",
-          hover: "hsl(var(--primary-hover))",
+        },
+        action: {
+          DEFAULT: "hsl(var(--action))",
+          foreground: "hsl(var(--action-foreground))",
+          hover: "hsl(var(--action-hover))",
         },
         brand: {
           DEFAULT: "hsl(var(--brand))",
