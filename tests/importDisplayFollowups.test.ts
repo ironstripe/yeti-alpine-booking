@@ -85,3 +85,54 @@ describe("age checks with unknown birth date", () => {
     expect(getBirthYearFromDate("2015-03-04")).toBe(2015);
   });
 });
+
+import { buildCapacityRoster } from "../src/lib/groupCapacityBuild";
+
+describe("capacity roster builder", () => {
+  type P = { participantId: string; instanceId: string; name: string };
+  type C = { id: string; courseId: string; participantCount: number; participants: P[] };
+  const card = (id: string, courseId: string): C => ({ id, courseId, participantCount: 0, participants: [] });
+  const withParticipants = (c: C, participants: P[]): C => ({ ...c, participants, participantCount: participants.length });
+  const enr = (id: string, pid: string, inst: string, tg: string | null, courseId: string) => ({
+    id, participantId: pid, instanceId: inst, trainingGroupId: tg, courseId,
+    participant: { participantId: pid, instanceId: inst, name: pid },
+  });
+
+  it("one assigned + two unassigned in same course -> 3 visible, no duplicates", () => {
+    const enrollments = [enr("e1", "A", "i1", "tg1", "c1"), enr("e2", "B", "i1", null, "c1"), enr("e3", "C", "i1", null, "c1")];
+    const before = JSON.stringify(enrollments);
+    const out = buildCapacityRoster({ trainingGroupCards: [card("tg1", "c1"), card("tg2", "c1")], courseCards: [card("", "c1")], enrollments, withParticipants });
+    const all = out.flatMap((g) => g.participants.map((p) => p.participantId));
+    expect(all.sort()).toEqual(["A", "B", "C"]);
+    expect(out.map((g) => g.id).sort()).toEqual(["", "tg1"]); // empty tg2 replaced by residual card
+    expect(JSON.stringify(enrollments)).toBe(before); // inputs not mutated
+  });
+
+  it("one participant over 5 days counts once in the group", () => {
+    const enrollments = ["d1", "d2", "d3", "d4", "d5"].map((d, i) => enr(`e${i}`, "A", d, "tg1", "c1"));
+    const out = buildCapacityRoster({ trainingGroupCards: [card("tg1", "c1")], courseCards: [card("", "c1")], enrollments, withParticipants });
+    expect(out).toHaveLength(1);
+    expect(out[0].participantCount).toBe(1);
+  });
+
+  it("residual card keeps a defined instanceId", () => {
+    const out = buildCapacityRoster({ trainingGroupCards: [], courseCards: [card("", "c1")], enrollments: [enr("e1", "A", "i9", null, "c1")], withParticipants });
+    expect(out[0].participants[0].instanceId).toBe("i9");
+  });
+
+  it("mixed courses and Saturday course stay separate", () => {
+    const enrollments = [enr("e1", "A", "i1", "tg1", "c1"), enr("e2", "B", "s1", null, "sat"), enr("e3", "B", "s1", null, "sat"), enr("e4", "C", "i2", null, "c2")];
+    const out = buildCapacityRoster({
+      trainingGroupCards: [card("tg1", "c1")],
+      courseCards: [card("", "c1"), card("", "sat"), card("", "c2"), card("", "empty")],
+      enrollments, withParticipants,
+    });
+    const byCourse = Object.fromEntries(out.map((g) => [g.courseId + ":" + g.id, g.participantCount]));
+    expect(byCourse).toEqual({ "c1:tg1": 1, "sat:": 1, "c2:": 1 });
+  });
+
+  it("empty training groups remain when the course has no residual enrollments", () => {
+    const out = buildCapacityRoster({ trainingGroupCards: [card("tg1", "c1")], courseCards: [card("", "c1")], enrollments: [], withParticipants });
+    expect(out.map((g) => g.id)).toEqual(["tg1"]);
+  });
+});
