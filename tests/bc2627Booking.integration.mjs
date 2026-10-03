@@ -36,14 +36,10 @@ try {
    ('00000000-0000-4000-8000-0000000000a2','Kinder 2h','group',120,'00000000-0000-4000-8000-000000000001','ski',true,true,4,16,'tiered'),
    ('00000000-0000-4000-8000-0000000000e4','Erwachsene 4h','group',240,'00000000-0000-4000-8000-000000000001','ski',true,true,17,99,'tiered'),
    ('00000000-0000-4000-8000-0000000000c2','Carving 2h','group',120,'00000000-0000-4000-8000-000000000001','ski',true,true,17,99,'tiered'),
-   ('00000000-0000-4000-8000-0000000000ff','Kinder 4h inaktiv','group',240,'00000000-0000-4000-8000-000000000001','ski',false,true,4,16,'tiered'),
-   ('00000000-0000-4000-8000-0000000000s2','x','group',120,'00000000-0000-4000-8000-000000000001','ski',true,true,4,16,'tiered')
-   ON CONFLICT DO NOTHING;`.replace(",\n   ('00000000-0000-4000-8000-0000000000s2','x','group',120,'00000000-0000-4000-8000-000000000001','ski',true,true,4,16,'tiered')", ''));
+   ('00000000-0000-4000-8000-0000000000ff','Kinder 4h inaktiv','group',240,'00000000-0000-4000-8000-000000000001','ski',false,true,4,16,'tiered');`);
   await sql.unsafe(`
   INSERT INTO products(id,name,type,duration_minutes,season_id,discipline,is_active,show_on_website,min_age,max_age) VALUES
-   ('00000000-0000-4000-8000-0000000000b2','Samstag 2h','group',120,'00000000-0000-4000-8000-000000000001','ski',true,true,4,16),
-   ('00000000-0000-4000-8000-0000000000p1','x','private',60,'00000000-0000-4000-8000-000000000001','ski',true,true,null,null)
-   ON CONFLICT DO NOTHING;`.replace(",\n   ('00000000-0000-4000-8000-0000000000p1','x','private',60,'00000000-0000-4000-8000-000000000001','ski',true,true,null,null)", ''));
+   ('00000000-0000-4000-8000-0000000000b2','Samstag 2h','group',120,'00000000-0000-4000-8000-000000000001','ski',true,true,4,16);`);
   await sql.unsafe(`
   INSERT INTO products(id,name,type,duration_minutes,season_id,discipline,is_active,show_on_website) VALUES
    ('00000000-0000-4000-8000-0000000000d1','Privat 1h','private',60,'00000000-0000-4000-8000-000000000001','ski',true,true);
@@ -63,8 +59,8 @@ try {
    UNION ALL SELECT 'sa-'||d,'00000000-0000-4000-8000-000000000001','00000000-0000-4000-8000-0000000000b2','Samstagkurs','draft',d,120,1,CASE d WHEN 4 THEN 240 ELSE 290 END,'{"group_capacity":2}' FROM generate_series(4,5) d
    UNION ALL SELECT 'p1-'||n,'00000000-0000-4000-8000-000000000001','00000000-0000-4000-8000-0000000000d1','Privat','draft',1,60,n,70+20*n,'{}' FROM generate_series(1,2) n;
   INSERT INTO instructors(id,status,roles) VALUES
-   ('00000000-0000-4000-8000-00000000i001','active','{ski}'),('00000000-0000-4000-8000-00000000i002','active','{ski}');
-  `.replaceAll('00000000i00', '0000000f00'));
+   ('00000000-0000-4000-8000-00000000f001','active','{ski}'),('00000000-0000-4000-8000-00000000f002','active','{ski}');
+  `);
   // courses, periods, instances (md5 ids exactly like the production course import)
   await sql.unsafe(`
   INSERT INTO group_courses(id,name,discipline,min_age,max_age,max_participants,is_active,course_type,skill_level_id,product_id) VALUES
@@ -72,17 +68,17 @@ try {
    ('00000000-0000-4000-8000-0000000000c3','26/27 Ski Erwachsene','ski',17,99,2,false,'weekly','ski_adult_green','00000000-0000-4000-8000-0000000000e4'),
    ('00000000-0000-4000-8000-0000000000c5','26/27 Samstag Ski BK','ski',4,16,2,false,'saturday_course','ski_blauer_koenig','00000000-0000-4000-8000-0000000000b2');
   INSERT INTO training_groups(id,course_id,week_start,group_number,status) VALUES
-   ('00000000-0000-4000-8000-0000000000g1','00000000-0000-4000-8000-0000000000c1','2027-01-04',1,'active'),
-   ('00000000-0000-4000-8000-0000000000g3','00000000-0000-4000-8000-0000000000c3','2027-01-04',1,'active'),
-   ('00000000-0000-4000-8000-0000000000g5','00000000-0000-4000-8000-0000000000c5','2027-01-04',1,'active');
+   ('00000000-0000-4000-8000-00000000a0b1','00000000-0000-4000-8000-0000000000c1','2027-01-04',1,'active'),
+   ('00000000-0000-4000-8000-00000000a0b3','00000000-0000-4000-8000-0000000000c3','2027-01-04',1,'active'),
+   ('00000000-0000-4000-8000-00000000a0b5','00000000-0000-4000-8000-0000000000c5','2027-01-04',1,'active');
   INSERT INTO bc_2627_course_period_sources VALUES
-   ('weekday:2027-01-04:BK','00000000-0000-4000-8000-0000000000c1','00000000-0000-4000-8000-0000000000g1','sha',ARRAY['k4-1'],
+   ('weekday:2027-01-04:BK','00000000-0000-4000-8000-0000000000c1','00000000-0000-4000-8000-00000000a0b1','sha',ARRAY['k4-1'],
      ARRAY['2027-01-04','2027-01-05','2027-01-06','2027-01-07','2027-01-08']::date[],
      '{"00000000-0000-4000-8000-0000000000a4":[1,2,3,4,5],"00000000-0000-4000-8000-0000000000a2":[1,2,3],"00000000-0000-4000-8000-0000000000ff":[1]}'),
-   ('weekday:2027-01-04:AG','00000000-0000-4000-8000-0000000000c3','00000000-0000-4000-8000-0000000000g3','sha',ARRAY['e4-1'],
+   ('weekday:2027-01-04:AG','00000000-0000-4000-8000-0000000000c3','00000000-0000-4000-8000-00000000a0b3','sha',ARRAY['e4-1'],
      ARRAY['2027-01-04','2027-01-05','2027-01-06','2027-01-07','2027-01-08']::date[],
      '{"00000000-0000-4000-8000-0000000000e4":[1,2,3,4,5],"00000000-0000-4000-8000-0000000000c2":[1]}'),
-   ('saturday_series:2027-01-09:BK','00000000-0000-4000-8000-0000000000c5','00000000-0000-4000-8000-0000000000g5','sha',ARRAY['sa-5'],
+   ('saturday_series:2027-01-09:BK','00000000-0000-4000-8000-0000000000c5','00000000-0000-4000-8000-00000000a0b5','sha',ARRAY['sa-5'],
      ARRAY['2027-01-09','2027-01-16','2027-01-23','2027-01-30','2027-02-06']::date[],
      '{"00000000-0000-4000-8000-0000000000b2":[4,5]}');
   INSERT INTO bc_2627_course_product_variants VALUES
@@ -98,7 +94,7 @@ try {
           unnest(CASE WHEN ps.source_key LIKE 'saturday%' THEN ARRAY['10:00-12:00'] ELSE ARRAY['10:00-12:00','14:00-16:00'] END) b;
   INSERT INTO training_course_dates(training_id,date,is_cancelled)
    SELECT '00000000-0000-4000-8000-0000000000c5',d,d='2027-01-30' FROM unnest(ARRAY['2027-01-09','2027-01-16','2027-01-23','2027-01-30','2027-02-06']::date[]) d;
-  `.replaceAll('0000000000g', '00000000a0g').replaceAll('00000000a0g1', '00000000a0b1').replaceAll('00000000a0g3', '00000000a0b3').replaceAll('00000000a0g5', '00000000a0b5'));
+  `);
 
   const BK = 'weekday:2027-01-04:BK', AG = 'weekday:2027-01-04:AG', SA = 'saturday_series:2027-01-09:BK';
   const K4 = '00000000-0000-4000-8000-0000000000a4', K2 = '00000000-0000-4000-8000-0000000000a2', E4 = '00000000-0000-4000-8000-0000000000e4';
@@ -245,12 +241,12 @@ try {
     const ins = await sql`SELECT DISTINCT instructor_id FROM ticket_items WHERE ticket_id = ANY(${ok.map((r) => r.ticket_id)})`;
     assert.equal(ins.length, 2, 'two different instructors, no overlap');
     // instructor 1 absent on 13th: two-day booking must use instructor 2 for both days
-    await sql`INSERT INTO instructor_absences(instructor_id,start_date,end_date,status,is_full_day) VALUES ('00000000-0000-4000-8000-0000000f001','2027-01-13','2027-01-13','approved',true)`;
+    await sql`INSERT INTO instructor_absences(instructor_id,start_date,end_date,status,is_full_day) VALUES ('00000000-0000-4000-8000-00000000f001','2027-01-13','2027-01-13','approved',true)`;
     const two = await reserve(pp(9, [{ date: '2027-01-14', time_start: '10:00', time_end: '11:00' }, { date: '2027-01-13', time_start: '10:00', time_end: '11:00' }]));
     assert.equal(two.status, 'success', JSON.stringify(two));
     const tw = await sql`SELECT DISTINCT instructor_id::text FROM ticket_items WHERE ticket_id=${two.ticket_id}`;
-    assert.deepEqual(tw.map((x) => x.instructor_id), ['00000000-0000-4000-8000-0000000f002']);
-    await sql`INSERT INTO instructor_absences(instructor_id,start_date,end_date,status,is_full_day) VALUES ('00000000-0000-4000-8000-0000000f002','2027-01-15','2027-01-15','approved',true),('00000000-0000-4000-8000-0000000f001','2027-01-15','2027-01-15','approved',true)`;
+    assert.deepEqual(tw.map((x) => x.instructor_id), ['00000000-0000-4000-8000-00000000f002']);
+    await sql`INSERT INTO instructor_absences(instructor_id,start_date,end_date,status,is_full_day) VALUES ('00000000-0000-4000-8000-00000000f002','2027-01-15','2027-01-15','approved',true),('00000000-0000-4000-8000-00000000f001','2027-01-15','2027-01-15','approved',true)`;
     const before = await counts();
     const none = await reserve(pp(8, [{ date: '2027-01-15', time_start: '10:00', time_end: '11:00' }]));
     assert.equal(none.code, 'slot_unavailable'); assert.deepEqual(await counts(), before);
