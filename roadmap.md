@@ -69,3 +69,8 @@
 - [ ] #36 capacity policy (blocked: owner decision soft vs hard capacity)
 - [ ] #36 invoice-only checkout + immediate invoice delivery + OnePager (Robin repo push=false)
 - [ ] #36 online payment provider verification (separate from invoice-only checkout)
+
+## Controlled 26/27 lab transfer (run bc2627-run1, package lab-v4-7a9b66d)
+- [x] Mechanism, dry-run (51/51), rollback rehearsal, apply 51 sales, readback, idempotent re-run
+- [x] UI: capacity view shows booked inactive courses; unknown DOB shown as "unbekannt" / "? J." (family card, edit forms, capacity)
+- [ ] UI follow-up: remaining age calculations in booking wizard/lists for unknown DOB; merged-people filter in pickers
