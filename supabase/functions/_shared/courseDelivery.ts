@@ -17,7 +17,14 @@
  *   - first claim >= 24h ago             -> failed/unknown_outcome; only an
  *                                           explicit staff `force` resends,
  *                                           under a NEW key.
- * A known provider rejection (not sent) is retried with a new key.
+ * Only a definitive provider rejection (4xx except 408/409/429, or 0 = not
+ * attempted) is known not-sent and rotates the key on manual retry. Network,
+ * 5xx, 408/409/429 are `transport_unknown`: same key AND the frozen payload
+ * (stored with a SHA-256 digest before handing over) are reused, so a changed
+ * template/config can never produce a different mail under the same key.
+ * If the provider accepted but the `sent` write fails, the row stays leased
+ * in `sending` (outcome `unknown`) and recovery reconciles from
+ * provider_message_id / email_logs evidence.
  * Transport is injected; tests never send real e-mail.
  */
 import { activeConfirmationTemplate, buildVars, fillTemplate } from "./bookingDelivery.ts";
@@ -95,7 +102,7 @@ export interface DeliveryRow {
 
 export type AttemptMode = "auto" | "manual" | "recover";
 export type AttemptOutcome =
-  | "sent" | "failed" | "not_claimed" | "not_found" | "already_sent" | "needs_review" | "reconciled_sent";
+  | "sent" | "failed" | "unknown" | "not_claimed" | "not_found" | "already_sent" | "needs_review" | "reconciled_sent";
 
 export async function attemptDelivery(
   sb: Client,
@@ -117,8 +124,14 @@ export async function attemptDelivery(
   if (opts.mode === "auto" && row.status !== "pending") return { outcome: "not_claimed" };
   if (opts.mode === "recover") {
     if (row.status !== "sending" || !row.claimed_at || t - Date.parse(row.claimed_at) < LEASE_MS) return { outcome: "not_claimed" };
-    if (row.provider_message_id) {
-      const { data } = await sb.from("booking_email_deliveries").update({ status: "sent", sent_at: new Date(t).toISOString() })
+    let evidence = row.provider_message_id;
+    if (!evidence) {
+      const { data: logs } = await sb.from("email_logs").select("id, provider_message_id").eq("delivery_id", row.id)
+        .eq("status", "sent").not("provider_message_id", "is", null).limit(1);
+      evidence = logs?.[0]?.provider_message_id ?? null;
+    }
+    if (evidence) {
+      const { data } = await sb.from("booking_email_deliveries").update({ status: "sent", sent_at: new Date(t).toISOString(), provider_message_id: evidence })
         .eq("id", row.id).eq("attempts", row.attempts).eq("status", "sending").select("id").maybeSingle();
       return { outcome: data ? "reconciled_sent" : "not_claimed" };
     }
@@ -151,47 +164,95 @@ export async function attemptDelivery(
   if (!claimed) return { outcome: "not_claimed" };
 
   const fail = async (code: string, message: string, extra: Record<string, unknown> = {}) => {
-    await sb.from("booking_email_deliveries").update({ status: "failed", last_error_code: code, last_error: message.slice(0, 500), ...extra })
-      .eq("id", row.id).eq("attempts", row.attempts + 1);
+    const { data: w, error: we } = await sb.from("booking_email_deliveries")
+      .update({ status: "failed", last_error_code: code, last_error: message.slice(0, 500), ...extra })
+      .eq("id", row.id).eq("attempts", row.attempts + 1).eq("status", "sending").select("id").maybeSingle();
+    // If even this write fails the row stays leased in `sending` and is recovered later with the same key.
+    if (we || !w) return { outcome: "unknown" as const, code: "state_unpersisted" };
     return { outcome: "failed" as const, code };
   };
 
   let logId: string | null = null;
+  let handedOver = false; // from here on the provider MAY have accepted the mail
   try {
-    const sender = await resolveSender(sb);
-    if (!sender) return await fail("sender_not_configured", "Absender (Schul-E-Mail in den Einstellungen) fehlt");
-    const content = row.kind === "invoice" ? await invoiceContent(sb, row.ticket_id) : await confirmationContent(sb, row.ticket_id);
-    if (!content.ok) return await fail(content.code, content.message, content.templateId ? { template_id: content.templateId } : {});
+    // 1) Payload: reuse the frozen payload for the same provider key, otherwise render and freeze it.
+    let mail: Mail;
+    let templateId: string | null = null;
+    let invoiceId: string | null = null;
+    const frozen = claimed.frozen_payload as FrozenPayload | null;
+    if (frozen && frozen.mail?.idempotencyKey === providerKey) {
+      if ((await payloadDigest(frozen.mail)) !== claimed.payload_digest) {
+        return await fail("payload_digest_mismatch", "Gespeicherter Versandinhalt wurde verändert – manuelle Prüfung nötig");
+      }
+      mail = frozen.mail; templateId = frozen.template_id; invoiceId = frozen.invoice_id;
+    } else {
+      const sender = await resolveSender(sb);
+      if (!sender) return await fail("sender_not_configured", "Absender (Schul-E-Mail in den Einstellungen) fehlt");
+      const content = row.kind === "invoice" ? await invoiceContent(sb, row.ticket_id) : await confirmationContent(sb, row.ticket_id);
+      if (!content.ok) return await fail(content.code, content.message, content.templateId ? { template_id: content.templateId } : {});
+      mail = { from: sender, to: row.recipient_email, subject: content.subject, html: content.html, text: content.text ?? null,
+        attachments: content.attachments ?? [], idempotencyKey: providerKey };
+      templateId = content.templateId; invoiceId = content.invoiceId ?? null;
+      const fp: FrozenPayload = { mail, template_id: templateId, invoice_id: invoiceId };
+      const { data: fz, error: fe } = await sb.from("booking_email_deliveries")
+        .update({ frozen_payload: fp, payload_digest: await payloadDigest(mail), template_id: templateId })
+        .eq("id", row.id).eq("attempts", row.attempts + 1).eq("status", "sending").select("id").maybeSingle();
+      // Nothing handed to the provider yet: a definitive not-sent failure.
+      if (fe || !fz) return await fail("payload_freeze_failed", fe?.message ?? "Versandinhalt konnte nicht gespeichert werden");
+    }
 
     const { data: log } = await sb.from("email_logs").insert({
-      template_id: content.templateId, recipient_email: row.recipient_email, subject: content.subject, status: "queued",
-      delivery_id: row.id, metadata: { ticket_id: row.ticket_id, kind: row.kind, invoice_id: content.invoiceId ?? null },
+      template_id: templateId, recipient_email: mail.to, subject: mail.subject, status: "queued",
+      delivery_id: row.id, metadata: { ticket_id: row.ticket_id, kind: row.kind, invoice_id: invoiceId, provider_idempotency_key: providerKey },
     }).select("id").single();
     logId = log?.id ?? null;
 
+    // 2) Transport.
+    handedOver = true;
     let r: TransportResult;
     try {
-      r = await transport({ from: sender, to: row.recipient_email, subject: content.subject, html: content.html, text: content.text,
-        attachments: content.attachments, idempotencyKey: providerKey });
+      r = await transport(mail);
     } catch (e) {
-      // Outcome unknown (network): keep the provider key so a retry within 24h is deduplicated.
       if (logId) await sb.from("email_logs").update({ status: "failed", error_message: String(e).slice(0, 500) }).eq("id", logId);
-      return await fail("transport_unknown", e instanceof Error ? e.message : String(e), { template_id: content.templateId, email_log_id: logId });
+      return await fail("transport_unknown", e instanceof Error ? e.message : String(e), { email_log_id: logId });
     }
     if (!r.ok) {
+      const definitive = isDefinitiveRejection(r.status);
       if (logId) await sb.from("email_logs").update({ status: "failed", error_message: r.error }).eq("id", logId);
-      return await fail("provider_error", r.error, { template_id: content.templateId, email_log_id: logId });
+      // Only a definitive rejection is known "not sent"; network/5xx/409/429 keep key + payload.
+      return await fail(definitive ? "provider_error" : "transport_unknown", `${r.status ?? "?"}: ${r.error}`, { email_log_id: logId });
     }
+
+    // 3) Durable sent state. Provider accepted: never report `sent` unless it is persisted.
     const sentAt = new Date(now()).toISOString();
     if (logId) await sb.from("email_logs").update({ status: "sent", sent_at: sentAt, provider_message_id: r.id }).eq("id", logId);
-    await sb.from("booking_email_deliveries").update({
-      status: "sent", sent_at: sentAt, provider_message_id: r.id || null, template_id: content.templateId,
+    const { data: done, error: de } = await sb.from("booking_email_deliveries").update({
+      status: "sent", sent_at: sentAt, provider_message_id: r.id || null,
       email_log_id: logId, last_error_code: null, last_error: null,
-    }).eq("id", row.id);
+    }).eq("id", row.id).eq("attempts", row.attempts + 1).eq("status", "sending").select("id").maybeSingle();
+    if (de || !done) {
+      // Keep the row leased in `sending`; record the provider id as evidence for recovery.
+      if (r.id) await sb.from("booking_email_deliveries").update({ provider_message_id: r.id }).eq("id", row.id).eq("status", "sending");
+      return { outcome: "unknown", code: "sent_state_unpersisted" };
+    }
     return { outcome: "sent" };
   } catch (e) {
+    if (handedOver) return { outcome: "unknown", code: "post_send_exception" }; // leave leased; recover with same key
     return await fail("exception", e instanceof Error ? e.message : String(e), { email_log_id: logId });
   }
+}
+
+interface FrozenPayload { mail: Mail; template_id: string | null; invoice_id: string | null }
+
+/** 4xx (except 408/409/429) and 0 (not attempted) mean the provider definitively did not send. */
+export const isDefinitiveRejection = (status?: number) =>
+  status !== undefined && (status === 0 || (status >= 400 && status < 500 && ![408, 409, 429].includes(status)));
+
+export async function payloadDigest(m: Mail): Promise<string> {
+  const canon = JSON.stringify([m.from, m.to, m.subject, m.html, m.text ?? null,
+    (m.attachments ?? []).map((a) => [a.filename, a.content_type, a.content]), m.idempotencyKey]);
+  const h = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(canon));
+  return Array.from(new Uint8Array(h), (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
 type Content =

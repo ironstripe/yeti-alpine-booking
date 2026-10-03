@@ -64,7 +64,7 @@ async function deliver(sb: Client, ticketId: string, email: string, transport: T
       if (!row) continue;
       if (row.status === "pending") {
         const r = await attemptDelivery(sb, row.id, transport, { mode: "auto" });
-        out[kind] = r.outcome === "sent" ? "sent" : r.outcome === "not_claimed" ? "sending" : "failed";
+        out[kind] = r.outcome === "sent" ? "sent" : r.outcome === "not_claimed" || r.outcome === "unknown" ? "sending" : "failed";
       } else out[kind] = row.status;
     } catch (e) {
       console.error(`course-booking delivery ${kind}:`, (e as Error).message);

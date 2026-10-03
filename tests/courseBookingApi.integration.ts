@@ -92,9 +92,11 @@ try {
 
   // ---- mocked transport: records mails, never sends ----
   const sent: Mail[] = [];
-  let mode: "ok" | "fail" | "throw" = "ok";
+  let mode: "ok" | "fail" | "throw" | "s500" | "s409" = "ok";
   const transport: Transport = async (m) => {
     if (mode === "throw") throw new Error("network down (simulated)");
+    if (mode === "s500") return { ok: false, error: "internal (simulated)", status: 500 };
+    if (mode === "s409") return { ok: false, error: "idempotency conflict (simulated)", status: 409 };
     if (mode === "fail") return { ok: false, error: "rejected (simulated)", status: 422 };
     sent.push(m); return { ok: true, id: `mock-${sent.length}` };
   };
@@ -363,6 +365,8 @@ try {
     assertEquals(rec.body.recovered.find((x: any) => x.id === conf.id).outcome, "sent");
     assertEquals(sent.at(-1)!.idempotencyKey, conf.provider_idempotency_key ?? conf.idempotency_key);
     // stuck beyond provider dedupe window -> needs review, then explicit force -> new key
+    // (no sent evidence in email_logs either, otherwise recovery correctly reconciles to sent)
+    await sql`UPDATE email_logs SET status='failed', provider_message_id=NULL WHERE delivery_id=${conf.id}`;
     await sql`UPDATE booking_email_deliveries SET status='sending', provider_message_id=NULL, claimed_at=now()-interval '25 hours', first_claimed_at=now()-interval '25 hours' WHERE id=${conf.id}`;
     const rec2 = await staffCall({ action: "recover_stuck" });
     assertEquals(rec2.body.recovered.find((x: any) => x.id === conf.id).outcome, "needs_review");
@@ -375,6 +379,64 @@ try {
     const before = sent.length;
     const rec3 = await staffCall({ action: "recover_stuck" });
     assertEquals(rec3.body.recovered.find((x: any) => x.id === conf.id).outcome, "reconciled_sent"); assertEquals(sent.length, before);
+  });
+
+  await t("delivery unknown outcomes: 500/409 keep key + frozen payload; accepted but sent-write fails stays recoverable; >24h review; tampered payload", async () => {
+    const people = [kid("u")];
+    const r = (await call(reserveBody(people, [groupSel("u", ["2027-01-06"])]))).body;
+    mode = "s500";
+    const c = await call(completeBody(r, people, "u500@example.invalid"));
+    mode = "ok";
+    assertEquals(c.body.delivery, { invoice: "failed", booking_confirmation: "failed" });
+    const inv = (await deliveriesOf(r.ticket_id)).find((x) => x.kind === "invoice")!;
+    assertEquals(inv.last_error_code, "transport_unknown");
+    assertEquals(inv.provider_idempotency_key, inv.idempotency_key);
+    const frozen = inv.frozen_payload.mail;
+    clock = Date.now();
+    // template edited after a possibly-sent attempt: must NOT change the mail under the same key
+    await sql`UPDATE email_templates SET subject = subject || ' GEAENDERT' WHERE trigger='invoice.created'`;
+    mode = "s409";
+    const s1 = await staffCall({ action: "retry", delivery_id: inv.id });
+    mode = "ok";
+    assertEquals(s1.body.code, "transport_unknown");
+    const a409 = (await deliveriesOf(r.ticket_id)).find((x) => x.kind === "invoice")!;
+    assertEquals(a409.provider_idempotency_key, inv.idempotency_key);
+    assertEquals(a409.payload_digest, inv.payload_digest);
+    const s2 = await staffCall({ action: "retry", delivery_id: inv.id });
+    assertEquals(s2.body.status, "sent");
+    assertEquals(sent.at(-1), frozen); // identical payload incl. key, no re-render
+    assertEquals(sent.at(-1)!.subject.includes("GEAENDERT"), false);
+    await sql`UPDATE email_templates SET subject = replace(subject, ' GEAENDERT', '') WHERE trigger='invoice.created'`;
+
+    // provider accepted, but the durable 'sent' write fails -> not reported sent, stays leased
+    const conf = (await deliveriesOf(r.ticket_id)).find((x) => x.kind === "booking_confirmation")!;
+    await sql.unsafe(`CREATE OR REPLACE FUNCTION pg_temp_block_sent() RETURNS trigger LANGUAGE plpgsql AS $f$ BEGIN RAISE EXCEPTION 'simulated db failure'; END $f$`);
+    await sql.unsafe(`CREATE TRIGGER zz_block_sent BEFORE UPDATE ON booking_email_deliveries FOR EACH ROW WHEN (NEW.status = 'sent') EXECUTE FUNCTION pg_temp_block_sent()`);
+    let s3;
+    try { s3 = await staffCall({ action: "retry", delivery_id: conf.id }); }
+    finally { await sql.unsafe(`DROP TRIGGER zz_block_sent ON booking_email_deliveries; DROP FUNCTION pg_temp_block_sent()`); }
+    assertEquals(s3.body.success, false); assertEquals(s3.body.status, "unknown"); assertEquals(s3.body.code, "sent_state_unpersisted");
+    const acceptedId = `mock-${sent.length}`;
+    const stuck = (await deliveriesOf(r.ticket_id)).find((x) => x.kind === "booking_confirmation")!;
+    assertEquals(stuck.status, "sending"); assertEquals(stuck.provider_message_id, acceptedId);
+    // recovery from email_logs evidence alone (even without provider id on the row): no resend
+    await sql`UPDATE booking_email_deliveries SET provider_message_id=NULL, claimed_at=now()-interval '20 minutes' WHERE id=${conf.id}`;
+    const before = sent.length;
+    clock = Date.now();
+    const rec = await staffCall({ action: "recover_stuck" });
+    assertEquals(rec.body.recovered.find((x: any) => x.id === conf.id).outcome, "reconciled_sent");
+    assertEquals(sent.length, before);
+    assertEquals((await deliveriesOf(r.ticket_id)).find((x) => x.kind === "booking_confirmation")!.provider_message_id, acceptedId);
+
+    // unknown outcome older than the 24h provider dedupe window -> manual review, nothing sent
+    await sql`UPDATE booking_email_deliveries SET status='failed', last_error_code='transport_unknown', provider_message_id=NULL, first_claimed_at=now()-interval '25 hours' WHERE id=${inv.id}`;
+    const old = await staffCall({ action: "retry", delivery_id: inv.id });
+    assertEquals(old.status, 409); assertEquals(old.body.error, "unknown_outcome_requires_force"); assertEquals(sent.length, before);
+
+    // frozen payload modified in storage -> digest mismatch, nothing sent
+    await sql`UPDATE booking_email_deliveries SET first_claimed_at=now()-interval '1 hour', frozen_payload=jsonb_set(frozen_payload, '{mail,to}', '"other@example.invalid"') WHERE id=${inv.id}`;
+    const tam = await staffCall({ action: "retry", delivery_id: inv.id });
+    assertEquals(tam.body.code, "payload_digest_mismatch"); assertEquals(sent.length, before);
   });
 
   await t("private lesson via API: native appointments + participants + billing line; one invoice", async () => {
