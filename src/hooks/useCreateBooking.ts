@@ -462,18 +462,12 @@ export function useCreateBooking() {
           let participantProductId = productId;
           let participantUnitPrice = unitPrice;
 
-          if (pBooking.productType === "group" && pBooking.groupCourseId) {
-            // Fetch group course product
-            const { data: course } = await supabase
-              .from("group_courses")
-              .select("product_id, price_per_day")
-              .eq("id", pBooking.groupCourseId)
-              .single();
-
-            if (course?.product_id) {
-              participantProductId = course.product_id;
-              participantUnitPrice = course.price_per_day || 0;
-            }
+          if (pBooking.productType === "group") {
+            // Price validated by the #15 preflight; never 0, never a fallback.
+            const pre = pBooking.groupCourseId ? groupPricing.get(pBooking.groupCourseId) : undefined;
+            if (!pre) throw new Error("Gruppenkurs-Preis nicht geprüft – Buchung abgebrochen.");
+            participantProductId = pre.productId;
+            participantUnitPrice = pre.unitPrice;
           } else if (pBooking.productType === "private" && pBooking.startTime && pBooking.endTime) {
             // Calculate private lesson price for this participant
             const firstDate = pBooking.dates[0] ? new Date(pBooking.dates[0]) : new Date();
