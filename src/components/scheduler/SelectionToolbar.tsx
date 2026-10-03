@@ -104,8 +104,8 @@ export function SelectionToolbar({ className, bookings = [] }: SelectionToolbarP
       <div className="mb-1 font-medium text-foreground">Geplante Termine</div>
       <ul className="space-y-1">
         {sortedSelections.map((s) => (
-          <li key={s.id} className="flex items-center justify-between gap-3 text-muted-foreground">
-            <span>
+          <li key={s.id} className="flex min-w-0 items-center justify-between gap-3 text-muted-foreground">
+            <span className="min-w-0 break-words">
               {new Date(s.date).toLocaleDateString("de-CH", { weekday: "short", day: "2-digit", month: "2-digit" })}
               {" · "}
               {s.startTime}–{s.endTime}
@@ -120,7 +120,7 @@ export function SelectionToolbar({ className, bookings = [] }: SelectionToolbarP
               size="icon"
               aria-label="Termin entfernen"
               onClick={() => removeSelection(s.id)}
-              className="h-6 w-6 shrink-0"
+              className="icon-action shrink-0"
             >
               <X className="h-3 w-3" />
             </Button>
@@ -208,23 +208,23 @@ export function SelectionToolbar({ className, bookings = [] }: SelectionToolbarP
       <div
         className={cn(
           "fixed bottom-20 left-1/2 -translate-x-1/2 z-50",
-          "bg-background border rounded-lg shadow-lg p-3",
-          "flex items-center gap-4",
+          "w-[min(calc(100vw-2rem),64rem)] max-w-full rounded-lg border bg-background p-3 shadow-lg",
+          "flex flex-wrap items-center justify-between gap-3",
           "animate-in slide-in-from-bottom-4 duration-300",
           className
         )}
       >
         {/* Selection Info */}
-        <div className="flex flex-col">
+        <div className="min-w-0 flex-1">
           {plannedList}
           {summary}
         </div>
 
         {/* Divider */}
-        <div className="h-6 w-px bg-border" />
+        <div className="hidden h-6 w-px bg-border lg:block" />
 
         {/* Actions */}
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center justify-end gap-2">
           <Button
             variant="ghost"
             size="sm"
@@ -246,7 +246,6 @@ export function SelectionToolbar({ className, bookings = [] }: SelectionToolbarP
             variant="outline"
             size="sm"
             onClick={handleMarkOfficeHours}
-            className="border-purple-300 text-purple-700 hover:bg-purple-50 hover:text-purple-800"
           >
             <Building className="h-4 w-4 mr-1" />
             Bürodienst
