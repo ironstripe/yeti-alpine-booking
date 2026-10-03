@@ -4100,6 +4100,7 @@ export type Database = {
           pricing_type: string | null
           reporting_category: string | null
           season_id: string
+          show_on_website: boolean
           sort_order: number | null
           type: string
           vat_rate: number | null
@@ -4121,6 +4122,7 @@ export type Database = {
           pricing_type?: string | null
           reporting_category?: string | null
           season_id: string
+          show_on_website?: boolean
           sort_order?: number | null
           type: string
           vat_rate?: number | null
@@ -4142,6 +4144,7 @@ export type Database = {
           pricing_type?: string | null
           reporting_category?: string | null
           season_id?: string
+          show_on_website?: boolean
           sort_order?: number | null
           type?: string
           vat_rate?: number | null
