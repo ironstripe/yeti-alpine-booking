@@ -55,7 +55,7 @@ export function MobileHeader() {
             <Menu className="h-5 w-5" />
           </Button>
         </SheetTrigger>
-        <SheetContent side="left" className="flex h-full w-80 flex-col p-0">
+        <SheetContent side="left" className="z-[51] flex h-full w-80 flex-col p-0">
           <SheetHeader className="h-14 px-4 border-b border-border flex flex-row items-center justify-between">
             <SheetTitle className="font-display font-bold text-xl text-primary">
               YETY

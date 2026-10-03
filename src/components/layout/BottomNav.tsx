@@ -94,7 +94,7 @@ export function BottomNav() {
                   </span>
                 </Button>
               </SheetTrigger>
-              <SheetContent side="bottom" className="flex max-h-[70vh] flex-col rounded-t-2xl">
+              <SheetContent side="bottom" className="z-[51] flex max-h-[70vh] flex-col rounded-t-2xl">
                 <SheetHeader className="pb-4">
                   <SheetTitle className="text-left">Mehr</SheetTitle>
                 </SheetHeader>
