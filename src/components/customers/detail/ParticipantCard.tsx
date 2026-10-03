@@ -325,9 +325,9 @@ export function ParticipantCard({ participant, customerId }: ParticipantCardProp
             <div className="flex justify-between">
               <span className="text-muted-foreground">Geburtsdatum:</span>
               <span>
-                {format(new Date(participant.birth_date), "d. MMMM yyyy", {
-                  locale: de,
-                })}
+                {participant.birth_date
+                  ? format(new Date(participant.birth_date), "d. MMMM yyyy", { locale: de })
+                  : "unbekannt"}
               </span>
             </div>
             {participant.notes && (
