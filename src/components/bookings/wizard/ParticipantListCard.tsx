@@ -360,7 +360,7 @@ export function ParticipantListCard({
                   name="level_current_season"
                   render={({ field }) => {
                     const birthDateValue = form.watch("birth_date");
-                    const levelOpts = getLevelOptionsForAge(birthDateValue ?? null);
+                    const levelOpts = getLevelOptionsForAge(birthDateValue ?? null, form.watch("sport"));
                     return (
                       <FormItem>
                         <FormLabel className="text-xs">Level</FormLabel>

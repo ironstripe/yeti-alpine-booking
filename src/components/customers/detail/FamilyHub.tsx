@@ -25,7 +25,7 @@ import { cn } from "@/lib/utils";
 import { Participant } from "@/hooks/useCustomerDetail";
 import { useCreateParticipant } from "@/hooks/useParticipants";
 import { ParticipantCard } from "./ParticipantCard";
-import { LEVEL_OPTIONS } from "@/lib/participant-utils";
+import { getLevelOptionsForAge } from "@/lib/level-utils";
 
 const MAX_PARTICIPANTS = 10;
 
@@ -77,6 +77,7 @@ export function FamilyHub({
 
   const watchedBirthDate = watch("birth_date");
   const watchedSport = watch("sport");
+  const levelOptions = getLevelOptionsForAge(watchedBirthDate ?? null, watchedSport);
 
   const isAtLimit = safeParticipants.length >= MAX_PARTICIPANTS;
 
@@ -178,7 +179,7 @@ export function FamilyHub({
                       <SelectValue placeholder="Level wählen" />
                     </SelectTrigger>
                     <SelectContent>
-                      {LEVEL_OPTIONS.map((level) => (
+                      {levelOptions.map((level) => (
                         <SelectItem key={level.value} value={level.value}>
                           {level.label}
                         </SelectItem>
@@ -196,7 +197,7 @@ export function FamilyHub({
                       <SelectValue placeholder="Level wählen" />
                     </SelectTrigger>
                     <SelectContent>
-                      {LEVEL_OPTIONS.map((level) => (
+                      {levelOptions.map((level) => (
                         <SelectItem key={level.value} value={level.value}>
                           {level.label}
                         </SelectItem>

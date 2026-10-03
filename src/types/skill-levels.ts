@@ -61,12 +61,12 @@ export interface ParticipantLevelHistory {
 }
 
 /**
- * Determine if participant is a child (< 16 years)
+ * Determine if participant uses children's course levels (through age 16)
  */
 export function isChild(birthDate: string | null): boolean {
   if (!birthDate) return true; // Default to child if no birth date
   const age = differenceInYears(new Date(), new Date(birthDate));
-  return age < 16;
+  return age <= 16;
 }
 
 /**
@@ -108,8 +108,8 @@ export function getSkillBadgeClass(color: SkillColor | null): string {
  * Children use trainings (group_courses) directly for their levels
  */
 export const ADULT_LEVEL_OPTIONS: { value: AdultSelfAssessment; label: string; description: string }[] = [
-  { value: 'green', label: 'Anfänger', description: 'Kompletter Anfänger, keine Erfahrung' },
-  { value: 'blue', label: 'Fortgeschritten', description: 'Fährt blaue Pisten sicher' },
-  { value: 'red', label: 'Geübt', description: 'Fährt rote Pisten sicher' },
-  { value: 'black', label: 'Experte', description: 'Fährt schwarze Pisten sicher' },
+  { value: 'green', label: 'Grün (Anfänger)', description: 'Kompletter Anfänger, keine Erfahrung' },
+  { value: 'blue', label: 'Blau (blaue Pisten)', description: 'Fährt blaue Pisten sicher' },
+  { value: 'red', label: 'Rot (rote Pisten)', description: 'Fährt rote Pisten sicher' },
+  { value: 'black', label: 'Schwarz (schwarze Pisten)', description: 'Fährt schwarze Pisten sicher' },
 ];

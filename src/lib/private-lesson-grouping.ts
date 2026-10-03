@@ -46,6 +46,7 @@ const MAX_GROUP_SIZE = 5;
 const CHILD_LEVEL_SORT_ORDER: Record<string, number> = {
   // Ski children
   windel_wedel: 1,
+  ski_windel_wedel: 1,
   anfaenger: 1,
   snow_kids_village: 2,
   snow_kids: 2,
@@ -65,6 +66,8 @@ const CHILD_LEVEL_SORT_ORDER: Record<string, number> = {
   schwarzer_prinz: 9,
   black_king: 10,
   academy: 10,
+  sb_red_academy: 8,
+  sb_academy: 10,
 };
 
 /** Map adult color levels to sort_order */
@@ -89,13 +92,13 @@ const ADULT_TO_CHILD_TIER: Record<number, [number, number]> = {
 
 /** Labels for display */
 const LEVEL_LABELS: Record<string, string> = {
-  green: "🟢 Anfänger",
+  green: "Grün (Anfänger)",
   anfaenger: "🟢 Anfänger",
-  blue: "🔵 Fortgeschritten",
+  blue: "Blau (blaue Pisten)",
   fortgeschritten: "🔵 Fortgeschritten",
-  red: "🔴 Geübt",
+  red: "Rot (rote Pisten)",
   geuebt: "🔴 Geübt",
-  black: "⚫ Experte",
+  black: "Schwarz (schwarze Pisten)",
   experte: "⚫ Experte",
   windel_wedel: "Windel Wedel",
   snow_kids_village: "Snow Kids",
@@ -116,6 +119,8 @@ const LEVEL_LABELS: Record<string, string> = {
   schwarzer_prinz: "Academy Rookie",
   black_king: "Swiss Snow Academy",
   academy: "Swiss Snow Academy",
+  sb_red_academy: "Red Academy",
+  sb_academy: "Swiss Snow Academy",
 };
 
 // ── Helpers ────────────────────────────────────────────────────────
