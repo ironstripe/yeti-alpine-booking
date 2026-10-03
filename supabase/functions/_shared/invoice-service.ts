@@ -126,17 +126,19 @@ export async function issueInvoice(
   input: IssueInvoiceInput,
 ): Promise<IssueInvoiceResult> {
   // 1. Idempotency — never create a second open invoice for the same ticket.
+  //    An open invoice wins; a draft left behind by an interrupted issuance is resumed.
+  let resumeDraft: Record<string, any> | null = null;
   if (!input.allowAdditional) {
     const { data: existing } = await supabase
       .from("invoices")
       .select("*")
       .eq("ticket_id", input.ticketId)
       .not("status", "in", '("cancelled","void")')
-      .order("created_at", { ascending: false })
-      .limit(1);
-    if (existing && existing.length > 0) {
-      return { ok: true, invoice: existing[0] };
-    }
+      .order("created_at", { ascending: false });
+    const rows = (existing ?? []) as Array<Record<string, any>>;
+    const issuedRow = rows.find((r) => r.status !== "draft");
+    if (issuedRow) return { ok: true, invoice: issuedRow };
+    resumeDraft = rows[0] ?? null;
   }
 
   // 2. Billing party
@@ -145,7 +147,7 @@ export async function issueInvoice(
 
   // 3. Currency — from the invoice/ticket, never inferred from country.
   const currency = (input.currency ?? "CHF").toUpperCase();
-  const dueDate = addDays(input.dueDays ?? 14);
+  const dueDate = resumeDraft?.due_date ?? addDays(input.dueDays ?? 14);
 
   // 4. Dry-run routing before anything is written.
   const profiles = await loadPaymentProfiles(supabase);
@@ -163,23 +165,34 @@ export async function issueInvoice(
   }
 
   // 5. Create the invoice so the invoice number exists (reference is derived from it).
-  const { data: created, error: createError } = await supabase
-    .from("invoices")
-    .insert({
-      ticket_id: input.ticketId,
-      customer_id: customerId,
-      subtotal: input.subtotal,
-      discount: input.discount ?? 0,
-      total: input.total,
-      currency,
-      qr_reference: "",
-      due_date: dueDate,
-      status: "draft",
-      created_by: input.actorUserId ?? null,
-    })
-    .select("*")
-    .single();
-  if (createError) return { ok: false, error_code: "INSERT_FAILED", error: createError.message };
+  //    Only the exact invoice-number unique conflict (legacy unserialized number
+  //    generation under concurrency) is retried, a bounded number of times.
+  let created: Record<string, any> | null = resumeDraft;
+  for (let attempt = 0; !created; attempt++) {
+    const { data, error: createError } = await supabase
+      .from("invoices")
+      .insert({
+        ticket_id: input.ticketId,
+        customer_id: customerId,
+        subtotal: input.subtotal,
+        discount: input.discount ?? 0,
+        total: input.total,
+        currency,
+        qr_reference: "",
+        due_date: dueDate,
+        status: "draft",
+        created_by: input.actorUserId ?? null,
+      })
+      .select("*")
+      .single();
+    if (!createError) { created = data; break; }
+    const numberConflict = createError.code === "23505" && String(createError.message ?? "").includes("invoices_invoice_number_key");
+    if (!numberConflict || attempt >= 4) return { ok: false, error_code: "INSERT_FAILED", error: createError.message };
+  }
+  if (!created) return { ok: false, error_code: "INSERT_FAILED", error: "no invoice row" };
+  if (Number(created.total) !== Number(input.total) || (created.customer_id ?? null) !== (customerId ?? null)) {
+    return { ok: false, error_code: "DRAFT_MISMATCH", error: "Vorhandener Rechnungsentwurf passt nicht zu Betrag/Kunde" };
+  }
 
   // 6. Route with the final invoice number.
   const routing = routePayment({
