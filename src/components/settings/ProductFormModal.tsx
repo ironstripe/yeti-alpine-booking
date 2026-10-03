@@ -234,11 +234,11 @@ export function ProductFormModal({ open, onOpenChange, product, seasonId, isBook
 
   return (
     <Dialog open={open} onOpenChange={dismiss.requestClose}>
-      <DialogContent hideCloseButton={isPending} className="max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
-        <DialogHeader>
+      <DialogContent hideCloseButton={isPending} className="flex max-h-[90vh] w-[calc(100%-2rem)] max-w-2xl flex-col gap-0 overflow-hidden p-0">
+        <DialogHeader className="shrink-0 border-b px-5 py-5 pr-16 sm:px-6 sm:pr-16">
           <DialogTitle>{isEditing ? "Produkt bearbeiten" : "Neues Produkt"}</DialogTitle>
         </DialogHeader>
-        <ScrollArea className="flex-1 overflow-auto max-h-[calc(90vh-140px)] pr-4">
+        <ScrollArea className="min-h-0 flex-1 px-5 py-5 sm:px-6">
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 pb-4">
               {/* Product Type */}
@@ -377,7 +377,7 @@ export function ProductFormModal({ open, onOpenChange, product, seasonId, isBook
 
 
               {/* Age constraints - optional for all product types */}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-4 sm:grid-cols-2">
                 <FormField
                   control={form.control}
                   name="min_age"
@@ -432,7 +432,7 @@ export function ProductFormModal({ open, onOpenChange, product, seasonId, isBook
                         <RadioGroup
                           value={field.value}
                           onValueChange={field.onChange}
-                          className="grid grid-cols-3 gap-3"
+                          className="grid gap-3 sm:grid-cols-3"
                         >
                           <label className={cn(
                             "flex flex-col items-center p-4 border rounded-lg cursor-pointer transition-colors",
@@ -482,7 +482,7 @@ export function ProductFormModal({ open, onOpenChange, product, seasonId, isBook
 
               {/* Fixed/Hourly Price Input */}
               {(pricingType === "fixed" || pricingType === "hourly") && (
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-4 sm:grid-cols-2">
                   <FormField
                     control={form.control}
                     name="price"
@@ -612,7 +612,7 @@ export function ProductFormModal({ open, onOpenChange, product, seasonId, isBook
                   {priceTiers.some(t => t.cumulative_price > 0) && (
                     <div className="mt-4 p-4 bg-background rounded-lg border">
                       <div className="text-sm font-medium mb-3">Kundenansicht (Vorschau):</div>
-                      <div className="grid grid-cols-5 gap-2">
+                      <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
                         {tiersWithDayPrice
                           .filter(t => t.cumulative_price > 0)
                           .map(tier => {
@@ -719,7 +719,7 @@ export function ProductFormModal({ open, onOpenChange, product, seasonId, isBook
             </form>
           </Form>
         </ScrollArea>
-        <DialogFooter className="pt-4 border-t">
+        <DialogFooter className="shrink-0 gap-2 border-t bg-background px-5 py-4 sm:px-6">
           <Button type="button" variant="outline" onClick={() => dismiss.requestClose(false)} disabled={isPending}>
             Abbrechen
           </Button>
