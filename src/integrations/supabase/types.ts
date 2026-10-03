@@ -132,6 +132,87 @@ export type Database = {
         }
         Relationships: []
       }
+      bc_2627_course_period_sources: {
+        Row: {
+          course_id: string
+          eligible_variants: Json
+          imported_at: string
+          source_key: string
+          source_sha256: string
+          tariff_source_ids: string[]
+          teaching_dates: string[]
+          training_group_id: string
+        }
+        Insert: {
+          course_id: string
+          eligible_variants: Json
+          imported_at?: string
+          source_key: string
+          source_sha256: string
+          tariff_source_ids: string[]
+          teaching_dates: string[]
+          training_group_id: string
+        }
+        Update: {
+          course_id?: string
+          eligible_variants?: Json
+          imported_at?: string
+          source_key?: string
+          source_sha256?: string
+          tariff_source_ids?: string[]
+          teaching_dates?: string[]
+          training_group_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bc_2627_course_period_sources_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "group_courses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bc_2627_course_period_sources_training_group_id_fkey"
+            columns: ["training_group_id"]
+            isOneToOne: false
+            referencedRelation: "training_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bc_2627_course_product_variants: {
+        Row: {
+          course_id: string
+          eligible_day_counts: number[]
+          product_id: string
+        }
+        Insert: {
+          course_id: string
+          eligible_day_counts: number[]
+          product_id: string
+        }
+        Update: {
+          course_id?: string
+          eligible_day_counts?: number[]
+          product_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bc_2627_course_product_variants_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "group_courses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bc_2627_course_product_variants_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bc_product_tariff_sources: {
         Row: {
           created_at: string
@@ -5943,6 +6024,10 @@ export type Database = {
         Returns: Json
       }
       queue_confirmation_reminders: { Args: never; Returns: number }
+      quote_bc_2627_product: {
+        Args: { p_items: Json; p_participants: number; p_product_id: string }
+        Returns: Json
+      }
       respond_to_participant_transfer: {
         Args: { p_request_id: string; p_response: string }
         Returns: Json
