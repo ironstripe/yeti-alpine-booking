@@ -3,11 +3,13 @@ import { useNavigate } from "react-router-dom";
 import { format, startOfDay, parseISO } from "date-fns";
 import { de } from "date-fns/locale";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -380,17 +382,40 @@ export function BookingDetailDialog({
   const selectedInstructor = filteredInstructors.find(i => i.id === instructorId);
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <FileText className="h-5 w-5" />
-            Buchungsdetails
-          </DialogTitle>
-        </DialogHeader>
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent
+        side="right"
+        overlayClassName="bg-foreground/35"
+        closeButtonClassName="icon-action"
+        closeLabel="Buchungsdetails schliessen"
+        className="flex h-full w-full flex-col gap-0 p-0 sm:w-[520px] sm:max-w-[520px]"
+      >
+        <SheetHeader className="shrink-0 border-b py-5 pl-5 pr-16 text-left sm:pl-6 sm:pr-16">
+          <SheetTitle className="flex min-w-0 items-start gap-2 break-words text-left">
+            <FileText className="mt-0.5 h-5 w-5 shrink-0" />
+            <span className="min-w-0 break-words">
+              {booking?.ticket?.ticketNumber ? `Buchung ${booking.ticket.ticketNumber}` : "Buchungsdetails"}
+            </span>
+          </SheetTitle>
+          <SheetDescription className="sr-only">
+            Buchungsdetails ansehen und bearbeiten
+          </SheetDescription>
+          {!isLoading && booking && (
+            <div className="flex flex-wrap items-center gap-2 pt-1">
+              <span className="break-all text-sm text-muted-foreground">
+                Ticket #{booking.ticket?.ticketNumber}
+              </span>
+              <Badge className={isPaid ? "bg-success text-success-foreground" : "bg-warning text-warning-foreground"}>
+                <CreditCard className="mr-1 h-3 w-3" />
+                {isPaid ? "Bezahlt" : "Offen"}
+              </Badge>
+            </div>
+          )}
+        </SheetHeader>
 
-        {isLoading && (
-          <div className="space-y-4">
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5 sm:px-6">
+          {isLoading && (
+          <div className="space-y-4" aria-label="Buchungsdetails werden geladen">
             <Skeleton className="h-6 w-32" />
             <Skeleton className="h-20 w-full" />
             <Skeleton className="h-20 w-full" />
@@ -399,49 +424,6 @@ export function BookingDetailDialog({
 
         {!isLoading && booking && (
           <div className="space-y-4">
-            {/* Header with Ticket Number and Status */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground">
-                  Ticket #{booking.ticket?.ticketNumber}
-                </span>
-                <Badge variant={isPaid ? "default" : "destructive"}>
-                  <CreditCard className="h-3 w-3 mr-1" />
-                  {isPaid ? "Bezahlt" : "Offen"}
-                </Badge>
-              </div>
-              {!isEditing && (
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <span>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setIsEditing(true)}
-                          disabled={!editableStatus.editable}
-                        >
-                          {editableStatus.editable ? (
-                            <Pencil className="h-4 w-4 mr-1" />
-                          ) : (
-                            <Lock className="h-4 w-4 mr-1" />
-                          )}
-                          Bearbeiten
-                        </Button>
-                      </span>
-                    </TooltipTrigger>
-                    {!editableStatus.editable && (
-                      <TooltipContent>
-                        <p>{editableStatus.reason}</p>
-                      </TooltipContent>
-                    )}
-                  </Tooltip>
-                </TooltipProvider>
-              )}
-            </div>
-
-            <Separator />
-
             {/* Course Info */}
             <div className="space-y-3">
               <h4 className="text-sm font-medium text-muted-foreground">Kursinfo</h4>
@@ -482,9 +464,9 @@ export function BookingDetailDialog({
                       <Clock className="h-4 w-4 text-muted-foreground" />
                       Uhrzeit
                     </Label>
-                    <div className="flex items-center gap-2">
+                    <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 sm:flex">
                       <Select value={timeStart} onValueChange={setTimeStart}>
-                        <SelectTrigger className="w-28">
+                        <SelectTrigger className="w-full sm:w-28">
                           <SelectValue placeholder="Start" />
                         </SelectTrigger>
                         <SelectContent>
@@ -497,7 +479,7 @@ export function BookingDetailDialog({
                       </Select>
                       <span className="text-muted-foreground">-</span>
                       <Select value={timeEnd} onValueChange={setTimeEnd}>
-                        <SelectTrigger className="w-28">
+                        <SelectTrigger className="w-full sm:w-28">
                           <SelectValue placeholder="Ende" />
                         </SelectTrigger>
                         <SelectContent>
@@ -509,7 +491,7 @@ export function BookingDetailDialog({
                         </SelectContent>
                       </Select>
                       {duration && (
-                        <Badge variant="outline" className="ml-2">
+                        <Badge variant="outline" className="col-span-3 justify-self-start sm:ml-2">
                           {duration}h
                         </Badge>
                       )}
@@ -662,7 +644,7 @@ export function BookingDetailDialog({
                       <Mail className="h-4 w-4 text-muted-foreground shrink-0" />
                       <a 
                         href={`mailto:${booking.customer.email}`}
-                        className="text-primary hover:underline"
+                        className="min-w-0 break-all text-brand hover:text-brand-hover hover:underline"
                       >
                         {booking.customer.email}
                       </a>
@@ -751,52 +733,77 @@ export function BookingDetailDialog({
               )}
             </div>
 
-            {/* Edit Mode Actions */}
-            {isEditing && (
-              <>
-                <Separator />
-                <div className="flex justify-end gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleCancel}
-                    disabled={updateTicketItem.isPending}
-                  >
-                    <X className="h-4 w-4 mr-1" />
-                    Abbrechen
-                  </Button>
-                  <Button
-                    size="sm"
-                    onClick={handleSaveClick}
-                    disabled={updateTicketItem.isPending || !timeRangeValid}
-                  >
-                    <Save className="h-4 w-4 mr-1" />
-                    {updateTicketItem.isPending ? "Speichern..." : "Speichern"}
-                  </Button>
-                </div>
-              </>
-            )}
-
-            {/* Full Edit Navigation - Always visible when not editing */}
-            {!isEditing && booking.ticketId && (
-              <>
-                <Separator />
-                <Button
-                  variant="default"
-                  className="w-full"
-                  onClick={() => {
-                    onOpenChange(false);
-                    navigate(`/bookings/${booking.ticketId}?from=scheduler&date=${booking.date}`);
-                  }}
-                >
-                  <ExternalLink className="h-4 w-4 mr-2" />
-                  Vollständig bearbeiten
-                </Button>
-              </>
-            )}
           </div>
         )}
-      </DialogContent>
+        </div>
+
+        {!isLoading && booking && (
+          <SheetFooter className="shrink-0 gap-2 border-t bg-background px-5 py-4 sm:px-6">
+            {isEditing ? (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleCancel}
+                  disabled={updateTicketItem.isPending}
+                >
+                  <X className="mr-1 h-4 w-4" />
+                  Abbrechen
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={handleSaveClick}
+                  disabled={updateTicketItem.isPending || !timeRangeValid}
+                >
+                  <Save className="mr-1 h-4 w-4" />
+                  {updateTicketItem.isPending ? "Speichern..." : "Speichern"}
+                </Button>
+              </>
+            ) : (
+              <>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setIsEditing(true)}
+                          disabled={!editableStatus.editable}
+                        >
+                          {editableStatus.editable ? (
+                            <Pencil className="mr-1 h-4 w-4" />
+                          ) : (
+                            <Lock className="mr-1 h-4 w-4" />
+                          )}
+                          Bearbeiten
+                        </Button>
+                      </span>
+                    </TooltipTrigger>
+                    {!editableStatus.editable && (
+                      <TooltipContent>
+                        <p>{editableStatus.reason}</p>
+                      </TooltipContent>
+                    )}
+                  </Tooltip>
+                </TooltipProvider>
+                {booking.ticketId && (
+                  <Button
+                    variant="default"
+                    onClick={() => {
+                      onOpenChange(false);
+                      navigate(`/bookings/${booking.ticketId}?from=scheduler&date=${booking.date}`);
+                    }}
+                  >
+                    <ExternalLink className="mr-2 h-4 w-4" />
+                    Vollständig bearbeiten
+                  </Button>
+                )}
+              </>
+            )}
+          </SheetFooter>
+        )}
+      </SheetContent>
 
       {/* Instructor Conflict Confirmation Dialog */}
       <AlertDialog open={showConflictDialog} onOpenChange={setShowConflictDialog}>
@@ -837,6 +844,6 @@ export function BookingDetailDialog({
         newValues={changeDialogValues.newValues}
         isLoading={updateTicketItem.isPending || sendChangeNotification.isPending}
       />
-    </Dialog>
+    </Sheet>
   );
 }
