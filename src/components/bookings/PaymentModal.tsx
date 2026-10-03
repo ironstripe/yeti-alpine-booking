@@ -89,11 +89,11 @@ export function PaymentModal({ ticket, onClose }: PaymentModalProps) {
         side="right"
         overlayClassName="bg-foreground/35"
         closeButtonClassName="icon-action"
-        closeLabel="Zahlung schließen"
+        closeLabel="Zahlung schliessen"
         className="flex h-full w-full flex-col gap-0 p-0 sm:w-[520px] sm:max-w-[520px]"
       >
-        <SheetHeader className="shrink-0 border-b px-5 py-5 pr-16 sm:px-6">
-          <SheetTitle>
+        <SheetHeader className="shrink-0 border-b py-5 pl-5 pr-16 sm:pl-6 sm:pr-16">
+          <SheetTitle className="break-words">
             Zahlung für Ticket {ticket?.ticket_number}
           </SheetTitle>
           <SheetDescription className="sr-only">

@@ -2,8 +2,9 @@
 
 ## UI optimization
 - [x] UI-01 foundations + bookings/payment pilot: UI standard, accessible primary action pairing, icon actions, neutral source badge, ticket links, responsive filters, payment sheet
-- [ ] Future package: approval and detail views
-- [ ] Future package: booking wizard
+- [x] UI-02 approval/detail + final wizard review: approval sheet, detail skeleton/header, sticky desktop summary, touch and long-title refinements
+- [ ] Future package: approval/detail follow-up (complex ticket edit dialogs, history and related information)
+- [ ] Future package: earlier wizard steps and cross-step pricing
 - [ ] Future package: scheduler
 - [ ] Future package: remaining modules
 

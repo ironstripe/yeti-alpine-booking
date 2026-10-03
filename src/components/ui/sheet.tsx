@@ -63,7 +63,7 @@ const SheetContent = React.forwardRef<React.ElementRef<typeof SheetPrimitive.Con
       children,
       overlayClassName,
       closeButtonClassName,
-      closeLabel = "Schließen",
+      closeLabel = "Schliessen",
       ...props
     },
     ref,

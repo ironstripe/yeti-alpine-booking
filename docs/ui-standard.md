@@ -55,10 +55,16 @@ This standard covers reusable presentation rules for the YETI office application
 
 UI-01 establishes the action/link color pairing, the icon-action sizing convention, neutral booking-source badges, accessible ticket links, a responsive bookings toolbar, and a right-hand payment sheet. It is intentionally limited to foundations plus the bookings/payment pilot.
 
-## Future proposals — not implemented in UI-01
+## UI-02 implementation
 
-- **Approval and detail views:** align record summaries, decision actions, history, and related information.
-- **Booking wizard:** review step hierarchy, field grouping, progress, error placement, and responsive navigation without changing booking rules.
+UI-02 refines touch targets and long sheet headings, applies the established sheet anatomy to booking approval, aligns the booking-detail header and loading skeleton, and gives the wizard's final review step a single sticky desktop summary beside its existing controls. The wizard remains stacked in its existing content order on smaller screens.
+
+UI-02 does not change approval or payment behavior, booking-detail actions, wizard state, calculations, validation, requests, or persistence. Complex ticket-edit dialogs and cross-step sticky pricing remain deferred.
+
+## Future proposals — not implemented in UI-01 or UI-02
+
+- **Approval and detail follow-up:** review complex ticket-edit dialogs, history, and related information after their workflows receive individual review.
+- **Booking wizard follow-up:** review earlier-step field grouping, error placement, and cross-step pricing without changing booking rules.
 - **Scheduler:** separately review dense planning controls, calendar geometry, selection, drag/drop, and touch behavior.
 - **Remaining modules:** progressively adopt the standard after individual workflow review; no app-wide redesign is implied by UI-01.
 

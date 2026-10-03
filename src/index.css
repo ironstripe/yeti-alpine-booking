@@ -183,12 +183,12 @@
   }
 
   .icon-action {
-    @apply h-9 w-9;
+    @apply h-9 min-h-9 w-9 min-w-9;
   }
 
-  @media (hover: none), (pointer: coarse) {
+  @media (hover: none), (pointer: coarse), (any-pointer: coarse) {
     .icon-action {
-      @apply h-11 w-11;
+      @apply h-11 min-h-11 w-11 min-w-11;
     }
   }
 }

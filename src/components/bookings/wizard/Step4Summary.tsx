@@ -228,63 +228,69 @@ export function Step4Summary({ onEditStep }: Step4SummaryProps) {
       {/* Auto-discount and other warnings */}
       <BookingWarnings warnings={warnings} />
 
-      {/* Summary Cards */}
-      <BookingSummaryCards onEditStep={onEditStep} />
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(20rem,24rem)]">
+        {/* Summary Cards: first on mobile, sticky alongside the controls on desktop */}
+        <aside className="lg:sticky lg:top-20 lg:col-start-2 lg:row-start-1 lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto lg:pr-1">
+          <h3 className="mb-3 text-sm font-semibold">Zusammenfassung</h3>
+          <BookingSummaryCards onEditStep={onEditStep} />
+        </aside>
 
-      <Separator />
+        <div className="min-w-0 space-y-6 lg:col-start-1 lg:row-start-1">
+          <Separator />
 
-      {/* Price Breakdown */}
-      <PriceBreakdown
-        discountPercent={discountPercent}
-        autoDiscountPercent={autoDiscountPercent}
-        autoDiscountReason={autoDiscountReason}
-      />
+          {/* Price Breakdown */}
+          <PriceBreakdown
+            discountPercent={discountPercent}
+            autoDiscountPercent={autoDiscountPercent}
+            autoDiscountReason={autoDiscountReason}
+          />
 
-      {/* Manual discount — on the private server path the server applies it to every appointment line */}
-      <DiscountSection
-        discountPercent={discountPercent}
-        discountReason={discountReason}
-        onDiscountChange={handleDiscountChange}
-      />
+          {/* Manual discount — on the private server path the server applies it to every appointment line */}
+          <DiscountSection
+            discountPercent={discountPercent}
+            discountReason={discountReason}
+            onDiscountChange={handleDiscountChange}
+          />
 
-      <Separator />
+          <Separator />
 
-      {/* Payment */}
-      <PaymentMethodSelection
-        paymentMethod={paymentMethod}
-        settlement={settlement}
-        billingPartnerId={billingPartnerId}
-        paymentDueDate={paymentDueDate}
-        onPaymentMethodChange={setPaymentMethod}
-        onSettlementChange={setSettlement}
-        onBillingPartnerChange={setBillingPartnerId}
-        onPaymentDueDateChange={setPaymentDueDate}
-        firstCourseDate={firstCourseDate}
-      />
+          {/* Payment */}
+          <PaymentMethodSelection
+            paymentMethod={paymentMethod}
+            settlement={settlement}
+            billingPartnerId={billingPartnerId}
+            paymentDueDate={paymentDueDate}
+            onPaymentMethodChange={setPaymentMethod}
+            onSettlementChange={setSettlement}
+            onBillingPartnerChange={setBillingPartnerId}
+            onPaymentDueDateChange={setPaymentDueDate}
+            firstCourseDate={firstCourseDate}
+          />
 
+          <Separator />
 
-      <Separator />
+          {/* Confirmation Options */}
+          <ConfirmationOptions
+            sendCustomerEmail={sendCustomerEmail}
+            sendCustomerWhatsApp={sendCustomerWhatsApp}
+            notifyInstructor={notifyInstructor}
+            onSendCustomerEmailChange={setSendCustomerEmail}
+            onSendCustomerWhatsAppChange={setSendCustomerWhatsApp}
+            onNotifyInstructorChange={setNotifyInstructor}
+          />
 
-      {/* Confirmation Options */}
-      <ConfirmationOptions
-        sendCustomerEmail={sendCustomerEmail}
-        sendCustomerWhatsApp={sendCustomerWhatsApp}
-        notifyInstructor={notifyInstructor}
-        onSendCustomerEmailChange={setSendCustomerEmail}
-        onSendCustomerWhatsAppChange={setSendCustomerWhatsApp}
-        onNotifyInstructorChange={setNotifyInstructor}
-      />
-
-      {/* Create Another Checkbox */}
-      <div className="flex items-center justify-center gap-3 py-4">
-        <Checkbox
-          id="create-another"
-          checked={createAnother}
-          onCheckedChange={(checked) => setCreateAnother(checked === true)}
-        />
-        <label htmlFor="create-another" className="cursor-pointer text-sm">
-          Nach Abschluss weitere Buchung erstellen
-        </label>
+          {/* Create Another Checkbox */}
+          <div className="flex items-center justify-center gap-3 py-4">
+            <Checkbox
+              id="create-another"
+              checked={createAnother}
+              onCheckedChange={(checked) => setCreateAnother(checked === true)}
+            />
+            <label htmlFor="create-another" className="cursor-pointer text-sm">
+              Nach Abschluss weitere Buchung erstellen
+            </label>
+          </div>
+        </div>
       </div>
 
       {/* Sticky Footer with action buttons */}

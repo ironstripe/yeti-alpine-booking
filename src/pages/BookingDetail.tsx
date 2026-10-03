@@ -28,6 +28,7 @@ import { CancellationDialog } from "@/components/bookings/CancellationDialog";
 import { PageHeader } from "@/components/layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { BookingStatusBadge } from "@/components/bookings/BookingStatusBadge";
 import { BookingSourceBadge } from "@/components/bookings/BookingSourceBadge";
@@ -213,8 +214,28 @@ const BookingDetail = () => {
     return (
       <>
         <PageHeader title="Buchungsdetails" />
-        <div className="flex items-center justify-center py-12">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <div className="grid gap-6 lg:grid-cols-3" aria-label="Buchungsdetails werden geladen">
+          <div className="space-y-6 lg:col-span-2">
+            <Card>
+              <CardHeader>
+                <Skeleton className="h-6 w-44" />
+              </CardHeader>
+              <CardContent className="grid gap-5 sm:grid-cols-2">
+                {Array.from({ length: 6 }).map((_, index) => (
+                  <div key={index} className="space-y-2">
+                    <Skeleton className="h-4 w-24" />
+                    <Skeleton className="h-6 w-36 max-w-full" />
+                  </div>
+                ))}
+                <Skeleton className="h-24 sm:col-span-2" />
+              </CardContent>
+            </Card>
+            <Skeleton className="h-40 w-full" />
+          </div>
+          <div className="space-y-6">
+            <Skeleton className="h-56 w-full" />
+            <Skeleton className="h-40 w-full" />
+          </div>
         </div>
       </>
     );
@@ -274,7 +295,7 @@ const BookingDetail = () => {
           : 'Provisorische Reservierung – Kundendaten folgen bei der Bestätigung'}
 
         actions={
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
             <BookingSourceBadge source={(ticket as any).source} />
             {fromScheduler && (
               <Button 

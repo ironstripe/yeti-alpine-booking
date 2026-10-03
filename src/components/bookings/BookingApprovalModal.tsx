@@ -2,13 +2,13 @@ import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
@@ -85,19 +85,25 @@ export function BookingApprovalModal({
   const ChannelIcon = ticket.source_channel === "whatsapp" ? MessageCircle : Mail;
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent
+        side="right"
+        overlayClassName="bg-foreground/35"
+        closeButtonClassName="icon-action"
+        closeLabel="Bestätigung schliessen"
+        className="flex h-full w-full flex-col gap-0 p-0 sm:w-[520px] sm:max-w-[520px]"
+      >
+        <SheetHeader className="shrink-0 border-b py-5 pl-5 pr-16 sm:pl-6 sm:pr-16">
+          <SheetTitle className="flex items-start gap-2 break-words text-left">
             <Send className="h-5 w-5 text-primary" />
-            Buchung bestätigen
-          </DialogTitle>
-          <DialogDescription>
+            <span>Buchung {ticket.ticket_number} bestätigen</span>
+          </SheetTitle>
+          <SheetDescription className="text-left">
             Bestätigen Sie die Buchung und wählen Sie die Versandoptionen.
-          </DialogDescription>
-        </DialogHeader>
+          </SheetDescription>
+        </SheetHeader>
 
-        <div className="space-y-4">
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-5 sm:px-6">
           {/* Booking Summary */}
           <div className="bg-muted/50 p-4 rounded-lg space-y-2">
             <div className="flex items-center justify-between">
@@ -160,14 +166,13 @@ export function BookingApprovalModal({
           </div>
         </div>
 
-        <DialogFooter>
+        <SheetFooter className="shrink-0 gap-2 border-t bg-background px-5 py-4 sm:px-6">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Abbrechen
           </Button>
           <Button
             onClick={() => approveMutation.mutate()}
             disabled={approveMutation.isPending}
-            className="bg-green-600 hover:bg-green-700"
           >
             {approveMutation.isPending ? (
               <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -176,8 +181,8 @@ export function BookingApprovalModal({
             )}
             Bestätigen & Senden
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </SheetFooter>
+      </SheetContent>
+    </Sheet>
   );
 }
