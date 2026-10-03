@@ -714,13 +714,13 @@ BEGIN
         -- One priced line per participant+selection (price once); enrollments for every
         -- booked instance are created at confirmation. No instructor (no phantom group teacher).
         INSERT INTO public.ticket_items(ticket_id,product_id,participant_id,instructor_id,date,end_date,
-            time_start,time_end,unit_price,quantity,line_total,item_type,status,group_name,skill_level,
+            time_start,time_end,unit_price,quantity,item_type,status,group_name,skill_level,
             group_participant_count,internal_notes)
         VALUES (v_ticket_id,(v_line->>'product_id')::uuid,NULL,NULL,
             (v_line->'dates'->>0)::date,(v_line->'dates'->>(jsonb_array_length(v_line->'dates')-1))::date,
             split_part(v_line->'blocks'->>0,'-',1)::time,
             split_part(v_line->'blocks'->>(jsonb_array_length(v_line->'blocks')-1),'-',2)::time,
-            (v_line->'quote'->>'total_amount')::numeric,1,(v_line->'quote'->>'total_amount')::numeric,
+            (v_line->'quote'->>'total_amount')::numeric,1,
             'group_course','booked',v_line->>'course_name',v_line->>'skill_level',1,
             'bc2627:'||(v_line->>'period_key'))
         RETURNING id INTO v_item_id;
@@ -997,10 +997,10 @@ BEGIN
       FOR v_aid IN SELECT x::uuid FROM jsonb_array_elements_text(v_line->'appointment_ids') x LOOP
         SELECT * INTO v_appt FROM public.private_appointments WHERE id = v_aid;
         INSERT INTO public.ticket_items (ticket_id, product_id, participant_id, instructor_id, date, time_start, time_end,
-          meeting_point, unit_price, quantity, line_total, status, instructor_confirmation, item_type,
+          meeting_point, unit_price, quantity, status, instructor_confirmation, item_type,
           group_participant_count, period_group_id, appointment_id)
         VALUES (p_ticket_id, (v_line->>'product_id')::uuid, NULL, v_appt.instructor_id, v_appt.date, v_appt.time_start,
-          v_appt.time_end, v_appt.meeting_point, v_appt.price, 1, v_appt.price, 'booked', v_appt.instructor_confirmation,
+          v_appt.time_end, v_appt.meeting_point, v_appt.price, 1, 'booked', v_appt.instructor_confirmation,
           'private', v_persons, v_appt.period_group_id, v_aid);
         v_all_appts := v_all_appts || v_aid;
       END LOOP;
