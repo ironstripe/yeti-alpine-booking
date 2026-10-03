@@ -6,6 +6,13 @@ import { isImmediateMethod } from "@/lib/finance";
 import { logTicketEvent } from "@/lib/ticket-audit";
 import { paCreate, type PaParticipant, type PaSlot } from "@/lib/privateAppointmentsApi";
 import { endOf, sortPlan, validatePlan } from "@/lib/privatePlan";
+import {
+  preflightGroupLines,
+  type GroupLineRequest,
+  type PricedCourse,
+  type PreflightCourse,
+  type PreflightProduct,
+} from "@/lib/groupBookingPreflight";
 
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
@@ -45,6 +52,36 @@ async function generateTicketNumber(): Promise<string> {
   return `YETY-${year}-${nextNumber.toString().padStart(5, "0")}`;
 }
 
+/** Read-only loads + strict validation; throws a German error before any write. */
+async function runGroupPreflight(lines: GroupLineRequest[]): Promise<Map<string, PricedCourse>> {
+  const courseIds = [...new Set(lines.map((l) => l.courseId).filter((x): x is string => !!x))];
+  const { data: courses, error: cErr } = courseIds.length
+    ? await supabase.from("group_courses").select("id, name, product_id, price_per_day, is_active").in("id", courseIds)
+    : { data: [], error: null };
+  if (cErr) throw new Error("Gruppenkurse konnten nicht geprüft werden. Bitte erneut versuchen.");
+  const productIds = [...new Set((courses ?? []).map((c) => c.product_id).filter((x): x is string => !!x))];
+  const [{ data: prods, error: pErr }, { data: seasons, error: sErr }, { data: sources, error: srcErr }] = await Promise.all([
+    productIds.length
+      ? supabase.from("products").select("id, name, is_active, season_id, price, type").in("id", productIds)
+      : Promise.resolve({ data: [], error: null }),
+    supabase.from("seasons").select("id, name, start_date, end_date"),
+    productIds.length
+      ? supabase.from("bc_product_tariff_sources").select("product_id").in("product_id", productIds)
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+  if (pErr || sErr || srcErr) throw new Error("Preise konnten nicht geprüft werden. Bitte erneut versuchen.");
+  const result = preflightGroupLines({
+    lines,
+    courses: (courses ?? []) as PreflightCourse[],
+    products: (prods ?? []) as PreflightProduct[],
+    seasons: seasons ?? [],
+    sourceBoundProductIds: new Set((sources ?? []).map((s: { product_id: string }) => s.product_id)),
+  });
+  if (!result.ok) throw new Error(`Buchung nicht erstellt: ${result.errors.join(" ")}`);
+  return result.priced;
+}
+
+
 export function useCreateBooking() {
   const queryClient = useQueryClient();
 
@@ -67,6 +104,28 @@ export function useCreateBooking() {
       // Get current user for comment attribution
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
+
+      // ============ #15 GROUP PREFLIGHT (before ANY write) ============
+      // Covers shared group bookings and every group participant of the
+      // participant-specific / mixed family path.
+      const participantMode =
+        state.useParticipantSpecificBooking && Object.keys(state.participantBookings).length > 0;
+      const groupLines: GroupLineRequest[] = participantMode
+        ? state.selectedParticipants
+            .map((p) => ({ p, b: state.participantBookings[p.id] }))
+            .filter(({ b }) => b?.productType === "group")
+            .map(({ p, b }) => ({
+              label: [p.first_name, p.last_name].filter(Boolean).join(" ") || "Teilnehmer",
+              courseId: b.groupCourseId,
+              dates: b.dates,
+            }))
+        : state.productType === "group"
+          ? [{ label: "Buchung", courseId: state.selectedGroupId ?? null, dates: state.selectedDates }]
+          : [];
+      let groupPricing = new Map<string, PricedCourse>();
+      if (groupLines.length > 0) {
+        groupPricing = await runGroupPreflight(groupLines);
+      }
 
       // Generate ticket number
       const ticketNumber = await generateTicketNumber();
