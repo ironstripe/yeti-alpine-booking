@@ -75,7 +75,7 @@ export async function activeConfirmationTemplate(sb: Client) {
   return data as { id: string; subject: string; body_html: string; body_text: string | null } | null;
 }
 
-async function buildVars(sb: Client, ticketId: string, salutation: string) {
+export async function buildVars(sb: Client, ticketId: string, salutation: string) {
   const { data: t } = await sb
     .from("tickets")
     .select("ticket_number, customer:customers(last_name)")
