@@ -1,4 +1,5 @@
-import { isCourseVisibleInternally, mergeCapacityGroups } from "@/lib/internalCourseVisibility";
+import { isCourseVisibleInternally } from "@/lib/internalCourseVisibility";
+import { buildCapacityRoster, type RosterEnrollment } from "@/lib/groupCapacityBuild";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { startOfWeek, format, addDays } from "date-fns";
@@ -112,6 +113,7 @@ export function useGroupCapacityData(weekStart: Date) {
       // have real enrollments (e.g. booked inactive 26/27 or Saturday courses) - never both
       // for the same course, so nothing is counted twice.
       let courseLevelGroups: GroupCapacityInfo[] = [];
+      let weekEnrollments: Array<RosterEnrollment & { courseId: string; participant: GroupParticipant }> = [];
       {
         // Get courses that have instances this week (regardless of enrollments)
         const { data: courses, error: coursesError } = await supabase
@@ -133,6 +135,8 @@ export function useGroupCapacityData(weekStart: Date) {
               group_course_enrollments (
                 id,
                 participant_id,
+                instance_id,
+                training_group_id,
                 customer_participants (
                   id,
                   first_name,
@@ -178,6 +182,30 @@ export function useGroupCapacityData(weekStart: Date) {
           )
         );
 
+        // All enrollments on this week's instances (the query is bounded to the selected week).
+        weekEnrollments = visibleCourses.flatMap((course: any) =>
+          (course.group_course_instances || []).flatMap((inst: any) =>
+            (inst.group_course_enrollments || [])
+              .filter((e: any) => e.participant_id && e.customer_participants)
+              .map((e: any) => ({
+                id: e.id,
+                participantId: e.participant_id,
+                instanceId: e.instance_id ?? inst.id,
+                trainingGroupId: e.training_group_id ?? null,
+                courseId: course.id,
+                participant: {
+                  id: e.id,
+                  participantId: e.participant_id,
+                  firstName: e.customer_participants.first_name,
+                  lastName: e.customer_participants.last_name,
+                  birthDate: e.customer_participants.birth_date,
+                  age: calculateAge(e.customer_participants.birth_date),
+                  instanceId: e.instance_id ?? inst.id,
+                } as GroupParticipant,
+              }))
+          )
+        );
+
         // Transform to capacity info without training_groups
         const groups: GroupCapacityInfo[] = visibleCourses.map(course => {
           const allEnrollments = course.group_course_instances?.flatMap(
@@ -212,7 +240,7 @@ export function useGroupCapacityData(weekStart: Date) {
                 lastName: p.last_name,
                 birthDate: p.birth_date,
                 age: calculateAge(p.birth_date),
-                instanceId: enrollment.instance_id,
+                instanceId: enrollment.instance_id ?? null,
               });
             }
           });
@@ -268,66 +296,12 @@ export function useGroupCapacityData(weekStart: Date) {
         courseLevelGroups = groups;
       }
 
-      // Get enrollments for each training group
-      const groupIds = trainingGroups.map(g => g.id);
-      const { data: enrollments, error: enrollmentsError } = await supabase
-        .from('group_course_enrollments')
-        .select(`
-          id,
-          training_group_id,
-          participant_id,
-          instance_id,
-          customer_participants (
-            id,
-            first_name,
-            last_name,
-            birth_date
-          )
-        `)
-        .in('training_group_id', groupIds);
-
-      if (enrollmentsError) throw enrollmentsError;
-
-      // Group enrollments by training_group_id
-      const enrollmentsByGroup = new Map<string, GroupParticipant[]>();
-      (enrollments || []).forEach((enrollment: any) => {
-        if (!enrollment.training_group_id || !enrollment.customer_participants) return;
-        
-        const p = enrollment.customer_participants;
-        const participant: GroupParticipant = {
-          id: enrollment.id,
-          participantId: enrollment.participant_id,
-          firstName: p.first_name,
-          lastName: p.last_name,
-          birthDate: p.birth_date,
-          age: calculateAge(p.birth_date),
-          instanceId: enrollment.instance_id,
-        };
-
-        if (!enrollmentsByGroup.has(enrollment.training_group_id)) {
-          enrollmentsByGroup.set(enrollment.training_group_id, []);
-        }
-        enrollmentsByGroup.get(enrollment.training_group_id)!.push(participant);
-      });
-
-      // Transform to capacity info
+      // Training-group cards; participants are filled by the pure roster builder from this
+      // week's enrollments only (one entry per person per group).
       const trainingGroupInfos: GroupCapacityInfo[] = trainingGroups.map((tg: any) => {
         const course = tg.group_courses;
-        const participants = enrollmentsByGroup.get(tg.id) || [];
-        const participantCount = participants.length;
-        const minParticipants = course?.min_participants || 4;
-        const maxParticipants = course?.max_participants || 12;
-
-        let capacityStatus: 'ok' | 'overbooked' | 'underbooked' = 'ok';
-        if (participantCount > maxParticipants) {
-          capacityStatus = 'overbooked';
-        } else if (participantCount < minParticipants && participantCount > 0) {
-          capacityStatus = 'underbooked';
-        }
-
         const instructor = tg.instructor;
         const assistant = tg.assistant;
-
         return {
           id: tg.id,
           courseId: course?.id || '',
@@ -338,32 +312,33 @@ export function useGroupCapacityData(weekStart: Date) {
           weekStart: tg.week_start,
           discipline: course?.discipline || 'ski',
           skillLevelId: course?.skill_level_id || null,
-          participantCount,
-          minParticipants,
-          maxParticipants,
+          participantCount: 0,
+          minParticipants: course?.min_participants || 4,
+          maxParticipants: course?.max_participants || 12,
           instructorId: tg.instructor_id,
           instructorName: instructor ? `${instructor.first_name} ${instructor.last_name}` : null,
           allInstructorNames: instructor ? [`${instructor.first_name} ${instructor.last_name}`] : [],
           assistantId: tg.assistant_instructor_id,
           assistantName: assistant ? `${assistant.first_name} ${assistant.last_name}` : null,
           status: tg.status as 'active' | 'merged' | 'cancelled',
-          capacityStatus,
-          participants,
+          capacityStatus: 'ok',
+          participants: [],
         };
       });
 
-      const coursesWithAssigned = new Set(trainingGroupInfos.filter(g => g.participantCount > 0).map(g => g.courseId));
-      const courseLevelCourseIds = new Set(
-        courseLevelGroups.filter(g => g.participantCount > 0 && !coursesWithAssigned.has(g.courseId)).map(g => g.courseId)
-      );
-      const groups: GroupCapacityInfo[] = mergeCapacityGroups(
-        // empty training-group cards are replaced by the course-level card for that course
-        trainingGroupInfos.filter(g => !courseLevelCourseIds.has(g.courseId)),
-        // A course counts as covered only when its training groups actually hold enrollments;
-        // otherwise (e.g. imported enrollments without training group) the course-level card is used.
-        trainingGroupInfos.filter(g => g.participantCount > 0).map(g => g.courseId),
-        courseLevelGroups
-      );
+      const groups: GroupCapacityInfo[] = buildCapacityRoster({
+        trainingGroupCards: trainingGroupInfos,
+        courseCards: courseLevelGroups,
+        enrollments: weekEnrollments,
+        withParticipants: (card, participants) => {
+          const count = participants.length;
+          const isTrainingGroup = card.id !== '';
+          let capacityStatus: GroupCapacityInfo['capacityStatus'] = 'ok';
+          if (count > card.maxParticipants) capacityStatus = 'overbooked';
+          else if (count < card.minParticipants && (count > 0 || !isTrainingGroup)) capacityStatus = 'underbooked';
+          return { ...card, participants, participantCount: count, capacityStatus };
+        },
+      });
 
       const stats: CapacityStats = {
         totalGroups: groups.length,
