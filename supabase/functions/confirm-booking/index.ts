@@ -1,7 +1,9 @@
 // Public endpoint: finalize a provisional reservation with the real customer and
 // participant data, then apply the payment semantics.
-// - payment_method "online": requires a real payment_reference from the payment
-//   provider. Marks the booking confirmed + paid and records exactly one payment.
+// - payment_method "online": CURRENTLY REFUSED (503 payment_provider_unavailable)
+//   before any read/write, because no payment provider is connected and a caller
+//   reference is not proof of payment (#36). The online branch below is unreachable
+//   until a server-side provider verification replaces the gate in paymentGate.ts.
 // - payment_method "invoice": binding immediately (status confirmed), exactly one
 //   open invoice, booking confirmation email sent server-side. NOT marked as paid.
 //   The invoice email is deliberately deferred (B+ Phase 1, Option A).
@@ -12,6 +14,7 @@ import { z } from "https://esm.sh/zod@3.23.8";
 import { corsHeaders, checkApiKey, json } from "../_shared/intakeAuth.ts";
 import { issueInvoiceThenConfirm } from "./invoiceStep.ts";
 import { attemptConfirmation, ensureConfirmationDelivery } from "../_shared/bookingDelivery.ts";
+import { onlinePaymentGate } from "./paymentGate.ts";
 
 const GUEST_MESSAGE =
   "Ihre Buchung ist verbindlich bestätigt. Die Rechnung mit Zahlungsinformationen erhalten Sie separat.";
@@ -64,6 +67,10 @@ Deno.serve(async (req) => {
   const parsed = Payload.safeParse(body);
   if (!parsed.success) return json({ error: "Validation failed", details: parsed.error.flatten() }, 400);
   const data = parsed.data;
+
+  // #36: fail closed for online payment BEFORE any client creation, read or write.
+  const gate = onlinePaymentGate(data.payment_method);
+  if (!gate.allowed) return json(gate.body, gate.status);
 
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL")!,
