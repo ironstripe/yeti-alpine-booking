@@ -1,11 +1,12 @@
 import { useState } from "react";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetFooter,
+} from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -83,33 +84,43 @@ export function PaymentModal({ ticket, onClose }: PaymentModalProps) {
   }
 
   return (
-    <Dialog open={!!ticket} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>
+    <Sheet open={!!ticket} onOpenChange={(open) => !open && onClose()}>
+      <SheetContent
+        side="right"
+        overlayClassName="bg-foreground/35"
+        closeButtonClassName="icon-action"
+        closeLabel="Zahlung schließen"
+        className="flex h-full w-full flex-col gap-0 p-0 sm:w-[520px] sm:max-w-[520px]"
+      >
+        <SheetHeader className="shrink-0 border-b px-5 py-5 pr-16 sm:px-6">
+          <SheetTitle>
             Zahlung für Ticket {ticket?.ticket_number}
-          </DialogTitle>
-        </DialogHeader>
+          </SheetTitle>
+          <SheetDescription className="sr-only">
+            Zahlung erfassen und speichern
+          </SheetDescription>
+        </SheetHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="p-3 bg-muted rounded-lg">
-            <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Total:</span>
-              <span className="font-medium">
-                CHF {(ticket?.total_amount || 0).toFixed(2)}
-              </span>
+        <form id="payment-form" onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
+          <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-5 py-5 sm:px-6">
+            <div className="rounded-lg bg-muted p-3">
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Total:</span>
+                <span className="font-medium">
+                  CHF {(ticket?.total_amount || 0).toFixed(2)}
+                </span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Bereits bezahlt:</span>
+                <span>{ticket?.paid_amount === null || ticket?.paid_amount === undefined ? "unbekannt" : `CHF ${ticket.paid_amount.toFixed(2)}`}</span>
+              </div>
+              <div className="flex justify-between text-sm font-semibold border-t border-border mt-2 pt-2">
+                <span>Offen:</span>
+                <span className="text-brand">
+                  CHF {remainingAmount.toFixed(2)}
+                </span>
+              </div>
             </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Bereits bezahlt:</span>
-              <span>{ticket?.paid_amount === null || ticket?.paid_amount === undefined ? "unbekannt" : `CHF ${ticket.paid_amount.toFixed(2)}`}</span>
-            </div>
-            <div className="flex justify-between text-sm font-semibold border-t border-border mt-2 pt-2">
-              <span>Offen:</span>
-              <span className="text-primary">
-                CHF {remainingAmount.toFixed(2)}
-              </span>
-            </div>
-          </div>
 
           <div className="space-y-2">
             <Label htmlFor="paymentMethod">Zahlungsart</Label>
@@ -163,16 +174,17 @@ export function PaymentModal({ ticket, onClose }: PaymentModalProps) {
             />
           </div>
 
-          <DialogFooter>
+          </div>
+          <SheetFooter className="shrink-0 gap-2 border-t bg-background px-5 py-4 sm:px-6">
             <Button type="button" variant="outline" onClick={onClose}>
               Abbrechen
             </Button>
             <Button type="submit" disabled={isPending || parseFloat(amount) <= 0}>
               {isPending ? "Speichern..." : "Speichern"}
             </Button>
-          </DialogFooter>
+          </SheetFooter>
         </form>
-      </DialogContent>
-    </Dialog>
+      </SheetContent>
+    </Sheet>
   );
 }

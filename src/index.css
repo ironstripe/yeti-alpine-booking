@@ -18,9 +18,18 @@
     --popover: 0 0% 100%;
     --popover-foreground: 222 47% 11%;
 
-    /* Primary - YETY Blue */
+    /* Primary brand emphasis */
     --primary: 217 91% 60%;
     --primary-foreground: 0 0% 100%;
+
+    /* Filled actions - YETY Blue, AA with white text */
+    --action: 217 78% 45%;
+    --action-foreground: 0 0% 100%;
+    --action-hover: 217 82% 40%;
+
+    /* Brand/link blue - for non-filled emphasis */
+    --brand: 217 78% 42%;
+    --brand-hover: 217 82% 35%;
 
     /* Secondary - Light gray */
     --secondary: 210 20% 96%;
@@ -84,6 +93,13 @@
 
     --primary: 217 91% 60%;
     --primary-foreground: 0 0% 100%;
+
+    --action: 217 78% 45%;
+    --action-foreground: 0 0% 100%;
+    --action-hover: 217 82% 40%;
+
+    --brand: 217 73% 68%;
+    --brand-hover: 217 82% 76%;
 
     --secondary: 222 47% 15%;
     --secondary-foreground: 210 20% 98%;
@@ -164,6 +180,16 @@
   
   .touch-button {
     @apply min-h-[44px] min-w-[44px] p-3;
+  }
+
+  .icon-action {
+    @apply h-9 w-9;
+  }
+
+  @media (hover: none), (pointer: coarse) {
+    .icon-action {
+      @apply h-11 w-11;
+    }
   }
 }
 

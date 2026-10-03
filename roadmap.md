@@ -1,5 +1,12 @@
 # Roadmap
 
+## UI optimization
+- [x] UI-01 foundations + bookings/payment pilot: UI standard, accessible primary action pairing, icon actions, neutral source badge, ticket links, responsive filters, payment sheet
+- [ ] Future package: approval and detail views
+- [ ] Future package: booking wizard
+- [ ] Future package: scheduler
+- [ ] Future package: remaining modules
+
 ## Mobile navigation
 - [x] Share desktop/mobile navigation, expose Einstellungen in both mobile menus, preserve live inbox counts and short-screen scrolling
 

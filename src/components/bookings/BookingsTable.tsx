@@ -1,4 +1,4 @@
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -134,9 +134,14 @@ export function BookingsTable({
               {isColumnVisible("ticket") && (
                 <TableCell>
                   <div className="flex items-center gap-2">
-                    <div className="font-medium text-primary">
+                    <Link
+                      to={`/bookings/${ticket.id}`}
+                      className="max-w-48 break-words font-medium text-brand underline-offset-4 hover:text-brand-hover hover:underline focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                      onClick={(event) => event.stopPropagation()}
+                      aria-label={`Ticket ${ticket.ticket_number} ansehen`}
+                    >
                       {ticket.ticket_number}
-                    </div>
+                    </Link>
                     <BookingSourceBadge source={ticket.source} />
                   </div>
                   <div className="text-xs text-muted-foreground">
