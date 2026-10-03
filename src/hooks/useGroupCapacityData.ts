@@ -352,9 +352,16 @@ export function useGroupCapacityData(weekStart: Date) {
         };
       });
 
+      const coursesWithAssigned = new Set(trainingGroupInfos.filter(g => g.participantCount > 0).map(g => g.courseId));
+      const courseLevelCourseIds = new Set(
+        courseLevelGroups.filter(g => g.participantCount > 0 && !coursesWithAssigned.has(g.courseId)).map(g => g.courseId)
+      );
       const groups: GroupCapacityInfo[] = mergeCapacityGroups(
-        trainingGroupInfos,
-        trainingGroups.map((tg: any) => tg.course_id),
+        // empty training-group cards are replaced by the course-level card for that course
+        trainingGroupInfos.filter(g => !courseLevelCourseIds.has(g.courseId)),
+        // A course counts as covered only when its training groups actually hold enrollments;
+        // otherwise (e.g. imported enrollments without training group) the course-level card is used.
+        trainingGroupInfos.filter(g => g.participantCount > 0).map(g => g.courseId),
         courseLevelGroups
       );
 

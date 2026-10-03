@@ -158,7 +158,8 @@ export function useGroupPlanningData(weekStart: Date): UseGroupPlanningDataRetur
         assistantName: i.assistant_instructor
           ? `${(i.assistant_instructor as any).first_name} ${(i.assistant_instructor as any).last_name}`
           : null,
-        currentParticipants: i.current_participants || 0,
+        // real enrollments win over a possibly stale counter column
+        currentParticipants: Math.max(i.current_participants || 0, ((i as any).enrollments || []).length),
       }));
 
     // Calculate weekly instructor (if all instances have the same one)
