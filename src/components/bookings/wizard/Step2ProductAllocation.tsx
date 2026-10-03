@@ -162,7 +162,7 @@ export function Step2ProductAllocation() {
   // Detect if participants have age mismatches (toddlers vs older kids)
   const hasAgeMismatch = useMemo(() => {
     if (state.selectedParticipants.length <= 1) return false;
-    const ageGroups = state.selectedParticipants.map((p) => {
+    const ageGroups = state.selectedParticipants.filter((p) => !!p.birth_date).map((p) => {
       const age = differenceInYears(new Date(), new Date(p.birth_date));
       if (age >= 3 && age <= 4) return "toddler";
       if (age >= 16) return "adult";
@@ -367,6 +367,7 @@ export function Step2ProductAllocation() {
     // Young child + long lesson warning
     if (state.productType === "private" && calculatedDuration && calculatedDuration > 1) {
       const youngParticipants = state.selectedParticipants.filter((p) => {
+        if (!p.birth_date) return false; // unknown age: no inferred warning
         const age = differenceInYears(new Date(), new Date(p.birth_date));
         return age < 6;
       });

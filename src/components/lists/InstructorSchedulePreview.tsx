@@ -173,7 +173,7 @@ export function InstructorSchedulePreview({
                                 <ul className="text-xs text-muted-foreground ml-2">
                                   {item.participants.map((p, idx) => (
                                     <li key={idx}>
-                                      {p.name} ({p.age}) - {getLevelLabel(p.level)}
+                                      {p.name} ({p.age ?? "?"}) - {getLevelLabel(p.level)}
                                     </li>
                                   ))}
                                 </ul>
@@ -235,7 +235,7 @@ export function InstructorSchedulePreview({
                                 <ul className="text-sm ml-4">
                                   {item.participants.map((p, idx) => (
                                     <li key={idx}>
-                                      • {p.name} ({p.age}) - {getLevelLabel(p.level)} -{" "}
+                                      • {p.name} ({p.age ?? "?"}) - {getLevelLabel(p.level)} -{" "}
                                       {p.sport === "ski" ? "Ski" : "Snowboard"}
                                     </li>
                                   ))}

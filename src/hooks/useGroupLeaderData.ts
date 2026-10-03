@@ -15,7 +15,7 @@ export interface GroupParticipant {
   firstName: string;
   lastName: string | null;
   birthDate: string;
-  age: number;
+  age: number | null;
   currentSkiLevelId: string | null;
   currentSnowboardLevelId: string | null;
   notes: string | null;
@@ -134,7 +134,7 @@ export function useGroupLeaderData(instanceId: string | undefined) {
           const birthDate = participant.birth_date;
           const age = birthDate
             ? differenceInYears(new Date(), parseISO(birthDate))
-            : 0;
+            : null; // unknown birth date - never shown as 0 years
 
           participantMap.set(participant.id, {
             id: participant.id,

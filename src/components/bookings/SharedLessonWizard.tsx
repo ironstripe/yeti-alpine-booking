@@ -119,7 +119,8 @@ export function SharedLessonWizard({ open, onOpenChange, ticketId }: SharedLesso
       const { data, error } = await supabase
         .from("customer_participants")
         .select("id, first_name, last_name, birth_date")
-        .eq("customer_id", selectedCustomerId);
+        .eq("customer_id", selectedCustomerId)
+        .is("merged_into_id", null) // merged duplicates stay out of pickers;
       if (error) return [];
       return data || [];
     },

@@ -49,6 +49,8 @@ import { Participant } from "@/hooks/useCustomerDetail";
 import { useUpdateParticipant, useDeleteParticipant } from "@/hooks/useParticipants";
 import {
   calculateAge,
+  getAgeDisplay,
+  resolveBirthDateForSave,
   getInitials,
   getAvatarColor,
   getLevelInfo,
@@ -58,7 +60,7 @@ import { getLevelOptionsForAge } from "@/lib/level-utils";
 const editSchema = z.object({
   first_name: z.string().min(1, "Vorname ist erforderlich"),
   last_name: z.string().optional(),
-  birth_date: z.date({ required_error: "Geburtsdatum ist erforderlich" }),
+  birth_date: z.date().optional(), // optional: imported participants may have no known birth date
   level_last_season: z.string().optional(),
   level_current_season: z.string().optional(),
   sport: z.string().optional(),
@@ -122,7 +124,7 @@ export function ParticipantCard({ participant, customerId }: ParticipantCardProp
       data: {
         first_name: data.first_name,
         last_name: data.last_name || null,
-        birth_date: format(data.birth_date, "yyyy-MM-dd"),
+        birth_date: resolveBirthDateForSave(data.birth_date, participant.birth_date),
         level_last_season: data.level_last_season || null,
         level_current_season: data.level_current_season || null,
         sport: data.sport || "ski",
@@ -301,7 +303,7 @@ export function ParticipantCard({ participant, customerId }: ParticipantCardProp
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
               <span className="font-medium truncate">{fullName}</span>
-              <span className="text-sm text-muted-foreground">{age} Jahre</span>
+              <span className="text-sm text-muted-foreground">{getAgeDisplay(age)}</span>
             </div>
             <div className="flex items-center gap-2 mt-1">
               <Badge className={cn("text-xs", levelInfo.color)}>

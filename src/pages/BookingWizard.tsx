@@ -288,9 +288,7 @@ function BookingWizardContent() {
         const year = new Date().getFullYear() - participant.age;
         birthDate = `${year}-01-01`;
       }
-      if (!birthDate) {
-        birthDate = "2015-01-01"; // Default
-      }
+      // No known birth date: store NULL (unknown) instead of inventing one
 
       const { data, error } = await supabase
         .from("customer_participants")
@@ -375,7 +373,8 @@ function BookingWizardContent() {
           const { data: existingParticipants } = await supabase
             .from("customer_participants")
             .select("*")
-            .eq("customer_id", customer.id);
+            .eq("customer_id", customer.id)
+            .is("merged_into_id", null) // merged duplicates stay out of pickers;
 
           for (const prefillParticipant of prefill.participants) {
             // Try to match with existing participant by first name

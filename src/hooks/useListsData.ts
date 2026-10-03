@@ -7,7 +7,7 @@ export interface LunchChild {
   id: string;
   firstName: string;
   lastName: string | null;
-  age: number;
+  age: number | null;
   allergies: string | null;
   emergencyContact: string | null;
   groupName: string | null;
@@ -18,7 +18,7 @@ export interface GroupParticipant {
   id: string;
   firstName: string;
   lastName: string | null;
-  age: number;
+  age: number | null;
   level: string | null;
   language: string | null;
   hasLunch: boolean;
@@ -62,7 +62,7 @@ export interface InstructorScheduleItem {
   notes: string | null;
   participants: Array<{
     name: string;
-    age: number;
+    age: number | null;
     level: string | null;
     sport: string | null;
   }>;
@@ -136,8 +136,10 @@ export function useLunchChildren(date: Date) {
         if (seenIds.has(participant.id)) return;
         seenIds.add(participant.id);
 
-        const birthDate = new Date(participant.birth_date);
-        const age = Math.floor((Date.now() - birthDate.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
+        // Unknown birth date stays null (no invented age)
+        const age: number | null = participant.birth_date
+          ? Math.floor((Date.now() - new Date(participant.birth_date).getTime()) / (365.25 * 24 * 60 * 60 * 1000))
+          : null;
 
         const customer = (item.ticket as any)?.customer;
 
@@ -221,8 +223,10 @@ export function useGroups(date: Date) {
             if (!participant || seenIds.has(participant.id)) return;
             seenIds.add(participant.id);
 
-            const birthDate = new Date(participant.birth_date);
-            const age = Math.floor((Date.now() - birthDate.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
+            // Unknown birth date stays null (no invented age)
+            const age: number | null = participant.birth_date
+              ? Math.floor((Date.now() - new Date(participant.birth_date).getTime()) / (365.25 * 24 * 60 * 60 * 1000))
+              : null;
 
             participants.push({
               id: participant.id,
@@ -415,10 +419,12 @@ export function useInstructorSchedules(date: Date) {
         }
 
         // Build participant info
-        const participants: Array<{ name: string; age: number; level: string | null; sport: string | null }> = [];
+        const participants: Array<{ name: string; age: number | null; level: string | null; sport: string | null }> = [];
         if (participant) {
-          const birthDate = new Date(participant.birth_date);
-          const age = Math.floor((Date.now() - birthDate.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
+          // Unknown birth date stays null (no invented age)
+          const age: number | null = participant.birth_date
+            ? Math.floor((Date.now() - new Date(participant.birth_date).getTime()) / (365.25 * 24 * 60 * 60 * 1000))
+            : null;
           participants.push({
             name: `${participant.first_name} ${participant.last_name || ""}`.trim(),
             age,

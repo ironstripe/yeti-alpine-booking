@@ -288,9 +288,13 @@ function AgendaRow({
               </span>
             )}
             {booking.type === "private" && !booking.isProvisional && (
-              <span className={booking.isPaid ? "text-emerald-600" : "text-orange-600"}>
-                {booking.isPaid ? "Bezahlt" : "Offen"}
-              </span>
+              booking.paymentUnknown ? (
+                <span className="text-muted-foreground">Zahlungsstatus unbekannt</span>
+              ) : (
+                <span className={booking.isPaid ? "text-emerald-600" : "text-orange-600"}>
+                  {booking.isPaid ? "Bezahlt" : "Offen"}
+                </span>
+              )
             )}
           </span>
         </span>

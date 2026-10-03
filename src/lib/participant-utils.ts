@@ -1,12 +1,34 @@
 import { differenceInYears } from "date-fns";
 import { getLevelBadgeColor, getLevelLabel as getBookingLevelLabel } from "@/lib/level-utils";
 
-export function calculateAge(birthDate: string): number {
-  return differenceInYears(new Date(), new Date(birthDate));
+/** Unknown birth date (NULL, e.g. imported participants) yields null - never an invented age. */
+export function calculateAge(birthDate: string | null | undefined): number | null {
+  if (!birthDate) return null;
+  const date = new Date(birthDate);
+  if (isNaN(date.getTime())) return null;
+  return differenceInYears(new Date(), date);
 }
 
-export function getAgeDisplay(age: number): string {
+export function getAgeDisplay(age: number | null | undefined): string {
+  if (age === null || age === undefined) return "Alter unbekannt";
   return age === 1 ? "1 Jahr" : `${age} Jahre`;
+}
+
+/**
+ * Birth date to persist when editing an existing participant. An empty form field means
+ * "unchanged": a known date is never erased and an unknown (NULL) date is never invented.
+ */
+export function resolveBirthDateForSave(
+  formDate: Date | null | undefined,
+  existing: string | null | undefined
+): string | null {
+  if (formDate && !isNaN(formDate.getTime())) {
+    const y = formDate.getFullYear();
+    const m = String(formDate.getMonth() + 1).padStart(2, "0");
+    const d = String(formDate.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+  }
+  return existing ?? null;
 }
 
 export function getInitials(firstName: string, lastName?: string | null): string {

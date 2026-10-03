@@ -18,6 +18,7 @@ import { Ticket } from "@/hooks/useCustomerDetail";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   derivePaymentStatus,
+  isPaymentUnknown,
   getOutstanding,
   getPaymentMethodLabel,
   formatCHF,
@@ -49,6 +50,7 @@ const PAYMENT_BADGE_VARIANT: Record<string, "default" | "secondary" | "destructi
   partial: "outline",
   unpaid: "secondary",
   overdue: "destructive",
+  unknown: "outline",
 };
 
 
@@ -115,10 +117,11 @@ export function BookingHistoryCard({ tickets, isLoading, customerId }: BookingHi
 
               const total = Number(ticket.total_amount || 0);
               const paid = Number(ticket.paid_amount || 0);
-              const outstanding = getOutstanding(total, paid);
+              const paymentUnknown = isPaymentUnknown(ticket.paid_amount);
+              const outstanding = paymentUnknown ? 0 : getOutstanding(total, paid);
               const paymentStatus = derivePaymentStatus({
                 totalAmount: total,
-                paidAmount: paid,
+                paidAmount: ticket.paid_amount,
                 dueDate: ticket.payment_due_date,
               });
 

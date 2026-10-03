@@ -50,7 +50,8 @@ export function CustomerContextPanel({ customerId }: CustomerContextPanelProps) 
       const { data, error } = await supabase
         .from("customer_participants")
         .select("id, first_name, last_name, birth_date")
-        .eq("customer_id", customerId);
+        .eq("customer_id", customerId)
+        .is("merged_into_id", null) // merged duplicates stay out of pickers;
       if (error) throw error;
       return data;
     },

@@ -108,6 +108,7 @@ export function SlotBookingPopover({
         .from("customer_participants")
         .select("*")
         .eq("customer_id", preselectedCustomerId)
+        .is("merged_into_id", null) // merged duplicates stay out of pickers
         .order("first_name");
       if (error) throw error;
       return data as Tables<"customer_participants">[];
@@ -125,7 +126,7 @@ export function SlotBookingPopover({
           customer_id: preselectedCustomerId,
           first_name: form.first_name,
           last_name: form.last_name || null,
-          birth_date: form.birth_date || "2015-01-01",
+          birth_date: form.birth_date || null,
           level_current_season: form.skill_level || null,
           sport: sport || "ski",
         })
@@ -153,7 +154,7 @@ export function SlotBookingPopover({
       id,
       first_name: newParticipant.first_name,
       last_name: newParticipant.last_name || null,
-      birth_date: newParticipant.birth_date || "2015-01-01",
+      birth_date: newParticipant.birth_date || null,
       skill_level: newParticipant.skill_level || null,
       sport: (sport || "ski") as "ski" | "snowboard",
     });

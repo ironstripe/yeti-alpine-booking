@@ -19,6 +19,8 @@ export interface SchedulerBooking {
   timeEnd: string;
   type: "private" | "group" | "office_shift";
   isPaid: boolean;
+  /** paid_amount NULL: payment state unknown (never shown as paid or open) */
+  paymentUnknown?: boolean;
   ticketId: string;
   participantName?: string;
   status: string;

@@ -118,7 +118,7 @@ export function LunchListPreview({
                     <td className="py-2 px-2 font-medium">
                       {child.firstName} {child.lastName || ""}
                     </td>
-                    <td className="py-2 px-2 text-center">{child.age}</td>
+                    <td className="py-2 px-2 text-center">{child.age ?? "?"}</td>
                     <td className="py-2 px-2 text-center">
                       {child.isVegetarian ? (
                         <span className="inline-flex items-center gap-1 text-green-700 font-medium">

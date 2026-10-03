@@ -38,7 +38,7 @@ export function ParticipantManagementCard({
   const updateNotes = useUpdateParticipantNotes(instanceId);
 
   // Determine target group based on age
-  const targetGroup: TargetGroup = participant.age < 16 ? "child" : "adult";
+  const targetGroup: TargetGroup = participant.age !== null && participant.age >= 16 ? "adult" : "child";
 
   // Get current level ID based on discipline
   const currentLevelId =
@@ -108,7 +108,7 @@ export function ParticipantManagementCard({
                     {participant.firstName} {participant.lastName}
                   </p>
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <span>{participant.age} Jahre</span>
+                    <span>{participant.age === null ? "Alter unbekannt" : `${participant.age} Jahre`}</span>
                     {currentLevel && (
                       <>
                         <span>·</span>

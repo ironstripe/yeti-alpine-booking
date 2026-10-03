@@ -31,7 +31,8 @@ interface LessonCardProps {
 export function LessonCard({ lesson, onMarkAttendance }: LessonCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const navigate = useNavigate();
-  const getAge = (birthDate: string) => {
+  const getAge = (birthDate: string | null | undefined) => {
+    if (!birthDate) return "?";
     return differenceInYears(new Date(), new Date(birthDate));
   };
 

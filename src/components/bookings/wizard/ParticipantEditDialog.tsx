@@ -35,10 +35,11 @@ import {
 import { EnhancedDatePicker } from "@/components/ui/enhanced-date-picker";
 import { getLevelOptionsForAge, getNextLevel } from "@/lib/level-utils";
 import type { Tables } from "@/integrations/supabase/types";
+import { resolveBirthDateForSave } from "@/lib/participant-utils";
 
 const participantEditSchema = z.object({
   first_name: z.string().min(1, "Vorname ist erforderlich").max(100),
-  birth_date: z.date({ required_error: "Geburtsdatum ist erforderlich" }),
+  birth_date: z.date().optional(), // optional: imported participants may have no known birth date
   level_last_season: z.string().optional(),
   level_current_season: z.string().optional(),
   sport: z.string().default("ski"),
@@ -72,7 +73,7 @@ export function ParticipantEditDialog({
         .from("customer_participants")
         .update({
           first_name: data.first_name,
-          birth_date: format(data.birth_date, "yyyy-MM-dd"),
+          birth_date: resolveBirthDateForSave(data.birth_date, participant.birth_date),
           level_last_season: data.level_last_season || null,
           level_current_season: data.level_current_season || null,
           sport: data.sport,

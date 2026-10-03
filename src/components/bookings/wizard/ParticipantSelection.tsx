@@ -83,6 +83,7 @@ export function ParticipantSelection({
         .from("customer_participants")
         .select("*")
         .eq("customer_id", customerId)
+        .is("merged_into_id", null) // merged duplicates stay out of pickers
         .order("first_name");
 
       if (error) throw error;

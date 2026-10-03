@@ -28,7 +28,7 @@ export function Step2AssignCustomer() {
             customer_id: customerId,
             first_name: lp.first_name,
             last_name: lp.last_name || null,
-            birth_date: lp.birth_date || "2015-01-01",
+            birth_date: lp.birth_date || null,
             level_current_season: lp.skill_level || null,
             sport: lp.sport,
           })

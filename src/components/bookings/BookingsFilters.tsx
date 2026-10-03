@@ -50,6 +50,7 @@ const PAYMENT_STATUS_OPTIONS = [
   { value: "paid", label: "Bezahlt" },
   { value: "partial", label: "Teilbezahlt" },
   { value: "open", label: "Offen" },
+  { value: "unknown", label: "Zahlungsstatus unbekannt" },
 ];
 
 const PAYMENT_METHOD_OPTIONS = [

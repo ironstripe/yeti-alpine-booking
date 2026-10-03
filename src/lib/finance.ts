@@ -61,7 +61,15 @@ export function getOutstanding(
   return Math.round(Math.max(0, outstanding) * 100) / 100;
 }
 
-export type DerivedPaymentStatus = "unpaid" | "partial" | "paid" | "overdue";
+export type DerivedPaymentStatus = "unpaid" | "partial" | "paid" | "overdue" | "unknown";
+
+/**
+ * paid_amount NULL means "payment state unknown" (e.g. imported Booking-Corner sales).
+ * It must never be read as 0 (unpaid) or as settled.
+ */
+export function isPaymentUnknown(paidAmount: number | null | undefined): boolean {
+  return paidAmount === null || paidAmount === undefined;
+}
 
 export function derivePaymentStatus(params: {
   totalAmount: number | null | undefined;
@@ -69,6 +77,7 @@ export function derivePaymentStatus(params: {
   dueDate?: string | null;
   now?: Date;
 }): DerivedPaymentStatus {
+  if (isPaymentUnknown(params.paidAmount)) return "unknown";
   const total = Number(params.totalAmount || 0);
   const paid = Number(params.paidAmount || 0);
   const outstanding = getOutstanding(total, paid);
@@ -89,6 +98,7 @@ export const PAYMENT_STATUS_LABELS: Record<DerivedPaymentStatus, string> = {
   partial: "Teilweise bezahlt",
   paid: "Bezahlt",
   overdue: "Überfällig",
+  unknown: "Zahlungsstatus unbekannt",
 };
 
 export function formatCHF(amount: number | null | undefined): string {

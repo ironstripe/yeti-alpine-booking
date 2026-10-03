@@ -200,6 +200,7 @@ export function Step2ProductDates() {
     if (!calculatedDuration || calculatedDuration <= 1) return null;
 
     const youngParticipants = state.selectedParticipants.filter((p) => {
+      if (!p.birth_date) return false; // unknown age: no inferred warning
       const age = differenceInYears(new Date(), new Date(p.birth_date));
       return age < 6;
     });
