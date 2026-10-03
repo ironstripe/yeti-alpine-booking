@@ -207,8 +207,8 @@ export function SelectionToolbar({ className, bookings = [] }: SelectionToolbarP
     <>
       <div
         className={cn(
-          "fixed bottom-20 left-1/2 z-50 -translate-x-1/2 md:left-[calc(50%+125px)]",
-          "w-[calc(100vw-2rem)] max-w-[64rem] rounded-lg border bg-background p-3 shadow-lg md:w-[calc(100vw-282px)]",
+          "fixed bottom-20 left-1/2 z-50 -translate-x-1/2",
+          "w-[calc(100vw-2rem)] max-w-[64rem] rounded-lg border bg-background p-3 shadow-lg",
           "flex flex-wrap items-center justify-between gap-3",
           "animate-in slide-in-from-bottom-4 duration-300",
           className
