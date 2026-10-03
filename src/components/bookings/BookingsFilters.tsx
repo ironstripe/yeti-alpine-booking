@@ -121,22 +121,23 @@ export function BookingsFilters({
   };
 
   return (
-    <div className="flex items-center gap-2 mb-4">
+    <div className="mb-4 flex flex-wrap items-center gap-2">
       {/* Search Input */}
-      <div className="relative flex-1 max-w-md">
+      <div className="relative min-w-0 basis-full sm:max-w-md sm:flex-1 sm:basis-auto">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
           placeholder="Ticket-Nr, Name, Tel, E-Mail..."
           value={searchInput}
           onChange={(e) => onSearchChange(e.target.value)}
           className="pl-9"
+          aria-label="Buchungen durchsuchen"
         />
       </div>
 
       {/* Filter Popover */}
       <Popover open={filterOpen} onOpenChange={setFilterOpen}>
         <PopoverTrigger asChild>
-          <Button variant="outline" className="gap-2">
+          <Button variant="outline" className="min-w-0 flex-1 gap-2 sm:flex-none">
             <SlidersHorizontal className="h-4 w-4" />
             Filter
             {activeFilterCount > 0 && (
@@ -274,7 +275,7 @@ export function BookingsFilters({
       {/* Column Visibility */}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="outline" size="icon">
+          <Button variant="outline" size="icon" className="icon-action" aria-label="Sichtbare Spalten auswählen">
             <Columns3 className="h-4 w-4" />
           </Button>
         </DropdownMenuTrigger>

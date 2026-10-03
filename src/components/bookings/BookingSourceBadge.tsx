@@ -14,17 +14,17 @@ const SOURCE_CONFIG: Record<
   website: {
     label: "Website",
     icon: Globe,
-    className: "bg-blue-100 text-blue-700 border-blue-200 hover:bg-blue-100",
+    className: "bg-muted text-muted-foreground border-border hover:bg-muted",
   },
   vapi: {
     label: "Telefon",
     icon: Phone,
-    className: "bg-purple-100 text-purple-700 border-purple-200 hover:bg-purple-100",
+    className: "bg-muted text-muted-foreground border-border hover:bg-muted",
   },
   inbox: {
     label: "E-Mail",
     icon: Mail,
-    className: "bg-amber-100 text-amber-700 border-amber-200 hover:bg-amber-100",
+    className: "bg-muted text-muted-foreground border-border hover:bg-muted",
   },
   office: {
     label: "Büro",

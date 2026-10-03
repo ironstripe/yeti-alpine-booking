@@ -18,9 +18,14 @@
     --popover: 0 0% 100%;
     --popover-foreground: 222 47% 11%;
 
-    /* Primary - YETY Blue */
-    --primary: 217 91% 60%;
+    /* Primary action - YETY Blue, AA with white text */
+    --primary: 217 78% 45%;
     --primary-foreground: 0 0% 100%;
+    --primary-hover: 217 82% 40%;
+
+    /* Brand/link blue - for non-filled emphasis */
+    --brand: 217 78% 42%;
+    --brand-hover: 217 82% 35%;
 
     /* Secondary - Light gray */
     --secondary: 210 20% 96%;
@@ -47,7 +52,7 @@
     /* Borders and inputs */
     --border: 214 32% 91%;
     --input: 214 32% 91%;
-    --ring: 217 91% 60%;
+    --ring: 217 78% 45%;
 
     --radius: 0.625rem;
 
@@ -82,8 +87,12 @@
     --popover: 222 47% 9%;
     --popover-foreground: 210 20% 98%;
 
-    --primary: 217 91% 60%;
+    --primary: 217 78% 45%;
     --primary-foreground: 0 0% 100%;
+    --primary-hover: 217 82% 40%;
+
+    --brand: 217 73% 68%;
+    --brand-hover: 217 82% 76%;
 
     --secondary: 222 47% 15%;
     --secondary-foreground: 210 20% 98%;
@@ -104,7 +113,7 @@
 
     --border: 222 47% 18%;
     --input: 222 47% 18%;
-    --ring: 217 91% 60%;
+    --ring: 217 73% 68%;
 
     --sidebar-background: 222 47% 6%;
     --sidebar-foreground: 210 20% 90%;
@@ -164,6 +173,16 @@
   
   .touch-button {
     @apply min-h-[44px] min-w-[44px] p-3;
+  }
+
+  .icon-action {
+    @apply h-9 w-9;
+  }
+
+  @media (hover: none), (pointer: coarse) {
+    .icon-action {
+      @apply h-11 w-11;
+    }
   }
 }
 
