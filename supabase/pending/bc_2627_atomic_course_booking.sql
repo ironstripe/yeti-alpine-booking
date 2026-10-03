@@ -1085,3 +1085,7 @@ $$;
 ALTER TABLE public.booking_email_deliveries ADD COLUMN IF NOT EXISTS claimed_at timestamptz;
 ALTER TABLE public.booking_email_deliveries ADD COLUMN IF NOT EXISTS provider_idempotency_key text;
 ALTER TABLE public.booking_email_deliveries ADD COLUMN IF NOT EXISTS first_claimed_at timestamptz;
+-- Exact mail handed to the provider under provider_idempotency_key (+ SHA-256 digest):
+-- an unknown-outcome retry resends THIS payload with the same key, never a re-render.
+ALTER TABLE public.booking_email_deliveries ADD COLUMN IF NOT EXISTS frozen_payload jsonb;
+ALTER TABLE public.booking_email_deliveries ADD COLUMN IF NOT EXISTS payload_digest text;
