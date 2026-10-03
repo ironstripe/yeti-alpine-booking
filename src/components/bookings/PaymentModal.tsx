@@ -2,6 +2,7 @@ import { useState } from "react";
 import {
   Sheet,
   SheetContent,
+  SheetDescription,
   SheetHeader,
   SheetTitle,
   SheetFooter,
@@ -95,6 +96,9 @@ export function PaymentModal({ ticket, onClose }: PaymentModalProps) {
           <SheetTitle>
             Zahlung für Ticket {ticket?.ticket_number}
           </SheetTitle>
+          <SheetDescription className="sr-only">
+            Zahlung erfassen und speichern
+          </SheetDescription>
         </SheetHeader>
 
         <form id="payment-form" onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
