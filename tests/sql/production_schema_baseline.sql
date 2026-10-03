@@ -4,7 +4,6 @@
 -- PostgreSQL database dump
 --
 
-\restrict UGerjykKbpTNM6GP4e6rhBvR6ConUr9Ha8KQVSfgkXWOwYN0IViExwA09s16IFl
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.9
@@ -12297,5 +12296,4 @@ ALTER TABLE public.whatsapp_notifications ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict UGerjykKbpTNM6GP4e6rhBvR6ConUr9Ha8KQVSfgkXWOwYN0IViExwA09s16IFl
 
