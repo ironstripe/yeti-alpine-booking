@@ -74,4 +74,4 @@
 - [x] Mechanism, dry-run (51/51), rollback rehearsal, apply 51 sales, readback, idempotent re-run
 - [x] UI: capacity view shows booked inactive courses; unknown DOB shown as "unbekannt" / "? J." (family card, edit forms, capacity)
 - [x] Merged people hidden in participant search pickers
-- [ ] Booking wizard/lists: age rules for people with unknown DOB (needs a decision: which course age checks apply when DOB unknown)
+- [x] Booking wizard/lists: age rules for people with unknown DOB (needs a decision: which course age checks apply when DOB unknown)
