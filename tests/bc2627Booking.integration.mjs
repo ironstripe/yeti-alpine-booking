@@ -25,7 +25,7 @@ async function t(name, fn) {
 
 try {
   await sql.unsafe(read('tests/sql/bc2627_booking_fixture_schema.sql'));
-  await sql.unsafe(read('supabase/migrations/20261003220000_bc_2627_atomic_course_booking.sql'));
+  await sql.unsafe(read('supabase/pending/bc_2627_atomic_course_booking.sql'));
 
   // ---------------- synthetic fixtures ----------------
   await sql.unsafe(`

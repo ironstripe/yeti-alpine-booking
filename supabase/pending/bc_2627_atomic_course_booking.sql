@@ -709,10 +709,15 @@ GRANT EXECUTE ON FUNCTION public.bc_2627_finalize(uuid,text,jsonb,jsonb,text) TO
 -- for every booked instance, then recount actual enrollments (no cap).
 -- ---------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.bc_2627_recount_instances(p_ids uuid[])
-RETURNS void LANGUAGE sql SECURITY DEFINER SET search_path = public AS $$
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  -- Lock rows in id order, then count in a NEW statement (fresh READ COMMITTED
+  -- snapshot) so concurrent confirms never overwrite each other's counts.
+  PERFORM 1 FROM public.group_course_instances WHERE id = ANY(p_ids) ORDER BY id FOR UPDATE;
   UPDATE public.group_course_instances gi
      SET current_participants=(SELECT count(*)::int FROM public.group_course_enrollments e WHERE e.instance_id=gi.id)
    WHERE gi.id = ANY(p_ids);
+END;
 $$;
 REVOKE ALL ON FUNCTION public.bc_2627_recount_instances(uuid[]) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.bc_2627_recount_instances(uuid[]) TO service_role;
