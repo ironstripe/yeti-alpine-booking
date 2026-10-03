@@ -64,7 +64,7 @@ export interface TicketWithDetails {
   timeRange: string | null;
   participantCount: number;
   hasUnconfirmedInstructor: boolean;
-  computedPaymentStatus: "paid" | "open" | "overdue" | "partial";
+  computedPaymentStatus: "paid" | "open" | "overdue" | "partial" | "unknown";
   primaryProduct: { name: string; type: string } | null;
   primaryInstructor: { id: string; firstName: string; lastName: string } | null;
 }
@@ -106,11 +106,11 @@ function computeTicketDetails(ticket: any): TicketWithDetails {
   // Payment status is always DERIVED (amounts + due date), never stored as a free field
   const derived = derivePaymentStatus({
     totalAmount: ticket.total_amount || 0,
-    paidAmount: ticket.paid_amount || 0,
+    paidAmount: ticket.paid_amount,
     dueDate: ticket.payment_due_date,
   });
   // The bookings list uses "open" as its label for an untouched balance
-  const computedPaymentStatus: "paid" | "open" | "overdue" | "partial" =
+  const computedPaymentStatus: "paid" | "open" | "overdue" | "partial" | "unknown" =
     derived === "unpaid" ? "open" : derived;
 
   // Get primary product (first item's product)

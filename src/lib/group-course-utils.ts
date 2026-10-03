@@ -45,8 +45,11 @@ function isLevelAtOrAbove(level: string | null, threshold: LevelValue): boolean 
 /**
  * Calculate age from birth date
  */
-export function getAge(birthDate: string): number {
-  return differenceInYears(new Date(), new Date(birthDate));
+export function getAge(birthDate: string | null | undefined): number | null {
+  if (!birthDate) return null;
+  const date = new Date(birthDate);
+  if (isNaN(date.getTime())) return null;
+  return differenceInYears(new Date(), date);
 }
 
 /**
@@ -115,7 +118,7 @@ export function getRecommendedGroupCourse(
  * Returns the most restrictive recommendation (e.g., if any is adult-only, all are)
  */
 export function getGroupRecommendationForParticipants(
-  participants: Array<{ birth_date: string; level_current_season: string | null }>
+  participants: Array<{ birth_date: string | null; level_current_season: string | null }>
 ): GroupCourseRecommendation & { hasAdults: boolean; hasToddlers: boolean } {
   let hasAdults = false;
   let hasToddlers = false;
@@ -124,6 +127,8 @@ export function getGroupRecommendationForParticipants(
 
   for (const p of participants) {
     const age = getAge(p.birth_date);
+    // Unknown birth date: no age-based recommendation is inferred for this participant
+    if (age === null) continue;
     const recommendation = getRecommendedGroupCourse(age, p.level_current_season);
 
     if (recommendation.isAdultOnly) {

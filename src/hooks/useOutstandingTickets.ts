@@ -101,6 +101,8 @@ export function useOutstandingTickets() {
       const active = (tickets || []).filter((t: any) => {
         const status = (t.status || "").toLowerCase();
         if (EXCLUDED_TICKET_STATUSES.includes(status)) return false;
+        // paid_amount NULL = payment state unknown, never inferred as open debt
+        if (t.paid_amount === null || t.paid_amount === undefined) return false;
         return getOutstanding(t.total_amount, t.paid_amount) > 0.009;
       });
 

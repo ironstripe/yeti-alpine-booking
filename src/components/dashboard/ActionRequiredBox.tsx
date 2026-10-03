@@ -29,7 +29,7 @@ export function ActionRequiredBox() {
         .range(0, 9999);
 
       const overduePayments = (unpaidTickets || []).filter(
-        (t) => (t.paid_amount || 0) < (t.total_amount || 0)
+        (t) => t.paid_amount !== null && (t.paid_amount || 0) < (t.total_amount || 0)
       ).length;
 
       // Unassigned lessons: only active items from today onwards

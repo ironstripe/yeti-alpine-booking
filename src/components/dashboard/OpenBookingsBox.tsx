@@ -59,7 +59,7 @@ export function OpenBookingsBox() {
 
       // Filter client-side for unpaid bookings
       const unpaidTickets = (data || []).filter(
-        (ticket) => (ticket.paid_amount || 0) < (ticket.total_amount || 0)
+        (ticket) => ticket.paid_amount !== null && (ticket.paid_amount || 0) < (ticket.total_amount || 0)
       );
 
       return unpaidTickets.map((ticket) => {

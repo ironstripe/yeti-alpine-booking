@@ -1,3 +1,4 @@
+import { isCourseVisibleInternally, mergeCapacityGroups } from "@/lib/internalCourseVisibility";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { startOfWeek, format, addDays } from "date-fns";
@@ -106,8 +107,12 @@ export function useGroupCapacityData(weekStart: Date) {
 
       if (groupsError) throw groupsError;
 
-      // If no training groups exist yet, try to get courses with instances this week
-      if (!trainingGroups || trainingGroups.length === 0) {
+      // Course-level groups from real instances this week. Used as the full view when no
+      // training groups exist, and otherwise only for courses without training groups that
+      // have real enrollments (e.g. booked inactive 26/27 or Saturday courses) - never both
+      // for the same course, so nothing is counted twice.
+      let courseLevelGroups: GroupCapacityInfo[] = [];
+      {
         // Get courses that have instances this week (regardless of enrollments)
         const { data: courses, error: coursesError } = await supabase
           .from('group_courses')
@@ -117,6 +122,8 @@ export function useGroupCapacityData(weekStart: Date) {
             color,
             discipline,
             skill_level_id,
+            is_active,
+            course_type,
             min_participants,
             max_participants,
             group_course_instances!inner (
@@ -135,7 +142,7 @@ export function useGroupCapacityData(weekStart: Date) {
               )
             )
           `)
-          .eq('course_type', 'weekly')
+          .in('course_type', ['weekly', 'saturday_course'])
           .gte('group_course_instances.date', weekStartStr)
           .lte('group_course_instances.date', weekEndStr);
 
@@ -165,8 +172,10 @@ export function useGroupCapacityData(weekStart: Date) {
         // Inactive courses stay visible internally only when they have real bookings this week
         // (e.g. booked 26/27 courses); public/active flags are not changed.
         const visibleCourses = (courses || []).filter((course: any) =>
-          course.is_active === true ||
-          course.group_course_instances?.some((inst: any) => (inst.group_course_enrollments || []).length > 0)
+          isCourseVisibleInternally(
+            course,
+            !!course.group_course_instances?.some((inst: any) => (inst.group_course_enrollments || []).length > 0)
+          )
         );
 
         // Transform to capacity info without training_groups
@@ -253,7 +262,10 @@ export function useGroupCapacityData(weekStart: Date) {
           okCount: groups.filter(g => g.capacityStatus === 'ok').length,
         };
 
-        return { groups, stats };
+        if (!trainingGroups || trainingGroups.length === 0) {
+          return { groups, stats };
+        }
+        courseLevelGroups = groups;
       }
 
       // Get enrollments for each training group
@@ -299,7 +311,7 @@ export function useGroupCapacityData(weekStart: Date) {
       });
 
       // Transform to capacity info
-      const groups: GroupCapacityInfo[] = trainingGroups.map((tg: any) => {
+      const trainingGroupInfos: GroupCapacityInfo[] = trainingGroups.map((tg: any) => {
         const course = tg.group_courses;
         const participants = enrollmentsByGroup.get(tg.id) || [];
         const participantCount = participants.length;
@@ -339,6 +351,19 @@ export function useGroupCapacityData(weekStart: Date) {
           participants,
         };
       });
+
+      const coursesWithAssigned = new Set(trainingGroupInfos.filter(g => g.participantCount > 0).map(g => g.courseId));
+      const courseLevelCourseIds = new Set(
+        courseLevelGroups.filter(g => g.participantCount > 0 && !coursesWithAssigned.has(g.courseId)).map(g => g.courseId)
+      );
+      const groups: GroupCapacityInfo[] = mergeCapacityGroups(
+        // empty training-group cards are replaced by the course-level card for that course
+        trainingGroupInfos.filter(g => !courseLevelCourseIds.has(g.courseId)),
+        // A course counts as covered only when its training groups actually hold enrollments;
+        // otherwise (e.g. imported enrollments without training group) the course-level card is used.
+        trainingGroupInfos.filter(g => g.participantCount > 0).map(g => g.courseId),
+        courseLevelGroups
+      );
 
       const stats: CapacityStats = {
         totalGroups: groups.length,

@@ -140,7 +140,7 @@ export function GroupAssignmentPreview({
                             <div key={participant.id} className="flex items-center gap-2">
                               <span className="w-5">{pIndex + 1}.</span>
                               <span className="font-medium">
-                                {participant.firstName} {participant.lastName || ""} ({participant.age})
+                                {participant.firstName} {participant.lastName || ""} ({participant.age ?? "?"})
                               </span>
                               {showLevel && (
                                 <span className="text-muted-foreground">

@@ -101,7 +101,7 @@ export function PaymentModal({ ticket, onClose }: PaymentModalProps) {
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Bereits bezahlt:</span>
-              <span>CHF {(ticket?.paid_amount || 0).toFixed(2)}</span>
+              <span>{ticket?.paid_amount === null || ticket?.paid_amount === undefined ? "unbekannt" : `CHF ${ticket.paid_amount.toFixed(2)}`}</span>
             </div>
             <div className="flex justify-between text-sm font-semibold border-t border-border mt-2 pt-2">
               <span>Offen:</span>

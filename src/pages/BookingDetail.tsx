@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useReactToPrint } from "react-to-print";
-import { getPaymentMethodLabel } from "@/lib/finance";
+import { getPaymentMethodLabel, isPaymentUnknown } from "@/lib/finance";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import {
@@ -249,9 +249,12 @@ const BookingDetail = () => {
 
   // Compute payment status for BookingStatusBadge
   const totalAmount = ticket.total_amount || 0;
+  const paymentUnknown = isPaymentUnknown(ticket.paid_amount);
   const paidAmount = ticket.paid_amount || 0;
-  let computedPaymentStatus: "paid" | "open" | "overdue" | "partial" = "open";
-  if (paidAmount >= totalAmount && totalAmount > 0) {
+  let computedPaymentStatus: "paid" | "open" | "overdue" | "partial" | "unknown" = "open";
+  if (paymentUnknown) {
+    computedPaymentStatus = "unknown";
+  } else if (paidAmount >= totalAmount && totalAmount > 0) {
     computedPaymentStatus = "paid";
   } else if (paidAmount > 0 && paidAmount < totalAmount) {
     computedPaymentStatus = "partial";
@@ -326,7 +329,7 @@ const BookingDetail = () => {
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Bezahlt</p>
-                  <p className="font-medium">CHF {formatCurrency(ticket.paid_amount || 0)}</p>
+                  <p className="font-medium">{paymentUnknown ? "Zahlungsstatus unbekannt" : `CHF ${formatCurrency(ticket.paid_amount || 0)}`}</p>
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Zahlungsart</p>

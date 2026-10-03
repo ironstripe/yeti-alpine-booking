@@ -85,8 +85,12 @@ export default function GroupCapacityPlanning() {
   const [searchParams, setSearchParams] = useSearchParams();
   const courseFilter = searchParams.get('course');
   
-  const [currentWeek, setCurrentWeek] = useState(() => 
-    startOfWeek(new Date(), { weekStartsOn: 1 })
+  const [currentWeek, setCurrentWeek] = useState(() => {
+    // Optional ?week=YYYY-MM-DD deep link (same as the weekly planning page)
+    const weekParam = searchParams.get('week');
+    const parsed = weekParam ? new Date(`${weekParam}T00:00:00`) : null;
+    return startOfWeek(parsed && !isNaN(parsed.getTime()) ? parsed : new Date(), { weekStartsOn: 1 });
+  }
   );
   
   // Dialog states

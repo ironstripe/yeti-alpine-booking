@@ -1,3 +1,4 @@
+import { isCourseVisibleInternally } from "@/lib/internalCourseVisibility";
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { format, startOfWeek, endOfWeek } from 'date-fns';
@@ -74,10 +75,11 @@ export function useGroupPlanningData(weekStart: Date): UseGroupPlanningDataRetur
             discipline,
             max_participants,
             meeting_point,
+            is_active,
+            course_type,
             linked_skill_level:skill_level_id(id, name)
           `)
-          .eq('is_active', true)
-          .eq('course_type', 'weekly')
+          .in('course_type', ['weekly', 'saturday_course'])
           .order('name'),
         supabase
           .from('group_course_schedules')
@@ -94,6 +96,7 @@ export function useGroupPlanningData(weekStart: Date): UseGroupPlanningDataRetur
             instructor_id,
             assistant_instructor_id,
             current_participants,
+            enrollments:group_course_enrollments(id),
             instructor:instructor_id(id, first_name, last_name),
             assistant_instructor:assistant_instructor_id(id, first_name, last_name)
           `)
@@ -107,7 +110,16 @@ export function useGroupPlanningData(weekStart: Date): UseGroupPlanningDataRetur
       if (schedulesResult.error) throw schedulesResult.error;
       if (instancesResult.error) throw instancesResult.error;
 
-      const courses = coursesResult.data || [];
+      // Active weekly courses as before; inactive (e.g. booked 26/27) or Saturday courses only
+      // when an instance in this week has real enrollments. Public flags stay unchanged.
+      const enrolledCourseIds = new Set(
+        (instancesResult.data || [])
+          .filter((i: any) => (i.enrollments || []).length > 0)
+          .map(i => i.course_id)
+      );
+      const courses = (coursesResult.data || []).filter((c: any) =>
+        isCourseVisibleInternally(c, enrolledCourseIds.has(c.id))
+      );
       if (courses.length === 0) {
         return { courses: [], instances: [], schedules: [] };
       }
@@ -146,7 +158,8 @@ export function useGroupPlanningData(weekStart: Date): UseGroupPlanningDataRetur
         assistantName: i.assistant_instructor
           ? `${(i.assistant_instructor as any).first_name} ${(i.assistant_instructor as any).last_name}`
           : null,
-        currentParticipants: i.current_participants || 0,
+        // real enrollments win over a possibly stale counter column
+        currentParticipants: Math.max(i.current_participants || 0, ((i as any).enrollments || []).length),
       }));
 
     // Calculate weekly instructor (if all instances have the same one)

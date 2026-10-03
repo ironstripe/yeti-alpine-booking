@@ -3,7 +3,7 @@ import { cn } from "@/lib/utils";
 
 interface BookingStatusBadgeProps {
   status: string | null;
-  paymentStatus: "paid" | "open" | "overdue" | "partial";
+  paymentStatus: "paid" | "open" | "overdue" | "partial" | "unknown";
   hasUnconfirmedInstructor: boolean;
 }
 
@@ -73,6 +73,14 @@ export function BookingStatusBadge({
     return (
       <Badge variant="outline" className="bg-orange-500/10 text-orange-600 border-orange-500/20">
         🟠 Ausstehend
+      </Badge>
+    );
+  }
+
+  if (paymentStatus === "unknown") {
+    return (
+      <Badge variant="outline" className="bg-muted text-muted-foreground">
+        ⚪ Zahlungsstatus unbekannt
       </Badge>
     );
   }
