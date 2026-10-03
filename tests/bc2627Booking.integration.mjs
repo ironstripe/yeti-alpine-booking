@@ -13,6 +13,7 @@ const opts = { onnotice: () => {}, ssl: false };
 const dbName = `bc2627_test_${Date.now()}`;
 const admin = postgres(adminUrl, { ...opts, max: 1 });
 await admin.unsafe(`CREATE DATABASE ${dbName}`);
+await admin.unsafe(`ALTER DATABASE ${dbName} SET search_path = public, extensions`);
 u.pathname = `/${dbName}`;
 const sql = postgres(u.toString(), { ...opts, max: 30 });
 const root = new URL('../', import.meta.url);
@@ -36,7 +37,8 @@ const W4 = ['2027-01-04', '2027-01-05', '2027-01-06', '2027-01-07'];
 
 try {
   await sql.unsafe(read('tests/sql/baseline_prelude.sql'));
-  await sql.unsafe(read('tests/sql/production_schema_baseline.sql'));
+  await sql.unsafe(read("tests/sql/production_schema_baseline.sql"));
+  await sql.unsafe("SET search_path = public, extensions");
   await sql.unsafe(read('supabase/pending/bc_2627_atomic_course_booking.sql'));
 
   // ---------------- synthetic fixtures (post pricing-release state) ----------------
