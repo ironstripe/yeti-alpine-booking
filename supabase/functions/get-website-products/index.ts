@@ -1,6 +1,6 @@
-// Temporary informational catalog for Malbun 26/27. No database schema changes.
+// Informational catalog for Malbun 26/27; visibility is an explicit product decision.
 // The OnePager calls this endpoint server-to-server with x-api-key.
-// All products in the single current season may be shown, including inactive drafts;
+// Selected products in the single current season may be shown, including inactive drafts;
 // web reservations must stay disabled until pricing and concrete dates are verified.
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { checkApiKey, corsHeaders, json } from "../_shared/intakeAuth.ts";
@@ -23,7 +23,7 @@ Deno.serve(async (req) => {
 
     const { data: rows, error: productError } = await db.from("products")
       .select("id,name,type,discipline,audience,price,pricing_type,currency,duration_minutes,min_age,max_age,sort_order,is_active")
-      .eq("season_id", season.id).order("sort_order");
+      .eq("season_id", season.id).eq("show_on_website", true).order("sort_order");
     if (productError) throw productError;
     const offerings = (rows ?? []).filter((p) => !INTERNAL_TYPES.has(p.type));
     const ids = offerings.map((p) => p.id);

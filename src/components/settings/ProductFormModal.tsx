@@ -58,6 +58,7 @@ const formSchema = z.object({
   max_age: z.coerce.number().min(0).optional().nullable(),
   is_active: z.boolean(),
   is_training_product: z.boolean(),
+  show_on_website: z.boolean(),
   // Reporting metadata (Swiss Snowsports statistics)
   discipline: z.enum(["ski", "snowboard", "other", "unset"]),
   audience: z.enum(["kids", "adults", "mixed", "unset"]),
@@ -93,6 +94,7 @@ export function ProductFormModal({ open, onOpenChange, product, seasonId, isBook
       max_age: null,
       is_active: true,
       is_training_product: false,
+      show_on_website: false,
       discipline: "unset",
       audience: "unset",
       reporting_category: "unset",
@@ -145,6 +147,7 @@ export function ProductFormModal({ open, onOpenChange, product, seasonId, isBook
         max_age: product.max_age ?? null,
         is_active: product.is_active ?? true,
         is_training_product: product.is_training_product ?? false,
+        show_on_website: product.show_on_website ?? false,
         discipline: ((product as any).discipline ?? "unset") as any,
         audience: ((product as any).audience ?? "unset") as any,
         reporting_category: ((product as any).reporting_category ?? "unset") as any,
@@ -163,6 +166,7 @@ export function ProductFormModal({ open, onOpenChange, product, seasonId, isBook
         max_age: null,
         is_active: true,
         is_training_product: false,
+        show_on_website: false,
         discipline: "unset",
         audience: "unset",
         reporting_category: "unset",
@@ -200,6 +204,7 @@ export function ProductFormModal({ open, onOpenChange, product, seasonId, isBook
       max_age: data.max_age || null,
       is_active: data.is_active,
       is_training_product: data.is_training_product,
+      show_on_website: data.show_on_website,
       discipline: data.discipline === "unset" ? null : data.discipline,
       audience: data.audience === "unset" ? null : data.audience,
       reporting_category: data.reporting_category === "unset" ? null : data.reporting_category,
@@ -672,6 +677,24 @@ export function ProductFormModal({ open, onOpenChange, product, seasonId, isBook
                   </span>
                 </div>
               )}
+
+              <FormField
+                control={form.control}
+                name="show_on_website"
+                render={({ field }) => (
+                  <FormItem className="flex items-center justify-between gap-4 rounded-lg border p-3">
+                    <div className="space-y-0.5">
+                      <FormLabel htmlFor="product-show-on-website" className="text-base">Auf Website anzeigen</FormLabel>
+                      <FormDescription>
+                        Zeigt dieses Produkt als Karte auf der Website der aktuellen Saison. Das schaltet keine Online-Buchung frei.
+                      </FormDescription>
+                    </div>
+                    <FormControl>
+                      <Switch id="product-show-on-website" checked={field.value} onCheckedChange={field.onChange} />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
 
               {/* Active Toggle */}
               <FormField
