@@ -498,7 +498,7 @@ BEGIN
   FOR v_p IN SELECT value FROM jsonb_array_elements(v_people) LOOP
     IF jsonb_typeof(v_p) IS DISTINCT FROM 'object'
        OR COALESCE(v_p->>'ref','') = '' OR (v_p->>'ref') = ANY(v_refs)
-       OR COALESCE(v_p->>'birth_date','') !~ '^\d{4}-\d{2}-\d{2}$'
+       OR COALESCE(v_p->>'birth_date','') !~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
        OR COALESCE(v_p->>'discipline','') NOT IN ('ski','snowboard')
        OR COALESCE(trim(v_p->>'skill_level'),'') = '' THEN
       RETURN public.bc_2627_err('invalid_participant','Teilnehmende brauchen eindeutige ref, Geburtsdatum, Disziplin und Niveau');
@@ -549,7 +549,7 @@ BEGIN
         IF v_allowed IS NULL THEN RAISE EXCEPTION 'course_unavailable: Produktvariante fehlt'; END IF;
         IF jsonb_typeof(v_s->'dates') IS DISTINCT FROM 'array' THEN RAISE EXCEPTION 'invalid_dates: dates fehlt'; END IF;
         IF EXISTS (SELECT 1 FROM jsonb_array_elements(v_s->'dates') x
-                    WHERE jsonb_typeof(x) IS DISTINCT FROM 'string' OR (x #>> '{}') !~ '^\d{4}-\d{2}-\d{2}$') THEN
+                    WHERE jsonb_typeof(x) IS DISTINCT FROM 'string' OR (x #>> '{}') !~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$') THEN
           RAISE EXCEPTION 'invalid_dates: Ungültiges Datum';
         END IF;
         BEGIN
@@ -629,8 +629,8 @@ BEGIN
         END IF;
         FOR v_it IN SELECT value FROM jsonb_array_elements(v_s->'items') LOOP
           IF jsonb_typeof(v_it) IS DISTINCT FROM 'object'
-             OR COALESCE(v_it->>'date','') !~ '^\d{4}-\d{2}-\d{2}$'
-             OR COALESCE(v_it->>'time_start','') !~ '^\d{2}:\d{2}$' OR COALESCE(v_it->>'time_end','') !~ '^\d{2}:\d{2}$' THEN
+             OR COALESCE(v_it->>'date','') !~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+             OR COALESCE(v_it->>'time_start','') !~ '^[0-9]{2}:[0-9]{2}$' OR COALESCE(v_it->>'time_end','') !~ '^[0-9]{2}:[0-9]{2}$' THEN
             RAISE EXCEPTION 'invalid_dates: Ungültiger Privattermin';
           END IF;
           IF (v_it->>'date')::date < CURRENT_DATE THEN RAISE EXCEPTION 'invalid_dates: Datum in der Vergangenheit'; END IF;
@@ -820,7 +820,7 @@ BEGIN
     RETURN public.bc_2627_err('invalid_status',COALESCE(v_t.status,''));
   END IF;
   IF jsonb_typeof(p_customer) IS DISTINCT FROM 'object'
-     OR v_email !~ '^[^@\s]+@[^@\s]+\.[^@\s]+$'
+     OR v_email !~ '^[^@[:space:]]+@[^@[:space:]]+\.[^@[:space:]]+$'
      OR COALESCE(trim(p_customer->>'first_name'),'') = '' OR COALESCE(trim(p_customer->>'last_name'),'') = '' THEN
     RETURN public.bc_2627_err('invalid_customer','Kunde mit E-Mail, Vor- und Nachname erforderlich');
   END IF;
