@@ -241,7 +241,15 @@ export async function issueInvoice(
     .eq("id", created.id)
     .select("*")
     .single();
-  if (updateError) return { ok: false, error_code: "SNAPSHOT_FAILED", error: updateError.message };
+  if (updateError) {
+    // A concurrent issuer already opened an invoice for this ticket: drop our draft, return theirs.
+    if (!input.allowAdditional && updateError.code === "23505" && String(updateError.message ?? "").includes("invoices_open_ticket_unique")) {
+      await supabase.from("invoices").delete().eq("id", created.id).eq("status", "draft");
+      const { data: winner } = await supabase.from("invoices").select("*").eq("ticket_id", input.ticketId).eq("status", "open").maybeSingle();
+      if (winner) return { ok: true, invoice: winner };
+    }
+    return { ok: false, error_code: "SNAPSHOT_FAILED", error: updateError.message };
+  }
 
   // 7. Audit trail
   await supabase.from("ticket_history").insert({
