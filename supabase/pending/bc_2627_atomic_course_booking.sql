@@ -713,7 +713,7 @@ RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 BEGIN
   -- Lock rows in id order, then count in a NEW statement (fresh READ COMMITTED
   -- snapshot) so concurrent confirms never overwrite each other's counts.
-  PERFORM 1 FROM public.group_course_instances WHERE id = ANY(p_ids) ORDER BY id FOR UPDATE;
+  PERFORM 1 FROM public.group_course_instances WHERE id = ANY(p_ids) ORDER BY id FOR NO KEY UPDATE; -- does not conflict with FK KEY SHARE locks of enrollment inserts
   UPDATE public.group_course_instances gi
      SET current_participants=(SELECT count(*)::int FROM public.group_course_enrollments e WHERE e.instance_id=gi.id)
    WHERE gi.id = ANY(p_ids);
