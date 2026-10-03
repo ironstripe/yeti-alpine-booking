@@ -6,13 +6,24 @@ const seasons = [
   { id: "s26", name: "Winter 26/27", start_date: "2026-12-01", end_date: "2027-04-15" },
 ];
 const products = [
-  { id: "p-legacy", name: "Gruppe", is_active: true, season_id: "s25", price: 80, type: "group" },
+  { id: "p-legacy", name: "Gruppe", is_active: true, season_id: "s25", price: 80, type: "group", pricing_type: "fixed" },
+  { id: "p-office", name: "Büro", is_active: true, season_id: "s25", price: 80, type: "office_shift", pricing_type: "fixed" },
+  { id: "p-private", name: "Privat", is_active: true, season_id: "s25", price: 80, type: "private", pricing_type: "fixed" },
+  { id: "p-lunch", name: "Mittag", is_active: true, season_id: "s25", price: 20, type: "lunch", pricing_type: "fixed" },
+  { id: "p-tiered", name: "Progressiv", is_active: true, season_id: "s25", price: 300, type: "group", pricing_type: "tiered" },
+  { id: "p-flat", name: "Pauschal", is_active: true, season_id: "s25", price: 300, type: "group", pricing_type: "flat" },
   { id: "p-zero", name: "Gruppe 0", is_active: true, season_id: "s25", price: 0, type: "group" },
   { id: "p-off", name: "Alt", is_active: false, season_id: "s25", price: 80, type: "group" },
   { id: "p-2627", name: "Carving", is_active: true, season_id: "s26", price: 90, type: "group" },
   { id: "p-src", name: "Quelle", is_active: true, season_id: "s25", price: 90, type: "group" },
 ];
 const courses = [
+  { id: "c-office", name: "Büro", product_id: "p-office", price_per_day: 70, is_active: true },
+  { id: "c-private", name: "Privat", product_id: "p-private", price_per_day: 70, is_active: true },
+  { id: "c-lunch", name: "Mittag", product_id: "p-lunch", price_per_day: 70, is_active: true },
+  { id: "c-nullactive", name: "Unklar", product_id: "p-legacy", price_per_day: 70, is_active: null },
+  { id: "c-tiered0", name: "Progressiv 0", product_id: "p-tiered", price_per_day: 0, is_active: true },
+  { id: "c-flat0", name: "Pauschal 0", product_id: "p-flat", price_per_day: 0, is_active: true },
   { id: "c-ok", name: "Kids", product_id: "p-legacy", price_per_day: 70, is_active: true },
   { id: "c-prodprice", name: "Kids2", product_id: "p-legacy", price_per_day: 0, is_active: true },
   { id: "c-zero", name: "Null", product_id: "p-zero", price_per_day: 0, is_active: true },
@@ -57,5 +68,24 @@ describe("group booking preflight (#15)", () => {
     ]));
     expect(r.ok).toBe(false);
     if ("errors" in r) expect(r.errors).toHaveLength(1);
+  });
+  it.each(["c-office", "c-private", "c-lunch"])("rejects non-group linked product type (%s) before pricing", (id) => {
+    const r = preflightGroupLines(one(id));
+    expect(r.ok).toBe(false);
+    expect(!r.ok && r.errors[0]).toContain("kein Gruppenkurs-Produkt");
+  });
+  it("rejects course with is_active null", () => {
+    expect(preflightGroupLines(one("c-nullactive")).ok).toBe(false);
+  });
+  it.each(["2026-02-30", "2026-13-01", "2026-1-10", "2025-02-29"])("rejects invalid calendar date %s", (d) => {
+    expect(preflightGroupLines(one("c-ok", [d])).ok).toBe(false);
+  });
+  it("rejects duplicate dates instead of charging twice", () => {
+    const r = preflightGroupLines(one("c-ok", ["2026-01-10", "2026-01-10"]));
+    expect(r.ok).toBe(false);
+    expect(!r.ok && r.errors[0]).toContain("mehrfach");
+  });
+  it.each(["c-tiered0", "c-flat0"])("zero-price course on non-daily product (%s) does not take product.price", (id) => {
+    expect(preflightGroupLines(one(id)).ok).toBe(false);
   });
 });

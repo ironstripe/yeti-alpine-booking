@@ -34,3 +34,11 @@ Deno.test("only active, website-visible products of the season are eligible", ()
   assertEquals(eligibleProducts(rows, "s1").map((p) => p.id), ["ok"]);
   assertEquals(eligibleProducts(null, "s1"), []);
 });
+
+Deno.test("office_shift is never eligible, even active and explicitly website-visible", () => {
+  const rows = [
+    { id: "ok", season_id: "s1", is_active: true, show_on_website: true, type: "group" },
+    { id: "office-visible", season_id: "s1", is_active: true, show_on_website: true, type: "office_shift" },
+  ];
+  assertEquals(eligibleProducts(rows, "s1").map((p) => p.id), ["ok"]);
+});

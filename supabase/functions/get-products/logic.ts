@@ -26,10 +26,14 @@ export type ProductRow = {
   season_id: string;
   is_active: boolean | null;
   show_on_website: boolean | null;
+  type?: string | null;
   [k: string]: unknown;
 };
 
+/** Internal product types never shown publicly (same rule as get-website-products). */
+const INTERNAL_TYPES = new Set(["office_shift"]);
+
 /** Defence in depth: re-filter even though the query already filters. */
 export function eligibleProducts<T extends ProductRow>(rows: T[] | null | undefined, seasonId: string): T[] {
-  return (rows ?? []).filter((p) => p.season_id === seasonId && p.is_active === true && p.show_on_website === true);
+  return (rows ?? []).filter((p) => p.season_id === seasonId && p.is_active === true && p.show_on_website === true && !INTERNAL_TYPES.has(String(p.type ?? "")));
 }
