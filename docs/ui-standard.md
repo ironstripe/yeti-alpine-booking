@@ -61,11 +61,17 @@ UI-02 refines touch targets and long sheet headings, applies the established she
 
 UI-02 does not change approval or payment behavior, booking-detail actions, wizard state, calculations, validation, requests, or persistence. Complex ticket-edit dialogs and cross-step sticky pricing remain deferred.
 
+## UI-03 implementation
+
+UI-03 applies the form anatomy to the customer, instructor, course, and product dialogs: a stable readable header, one scrollable form body, and a visible footer with secondary cancel and one primary save action. Existing wide dialog widths, field order, submission wiring, close guards, photo workflow, validation, and business visibility remain unchanged.
+
+Multi-column field groups stack at narrow widths, repeating rows can wrap without horizontal clipping, and touched icon-only remove or primary-contact controls use the shared accessible target convention. UI-03 does not standardize every form in the application or alter shared dialog behavior.
+
 ## Future proposals — not implemented in UI-01 or UI-02
 
 - **Approval and detail follow-up:** review complex ticket-edit dialogs, history, and related information after their workflows receive individual review.
 - **Booking wizard follow-up:** review earlier-step field grouping, error placement, and cross-step pricing without changing booking rules.
 - **Scheduler:** separately review dense planning controls, calendar geometry, selection, drag/drop, and touch behavior.
-- **Remaining modules:** progressively adopt the standard after individual workflow review; no app-wide redesign is implied by UI-01.
+- **Remaining modules:** progressively adopt the standard after individual workflow review; no app-wide redesign is implied by UI-01 through UI-03.
 
 Existing confirmation-resend, duplicate-booking, and cancellation placeholder handlers remain out of scope until their workflows are implemented separately.

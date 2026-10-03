@@ -8,6 +8,7 @@ import { useNavigate } from "react-router-dom";
 import {
   Dialog,
   DialogContent,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -256,13 +257,14 @@ export function NewCustomerModal({ open, onOpenChange }: NewCustomerModalProps) 
 
   return (
     <Dialog open={open} onOpenChange={dismiss.requestClose}>
-      <DialogContent hideCloseButton={createCustomer.isPending} className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
+      <DialogContent hideCloseButton={createCustomer.isPending} className="flex max-h-[90vh] w-[calc(100%-2rem)] max-w-[600px] flex-col gap-0 overflow-hidden p-0">
+        <DialogHeader className="shrink-0 border-b px-5 py-5 pr-16 sm:px-6 sm:pr-16">
           <DialogTitle>Neuer Kunde</DialogTitle>
         </DialogHeader>
 
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="flex min-h-0 flex-1 flex-col">
+            <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-5 py-5 sm:px-6">
             {/* Customer Type Selector */}
             <div className="space-y-4">
               <h3 className="text-sm font-medium text-muted-foreground">Kundentyp</h3>
@@ -275,7 +277,7 @@ export function NewCustomerModal({ open, onOpenChange }: NewCustomerModalProps) 
                       <RadioGroup
                         onValueChange={field.onChange}
                         value={field.value}
-                        className="flex gap-4"
+                        className="grid gap-3 sm:grid-cols-2"
                       >
                         <div className="flex items-center space-x-2 border rounded-lg p-3 flex-1 cursor-pointer hover:bg-muted/50" onClick={() => field.onChange("private")}>
                           <RadioGroupItem value="private" id="type_private" />
@@ -351,7 +353,7 @@ export function NewCustomerModal({ open, onOpenChange }: NewCustomerModalProps) 
 
               {/* Private: First/Last Name */}
               {customerType === "private" && (
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-4 sm:grid-cols-2">
                   <FormField
                     control={form.control}
                     name="first_name"
@@ -486,12 +488,12 @@ export function NewCustomerModal({ open, onOpenChange }: NewCustomerModalProps) 
                 {/* Additional Phones */}
                 <div className="space-y-3">
                   {phoneFields.map((field, index) => (
-                    <div key={field.id} className="flex items-end gap-2">
+                    <div key={field.id} className="grid grid-cols-[minmax(0,120px)_minmax(0,1fr)_auto] items-end gap-2">
                       <FormField
                         control={form.control}
                         name={`additional_phones.${index}.label`}
                         render={({ field }) => (
-                          <FormItem className="w-[120px]">
+                          <FormItem className="min-w-0">
                             <Select onValueChange={field.onChange} value={field.value}>
                               <FormControl>
                                 <SelectTrigger>
@@ -530,6 +532,8 @@ export function NewCustomerModal({ open, onOpenChange }: NewCustomerModalProps) 
                         type="button"
                         variant="ghost"
                         size="icon"
+                        className="icon-action"
+                        aria-label={`Telefon ${index + 1} entfernen`}
                         onClick={() => removePhone(index)}
                       >
                         <Trash2 className="h-4 w-4 text-muted-foreground" />
@@ -550,12 +554,12 @@ export function NewCustomerModal({ open, onOpenChange }: NewCustomerModalProps) 
                 {/* Additional Emails */}
                 <div className="space-y-3">
                   {emailFields.map((field, index) => (
-                    <div key={field.id} className="flex items-end gap-2">
+                    <div key={field.id} className="grid grid-cols-[minmax(0,120px)_minmax(0,1fr)_auto] items-end gap-2">
                       <FormField
                         control={form.control}
                         name={`additional_emails.${index}.label`}
                         render={({ field }) => (
-                          <FormItem className="w-[120px]">
+                          <FormItem className="min-w-0">
                             <Select onValueChange={field.onChange} value={field.value}>
                               <FormControl>
                                 <SelectTrigger>
@@ -593,6 +597,8 @@ export function NewCustomerModal({ open, onOpenChange }: NewCustomerModalProps) 
                         type="button"
                         variant="ghost"
                         size="icon"
+                        className="icon-action"
+                        aria-label={`E-Mail ${index + 1} entfernen`}
                         onClick={() => removeEmail(index)}
                       >
                         <Trash2 className="h-4 w-4 text-muted-foreground" />
@@ -651,7 +657,8 @@ export function NewCustomerModal({ open, onOpenChange }: NewCustomerModalProps) 
                           <button
                             type="button"
                             onClick={() => setPrimaryContact(index)}
-                            className={`mt-2 ${
+                            aria-label={form.watch(`contacts.${index}.is_primary`) ? "Hauptkontakt" : "Als Hauptkontakt setzen"}
+                            className={`icon-action mt-1 inline-flex shrink-0 items-center justify-center rounded-md ${
                               form.watch(`contacts.${index}.is_primary`)
                                 ? "text-yellow-500"
                                 : "text-muted-foreground hover:text-yellow-400"
@@ -661,7 +668,7 @@ export function NewCustomerModal({ open, onOpenChange }: NewCustomerModalProps) 
                             <Star className="h-4 w-4" fill={form.watch(`contacts.${index}.is_primary`) ? "currentColor" : "none"} />
                           </button>
 
-                          <div className="flex-1 grid grid-cols-2 gap-3">
+                          <div className="grid min-w-0 flex-1 gap-3 sm:grid-cols-2">
                             <FormField
                               control={form.control}
                               name={`contacts.${index}.name`}
@@ -731,7 +738,8 @@ export function NewCustomerModal({ open, onOpenChange }: NewCustomerModalProps) 
                             type="button"
                             variant="ghost"
                             size="icon"
-                            className="mt-1"
+                            className="icon-action mt-1"
+                            aria-label={`Ansprechpartner ${index + 1} entfernen`}
                             onClick={() => removeContact(index)}
                           >
                             <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
@@ -764,7 +772,7 @@ export function NewCustomerModal({ open, onOpenChange }: NewCustomerModalProps) 
                 )}
               />
 
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid gap-4 sm:grid-cols-3">
                 <FormField
                   control={form.control}
                   name="zip"
@@ -965,8 +973,10 @@ export function NewCustomerModal({ open, onOpenChange }: NewCustomerModalProps) 
               />
             </div>
 
+            </div>
+
             {/* Form Actions */}
-            <div className="flex justify-end gap-3 pt-4">
+            <DialogFooter className="shrink-0 gap-2 border-t bg-background px-5 py-4 sm:px-6">
               <Button
                 type="button"
                 variant="outline"
@@ -981,7 +991,7 @@ export function NewCustomerModal({ open, onOpenChange }: NewCustomerModalProps) 
                 )}
                 Kunde erstellen
               </Button>
-            </div>
+            </DialogFooter>
           </form>
         </Form>
       </DialogContent>

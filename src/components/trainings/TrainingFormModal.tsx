@@ -9,6 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
+  DialogFooter,
 } from '@/components/ui/dialog';
 import {
   Form,
@@ -252,8 +253,8 @@ export function TrainingFormModal({ open, onOpenChange, course, mode }: Training
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
+      <DialogContent className="flex max-h-[90vh] w-[calc(100%-2rem)] max-w-2xl flex-col gap-0 overflow-hidden p-0">
+        <DialogHeader className="shrink-0 border-b px-5 py-5 pr-16 sm:px-6 sm:pr-16">
           <DialogTitle>
             {actualMode === 'edit' 
               ? isOfficeMode ? 'Schicht bearbeiten' : 'Kurs bearbeiten'
@@ -273,7 +274,8 @@ export function TrainingFormModal({ open, onOpenChange, course, mode }: Training
         </DialogHeader>
 
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="flex min-h-0 flex-1 flex-col">
+            <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-5 py-5 sm:px-6">
             {/* Course Type Selection */}
             <div className="space-y-4">
               <h4 className="font-medium text-sm text-muted-foreground">Kurstyp</h4>
@@ -286,7 +288,7 @@ export function TrainingFormModal({ open, onOpenChange, course, mode }: Training
                       <RadioGroup
                         value={field.value}
                         onValueChange={field.onChange}
-                        className="flex gap-4"
+                        className="flex flex-wrap gap-4"
                       >
                         {COURSE_TYPES.filter(t => t.value !== 'custom').map(type => (
                           <div key={type.value} className="flex items-center space-x-2">
@@ -312,7 +314,7 @@ export function TrainingFormModal({ open, onOpenChange, course, mode }: Training
                   <span className="font-medium">Kursperiode</span>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-4 sm:grid-cols-2">
                   <FormField
                     control={form.control}
                     name="period_start_date"
@@ -438,6 +440,7 @@ export function TrainingFormModal({ open, onOpenChange, course, mode }: Training
                       />
                       {timeSlots.length > 1 && (
                         <Button type="button" variant="ghost" size="icon"
+                          className="icon-action"
                           aria-label={`Zeitblock ${index + 1} entfernen`}
                           onClick={() => removeTimeSlot(index)}>
                           <Trash2 className="h-4 w-4" />
@@ -482,7 +485,7 @@ export function TrainingFormModal({ open, onOpenChange, course, mode }: Training
                         setTimeSlots([{ start_time: preset.start, end_time: preset.end }]);
                       }
                     }}
-                    className="grid grid-cols-2 gap-2"
+                    className="grid gap-2 sm:grid-cols-2"
                   >
                     {OFFICE_TIME_PRESETS.map(preset => (
                       <div key={preset.value} className="flex items-center space-x-2">
@@ -556,7 +559,7 @@ export function TrainingFormModal({ open, onOpenChange, course, mode }: Training
                 {isOfficeMode ? 'Schichtdetails' : 'Grundinformationen'}
               </h4>
               
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-4 sm:grid-cols-2">
                 <FormField
                   control={form.control}
                   name="name"
@@ -633,7 +636,7 @@ export function TrainingFormModal({ open, onOpenChange, course, mode }: Training
                 )}
               />
 
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid gap-4 sm:grid-cols-3">
                 <FormField
                   control={form.control}
                   name="discipline"
@@ -683,7 +686,7 @@ export function TrainingFormModal({ open, onOpenChange, course, mode }: Training
 
               {/* Age fields - hide for office */}
               {!isOfficeMode && (
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-4 sm:grid-cols-2">
                   <FormField
                     control={form.control}
                     name="min_age"
@@ -843,7 +846,7 @@ export function TrainingFormModal({ open, onOpenChange, course, mode }: Training
                 {/* Time slots */}
                 <div className="space-y-2">
                   {timeSlots.map((slot, index) => (
-                    <div key={index} className="flex items-center gap-2">
+                    <div key={index} className="flex flex-wrap items-center gap-2 sm:flex-nowrap">
                       <span className="text-sm text-muted-foreground w-20">Zeitslot {index + 1}:</span>
                       <Input
                         type="time"
@@ -863,6 +866,8 @@ export function TrainingFormModal({ open, onOpenChange, course, mode }: Training
                           type="button"
                           variant="ghost"
                           size="icon"
+                          className="icon-action"
+                          aria-label={`Zeitslot ${index + 1} entfernen`}
                           onClick={() => removeTimeSlot(index)}
                         >
                           <Trash2 className="h-4 w-4" />
@@ -900,8 +905,10 @@ export function TrainingFormModal({ open, onOpenChange, course, mode }: Training
               )}
             />
 
+            </div>
+
             {/* Actions */}
-            <div className="flex justify-end gap-2 pt-4 border-t">
+            <DialogFooter className="shrink-0 gap-2 border-t bg-background px-5 py-4 sm:px-6">
               <Button
                 type="button"
                 variant="outline"
@@ -912,7 +919,7 @@ export function TrainingFormModal({ open, onOpenChange, course, mode }: Training
               <Button type="submit" disabled={isPending}>
                 {isPending ? 'Speichern...' : isEditing ? 'Aktualisieren' : 'Kurs erstellen'}
               </Button>
-            </div>
+            </DialogFooter>
           </form>
         </Form>
       </DialogContent>

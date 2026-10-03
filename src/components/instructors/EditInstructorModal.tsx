@@ -7,6 +7,7 @@ import { useIsSuperAdmin } from "@/hooks/useIsSuperAdmin";
 import {
   Dialog,
   DialogContent,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -21,7 +22,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { UnsavedChangesDialog } from "@/components/ui/unsaved-changes-dialog";
 import { useGuardedFormDismiss } from "@/hooks/useGuardedFormDismiss";
@@ -296,13 +296,13 @@ export function EditInstructorModal({
 
   return (
     <Dialog open={open} onOpenChange={dismiss.requestClose}>
-      <DialogContent hideCloseButton={pending} className="max-w-[600px] max-h-[90vh] p-0">
-        <DialogHeader className="px-6 pt-6 pb-4">
+      <DialogContent hideCloseButton={pending} className="flex max-h-[90vh] w-[calc(100%-2rem)] max-w-[600px] flex-col gap-0 overflow-hidden p-0">
+        <DialogHeader className="shrink-0 border-b px-5 py-5 pr-16 sm:px-6 sm:pr-16">
           <DialogTitle>Skilehrer bearbeiten</DialogTitle>
         </DialogHeader>
 
-        <ScrollArea className="max-h-[calc(90vh-140px)]">
-          <form onSubmit={handleSubmit(onSubmit)} className="px-6 pb-6 space-y-6">
+          <form onSubmit={handleSubmit(onSubmit)} className="flex min-h-0 flex-1 flex-col">
+            <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-5 py-5 sm:px-6">
             {/* Photo uploads save immediately and remain private, independently of form submit. */}
             {canManagePhoto && <div className="flex flex-col items-center gap-2">
               <button type="button" className="group flex flex-col items-center gap-2 rounded-lg p-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -339,7 +339,7 @@ export function EditInstructorModal({
               <h3 className="text-sm font-medium text-muted-foreground">
                 Persönliche Daten
               </h3>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="first_name">
                     Vorname <span className="text-destructive">*</span>
@@ -367,7 +367,7 @@ export function EditInstructorModal({
                   )}
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="birth_date">Geburtsdatum</Label>
                   <Input
@@ -401,7 +401,7 @@ export function EditInstructorModal({
               <h3 className="text-sm font-medium text-muted-foreground">
                 Kontaktdaten
               </h3>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="email">
                     E-Mail <span className="text-destructive">*</span>
@@ -448,7 +448,7 @@ export function EditInstructorModal({
                   placeholder="Musterstrasse 1"
                 />
               </div>
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid gap-4 sm:grid-cols-3">
                 <div className="space-y-2">
                   <Label htmlFor="zip">PLZ</Label>
                   <Input
@@ -523,7 +523,7 @@ export function EditInstructorModal({
               <h3 className="text-sm font-medium text-muted-foreground">
                 Anstellung
               </h3>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-4 sm:grid-cols-2">
                 {isSuperAdmin && (
 <div className="space-y-2">
                   <Label htmlFor="hourly_rate">
@@ -647,8 +647,10 @@ export function EditInstructorModal({
               </div>
             </div>
 
+            </div>
+
             {/* Footer */}
-            <div className="flex justify-end gap-3 pt-4">
+            <DialogFooter className="shrink-0 gap-2 border-t bg-background px-5 py-4 sm:px-6">
               <Button type="button" variant="outline" onClick={() => dismiss.requestClose(false)} disabled={pending}>
                 Abbrechen
               </Button>
@@ -658,9 +660,8 @@ export function EditInstructorModal({
                 )}
                 Speichern
               </Button>
-            </div>
+            </DialogFooter>
           </form>
-        </ScrollArea>
       </DialogContent>
       <UnsavedChangesDialog open={dismiss.discardOpen} onOpenChange={dismiss.setDiscardOpen} onDiscard={dismiss.confirmDiscard} savedPhotoSeparately />
     </Dialog>
