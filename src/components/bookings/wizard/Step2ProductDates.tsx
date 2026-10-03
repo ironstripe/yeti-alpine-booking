@@ -408,8 +408,8 @@ export function Step2ProductDates() {
       blue_king: "Blue King",
       red_prince: "Red Prince",
       red_king: "Red King",
-      black_prince: "Black Prince",
-      black_king: "Black King",
+      black_prince: "Academy Rookie",
+      black_king: "Swiss Snow Academy",
     };
     return levelMap[level] || level;
   };
