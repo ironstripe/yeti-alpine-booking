@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { UserPlus, ShoppingCart, MapPin, Clock, Users } from "lucide-react";
-import { format, differenceInYears } from "date-fns";
+import { format, differenceInYears, parseISO } from "date-fns";
 import { de } from "date-fns/locale";
 
 import { supabase } from "@/integrations/supabase/client";
@@ -104,6 +104,12 @@ export function SlotBookingPopover({
     skill_level: "",
   });
 
+  const lockedDuration = useMemo(() => {
+    const [sh, sm] = startTime.split(":").map(Number);
+    const [eh, em] = endTime.split(":").map(Number);
+    return (eh * 60 + (em || 0) - (sh * 60 + (sm || 0))) / 60;
+  }, [startTime, endTime]);
+
   // Calculate actual end time from duration
   const actualEndTime = useMemo(() => {
     const s = parseInt(startTime.split(":")[0]);
@@ -197,9 +203,10 @@ export function SlotBookingPopover({
       instructorName: instructorName ?? "",
       date,
       startTime,
-      endTime: actualEndTime,
+      // Planned (list) mode keeps the exact passed interval; no duration edits.
+      endTime: plannedIntervals ? endTime : actualEndTime,
       participantIds: selectedParticipantIds,
-      duration,
+      duration: plannedIntervals ? lockedDuration : duration,
       meetingPoint,
       sport,
     });
@@ -241,6 +248,20 @@ export function SlotBookingPopover({
 
         <div className="space-y-4 mt-4">
           {/* Slot Info */}
+          {plannedIntervals ? (
+            <div className="space-y-2" data-testid="planned-intervals">
+              <Badge variant="outline">{instructorId ? instructorName : "Lehrperson später zuweisen"}</Badge>
+              <ul className="divide-y rounded-md border text-sm">
+                {plannedIntervals.map((iv) => (
+                  <li key={`${iv.date}-${iv.startTime}`} className="flex items-center gap-2 px-3 py-1.5">
+                    <Clock className="h-3 w-3 text-muted-foreground" />
+                    <span className="font-medium">{format(parseISO(iv.date), "EEE d. MMM", { locale: de })}</span>
+                    <span className="text-muted-foreground">{iv.startTime} – {iv.endTime}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : (
           <div className="flex flex-wrap gap-2">
             <Badge variant="outline" className="gap-1">
               <Clock className="h-3 w-3" />
@@ -253,10 +274,12 @@ export function SlotBookingPopover({
               </Badge>
             ))}
           </div>
+          )}
 
           <Separator />
 
-          {/* Duration */}
+          {/* Duration (hidden in planned mode: times come from the plan) */}
+          {!plannedIntervals && (
           <div className="space-y-1.5">
             <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
               Dauer
@@ -278,6 +301,7 @@ export function SlotBookingPopover({
               </SelectContent>
             </Select>
           </div>
+          )}
 
           {/* Meeting Point */}
           <div className="space-y-1.5">
