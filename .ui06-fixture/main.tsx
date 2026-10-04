@@ -7,6 +7,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { BookingBar } from "@/components/scheduler/BookingBar";
 import { SchedulerLegend } from "@/components/scheduler/SchedulerLegend";
 import { RangeDatePicker } from "@/components/ui/range-date-picker";
+import { MobileSchedulerAgenda } from "@/components/scheduler/mobile/MobileSchedulerAgenda";
 import type { SchedulerBooking } from "@/lib/scheduler-utils";
 import "@/index.css";
 
@@ -26,6 +27,7 @@ function Fixture() {
     </section>
     <SchedulerLegend compact className="mt-4" />
     <SchedulerLegend className="mt-4" />
+    <section aria-label="Mobile Agenda" className="mt-4 max-w-sm border"><MobileSchedulerAgenda instructors={[{ id: "i", first_name: "Anna", last_name: "Muster", specialization: "ski", color: "red", todayBookingsCount: 5, roleType: "instructor" } as any]} date={new Date(2026, 11, 28)} bookings={bookings} absences={[]} onFreeSlotTap={() => undefined} /></section>
     <section className="mt-6 w-fit max-w-full"><RangeDatePicker selected={selected} onSelect={setSelected} month={new Date(2026, 11, 1)} minDate={new Date(2026, 11, 1)} /></section>
     <output data-testid="selected-count">{selected.length}</output>
   </main>;
