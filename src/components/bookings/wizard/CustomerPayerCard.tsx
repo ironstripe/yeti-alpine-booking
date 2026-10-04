@@ -24,13 +24,13 @@ export function CustomerPayerCard({
   if (!customer || isSearching) {
     return (
       <div className="h-full">
-        <div className="mb-3 flex items-center justify-between">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <h3 className="text-sm font-semibold text-foreground">Auftraggeber</h3>
           {isSearching && customer && (
             <Button
               variant="ghost"
               size="sm"
-              className="h-7 text-xs"
+              className="control-target text-xs"
               onClick={() => setIsSearching(false)}
             >
               Abbrechen
@@ -64,13 +64,13 @@ export function CustomerPayerCard({
   // Show customer card with edit option
   return (
     <div className="h-full">
-      <div className="mb-3 flex items-center justify-between">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-sm font-semibold text-foreground">Auftraggeber</h3>
-        <div className="flex gap-1">
+        <div className="flex flex-wrap gap-1">
           <Button
             variant="ghost"
             size="sm"
-            className="h-7 gap-1 px-2 text-xs"
+            className="control-target gap-1 px-2 text-xs"
             onClick={() => setIsEditing(true)}
           >
             <Pencil className="h-3 w-3" />
@@ -79,7 +79,7 @@ export function CustomerPayerCard({
           <Button
             variant="ghost"
             size="sm"
-            className="h-7 gap-1 px-2 text-xs"
+            className="control-target gap-1 px-2 text-xs"
             onClick={() => setIsSearching(true)}
           >
             <Search className="h-3 w-3" />
@@ -89,24 +89,24 @@ export function CustomerPayerCard({
       </div>
 
       <div className="space-y-2">
-        <p className="text-base font-medium">
+        <p className="break-words text-base font-medium">
           {customer.first_name} {customer.last_name}
         </p>
         <div className="flex flex-col gap-1 text-sm text-muted-foreground">
-          <div className="flex items-center gap-2">
-            <Mail className="h-3.5 w-3.5 flex-shrink-0" />
-            <span className="truncate">{customer.email}</span>
+          <div className="flex min-w-0 items-start gap-2">
+            <Mail className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" />
+            <span className="min-w-0 break-words [overflow-wrap:anywhere]">{customer.email}</span>
           </div>
           {customer.phone && (
-            <div className="flex items-center gap-2">
-              <Phone className="h-3.5 w-3.5 flex-shrink-0" />
+            <div className="flex min-w-0 items-start gap-2">
+              <Phone className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" />
               <span>{customer.phone}</span>
             </div>
           )}
           {(customer.street || customer.city) && (
-            <div className="flex items-center gap-2">
-              <MapPin className="h-3.5 w-3.5 flex-shrink-0" />
-              <span className="truncate">
+            <div className="flex min-w-0 items-start gap-2">
+              <MapPin className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" />
+              <span className="min-w-0 break-words [overflow-wrap:anywhere]">
                 {[
                   customer.street,
                   [customer.zip, customer.city].filter(Boolean).join(" "),
@@ -117,21 +117,21 @@ export function CustomerPayerCard({
             </div>
           )}
           {customer.country && (
-            <div className="flex items-center gap-2">
-              <Globe className="h-3.5 w-3.5 flex-shrink-0" />
+            <div className="flex min-w-0 items-start gap-2">
+              <Globe className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" />
               <span>{customer.country}</span>
             </div>
           )}
           {customer.language && (
-            <div className="flex items-center gap-2">
+            <div className="flex min-w-0 items-start gap-2">
               <span className="text-xs w-3.5 text-center">🌐</span>
               <span>{LANGUAGE_LABELS[customer.language] || customer.language}</span>
             </div>
           )}
           {customer.holiday_address && (
-            <div className="flex items-center gap-2">
-              <Home className="h-3.5 w-3.5 flex-shrink-0" />
-              <span className="truncate">{customer.holiday_address}</span>
+            <div className="flex min-w-0 items-start gap-2">
+              <Home className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" />
+              <span className="min-w-0 break-words [overflow-wrap:anywhere]">{customer.holiday_address}</span>
             </div>
           )}
         </div>
