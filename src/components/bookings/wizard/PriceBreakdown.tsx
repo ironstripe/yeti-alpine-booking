@@ -24,6 +24,7 @@ interface PriceBreakdownProps {
   discountPercent: number;
   autoDiscountPercent?: number;
   autoDiscountReason?: string;
+  presentation?: "full" | "compact-draft";
 }
 
 interface ParticipantLineItem {
@@ -47,6 +48,7 @@ export function PriceBreakdown({
   discountPercent,
   autoDiscountPercent = 0,
   autoDiscountReason,
+  presentation = "full",
 }: PriceBreakdownProps) {
   const { state } = useBookingWizard();
 
@@ -314,6 +316,18 @@ export function PriceBreakdown({
   const afterDiscount = subtotal - discountAmount;
   const vatAmount = afterDiscount * VAT_RATE;
   const total = afterDiscount;
+  const hasPrice = productType === "private"
+    ? Boolean(
+        (canonicalBlocks?.length && canonicalTotal > 0)
+        || (multiGroupPricing?.length && courseTotal > 0)
+        || (privateLessonPrice && privateLessonPrice.totalPrice > 0)
+      )
+    : Boolean(
+        daysCount > 0
+        && state.selectedGroupId
+        && state.selectedParticipants.length > 0
+        && groupCourseCalculation.totalCoursePrice > 0
+      );
 
   const formatCurrency = (amount: number) => {
     return `CHF ${amount.toFixed(2)}`;
@@ -331,6 +345,35 @@ export function PriceBreakdown({
           <Skeleton className="h-4 w-full" />
           <Skeleton className="h-4 w-3/4" />
           <Skeleton className="h-6 w-1/2" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (presentation === "compact-draft") {
+    return (
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
+            Preis
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="pt-0">
+          {hasPrice ? (
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-sm text-muted-foreground">Aktueller Stand</span>
+              <span className="font-semibold">{formatCurrency(total)}</span>
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Noch nicht berechenbar
+            </p>
+          )}
+          {canonicalBlocks && hasPrice && (
+            <p className="mt-2 text-xs text-muted-foreground">
+              Vorschau. Der verbindliche Preis wird beim Buchen serverseitig berechnet.
+            </p>
+          )}
         </CardContent>
       </Card>
     );
