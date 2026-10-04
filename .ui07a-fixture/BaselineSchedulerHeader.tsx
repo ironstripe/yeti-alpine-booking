@@ -18,9 +18,9 @@ import {
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { SchedulerSearchDialog, SchedulerSearchTrigger } from "./SchedulerSearchDialog";
-import { SchedulerSettingsMenu, type SchedulerFilters } from "./SchedulerSettingsMenu";
-import { MultiSelectToggle } from "./MultiSelectToggle";
+import { SchedulerSearchDialog, SchedulerSearchTrigger } from "../src/components/scheduler/SchedulerSearchDialog";
+import { SchedulerSettingsMenu, type SchedulerFilters } from "../src/components/scheduler/SchedulerSettingsMenu";
+import { MultiSelectToggle } from "../src/components/scheduler/MultiSelectToggle";
 
 export type ViewMode = "daily" | "3days" | "weekly" | "period";
 
