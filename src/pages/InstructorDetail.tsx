@@ -94,7 +94,7 @@ export default function InstructorDetail() {
 
   if (canManageWebsite) {
     return (
-      <div className="space-y-5">
+      <div className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <Button variant="ghost" size="sm" className="control-target" onClick={() => navigate("/instructors")}>
             <ArrowLeft className="mr-2 h-4 w-4" />
@@ -116,24 +116,26 @@ export default function InstructorDetail() {
           </div>
         </div>
 
-        <header className="rounded-lg border bg-card p-4 sm:p-5">
-          <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-            <div className="flex min-w-0 items-center gap-4">
-              <Avatar className="h-16 w-16 shrink-0 text-lg">
+        <header className="rounded-lg border bg-card p-3 sm:p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex min-w-[16rem] flex-1 basis-[24rem] items-center gap-3">
+              <Avatar className="h-12 w-12 shrink-0 text-base">
                 {(staffPhotoUrls[instructor.id] || instructor.avatar_url) && (
                   <AvatarImage src={staffPhotoUrls[instructor.id] || instructor.avatar_url} alt={`${instructor.first_name} ${instructor.last_name}`} />
                 )}
                 <AvatarFallback className="bg-primary/10 text-primary">{getInitials()}</AvatarFallback>
               </Avatar>
               <div className="min-w-0">
-                <h1 className="break-words text-2xl font-bold">{instructor.first_name} {instructor.last_name}</h1>
+                <h1 className="break-words text-xl font-bold sm:text-2xl">{instructor.first_name} {instructor.last_name}</h1>
                 <p className="text-muted-foreground">
                   {getSpecializationLabel(instructor.specialization, instructor.roles)} · {getLevelLabel(instructor.level)}
                 </p>
               </div>
             </div>
-            <StatusToggle currentStatus={instructor.real_time_status} onStatusChange={updateStatus} isPulsing={isPulsing}
-              isUpdating={isUpdatingStatus} lastChanged={formatLastChanged()} compact />
+            <div className="min-w-0 flex-1 basis-[20rem] sm:flex-none">
+              <StatusToggle currentStatus={instructor.real_time_status} onStatusChange={updateStatus} isPulsing={isPulsing}
+                isUpdating={isUpdatingStatus} lastChanged={formatLastChanged()} compact />
+            </div>
           </div>
         </header>
 
@@ -144,7 +146,7 @@ export default function InstructorDetail() {
         <div className="grid gap-5 xl:grid-cols-[minmax(0,2fr)_minmax(18rem,1fr)]">
           <ProfileInfoCard instructor={instructor} onEdit={handleEdit} compact />
           <div className="space-y-5">
-            {id && <InstructorRentalsCard instructorId={id} />}
+            {isAdminOrOffice && id && <InstructorRentalsCard instructorId={id} />}
             <SeasonStatsCard stats={seasonStats} compact />
           </div>
         </div>

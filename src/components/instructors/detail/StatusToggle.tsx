@@ -26,7 +26,7 @@ export function StatusToggle({
   const activeStatus = statuses.find((s) => s.value === currentStatus) || statuses[2];
 
   return (
-    <div className={cn("flex items-center", compact ? "flex-row flex-wrap gap-3" : "flex-col gap-4")}>
+    <div className={cn("flex items-center", compact ? "flex-row flex-wrap gap-2" : "flex-col gap-4")}>
       <div className={cn("flex items-center gap-2 bg-muted/50 rounded-full", compact ? "p-1" : "p-2")}>
         {statuses.map((status) => {
           const isActive = status.value === (currentStatus || "unavailable");
@@ -39,7 +39,7 @@ export function StatusToggle({
                 "rounded-full transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                 compact ? "icon-action" : "h-10 w-10",
                 isActive
-                  ? cn(status.color, "ring-4", status.ring, isPulsing && "animate-status-pulse")
+                  ? cn(status.color, compact ? "ring-2" : "ring-4", status.ring, isPulsing && "animate-status-pulse")
                   : "bg-transparent border-2 border-muted-foreground/30 hover:border-muted-foreground/50",
                 isUpdating && "opacity-50 cursor-not-allowed"
               )}

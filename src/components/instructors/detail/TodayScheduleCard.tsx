@@ -32,16 +32,34 @@ export function TodayScheduleCard({ bookings, compact = false }: TodayScheduleCa
     return slot === booking.time_start.slice(0, 5);
   };
 
+  if (compact && bookings.length === 0) {
+    return (
+      <Card>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3">
+          <div className="flex items-center gap-2">
+            <Calendar className="h-4 w-4 shrink-0 text-muted-foreground" />
+            <h2 className="font-semibold">Heute</h2>
+          </div>
+          <p className="text-sm capitalize text-muted-foreground">{today}</p>
+          <div className="flex min-w-0 items-center gap-2 text-muted-foreground sm:ml-auto">
+            <Clock className="h-4 w-4 shrink-0" />
+            <p className="text-sm">Keine Buchungen für heute</p>
+          </div>
+        </div>
+      </Card>
+    );
+  }
+
   return (
     <Card>
-      <CardHeader className={compact ? "pb-2" : "pb-3"}>
+      <CardHeader className={compact ? "p-4 pb-2" : "pb-3"}>
         <div className="flex items-center gap-2">
           <Calendar className="h-4 w-4 text-muted-foreground" />
           <CardTitle className="text-lg">Heute</CardTitle>
         </div>
         <p className="text-sm text-muted-foreground capitalize">{today}</p>
       </CardHeader>
-      <CardContent>
+      <CardContent className={compact ? "px-4 pb-4 pt-0" : undefined}>
         {bookings.length === 0 ? (
           <div className={compact ? "flex items-center gap-2 py-2 text-muted-foreground" : "text-center py-8 text-muted-foreground"}>
             <Clock className={compact ? "h-4 w-4" : "h-8 w-8 mx-auto mb-2 opacity-50"} />
