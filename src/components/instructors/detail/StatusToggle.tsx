@@ -37,7 +37,7 @@ export function StatusToggle({
               disabled={isUpdating}
               className={cn(
                 "rounded-full transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                compact ? "control-target" : "h-10 w-10",
+                compact ? "icon-action" : "h-10 w-10",
                 isActive
                   ? cn(status.color, "ring-4", status.ring, isPulsing && "animate-status-pulse")
                   : "bg-transparent border-2 border-muted-foreground/30 hover:border-muted-foreground/50",

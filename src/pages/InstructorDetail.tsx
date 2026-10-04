@@ -138,14 +138,14 @@ export default function InstructorDetail() {
         </header>
 
         <section aria-label="Heutige Einsätze">
-          <TodayScheduleCard bookings={todayBookings} />
+          <TodayScheduleCard bookings={todayBookings} compact />
         </section>
 
         <div className="grid gap-5 xl:grid-cols-[minmax(0,2fr)_minmax(18rem,1fr)]">
           <ProfileInfoCard instructor={instructor} onEdit={handleEdit} compact />
           <div className="space-y-5">
             {id && <InstructorRentalsCard instructorId={id} />}
-            <SeasonStatsCard stats={seasonStats} />
+            <SeasonStatsCard stats={seasonStats} compact />
           </div>
         </div>
 
