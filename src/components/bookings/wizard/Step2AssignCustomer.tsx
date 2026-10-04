@@ -77,9 +77,9 @@ export function Step2AssignCustomer() {
       {/* Existing customer info banner */}
       {isExistingCustomerPrefill && (
         <Card className="border-primary/30 bg-primary/5">
-          <CardContent className="p-3 flex items-center gap-2">
-            <UserCheck className="h-4 w-4 text-primary" />
-            <span className="text-sm text-primary">
+          <CardContent className="p-3 flex items-start gap-2">
+            <UserCheck className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+            <span className="min-w-0 break-words text-sm text-primary">
               Bestandskunde erkannt. Kundendaten wurden automatisch übernommen.
             </span>
           </CardContent>
@@ -89,9 +89,9 @@ export function Step2AssignCustomer() {
       {/* Local participants info */}
       {state.localParticipants.length > 0 && !state.customer && (
         <Card className="border-amber-500/50 bg-amber-50/50 dark:bg-amber-950/20">
-          <CardContent className="p-3 flex items-center gap-2">
-            <Users className="h-4 w-4 text-amber-600" />
-            <span className="text-sm">
+          <CardContent className="p-3 flex items-start gap-2">
+            <Users className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+            <span className="min-w-0 break-words text-sm">
               {state.localParticipants.length} Teilnehmer werden dem Kunden zugeordnet, sobald einer ausgewählt wird.
             </span>
           </CardContent>
@@ -101,12 +101,12 @@ export function Step2AssignCustomer() {
       {/* Cart summary reminder when multiple items */}
       {cartItems.length > 1 && (
         <Card className="bg-muted/30">
-          <CardContent className="p-3 flex items-center gap-2">
-            <ShoppingCart className="h-4 w-4" />
+          <CardContent className="p-3 flex flex-wrap items-center gap-2">
+            <ShoppingCart className="h-4 w-4 shrink-0" />
             <span className="text-sm font-medium">
               {cartItems.length} Produkte im Warenkorb
             </span>
-            <div className="flex gap-1 ml-2">
+            <div className="flex flex-wrap gap-1 sm:ml-2">
               {cartItems.map((item, idx) => (
                 <Badge key={item.id} variant="secondary" className="text-xs">
                   {item.productType === "private"

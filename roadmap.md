@@ -7,6 +7,7 @@
 - [x] UI-04 scheduler controls + booking detail workspace: accessible controls, viewport-centred wrapping selection toolbar and stable detail sheet; booking-detail and nested-dialog interaction checks completed in UI-05A (see docs/ui-verification.md)
 - [ ] Future package: approval/detail follow-up (complex ticket edit dialogs, history and related information)
 - [x] UI-05A browser verification: booking detail sheet, nested confirmations, approval sheet and instructor dialog exercised with synthetic local fixtures (docs/ui-verification.md); remaining: real-data visual check and photo upload path untested
+- [x] UI-05B early wizard ergonomics (cart, product/time step, customer step, payer card): wrapping, labelled icon actions, touch-sized controls, muted info panels; evidence in docs/ui-verification.md. Untested: real availability grid, fullscreen, period/prefill/individual panels
 - [ ] Future package: earlier wizard steps and cross-step pricing
 - [ ] Future package: scheduler calendar colors/legend, geometry, density and drag/drop review
 - [ ] Future package: remaining modules

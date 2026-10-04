@@ -21,12 +21,13 @@ export function Step1ProductCart() {
         <Button
           variant="outline"
           size="sm"
-          className="w-full justify-between"
+          className="control-target h-auto w-full justify-between whitespace-normal py-2 text-left"
+          aria-expanded={showShortcut}
           onClick={() => setShowShortcut(!showShortcut)}
         >
-          <div className="flex items-center gap-2">
+          <div className="flex min-w-0 items-center gap-2">
             <Search className="h-4 w-4" />
-            <span>Schnellbuchung – Kunde vorab wählen</span>
+            <span className="min-w-0 break-words">Schnellbuchung – Kunde vorab wählen</span>
           </div>
           {showShortcut ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
         </Button>
@@ -34,11 +35,11 @@ export function Step1ProductCart() {
           <div className="mt-2">
             {state.customer ? (
               <Card className="bg-muted/50">
-                <CardContent className="flex items-center justify-between p-3">
-                  <span className="text-sm font-medium">
+                <CardContent className="flex items-center justify-between gap-2 p-3">
+                  <span className="min-w-0 break-words text-sm font-medium">
                     {state.customer.first_name} {state.customer.last_name}
                   </span>
-                  <Button variant="ghost" size="sm" onClick={() => setCustomer(null)}>
+                  <Button variant="ghost" size="sm" className="icon-action shrink-0 p-0" aria-label="Vorab gewählten Kunden entfernen" onClick={() => setCustomer(null)}>
                     <X className="h-4 w-4" />
                   </Button>
                 </CardContent>
@@ -72,14 +73,14 @@ export function Step1ProductCart() {
               {cartItems.map((item, idx) => (
                 <div
                   key={item.id}
-                  className={`flex items-center justify-between text-sm p-1.5 rounded cursor-pointer transition-colors ${
+                  className={`flex items-center justify-between gap-2 text-sm p-1.5 rounded cursor-pointer transition-colors ${
                     item.id === state.activeCartItemId
                       ? "bg-primary/10 font-medium"
                       : "hover:bg-muted"
                   }`}
                   onClick={() => setActiveCartItem(item.id)}
                 >
-                  <div>
+                  <div className="min-w-0 break-words">
                     <span>
                       {idx + 1}.{" "}
                       {item.productType === "private"
@@ -106,7 +107,8 @@ export function Step1ProductCart() {
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-6 w-6 p-0"
+                      className="icon-action shrink-0 p-0"
+                      aria-label={`Produkt ${idx + 1} aus dem Warenkorb entfernen`}
                       onClick={(e) => {
                         e.stopPropagation();
                         removeCartItem(item.id);

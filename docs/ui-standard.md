@@ -83,3 +83,6 @@ UI-04 browser verification covered scheduler controls, responsive wrapping, sele
 - **Remaining modules:** progressively adopt the standard after individual workflow review; no app-wide redesign is implied by UI-01 through UI-03.
 
 Existing confirmation-resend, duplicate-booking, and cancellation placeholder handlers remain out of scope until their workflows are implemented separately.
+## UI-05B wizard steps 1–2
+
+The cart, product/time step, customer step and payer card follow the same control sizing (`control-target`, `icon-action`), wrap long names and contact data instead of truncating, stack the private-lesson filter row on narrow screens, and use muted neutral styling for purely informational panels. Warnings, errors and selection highlights keep their existing colours. Scheduler grid geometry and wizard behaviour are unchanged.

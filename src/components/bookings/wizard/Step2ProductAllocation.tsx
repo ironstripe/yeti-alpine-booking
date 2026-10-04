@@ -579,11 +579,11 @@ export function Step2ProductAllocation() {
               onValueChange={(value) => setSport((value as "ski" | "snowboard") || null)}
               className="justify-start gap-2"
             >
-              <ToggleGroupItem value="ski" className="gap-1 px-3 h-8 text-sm">
+              <ToggleGroupItem value="ski" className="control-target gap-1 px-3 text-sm">
                 <span>⛷️</span>
                 Ski
               </ToggleGroupItem>
-              <ToggleGroupItem value="snowboard" className="gap-1 px-3 h-8 text-sm">
+              <ToggleGroupItem value="snowboard" className="control-target gap-1 px-3 text-sm">
                 <span>🏂</span>
                 Snowboard
               </ToggleGroupItem>
@@ -655,14 +655,14 @@ export function Step2ProductAllocation() {
 
         {/* Group Course Fixed Times Info */}
         {state.productType === "group" && state.selectedDates.length > 0 && (
-          <div className="rounded-md border bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800 p-3">
+          <div className="rounded-md border bg-muted/40 p-3">
             <div className="flex items-center gap-2 mb-2">
-              <Clock className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-              <span className="text-sm font-medium text-blue-800 dark:text-blue-200">
+              <Clock className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm font-medium text-foreground">
                 Feste Kurszeiten
               </span>
             </div>
-            <div className="text-sm text-blue-700 dark:text-blue-300">
+            <div className="text-sm text-muted-foreground">
               {groupRecommendation.hasToddlers ? (
                 <span>🧒 Windel-Wedelkurs: <strong>10:00 - 12:00</strong> (nur vormittags)</span>
               ) : (
@@ -718,7 +718,7 @@ export function Step2ProductAllocation() {
                           }
                         }}
                       >
-                        <SelectTrigger className="w-[72px] h-7 text-xs">
+                        <SelectTrigger className="control-target w-[76px] text-xs">
                           <SelectValue placeholder="Start" />
                         </SelectTrigger>
                         <SelectContent>
@@ -735,7 +735,7 @@ export function Step2ProductAllocation() {
                         onValueChange={setEndTime}
                         disabled={!startTime}
                       >
-                        <SelectTrigger className="w-[72px] h-7 text-xs">
+                        <SelectTrigger className="control-target w-[76px] text-xs">
                           <SelectValue placeholder="Ende" />
                         </SelectTrigger>
                         <SelectContent>
@@ -759,7 +759,7 @@ export function Step2ProductAllocation() {
                 )}
 
                 {/* Meeting Points - Horizontal Pills */}
-                <div className="flex items-center gap-1.5">
+                <div className="flex flex-wrap items-center gap-1.5">
                   <MapPin className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
                   {MEETING_POINTS.map((point) => {
                     const isSelected = state.meetingPoint === point.id;
@@ -770,7 +770,7 @@ export function Step2ProductAllocation() {
                         key={point.id}
                         onClick={() => !isLocked && setMeetingPoint(point.id)}
                         disabled={isLocked}
-                        className={`px-2.5 py-1 text-[10px] font-medium rounded-full border transition-all ${
+                        className={`control-target px-2.5 py-1 text-[10px] font-medium rounded-full border transition-all ${
                           isSelected
                             ? "bg-primary text-primary-foreground border-primary shadow-sm"
                             : isLocked
@@ -796,7 +796,7 @@ export function Step2ProductAllocation() {
 
         {/* Sprache + Wunschlehrer + Ohne Lehrer Row (aligned with Sportart) */}
         {state.productType === "private" && (
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             {/* Language */}
             <div className="space-y-1.5">
               <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1">
@@ -804,7 +804,7 @@ export function Step2ProductAllocation() {
                 Sprache
               </Label>
               <Select value={state.language} onValueChange={setLanguage}>
-                <SelectTrigger className="h-8 text-sm">
+                <SelectTrigger className="control-target text-sm">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -826,7 +826,7 @@ export function Step2ProductAllocation() {
                 placeholder="Name suchen..."
                 value={preferredTeacher}
                 onChange={(e) => setPreferredTeacher(e.target.value)}
-                className="h-8 text-sm"
+                className="control-target text-sm"
               />
             </div>
             {/* Assign Later */}
@@ -834,7 +834,7 @@ export function Step2ProductAllocation() {
               <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1">
                 Ohne Lehrer
               </Label>
-              <div className="flex items-center gap-2 h-8 rounded-md border bg-background px-3">
+              <div className="control-target flex items-center gap-2 rounded-md border bg-background px-3">
                 <Checkbox
                   id="assign-later"
                   checked={state.assignLater}
@@ -872,9 +872,9 @@ export function Step2ProductAllocation() {
                 {state.useParticipantSpecificBooking ? (
                   <>
                     {/* Info banner explaining individual mode */}
-                    <Alert className="bg-blue-50 border-blue-300">
-                      <Sparkles className="h-4 w-4 text-blue-600" />
-                      <AlertDescription className="text-blue-800">
+                    <Alert className="bg-muted/40">
+                      <Sparkles className="h-4 w-4 text-muted-foreground" />
+                      <AlertDescription className="text-foreground">
                         <div className="space-y-1">
                           <p className="font-medium">Individuelle Buchung aktiviert</p>
                           <p className="text-sm">
@@ -920,11 +920,11 @@ export function Step2ProductAllocation() {
                     {/* Shared group booking mode (original behavior) */}
                     {/* Participant enrollment preview for multiple participants */}
                     {state.selectedParticipants.length > 1 && (
-                      <Card className="bg-blue-50 border-blue-200">
+                      <Card className="bg-muted/40">
                         <CardContent className="p-3">
-                          <div className="flex items-center gap-2 mb-2">
-                            <Users className="h-4 w-4 text-blue-600" />
-                            <span className="text-sm font-medium text-blue-800">
+                          <div className="flex items-start gap-2 mb-2">
+                            <Users className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                            <span className="min-w-0 break-words text-sm font-medium text-foreground">
                               {state.selectedParticipants.length} Teilnehmer werden in diese Gruppe eingeschrieben:
                             </span>
                           </div>
@@ -984,7 +984,7 @@ export function Step2ProductAllocation() {
             {isFullscreen && (
               <div className="flex items-center justify-between mb-3 px-2 py-1.5 rounded-md bg-muted">
                 <span className="text-sm font-medium">Scheduler (Vollbild)</span>
-                <Button variant="ghost" size="sm" onClick={() => setIsFullscreen(false)}>
+                <Button variant="ghost" size="sm" className="control-target" onClick={() => setIsFullscreen(false)}>
                   <X className="h-4 w-4 mr-1" />
                   ESC zum Schließen
                 </Button>
@@ -993,7 +993,7 @@ export function Step2ProductAllocation() {
             {/* Fullscreen toggle */}
             {!isFullscreen && (
               <div className="flex justify-end mb-1">
-                <Button variant="ghost" size="sm" className="h-6 text-xs gap-1" onClick={() => setIsFullscreen(true)}>
+                <Button variant="ghost" size="sm" className="control-target text-xs gap-1" onClick={() => setIsFullscreen(true)}>
                   <Maximize2 className="h-3 w-3" />
                   Vollbild
                 </Button>
@@ -1058,7 +1058,7 @@ export function Step2ProductAllocation() {
                           type="button"
                           variant="ghost"
                           size="icon"
-                          className="h-7 w-7 shrink-0"
+                          className="icon-action shrink-0"
                           aria-label={`Termin ${slot.date} ${slot.startTime} entfernen`}
                           title="Termin entfernen"
                           onClick={() => toggleMiniSchedulerSlot({
@@ -1079,14 +1079,14 @@ export function Step2ProductAllocation() {
                     variant="ghost"
                     size="sm"
                     onClick={clearMiniSchedulerSelection}
-                    className="h-7 text-xs"
+                    className="control-target text-xs"
                   >
                     Abbrechen
                   </Button>
                   <Button
                     size="sm"
                     onClick={handleApplyMultiSelection}
-                    className="h-7 text-xs"
+                    className="control-target text-xs"
                   >
                     <Check className="h-3 w-3 mr-1" />
                     Auswahl übernehmen
