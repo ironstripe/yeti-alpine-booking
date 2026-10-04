@@ -2,10 +2,10 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { useSchedulerSelection } from "@/contexts/SchedulerSelectionContext";
 import { CircleHelp } from "lucide-react";
 
@@ -24,8 +24,8 @@ export function MultiSelectToggle() {
       <Label htmlFor="multi-select-mode" className="text-xs font-medium cursor-pointer">
         Mehrfachauswahl
       </Label>
-      <Tooltip>
-        <TooltipTrigger asChild>
+      <Popover>
+        <PopoverTrigger asChild>
           <Button
             type="button"
             variant="ghost"
@@ -35,11 +35,11 @@ export function MultiSelectToggle() {
           >
             <CircleHelp className="h-4 w-4" />
           </Button>
-        </TooltipTrigger>
-        <TooltipContent side="bottom">
+        </PopoverTrigger>
+        <PopoverContent className="w-auto max-w-[calc(100vw-2rem)] px-3 py-2 text-xs" side="bottom">
           Strg/⌘ + Klick oder rechte Maustaste
-        </TooltipContent>
-      </Tooltip>
+        </PopoverContent>
+      </Popover>
       {state.selections.length > 0 && (
         <span className="text-muted-foreground">{state.selections.length} ausgewählt</span>
       )}
