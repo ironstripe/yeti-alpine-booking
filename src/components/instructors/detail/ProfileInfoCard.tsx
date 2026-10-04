@@ -141,12 +141,6 @@ export function ProfileInfoCard({ instructor, onEdit, compact = false }: Profile
                 <span className="ml-2 font-medium">CHF {instructor.hourly_rate.toFixed(2)}</span>
               </div>
             )}
-            <div>
-              <span className="text-muted-foreground">Rolle:</span>
-              <span className="ml-2">
-                {instructor.role === "rolle_2" ? "Rolle 2 (Senior)" : "Rolle 1 (Standard)"}
-              </span>
-            </div>
             <div className="flex items-center gap-2">
               <span className="text-muted-foreground">Status:</span>
               {getStatusBadge(instructor.status)}
