@@ -64,14 +64,14 @@ export function InstructorFilters({
             placeholder="Suche nach Name..."
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
-            className="pl-9"
+            className="control-target pl-9"
           />
         </div>
 
         <div>
           <Label htmlFor="instructor-sport" className="mb-1.5 block text-sm font-medium">Sportart</Label>
           <Select value={specializationFilter} onValueChange={onSpecializationChange}>
-            <SelectTrigger id="instructor-sport" className="w-full">
+            <SelectTrigger id="instructor-sport" className="control-target w-full">
               <SelectValue placeholder="Sportart" />
             </SelectTrigger>
             <SelectContent>
@@ -86,7 +86,7 @@ export function InstructorFilters({
         <div>
           <Label htmlFor="instructor-employment-status" className="mb-1.5 block text-sm font-medium">Anstellungsstatus</Label>
           <Select value={statusFilter} onValueChange={onStatusChange}>
-            <SelectTrigger id="instructor-employment-status" className="w-full">
+            <SelectTrigger id="instructor-employment-status" className="control-target w-full">
               <SelectValue placeholder="Anstellungsstatus" />
             </SelectTrigger>
             <SelectContent>
@@ -100,7 +100,7 @@ export function InstructorFilters({
         <div>
           <Label htmlFor="instructor-sort" className="mb-1.5 block text-sm font-medium">Sortierung</Label>
           <Select value={sortBy} onValueChange={onSortChange}>
-            <SelectTrigger id="instructor-sort" className="w-full">
+            <SelectTrigger id="instructor-sort" className="control-target w-full">
               <SelectValue placeholder="Sortierung" />
             </SelectTrigger>
             <SelectContent>

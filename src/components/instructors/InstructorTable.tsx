@@ -61,7 +61,7 @@ export function InstructorTable({ instructors, photoUrls, pulsingIds, onRowClick
                     <div className="min-w-0">
                       <Link
                         to={`/instructors/${instructor.id}`}
-                        className="font-semibold text-brand hover:text-brand-hover hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        className="control-target inline-flex items-center font-semibold text-brand hover:text-brand-hover hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                         onClick={(event) => event.stopPropagation()}
                       >
                         {fullName}
@@ -87,7 +87,7 @@ export function InstructorTable({ instructors, photoUrls, pulsingIds, onRowClick
                   {instructor.phone ? (
                     <a
                       href={`tel:${instructor.phone}`}
-                      className="inline-flex min-h-9 items-center text-brand hover:text-brand-hover hover:underline"
+                      className="control-target inline-flex items-center text-brand hover:text-brand-hover hover:underline"
                       onClick={(event) => event.stopPropagation()}
                     >
                       {formatPhoneDisplay(instructor.phone)}
