@@ -106,3 +106,11 @@ Network: 72 remote requests intercepted, none reached a live service; 18 aborted
 
 - Not tested with authenticated live scheduler records, real booking detail dialogs, actual drag/drop, fullscreen, selection overlays or physical touch hardware. No save, booking, approval, payment or other live action was performed.
 - `BlockingBar` reserve/absence styling and instructor availability/category colours were deliberately not changed. The non-compact legend remains currently unmounted but aligned for any future direct consumer.
+
+## UI-06a — provisional dark-mode precedence correction (2026-10-04)
+
+- Independent review found that UI-06's provisional base amber classes did not override the paid/open `dark:` classes. The earlier minimum-contrast result therefore measured payment-coloured dark provisional bars and did not prove the intended amber provisional precedence.
+- Before correction, the real `BookingBar` computed dark provisional paid as emerald `rgb(2, 44, 34)` and unpaid as amber `rgb(69, 26, 3)`. Both measured 46×6px in the focused fixture.
+- The existing `isProvisional` class branch now explicitly overrides dark background, text and border with the same amber provisional palette. The cross-discipline icon inherits the bar text colour instead of applying a separate low-contrast dark colour.
+- Focused synthetic verification rendered provisional `isPaid=true` and `isPaid=false` through the real `BookingBar`, with all non-localhost requests aborted. Both now compute identically in light and dark: background `rgb(251, 191, 36)`, text `rgb(69, 26, 3)`, border `rgb(217, 119, 6)`; text and cross-discipline icon contrast are both 8.97:1.
+- Coordinates and dimensions remained identical before/after for both payment states: x=25px, y=2px, width=46px, height=6px. The existing stripe gradient, dashed border, condition and status branching were unchanged. No write action was exercised.
