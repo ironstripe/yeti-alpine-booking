@@ -114,3 +114,17 @@ Network: 72 remote requests intercepted, none reached a live service; 18 aborted
 - The existing `isProvisional` class branch now explicitly overrides dark background, text and border with the same amber provisional palette. The cross-discipline icon inherits the bar text colour instead of applying a separate low-contrast dark colour.
 - Focused synthetic verification rendered provisional `isPaid=true` and `isPaid=false` through the real `BookingBar`, with all non-localhost requests aborted. Both now compute identically in light and dark: background `rgb(251, 191, 36)`, text `rgb(69, 26, 3)`, border `rgb(217, 119, 6)`; text and cross-discipline icon contrast are both 8.97:1.
 - Coordinates and dimensions remained identical before/after for both payment states: x=25px, y=2px, width=46px, height=6px. The existing stripe gradient, dashed border, condition and status branching were unchanged. No write action was exercised.
+
+## UI-07 — scheduler workspace and fullscreen discovery (2026-10-04)
+
+- Baseline: `8518688e98d01666b83180ec38cb6a43c4aa9e5e`. Product-code scope: `Scheduler.tsx`, `SchedulerHeader.tsx`, and `MultiSelectToggle.tsx`; presentation and accessible labels only.
+- A temporary standalone Vite fixture (removed before final diff) mounted the real scheduler with 18 synthetic instructors and private/group bookings. Every non-local request was aborted; no write or live action ran.
+- Browser matrix: 1440×900, 1280×720, and 390×560 touch. At both desktop sizes, the first scheduler row moved from y=218px to y=126px: **92px more vertical workspace**, with its 41px height and booking-bar coordinates relative to the row unchanged. Fullscreen moved the same row to y=82px.
+- At 390px the toolbar top moved from y=112px to y=44px and its wrapped height changed from 120px to 110px. The mobile list remained inside the 390px viewport without horizontal page overflow.
+- The visible fullscreen action entered and left the existing fullscreen state; Escape left it; the settings checkbox reflected the same state, and entering through settings changed the visible action to `Vollbild verlassen`. Day, 3-day, and week controls remained functional. Desktop toolbar actions fit one row at 1440px and 1280px.
+- Body dimensions stayed exactly at each viewport. The fixed time header/instructor column and scheduler scroll region remained in their existing implementation; row and slot geometry source was untouched. Synthetic rows below a short viewport remained reachable through the existing scheduler scroll area rather than page overflow.
+
+### Limits
+
+- Selection-state retention was not claimed: the attempted synthetic click was rejected by the existing current-date/future-date validation in this time-shifted fixture. No validation or selection logic was changed to force the scenario.
+- Portal stacking was checked for the existing settings menu in fullscreen and showed no observed overlap problem. Other portalled sheets/dialogs and physical touch hardware were not exercised.

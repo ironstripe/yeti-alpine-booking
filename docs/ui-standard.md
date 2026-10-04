@@ -94,3 +94,9 @@ The main scheduler's booking bars use calm neutral category surfaces for group c
 The active compact legend rendered by `SchedulerGrid` now uses the shared `SchedulerLegend` presentation and the same static booking class function as desktop bars and mobile agenda markers. The non-compact legacy legend remains available and its existing order and membership are unchanged; its `BLOCK_COLORS` swatches are aligned to the equivalent booking types. The wizard mini-scheduler has a separate availability/ranking legend and is intentionally unchanged, as are instructor colours, blocking-bar presentation, grid geometry and drag/drop behaviour.
 
 The shared range date picker gives its clear, previous-month and next-month icon actions exact German accessible names and the established 36px precise-pointer / 44px coarse-pointer target. Date cells and selection behaviour are unchanged.
+
+## UI-07 scheduler workspace
+
+The scheduler uses a compact local heading instead of the standard descriptive page header so the remaining viewport height belongs to the schedule. Date, view, fullscreen, search, settings and booking-type controls stay in one desktop row when space permits and wrap naturally on narrow screens.
+
+Fullscreen is a visible labelled toolbar action as well as a settings option; both use the existing scheduler fullscreen state. The multi-select interaction hint is available from a focusable help action instead of permanently occupying toolbar width. Scheduler rows, slots, booking geometry, sticky regions, drag/drop and selection behaviour remain unchanged.
