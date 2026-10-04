@@ -140,6 +140,8 @@ export function Step2ProductAllocation() {
   const startTimeTriggerRef = useRef<HTMLButtonElement>(null);
   const endTimeTriggerRef = useRef<HTMLButtonElement>(null);
   const timeRequiredTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const activeCartItemRef = useRef(state.activeCartItemId);
+  const locallyOwnedTimeSlotRef = useRef<string | null>(state.timeSlot);
   
   // Slot popover state
   const [popoverSlot, setPopoverSlot] = useState<{
@@ -245,16 +247,24 @@ export function Step2ProductAllocation() {
     setStartTime(nextStart);
     setEndTime(nextEnd);
     const next = buildWizardTimeSlot(nextStart, nextEnd);
-    setTimeSlot(next ? `${next.startTime} - ${next.endTime}` : null);
+    const nextTimeSlot = next ? `${next.startTime} - ${next.endTime}` : null;
+    locallyOwnedTimeSlotRef.current = nextTimeSlot;
+    setTimeSlot(nextTimeSlot);
     setDuration(next?.duration ?? null);
   }, [setDuration, setTimeSlot]);
 
-  // The active cart item and canonical scheduler plan own the external value.
-  // Sync null as well, so one cart item can never inherit another item's visible time.
+  // Adopt external changes (cart switch, scheduler plan/prefill, cleared plan), including null.
+  // Locally owned partial selections stay visible while their persisted slot is deliberately null.
   useEffect(() => {
-    const external = parseWizardTimeSlot(state.timeSlot);
-    setStartTime(external?.startTime ?? null);
-    setEndTime(external?.endTime ?? null);
+    const activeItemChanged = activeCartItemRef.current !== state.activeCartItemId;
+    const contextChangedExternally = locallyOwnedTimeSlotRef.current !== state.timeSlot;
+    if (activeItemChanged || contextChangedExternally) {
+      const external = parseWizardTimeSlot(state.timeSlot);
+      setStartTime(external?.startTime ?? null);
+      setEndTime(external?.endTime ?? null);
+      locallyOwnedTimeSlotRef.current = state.timeSlot;
+      activeCartItemRef.current = state.activeCartItemId;
+    }
   }, [state.activeCartItemId, state.timeSlot]);
 
   useEffect(() => () => {
@@ -283,6 +293,7 @@ export function Step2ProductAllocation() {
       const derivedEndTime = `${endHour.toString().padStart(2, "0")}:${endMinutes.toString().padStart(2, "0")}`;
       
       const timeSlotValue = `${firstAppt.startTime} - ${derivedEndTime}`;
+      locallyOwnedTimeSlotRef.current = timeSlotValue;
       setTimeSlot(timeSlotValue);
       setStartTime(firstAppt.startTime);
       setEndTime(derivedEndTime);
@@ -419,10 +430,13 @@ export function Step2ProductAllocation() {
 
   // Update productId when product changes
   useEffect(() => {
-    if (selectedProduct && selectedProduct.id !== state.productId) {
+    if (state.productType === "private") {
+      const nextProductId = selectedProduct?.id ?? null;
+      if (nextProductId !== state.productId) setProductId(nextProductId);
+    } else if (selectedProduct && selectedProduct.id !== state.productId) {
       setProductId(selectedProduct.id);
     }
-  }, [selectedProduct, state.productId, setProductId]);
+  }, [selectedProduct, state.productId, state.productType, setProductId]);
 
   // Find lunch product
   const lunchProduct = products.find((p) => p.type === "lunch");
@@ -860,7 +874,9 @@ export function Step2ProductAllocation() {
               <p className="break-words text-sm text-foreground">
                 {startTime && endTime
                   ? `Ohne Lehrperson: ${state.selectedDates.length} ${state.selectedDates.length === 1 ? "Tag" : "Tage"}, ${startTime}–${endTime}. Die Lehrperson wird später zugewiesen.`
-                  : "Für Teilnehmer wird zuerst ein vollständiges Zeitfenster benötigt."}
+                  : !startTime
+                    ? "Startzeit fehlt. Wählen Sie danach auch eine Endzeit."
+                    : "Endzeit fehlt."}
               </p>
               {(!startTime || !endTime) && (
                 <Button variant="link" size="sm" className="control-target mt-1 h-auto px-0" onClick={focusMissingTime}>

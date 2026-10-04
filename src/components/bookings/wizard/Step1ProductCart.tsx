@@ -60,7 +60,7 @@ export function Step1ProductCart() {
       </div>
 
       {/* Product Configuration (reuses existing component) */}
-      <Step2ProductAllocation />
+      <Step2ProductAllocation key={state.activeCartItemId ?? "empty-cart"} />
 
       {/* Cart Summary Bar - only shown when multiple items */}
       {cartItems.length > 1 && (

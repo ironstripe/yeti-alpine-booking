@@ -38,6 +38,15 @@ export function buildWizardTimeSlot(startTime: string | null, endTime: string | 
   return parseWizardTimeSlot(`${startTime} - ${endTime}`);
 }
 
+/** A private booking needs either one complete shared window or a valid canonical plan. */
+export function hasValidPrivateTiming(
+  timeSlot: string | null | undefined,
+  appointments: AppointmentSlot[] | null | undefined,
+): boolean {
+  if (appointments && appointments.length > 0) return validatePlan(appointments) === null;
+  return parseWizardTimeSlot(timeSlot) !== null;
+}
+
 export function sortPlan(list: AppointmentSlot[]): AppointmentSlot[] {
   return [...list].sort((a, b) => a.date.localeCompare(b.date) || a.startTime.localeCompare(b.startTime));
 }
