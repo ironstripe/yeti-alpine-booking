@@ -13,6 +13,8 @@
 - [x] UI-07a shell-aware scheduler correction: natural wrapping with 250px/64px sidebars, tap-open multi-select help, future-selection retention and shell-aware 92–94px grid gain verified
 - [x] UI-08 calm lists and documents: six compact responsive document rows, quiet counts, secondary actions, labelled date navigation, and denser batch-print/notes presentation; functional mismatches remain documented and unchanged
 - [x] UI-09 backoffice instructor management: compact staff table, staff-only detail workspace and 520px website-profile sheet; teacher portal and teacher self-view preserved
+- [ ] UI-09a staff detail density correction: compact staff profile/empty-today rows and restore the original rentals visibility gate
+- [ ] UI-10 booking-flow role clarification: wizard-only participant/payer copy and narrow wrapping, with no workflow changes
 - [ ] Future package: earlier wizard steps and cross-step pricing
 - [ ] Future package: scheduler geometry, density and drag/drop review (booking palette/active legend completed in UI-06)
 - [ ] Future package: remaining modules
