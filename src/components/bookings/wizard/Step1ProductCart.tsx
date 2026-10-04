@@ -5,9 +5,10 @@ import { Card, CardContent } from "@/components/ui/card";
 import { useBookingWizard } from "@/contexts/BookingWizardContext";
 import { CustomerSearch } from "./CustomerSearch";
 import { Step2ProductAllocation } from "./Step2ProductAllocation";
+import { BookingSummaryCards } from "./BookingSummaryCards";
 
 export function Step1ProductCart() {
-  const { state, setCustomer, addCartItem, removeCartItem, setActiveCartItem, getAllCartItems } = useBookingWizard();
+  const { state, setCustomer, setCurrentStep, addCartItem, removeCartItem, setActiveCartItem, getAllCartItems } = useBookingWizard();
   const [showShortcut, setShowShortcut] = useState(false);
 
   const cartItems = getAllCartItems();
@@ -15,9 +16,10 @@ export function Step1ProductCart() {
   const hasValidItem = activeItem?.productType && activeItem.selectedDates.length > 0;
 
   return (
-    <div className="space-y-4">
+    <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_20rem]">
+      <div className="min-w-0 space-y-4">
       {/* Existing customer shortcut */}
-      <div>
+      <section aria-label="Kundenschnellauswahl">
         <Button
           variant="outline"
           size="sm"
@@ -57,7 +59,7 @@ export function Step1ProductCart() {
             </p>
           </div>
         )}
-      </div>
+      </section>
 
       {/* Product Configuration (reuses existing component) */}
       <Step2ProductAllocation key={state.activeCartItemId ?? "empty-cart"} />
@@ -136,6 +138,11 @@ export function Step1ProductCart() {
           </Button>
         </div>
       )}
+      </div>
+      <aside aria-label="Buchungszusammenfassung" className="min-w-0 border-t pt-4 xl:sticky xl:top-20 xl:max-h-[calc(100vh-7rem)] xl:overflow-y-auto xl:border-t-0 xl:pt-0 xl:pr-1">
+        <h2 className="mb-3 text-sm font-semibold">Zusammenfassung</h2>
+        <BookingSummaryCards onEditStep={setCurrentStep} />
+      </aside>
     </div>
   );
 }
