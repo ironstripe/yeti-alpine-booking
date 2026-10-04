@@ -14,7 +14,7 @@
 - [x] UI-08 calm lists and documents: six compact responsive document rows, quiet counts, secondary actions, labelled date navigation, and denser batch-print/notes presentation; functional mismatches remain documented and unchanged
 - [x] UI-09 backoffice instructor management: compact staff table, staff-only detail workspace and 520px website-profile sheet; teacher portal and teacher self-view preserved
 - [x] UI-09a staff detail density correction: compact staff profile/empty-today rows and restored original rentals visibility gate; isolated before/after evidence in docs/ui-verification.md
-- [ ] UI-10 booking-flow role clarification: wizard-only participant/payer copy and narrow wrapping, with no workflow changes
+- [x] UI-10 booking-flow role clarification: wizard-only participant/payer copy and narrow wrapping, with no workflow changes
 - [ ] Future package: earlier wizard steps and cross-step pricing
 - [ ] Future package: scheduler geometry, density and drag/drop review (booking palette/active legend completed in UI-06)
 - [ ] Future package: remaining modules

@@ -172,3 +172,25 @@ Network: 72 remote requests intercepted, none reached a live service; 18 aborted
 ### Limits
 
 - Preview dialogs were opened and closed only; option changes, print/download actions, batch print, real records, and physical touch hardware were not exercised. The known handler mismatches above remain unchanged.
+
+## UI-09a — staff instructor-detail density correction (2026-10-04)
+
+- The staff-only identity/status header now wraps by available width instead of waiting for the `xl` breakpoint. The compact empty “Heute” state is one responsive row; populated schedule content and the teacher/self-service presentation remain unchanged.
+- The original rentals visibility condition, `isAdminOrOffice && id`, was restored in the staff branch.
+- An isolated fixture with synthetic instructor and schedule data checked 1440×900, 1280×720, 390×560 touch, and an 853×480 reduced CSS viewport. External app traffic was blocked and no status, invite, save, upload, or message action ran.
+- Long-name empty-state measurements: profile header 158→90px desktop, 274→218px mobile, and 158→122px reduced viewport; empty “Heute” 148→50px desktop/reduced and 148→74px mobile. The following profile section moved up by 178px, 142px, and 146px respectively. Status targets stayed 36px precise-pointer / 44px coarse-pointer with no page overflow.
+- Populated schedule height changed only through compact staff padding: 430→414px desktop and 450→434px mobile. Time-slot and booking content remained present.
+
+### UI-09a limits
+
+- The checks used real presentation components with synthetic hooks and inert actions, not live instructor data. The reduced viewport is a CSS-width proxy for 150% zoom, not evidence about the user screenshot’s browser zoom.
+
+## UI-10 — booking-flow role clarification (2026-10-04)
+
+- Wizard-only wording now distinguishes lesson participants from the paying customer across progress, existing-customer shortcut, participant picker, payer card, step actions, local-participant badge, and final summary. Step order, callbacks, state, persistence, calculations, and validation were not changed.
+- An isolated fixture mounted the real progress, shortcut, payer card, participant sheet, and controls with synthetic long names/contact details. At 1440×900 and 390×844 touch, all requested labels were visible, progress labels wrapped cleanly, and document width equalled viewport width (1440/1440 and 390/390).
+- The existing-customer shortcut measured 38px with a precise pointer and 44px with a coarse pointer. All external requests were aborted (only the font request occurred); no customer, participant, cart, or booking write ran.
+
+### UI-10 limits
+
+- The full wizard data flow, customer search/edit/create, participant persistence, availability, final submission, and live records were not exercised. The fixture was removed before the final diff.
