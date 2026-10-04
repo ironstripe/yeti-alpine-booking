@@ -92,6 +92,88 @@ export default function InstructorDetail() {
     return format(new Date(), "'Heute,' HH:mm", { locale: de });
   };
 
+  if (canManageWebsite) {
+    return (
+      <div className="space-y-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <Button variant="ghost" size="sm" className="control-target" onClick={() => navigate("/instructors")}>
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Übersicht
+          </Button>
+          <div className="flex flex-wrap gap-2">
+            {isAdminOrOffice && (
+              <Button variant="outline" size="sm" className="control-target" onClick={() => inviteMutation.mutate(instructor.id)} disabled={inviteMutation.isPending}>
+                {inviteMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Mail className="mr-2 h-4 w-4" />}
+                Einladen
+              </Button>
+            )}
+            <Button variant="outline" size="sm" className="control-target" onClick={handleSendMessage}>
+              <MessageCircle className="mr-2 h-4 w-4" />Nachricht
+            </Button>
+            <Button variant="outline" size="sm" className="control-target" onClick={handleAssignBooking}>
+              <CalendarPlus className="mr-2 h-4 w-4" />Buchung zuweisen
+            </Button>
+          </div>
+        </div>
+
+        <header className="rounded-lg border bg-card p-4 sm:p-5">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+            <div className="flex min-w-0 items-center gap-4">
+              <Avatar className="h-16 w-16 shrink-0 text-lg">
+                {(staffPhotoUrls[instructor.id] || instructor.avatar_url) && (
+                  <AvatarImage src={staffPhotoUrls[instructor.id] || instructor.avatar_url} alt={`${instructor.first_name} ${instructor.last_name}`} />
+                )}
+                <AvatarFallback className="bg-primary/10 text-primary">{getInitials()}</AvatarFallback>
+              </Avatar>
+              <div className="min-w-0">
+                <h1 className="break-words text-2xl font-bold">{instructor.first_name} {instructor.last_name}</h1>
+                <p className="text-muted-foreground">
+                  {getSpecializationLabel(instructor.specialization, instructor.roles)} · {getLevelLabel(instructor.level)}
+                </p>
+              </div>
+            </div>
+            <StatusToggle currentStatus={instructor.real_time_status} onStatusChange={updateStatus} isPulsing={isPulsing}
+              isUpdating={isUpdatingStatus} lastChanged={formatLastChanged()} compact />
+          </div>
+        </header>
+
+        <section aria-label="Heutige Einsätze">
+          <TodayScheduleCard bookings={todayBookings} />
+        </section>
+
+        <div className="grid gap-5 xl:grid-cols-[minmax(0,2fr)_minmax(18rem,1fr)]">
+          <ProfileInfoCard instructor={instructor} onEdit={handleEdit} compact />
+          <div className="space-y-5">
+            {id && <InstructorRentalsCard instructorId={id} />}
+            <SeasonStatsCard stats={seasonStats} />
+          </div>
+        </div>
+
+        {(canManageWebsite || isWebsitePublic) && (
+          <section className="rounded-lg border bg-card p-4" aria-labelledby="website-profile-heading">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0 space-y-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h2 id="website-profile-heading" className="font-semibold">Websiteprofil</h2>
+                  <Badge variant="secondary" className="gap-1"><Globe className="h-3 w-3" />{isWebsitePublic ? "Auf Website" : "Nur intern"}</Badge>
+                </div>
+                {isWebsitePublic && instructor.website_teaser && <p className="max-w-3xl break-words text-sm text-muted-foreground">{instructor.website_teaser}</p>}
+              </div>
+              {canManageWebsite && <Button variant="outline" size="sm" className="control-target" onClick={() => setWebsiteDialogOpen(true)}>Websiteprofil bearbeiten</Button>}
+            </div>
+          </section>
+        )}
+
+        {id && <AbsenceRequestCard instructorId={id} isTeacherView={isOwnProfile} />}
+        {isAdminOrOffice && id && instructor && <RolesCapabilitiesCard instructorId={id} currentType={instructor.instructor_type} />}
+        {id && <RecurringBlocksTab instructorId={id} />}
+
+        <EditInstructorModal key={instructor.id} open={editModalOpen} onOpenChange={setEditModalOpen} instructor={instructor} />
+        <WebsiteProfileDialog key={instructor.id} open={websiteDialogOpen} onOpenChange={setWebsiteDialogOpen} instructor={instructor} />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Back Button & Quick Actions */}

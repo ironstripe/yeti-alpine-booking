@@ -8,7 +8,9 @@ import type { Tables } from "@/integrations/supabase/types";
 import { WEBSITE_TEASER_MAX } from "@/lib/website-profile";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle,
+} from "@/components/ui/sheet";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -113,15 +115,21 @@ export function WebsiteProfileDialog({ open, onOpenChange, instructor }: Website
 
   return (
     <>
-      <Dialog open={open} onOpenChange={(next) => { if (!saving) onOpenChange(next); }}>
-        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2"><Globe className="h-4 w-4" />Websiteprofil</DialogTitle>
-            <DialogDescription>
+      <Sheet open={open} onOpenChange={(next) => { if (!saving) onOpenChange(next); }}>
+        <SheetContent
+          side="right"
+          overlayClassName="bg-foreground/35"
+          closeButtonClassName="icon-action"
+          closeLabel="Websiteprofil schliessen"
+          className="flex h-full w-full flex-col gap-0 p-0 sm:w-[520px] sm:max-w-[520px]"
+        >
+          <SheetHeader className="shrink-0 border-b py-5 pl-5 pr-16 sm:pl-6">
+            <SheetTitle className="flex items-center gap-2 break-words"><Globe className="h-4 w-4 shrink-0" />Websiteprofil</SheetTitle>
+            <SheetDescription>
               {isPublic ? "Derzeit öffentlich sichtbar." : "Derzeit nur intern sichtbar."}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-5">
+            </SheetDescription>
+          </SheetHeader>
+          <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-5 py-5 sm:px-6">
             <div className="space-y-2">
               <Label htmlFor="website-role-title">Titel auf der Website</Label>
               <Input id="website-role-title" maxLength={80} value={websiteTitle}
@@ -163,17 +171,20 @@ export function WebsiteProfileDialog({ open, onOpenChange, instructor }: Website
             {instructor.status !== "active" && (
               <p className="text-sm text-destructive">Nur aktive Profile können veröffentlicht werden.</p>
             )}
-            <div className="flex flex-wrap justify-end gap-2">
-              {instructor.show_on_website && <Button type="button" variant="outline" disabled={saving}
-                onClick={() => setConfirmAction("hide")}>Von Website nehmen</Button>}
-              <Button type="button" disabled={!canPublish || saving}
-                onClick={() => setConfirmAction("publish")}>
-                {isPublic ? "Änderungen veröffentlichen" : "Auf Website veröffentlichen"}
-              </Button>
-            </div>
           </div>
-        </DialogContent>
-      </Dialog>
+          <SheetFooter className="shrink-0 gap-2 border-t bg-background px-5 py-4 sm:px-6">
+            <Button type="button" variant="outline" disabled={saving} onClick={() => onOpenChange(false)}>
+              Abbrechen
+            </Button>
+            {instructor.show_on_website && <Button type="button" variant="outline" disabled={saving}
+              onClick={() => setConfirmAction("hide")}>Von Website nehmen</Button>}
+            <Button type="button" disabled={!canPublish || saving}
+              onClick={() => setConfirmAction("publish")}>
+              {isPublic ? "Änderungen veröffentlichen" : "Auf Website veröffentlichen"}
+            </Button>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
       <AlertDialog open={!!confirmAction} onOpenChange={(next) => { if (!next && !saving) setConfirmAction(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
