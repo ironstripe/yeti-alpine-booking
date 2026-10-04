@@ -5,6 +5,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { TooltipProvider } from "../src/components/ui/tooltip";
 import { SchedulerSelectionProvider } from "../src/contexts/SchedulerSelectionContext";
 import { SchedulerHeader, type ViewMode } from "../src/components/scheduler/SchedulerHeader";
+import { BaselineSchedulerHeader } from "./BaselineSchedulerHeader";
+import { PageHeader } from "../src/components/layout/PageHeader";
 import type { SchedulerFilters } from "../src/components/scheduler/SchedulerSettingsMenu";
 import "../src/index.css";
 
@@ -14,6 +16,7 @@ const initialFilters: SchedulerFilters = {
   showUnconfirmedOnly: false, showFreeInstructorsOnly: false, showCrossDisciplineOnly: false,
   isFullscreen: false, sortBy: "name", compactMode: false, showLegend: true,
 };
+const baseline = new URLSearchParams(window.location.search).has("baseline");
 function Fixture() {
   const [collapsed, setCollapsed] = useState(false);
   const [filters, setFilters] = useState(initialFilters);
@@ -28,10 +31,12 @@ function Fixture() {
       {!filters.isFullscreen && <div data-testid="app-header" className="h-14 shrink-0 border-b" />}
       <main className="min-h-0 flex-1 overflow-hidden">
         <div className={filters.isFullscreen ? "fixed inset-0 z-50 flex min-h-0 min-w-0 flex-col bg-background" : "flex h-full min-h-0 min-w-0 flex-col bg-background"}>
-          {!filters.isFullscreen && <header data-testid="page-heading" className="shrink-0 px-4 py-2"><h1 className="text-xl font-bold">Stundenplan</h1></header>}
-          <SchedulerHeader date={date} onDateChange={setDate} viewMode={viewMode} onViewModeChange={setViewMode}
+          {!filters.isFullscreen && (baseline ? <div data-testid="page-heading" className="shrink-0 p-4 md:p-6"><PageHeader title="Stundenplan" description="Übersicht aller Lehrer und Buchungen" /></div> : <header data-testid="page-heading" className="shrink-0 px-4 py-2"><h1 className="text-xl font-bold">Stundenplan</h1></header>)}
+          {baseline ? <BaselineSchedulerHeader date={date} onDateChange={setDate} viewMode={viewMode} onViewModeChange={setViewMode}
             instructorOptions={[{id:"i-1",name:"Anna Beispiel"}]} filters={filters} onFiltersChange={patch}
-            compactStats={{visible:12,total:18}} />
+            compactStats={{visible:12,total:18}} /> : <SchedulerHeader date={date} onDateChange={setDate} viewMode={viewMode} onViewModeChange={setViewMode}
+            instructorOptions={[{id:"i-1",name:"Anna Beispiel"}]} filters={filters} onFiltersChange={patch}
+            compactStats={{visible:12,total:18}} />}
           <div data-testid="grid-scroll" className="min-h-0 flex-1 overflow-auto">
             <div data-testid="sticky-header" className="sticky top-0 h-10 border-b bg-background">09:00 · 10:00 · 11:00</div>
             {Array.from({length:18}, (_, i) => <div key={i} data-testid="grid-row" className="h-[41px] border-b">Lehrer {i+1}</div>)}
