@@ -147,4 +147,9 @@ BEGIN
     'confirmation_reset', v_changed AND a.instructor_confirmation IS DISTINCT FROM 'pending');
 END $$;
 
+REVOKE ALL ON FUNCTION public.pa_create_booking(jsonb, uuid) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.pa_apply_slot(uuid, date, time, time, uuid) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.pa_create_booking(jsonb, uuid) TO service_role;
+GRANT EXECUTE ON FUNCTION public.pa_apply_slot(uuid, date, time, time, uuid) TO service_role;
+
 COMMIT;

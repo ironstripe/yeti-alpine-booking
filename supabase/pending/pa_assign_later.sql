@@ -6,7 +6,7 @@
 --  * later assignment stays on pa_move_appointment / pa_period_update (teacher required,
 --    slot lock + conflict check, all-or-nothing). NULL -> teacher sets 'pending' and is not
 --    reported as a confirmation reset.
--- Privileges are kept by CREATE OR REPLACE (service_role only). Rollback: supabase/rollback/pa_assign_later_rollback.sql
+-- Privileges restated: service_role only. Rollback: supabase/rollback/pa_assign_later_rollback.sql
 BEGIN;
 CREATE OR REPLACE FUNCTION public.pa_create_booking(p jsonb, p_actor uuid) RETURNS jsonb
     LANGUAGE plpgsql
@@ -168,5 +168,10 @@ BEGIN
   RETURN jsonb_build_object('changed', v_changed, 'price', v_price,
     'confirmation_reset', v_changed AND a.instructor_confirmation IS NOT NULL AND a.instructor_confirmation <> 'pending');
 END $$;
+
+REVOKE ALL ON FUNCTION public.pa_create_booking(jsonb, uuid) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.pa_apply_slot(uuid, date, time, time, uuid) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.pa_create_booking(jsonb, uuid) TO service_role;
+GRANT EXECUTE ON FUNCTION public.pa_apply_slot(uuid, date, time, time, uuid) TO service_role;
 
 COMMIT;
