@@ -13,21 +13,25 @@ const PRESETS = [
   { 
     type: "lunch", 
     label: "Mittagspause", 
+    sublabel: "12:00–13:00",
     icon: "🍽️",
   },
   { 
     type: "morning_only", 
-    label: "Nur Vormittage", 
+    label: "Nachmittage blockieren", 
+    sublabel: "13:00–16:00",
     icon: "🌅",
   },
   { 
     type: "afternoon_only", 
-    label: "Nur Nachmittage", 
+    label: "Vormittage blockieren", 
+    sublabel: "09:00–12:00",
     icon: "🌇",
   },
   { 
     type: "group_reserve", 
     label: "Gruppenkurs Reserve", 
+    sublabel: "10:00–12:00",
     icon: "👥",
   },
 ];
@@ -101,8 +105,11 @@ export function RecurringBlocksTab({ instructorId }: RecurringBlocksTabProps) {
         <CardHeader className="pb-3">
           <CardTitle className="text-sm font-medium flex items-center gap-2">
             <Repeat className="h-4 w-4" />
-            Schnellauswahl
+            Wiederkehrenden Block hinzufügen
           </CardTitle>
+          <p className="text-xs text-muted-foreground">
+            Vorlage wählen und anschliessend Zeiten, Wochentage und Gültigkeit festlegen.
+          </p>
         </CardHeader>
         <CardContent>
           <div className="flex flex-wrap gap-2">
@@ -114,12 +121,15 @@ export function RecurringBlocksTab({ instructorId }: RecurringBlocksTabProps) {
                 className="flex items-center gap-2"
               >
                 <span>{preset.icon}</span>
-                <span>{preset.label}</span>
+                <span>
+                  <span className="block leading-tight">{preset.label}</span>
+                  <span className="block text-xs text-muted-foreground leading-tight">{preset.sublabel}</span>
+                </span>
               </Button>
             ))}
             <Button variant="outline" onClick={handleNewCustom}>
               <Plus className="h-4 w-4 mr-1" />
-              Benutzerdefiniert
+              Eigener Block …
             </Button>
           </div>
         </CardContent>
@@ -127,8 +137,8 @@ export function RecurringBlocksTab({ instructorId }: RecurringBlocksTabProps) {
 
       {/* Existing Blocks */}
       <div className="space-y-3">
-        <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">
-          MEINE WIEDERKEHRENDEN BLÖCKE
+        <h2 className="font-semibold text-sm text-muted-foreground">
+          Bestehende wiederkehrende Blöcke
         </h2>
 
         {(blocks || []).length === 0 ? (

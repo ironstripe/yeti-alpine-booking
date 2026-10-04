@@ -151,7 +151,7 @@ export function RecurringBlockDialog({
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>
-            {editingBlock ? "Block bearbeiten" : "Wiederkehrenden Block erstellen"}
+            {editingBlock ? "Wiederkehrenden Block bearbeiten" : "Wiederkehrenden Block erstellen"}
           </DialogTitle>
         </DialogHeader>
 
@@ -169,7 +169,7 @@ export function RecurringBlockDialog({
 
           {/* Time Window */}
           <div className="space-y-2">
-            <Label>Zeitfenster *</Label>
+            <Label>Blockierte Zeit *</Label>
             <div className="flex items-center gap-2">
               <Input
                 type="time"
