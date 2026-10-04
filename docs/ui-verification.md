@@ -4,6 +4,15 @@
 - The staff detail route retained its existing action destinations and role conditions. Its compact header, availability control, today's assignments, profile grid and subordinate website section were exercised with long production-like content without clipping. The teacher self-view remains on the original page branch; teacher-portal routes and shared teacher components were not restyled.
 - Website-profile editing rendered as a 520px desktop sheet and full-width 390px mobile sheet with one scrollable body and stable footer. Focus trapping, labelled close, nested confirmation structure and cancel controls remained present. Escape closing was exercised before changing fields; dirty-state behavior was not separately testable because this dialog had no pre-existing dirty-close guard.
 - No save, upload, invite, message or status action was triggered. Requests observed during authenticated rendering were existing reads/session traffic; no application mutation was initiated by the test. Physical touch hardware, actual portrait upload and successful publication remain untested.
+
+## UI-09a staff detail density correction
+
+- Baseline: `492743dd66705ab3006a9d287f965f0c8c5aa866`. Scope is limited to the staff-only detail branch and existing `compact` presentation variants; the teacher/self-service branch and every status, schedule, query, and action callback remain unchanged.
+- A temporary isolated fixture (removed before final diff) mounted the real before/after `InstructorDetail`, `TodayScheduleCard`, and `StatusToggle` with synthetic short/long names and empty/populated schedules. Business panels and actions were inert stubs. Google Fonts was the only external request and was aborted; no service request or write ran.
+- Shell widths: 1440×900 and 1280×720 with a 250px expanded sidebar, 390×560 touch, and 853×480 as a reduced-CSS-width proxy for 150% browser zoom. This last case verifies equivalent available width, not an assertion about the user's screenshot zoom.
+- Long-name empty state measurements (baseline → corrected): staff header 158→90px at 1440/1280, 274→218px at 390, 158→122px at reduced width; empty “Heute” card 148→50px desktop/reduced and 148→74px mobile. The next profile section moved up 178px desktop, 142px mobile, and 146px reduced-width. No page overflow occurred.
+- Status targets remained 36×36px with a precise pointer and 44×44px with a coarse pointer. Populated schedule times, booking labels, confirmations, and eight-slot logic remained present; only compact card padding changed (430→414px desktop, 450→434px mobile). Default `compact=false` presentation was source-compared and unchanged.
+- The original rentals gate was restored exactly in the staff branch: `isAdminOrOffice && id`. Physical touch hardware and real staff records/actions were not exercised.
 # UI verification log
 
 ## UI-05A — closing browser verification gaps (2026-10-04)
