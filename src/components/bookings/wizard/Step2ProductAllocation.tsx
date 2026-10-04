@@ -614,12 +614,18 @@ export function Step2ProductAllocation() {
               onMonthChange={setSelectedMonth}
               minDate={new Date(new Date().setHours(0, 0, 0, 0))}
               showQuickActions={true}
+              showSelectionSummary={false}
               className="rounded-md border bg-background text-xs"
             />
-            {state.selectedDates.length > 0 && (
-              <div className="flex flex-wrap gap-1">
-                {[...state.selectedDates].sort().slice(0, 5).map((date) => <Badge key={date} variant="secondary" className="px-1.5 py-0 text-[10px]">{format(parseISO(date), "E d.", { locale: de })}</Badge>)}
-                {state.selectedDates.length > 5 && <Badge variant="outline" className="px-1.5 py-0 text-[10px]">+{state.selectedDates.length - 5}</Badge>}
+            {state.selectedDates.length > 1 && (
+              <div className="flex flex-wrap items-center gap-1" aria-label={`${state.selectedDates.length} ausgewählte Tage`}>
+                <span className="mr-1 text-xs text-muted-foreground">{state.selectedDates.length} Tage</span>
+                {[...state.selectedDates].sort().slice(0, 4).map((date) => (
+                  <Badge key={date} variant="secondary" className="px-1.5 py-0 text-[10px]">
+                    {format(parseISO(date), "EEE d. MMM", { locale: de })}
+                  </Badge>
+                ))}
+                {state.selectedDates.length > 4 && <Badge variant="outline" className="px-1.5 py-0 text-[10px]">+{state.selectedDates.length - 4}</Badge>}
               </div>
             )}
           </div>
