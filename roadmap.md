@@ -4,8 +4,9 @@
 - [x] UI-01 foundations + bookings/payment pilot: UI standard, accessible primary action pairing, icon actions, neutral source badge, ticket links, responsive filters, payment sheet
 - [x] UI-02 approval/detail + final wizard review: approval sheet, detail skeleton/header, sticky desktop summary, touch and long-title refinements
 - [x] UI-03 form ergonomics: stable dialog anatomy and responsive fields for customer, instructor, course and product forms
-- [x] UI-04 scheduler controls + booking detail workspace: accessible controls, viewport-centred wrapping selection toolbar and stable detail sheet; booking-detail and nested-dialog interaction checks remain pending safe fixture/data access
-- [ ] Future package: approval/detail follow-up (complex ticket edit dialogs, history and related information; standalone approval-sheet browser check still pending)
+- [x] UI-04 scheduler controls + booking detail workspace: accessible controls, viewport-centred wrapping selection toolbar and stable detail sheet; booking-detail and nested-dialog interaction checks completed in UI-05A (see docs/ui-verification.md)
+- [ ] Future package: approval/detail follow-up (complex ticket edit dialogs, history and related information)
+- [x] UI-05A browser verification: booking detail sheet, nested confirmations, approval sheet and instructor dialog exercised with synthetic local fixtures (docs/ui-verification.md); remaining: real-data visual check and photo upload path untested
 - [ ] Future package: earlier wizard steps and cross-step pricing
 - [ ] Future package: scheduler calendar colors/legend, geometry, density and drag/drop review
 - [ ] Future package: remaining modules
