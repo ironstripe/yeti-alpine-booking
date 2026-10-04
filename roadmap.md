@@ -15,6 +15,7 @@
 - [x] UI-09 backoffice instructor management: compact staff table, staff-only detail workspace and 520px website-profile sheet; teacher portal and teacher self-view preserved
 - [x] UI-09a staff detail density correction: compact staff profile/empty-today rows and restored original rentals visibility gate; isolated before/after evidence in docs/ui-verification.md
 - [x] UI-10 booking-flow role clarification: wizard-only participant/payer copy and narrow wrapping, with no workflow changes
+- [x] UI-11 recurring-block copy clarification: preset labels with blocked periods, clearer heading/helper text, no dialog values or workflow changes
 - [ ] Future package: earlier wizard steps and cross-step pricing
 - [ ] Future package: scheduler geometry, density and drag/drop review (booking palette/active legend completed in UI-06)
 - [ ] Future package: remaining modules
