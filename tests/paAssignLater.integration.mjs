@@ -31,7 +31,7 @@ const I1 = id(0xf001), I2 = id(0xf002), ACTOR = id(0xbeef);
 const D1 = '2026-12-21', D2 = '2026-12-22', D3 = '2026-12-23';
 
 try {
-  for (const f of ['tests/sql/baseline_prelude.sql', 'tests/sql/production_schema_baseline.sql', 'supabase/pending/pa_assign_later.sql']) {
+  for (const f of ['tests/sql/baseline_prelude.sql', 'tests/sql/production_schema_baseline.sql', ...(process.env.PA_BASELINE_ONLY ? [] : ['supabase/pending/pa_assign_later.sql'])]) {
     const r = spawnSync('psql', [u.toString(), '-q', '-v', 'ON_ERROR_STOP=1', '-f', fileURLToPath(new URL(f, root))],
       { encoding: 'utf8', env: { ...process.env, PGSSLMODE: 'disable' } });
     if (r.status !== 0) throw new Error(`psql ${f}: ${r.stderr}`);
