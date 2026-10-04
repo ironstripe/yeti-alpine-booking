@@ -17,7 +17,7 @@ interface CustomerSearchProps {
   selectedCustomer: Tables<"customers"> | null;
   onSelect: (customer: Tables<"customers">) => void;
   onClear: () => void;
-  onCreateNew: () => void;
+  onCreateNew?: () => void;
 }
 
 export function CustomerSearch({
@@ -184,16 +184,18 @@ export function CustomerSearch({
         </div>
       )}
 
-      <p className="text-sm text-muted-foreground">
-        Oder:{" "}
-        <button
-          type="button"
-          onClick={onCreateNew}
-          className="font-medium text-primary hover:underline"
-        >
-          + Neuen Kunden erstellen
-        </button>
-      </p>
+      {onCreateNew && (
+        <p className="text-sm text-muted-foreground">
+          Oder:{" "}
+          <button
+            type="button"
+            onClick={onCreateNew}
+            className="font-medium text-primary hover:underline"
+          >
+            + Neuen Kunden erstellen
+          </button>
+        </p>
+      )}
     </div>
   );
 }
