@@ -50,9 +50,11 @@ export function Step1ProductCart() {
                 selectedCustomer={null}
                 onSelect={setCustomer}
                 onClear={() => {}}
-                onCreateNew={() => {}}
               />
             )}
+            <p className="mt-2 px-1 text-sm text-muted-foreground">
+              Neue zahlungspflichtige Kunden erfasst du im nächsten Schritt.
+            </p>
           </div>
         )}
       </div>
