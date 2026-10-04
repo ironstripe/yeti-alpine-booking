@@ -129,6 +129,19 @@ Network: 72 remote requests intercepted, none reached a live service; 18 aborted
 - Selection-state retention was not claimed: the attempted synthetic click was rejected by the existing current-date/future-date validation in this time-shifted fixture. No validation or selection logic was changed to force the scenario.
 - Portal stacking was checked for the existing settings menu in fullscreen and showed no observed overlap problem. Other portalled sheets/dialogs and physical touch hardware were not exercised.
 
+## UI-07a — shell-aware scheduler toolbar correction (2026-10-04)
+
+- Independent review found that UI-07's `md:flex-nowrap` classes used viewport width rather than the scheduler's available width after the 250px application sidebar. Both forced no-wrap classes were removed; the same flex groups now wrap naturally while retaining one row where they fit.
+- The tooltip-only multi-select help was replaced with the existing popover primitive. The same help text is now exposed by a focusable 36px precise-pointer / 44px coarse-pointer button and opens by click or tap; the switch and selection state are unchanged.
+- A temporary isolated fixture (removed before final diff) mounted the real `SchedulerHeader` and selection context inside an AppLayout-equivalent shell with 250px expanded and 64px collapsed sidebars. Every non-local request was aborted; no write action ran.
+- Shell matrix: 1440×900, 1280×720 and 1024×768, expanded/collapsed and normal/fullscreen, plus 1280×720 coarse pointer. There was no page-level horizontal overflow or clipped action. At 1440 the toolbar stayed on one row; at 1280 it used two rows only with the expanded sidebar, and at 1024 it used two rows in both sidebar states. Coarse-pointer targets remained 44px and wrapped without clipping. `Vollbild verlassen`, the visible selection count and all controls remained reachable.
+- Against the actual pre-UI-07 header inside the same shell, the corrected grid gained 92px at 1440 expanded/collapsed, 94px at 1280 expanded and 92px collapsed, and 94px at 1024 expanded/collapsed. This supersedes the earlier 92px isolated full-viewport estimate only as shell-aware evidence; the original result was not evidence for expanded-sidebar fit.
+- A future synthetic selection (`2027-02-15`) remained visible across fullscreen transitions. Day/3-day/week controls, the shared visible/settings fullscreen state, Escape exit and sticky scroll header were exercised. Scheduler row/slot/bar geometry source was not changed.
+
+### UI-07a limits
+
+- The fixture reproduced the application shell dimensions and real sidebar widths but did not authenticate against live scheduler data. Portalled settings worked in fullscreen; other sheets/dialogs and physical touch hardware were not exercised.
+
 ## UI-08 — calm lists and documents (2026-10-04)
 
 - Presentation scope: `Lists.tsx`, `DocumentCard.tsx`, and `BatchPrintCard.tsx`. Titles, subtitles, counts, count labels, preview handlers, checkbox defaults, print handler, and exact `disabled={count === 0}` behavior remain unchanged.

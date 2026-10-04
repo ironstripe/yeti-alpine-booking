@@ -10,6 +10,7 @@
 - [x] UI-05B early wizard ergonomics (cart, product/time step, customer step, payer card): wrapping, labelled icon actions, touch-sized controls, muted info panels; evidence in docs/ui-verification.md. Untested: real availability grid, fullscreen, period/prefill/individual panels
 - [x] UI-06 scheduler visual signals + remaining range-date-picker action labels: shared calm booking palette and type cues across desktop/mobile/live compact legend; light/dark contrast, unchanged geometry and 36/44px labelled date actions verified with isolated synthetic fixtures
 - [x] UI-07 compact scheduler workspace + visible fullscreen action: 92px desktop grid gain, narrow wrapping, shared fullscreen state and settings-menu stacking verified with isolated synthetic fixtures
+- [x] UI-07a shell-aware scheduler correction: natural wrapping with 250px/64px sidebars, tap-open multi-select help, future-selection retention and shell-aware 92–94px grid gain verified
 - [x] UI-08 calm lists and documents: six compact responsive document rows, quiet counts, secondary actions, labelled date navigation, and denser batch-print/notes presentation; functional mismatches remain documented and unchanged
 - [ ] Future package: earlier wizard steps and cross-step pricing
 - [ ] Future package: scheduler geometry, density and drag/drop review (booking palette/active legend completed in UI-06)
