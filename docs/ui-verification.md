@@ -36,7 +36,7 @@
 ### Observations (not regressions)
 
 - After closing the nested conflict AlertDialog with Escape, focus lands on `body` (the triggering Select option has unmounted); the next Tab returns into the sheet. Identical in the pre-UI-04 `Dialog` version (side-by-side run) → pre-existing, left unchanged.
-- React `forwardRef` console warnings appear in both versions; pre-existing, not addressed.
+- React `forwardRef` console warnings were observed in the current version; whether they also occur in the pre-UI-04 version was not separately confirmed. Not addressed.
 - Emoji in the change summary render as boxes in headless Chromium (missing emoji font), environment only.
 
 ### Not tested
@@ -48,3 +48,33 @@
 ### Commands
 
 `python3 /tmp/browser/ui05/run_ui05.py`, `python3 /tmp/browser/ui05/cmp.py` (temporary, not committed); `git diff --check`; `bunx tsgo --noEmit -p tsconfig.app.json`.
+
+## UI-05B — early wizard ergonomics (2026-10-04)
+
+- Baseline: `3d95f750bc3cf8c40ea4fe6e6188e721d5d5e456`. Changed: `Step1ProductCart.tsx`, `Step2ProductAllocation.tsx`, `Step2AssignCustomer.tsx`, `CustomerPayerCard.tsx` (class names, `aria-label`, `aria-expanded` only) plus docs.
+- Diff review: every changed source line besides `className` is an added `aria-label`/`aria-expanded` or a line re-emitted with new classes; no hook, state, effect, mutation, handler, condition or text change.
+
+### Method
+
+Temporary local Vite page (removed) mounting the real `Step1ProductCart` and `Step2AssignCustomer` inside the real `BookingWizardProvider`, seeded only through existing context setters: synthetic long-named customer, two pre-existing synthetic participants (no local participants, so the auto-insert path never triggers), three cart items (private 3 days, group 1 day, private snowboard 2 days) and two selected mini-scheduler slots. Playwright answered GET `rest/v1/*` locally (synthetic season/product, otherwise empty) and aborted everything else.
+
+Network: 72 remote requests intercepted, none reached a live service; 18 aborted POSTs were all read RPCs (`instructors_ops_list`, `instructor_deployment_gates`); no `customer_participants` insert or other write was issued.
+
+### Results (1440×900, 1024×768, 390×844 touch)
+
+| Check | Result |
+|---|---|
+| No horizontal overflow, no element past viewport | PASS all widths, both steps |
+| Shortcut toggle wraps, `aria-expanded=true` when open | PASS |
+| Long pre-selected customer wraps beside labelled remove icon | PASS |
+| Cart with 3 items visible; remove icons labelled | PASS |
+| Icon actions 36×36 (mouse) / 44×44 (touch) | PASS |
+| Text/select/pill controls ≥36px tall (mouse) / 44px (touch) | PASS |
+| Private filter row: stacked at 390, three columns at ≥640 | PASS |
+| Selected slots summary ("2 Termine ausgewählt", apply/cancel) visible | PASS |
+| Step 2: cart reminder badges wrap; long name/e-mail/address wrap without clipping; Bearbeiten/Wechseln 36/44px | PASS |
+
+### Observations / not tested
+
+- One unlabelled icon button remains: the red delete icon inside the date picker child component (outside the four files).
+- Not tested: real products/instructor availability grid, group-course data, fullscreen mode, period summary/automatic-prefill and individual-booking panels (their conditions were not reached with the seed), customer search/create/edit dialogs, local-participant persistence (deliberately avoided).
