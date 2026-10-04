@@ -315,9 +315,10 @@ export function RangeDatePicker({
               <Button
                 type="button"
                 variant="ghost"
-                size="sm"
-                className="h-8 text-xs text-destructive hover:text-destructive"
+                size="icon"
+                className="icon-action text-destructive hover:text-destructive"
                 onClick={clearSelection}
+                aria-label="Ausgewählte Daten löschen"
               >
                 <Trash2 className="h-3 w-3" />
               </Button>
@@ -341,6 +342,10 @@ export function RangeDatePicker({
         selected={selected}
         month={currentMonth}
         onMonthChange={handleMonthChange}
+        labels={{
+          labelPrevious: () => "Vorheriger Monat",
+          labelNext: () => "Nächster Monat",
+        }}
         locale={de}
         weekStartsOn={1}
         showOutsideDays={false}
@@ -360,7 +365,7 @@ export function RangeDatePicker({
           nav: "space-x-1 flex items-center",
           nav_button: cn(
             buttonVariants({ variant: "outline" }),
-            "h-7 w-7 bg-transparent p-0 opacity-50 hover:opacity-100"
+            "icon-action bg-transparent p-0 opacity-50 hover:opacity-100"
           ),
           nav_button_previous: "absolute left-1",
           nav_button_next: "absolute right-1",

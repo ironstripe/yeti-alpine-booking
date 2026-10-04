@@ -16,8 +16,8 @@ import { SelectionToolbar } from "./SelectionToolbar";
 
 import { SchedulerSelectionProvider, useSchedulerSelection } from "@/contexts/SchedulerSelectionContext";
 import { useUserRole } from "@/hooks/useUserRole";
-import { hasOverlap, getDaysForViewMode, generateDateRange, isWithinOperationalHours, type SchedulerBooking } from "@/lib/scheduler-utils";
-import { AlertCircle, X } from "lucide-react";
+import { hasOverlap, getBookingBarClasses, getDaysForViewMode, generateDateRange, isWithinOperationalHours, type SchedulerBooking } from "@/lib/scheduler-utils";
+import { AlertCircle, Building, Users, X } from "lucide-react";
 import { ColumnResizeHandle } from "./ColumnResizeHandle";
 import { 
   BookingChangeConfirmDialog, 
@@ -678,19 +678,21 @@ function SchedulerGridContent() {
         {showLegend && (
           <div className="border-t border-border px-3 py-2 flex flex-wrap gap-3 text-[10px]">
             <div className="flex items-center gap-1">
-              <div className="w-2 h-2 rounded-sm bg-emerald-500" />
+              <div className={cn("w-2 h-2 rounded-sm border", getBookingBarClasses("private", true))} />
               <span>Bezahlt</span>
             </div>
             <div className="flex items-center gap-1">
-              <div className="w-2 h-2 rounded-sm bg-orange-500" />
+              <div className={cn("w-2 h-2 rounded-sm border", getBookingBarClasses("private", false))} />
               <span>Offen</span>
             </div>
             <div className="flex items-center gap-1">
-              <div className="w-2 h-2 rounded-sm bg-blue-600" />
+              <div className={cn("w-2 h-2 rounded-sm border", getBookingBarClasses("group", false))} />
+              <Users className="h-3 w-3" aria-hidden="true" />
               <span>Gruppe</span>
             </div>
             <div className="flex items-center gap-1">
-              <div className="w-2 h-2 rounded-sm bg-purple-600" />
+              <div className={cn("w-2 h-2 rounded-sm border", getBookingBarClasses("office_shift", false))} />
+              <Building className="h-3 w-3" aria-hidden="true" />
               <span>Büro</span>
             </div>
             <div className="flex items-center gap-1">

@@ -143,18 +143,18 @@ export function getInstructorColorClasses(color: InstructorColor): {
 
 /**
  * Get CSS classes for booking bar based on type and payment status
- * Uses more saturated colors for better visibility against grid lines
+ * Uses calm category surfaces while keeping payment state recognizable
  */
 export function getBookingBarClasses(type: "private" | "group" | "office_shift", isPaid: boolean): string {
   if (type === "office_shift") {
-    return "bg-purple-600 text-white border-purple-700";
+    return "bg-zinc-100 text-zinc-900 border-zinc-500 dark:bg-zinc-800 dark:text-zinc-50 dark:border-zinc-500";
   }
   if (type === "group") {
-    return "bg-blue-600 text-white border-blue-700";
+    return "bg-slate-200 text-slate-900 border-slate-500 dark:bg-slate-700 dark:text-slate-50 dark:border-slate-500";
   }
   return isPaid 
-    ? "bg-emerald-500 text-white border-emerald-600" 
-    : "bg-orange-500 text-white border-orange-600";
+    ? "bg-emerald-100 text-emerald-900 border-emerald-500 dark:bg-emerald-950 dark:text-emerald-100 dark:border-emerald-600" 
+    : "bg-amber-100 text-amber-950 border-amber-500 dark:bg-amber-950 dark:text-amber-100 dark:border-amber-600";
 }
 
 /**
