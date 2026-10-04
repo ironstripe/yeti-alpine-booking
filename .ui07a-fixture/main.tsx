@@ -1,9 +1,9 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { createRoot } from "react-dom/client";
 import { MemoryRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { TooltipProvider } from "../src/components/ui/tooltip";
-import { SchedulerSelectionProvider, useSchedulerSelection } from "../src/contexts/SchedulerSelectionContext";
+import { SchedulerSelectionProvider } from "../src/contexts/SchedulerSelectionContext";
 import { SchedulerHeader, type ViewMode } from "../src/components/scheduler/SchedulerHeader";
 import type { SchedulerFilters } from "../src/components/scheduler/SchedulerSettingsMenu";
 import "../src/index.css";
@@ -14,14 +14,6 @@ const initialFilters: SchedulerFilters = {
   showUnconfirmedOnly: false, showFreeInstructorsOnly: false, showCrossDisciplineOnly: false,
   isFullscreen: false, sortBy: "name", compactMode: false, showLegend: true,
 };
-function SelectionSeed() {
-  const { addSelection } = useSchedulerSelection();
-  useEffect(() => {
-    sessionStorage.clear();
-    addSelection({ instructorId: "i-1", date: "2027-02-15", startTime: "10:00", endTime: "12:00", durationMinutes: 120 });
-  }, [addSelection]);
-  return null;
-}
 function Fixture() {
   const [collapsed, setCollapsed] = useState(false);
   const [filters, setFilters] = useState(initialFilters);
@@ -47,7 +39,7 @@ function Fixture() {
         </div>
       </main>
     </div>
-    <SelectionSeed />
   </div>;
 }
+sessionStorage.setItem("yeti.scheduler.planningDraft.v1", JSON.stringify({ selections: [{ id: "fixture-slot", instructorId: "i-1", date: "2027-02-15", startTime: "10:00", endTime: "12:00", durationMinutes: 120 }], multiSelectMode: true }));
 createRoot(document.getElementById("root")!).render(<React.StrictMode><QueryClientProvider client={queryClient}><MemoryRouter><TooltipProvider><SchedulerSelectionProvider><Fixture /></SchedulerSelectionProvider></TooltipProvider></MemoryRouter></QueryClientProvider></React.StrictMode>);
