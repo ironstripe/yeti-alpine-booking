@@ -1678,14 +1678,27 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
   };
 
   const setCartItemParticipants = (itemId: string, participantIds: string[]) => {
-    setState(prev => ({
-      ...prev,
-      cartItems: prev.cartItems.map(item =>
-        item.id === itemId
-          ? { ...item, assignedParticipantIds: participantIds }
-          : item
-      ),
-    }));
+    setState((prev) => {
+      const next = {
+        ...prev,
+        cartItems: prev.cartItems.map((item) =>
+          item.id === itemId
+            ? { ...item, assignedParticipantIds: participantIds }
+            : item
+        ),
+      };
+
+      if (next.activeCartItemId !== itemId) return next;
+
+      return {
+        ...next,
+        cartItems: next.cartItems.map((item) =>
+          item.id === itemId
+            ? extractCartItemFromState(next, itemId)
+            : item
+        ),
+      };
+    });
   };
 
   return (

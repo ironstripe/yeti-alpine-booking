@@ -59,6 +59,12 @@ export function BookingSummaryCards({
       ?? state.selectedParticipants.find((participant) => participant.id === id)
     )
     .filter((participant): participant is NonNullable<typeof participant> => Boolean(participant));
+  const resolveParticipants = (participantIds: string[]) => participantIds
+    .map((id) =>
+      state.localParticipants.find((participant) => participant.id === id)
+      ?? state.selectedParticipants.find((participant) => participant.id === id)
+    )
+    .filter((participant): participant is NonNullable<typeof participant> => Boolean(participant));
   const displayedParticipants = isStepOne ? linkedParticipants : state.selectedParticipants;
   const hasCourseDraft = Boolean(
     state.productType
@@ -185,7 +191,7 @@ export function BookingSummaryCards({
           {state.productType === "private" && state.privateGroupProposal && state.privateGroupProposal.groups.length > 1 ? (
             <div className="space-y-3">
               {state.privateGroupProposal.groups.map((group, idx) => {
-                const groupParticipants = state.selectedParticipants.filter(p => group.participantIds.includes(p.id));
+                const groupParticipants = resolveParticipants(group.participantIds);
                 const gStart = group.startTime || state.timeSlot?.split(" - ")[0];
                 const gEnd = group.endTime || state.timeSlot?.split(" - ")[1];
                 return (
@@ -326,7 +332,7 @@ export function BookingSummaryCards({
           {state.privateGroupProposal && state.privateGroupProposal.groups.length > 1 ? (
             <div className="space-y-2">
               {state.privateGroupProposal.groups.map((group, idx) => {
-                const groupParticipants = state.selectedParticipants.filter(p => group.participantIds.includes(p.id));
+                const groupParticipants = resolveParticipants(group.participantIds);
                 return (
                   <div key={group.id} className="flex items-start gap-2">
                     <GraduationCap className="mt-0.5 h-4 w-4 text-muted-foreground" />
@@ -401,6 +407,7 @@ export function BookingSummaryCards({
         <PriceBreakdown
           discountPercent={0}
           presentation="compact-draft"
+          participantIds={linkedParticipantIds}
         />
       )}
     </div>
