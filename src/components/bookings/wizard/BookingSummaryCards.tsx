@@ -13,6 +13,7 @@ import { formatPhoneDisplay } from "@/lib/phone-utils";
 import { getLevelLabel as getInstructorLevel } from "@/lib/instructor-utils";
 import { getSpecializationLabel } from "@/hooks/useInstructors";
 import { useInstructors } from "@/hooks/useInstructors";
+import { PriceBreakdown } from "./PriceBreakdown";
 
 // Helper to format dates as short day names
 const formatDayNames = (dates: string[]): string => {
@@ -26,7 +27,8 @@ const formatDayNames = (dates: string[]): string => {
 };
 
 interface BookingSummaryCardsProps {
-  onEditStep: (step: WizardStep) => void;
+  onEditStep?: (step: WizardStep) => void;
+  presentation?: "final-review" | "step-one";
 }
 
 const MEETING_POINT_LABELS: Record<string, string> = {
@@ -42,9 +44,39 @@ const LANGUAGE_LABELS: Record<string, string> = {
   it: "Italiano",
 };
 
-export function BookingSummaryCards({ onEditStep }: BookingSummaryCardsProps) {
+export function BookingSummaryCards({
+  onEditStep,
+  presentation = "final-review",
+}: BookingSummaryCardsProps) {
   const { state } = useBookingWizard();
   const { data: instructors = [] } = useInstructors();
+  const isStepOne = presentation === "step-one";
+  const activeItem = state.cartItems.find((item) => item.id === state.activeCartItemId);
+  const linkedParticipantIds = activeItem?.assignedParticipantIds ?? [];
+  const linkedParticipants = linkedParticipantIds
+    .map((id) =>
+      state.localParticipants.find((participant) => participant.id === id)
+      ?? state.selectedParticipants.find((participant) => participant.id === id)
+    )
+    .filter((participant): participant is NonNullable<typeof participant> => Boolean(participant));
+  const displayedParticipants = isStepOne ? linkedParticipants : state.selectedParticipants;
+  const hasCourseDraft = Boolean(
+    state.productType
+    || state.selectedDates.length
+    || state.timeSlot
+    || state.appointments?.length
+    || state.instructor
+    || state.assignLater
+  );
+
+  const editAction = (step: WizardStep) => {
+    if (isStepOne || !onEditStep) return null;
+    return (
+      <Button variant="ghost" size="sm" onClick={() => onEditStep(step)}>
+        Ändern
+      </Button>
+    );
+  };
 
   const getPrivateBlocks = (date: string) => {
     if (state.appointments) {
@@ -53,11 +85,13 @@ export function BookingSummaryCards({ onEditStep }: BookingSummaryCardsProps) {
         id: `plan-${date}-${i}`, startTime: a.startTime, endTime: endOf(a), instructorId: a.instructorId ?? state.instructorId,
       }));
     }
-    const [baseStart, baseEnd] = state.timeSlot?.split(" - ") || ["10:00", "12:00"];
+    const [baseStart, baseEnd] = state.timeSlot?.split(" - ") ?? [];
     const overrides = state.dayTimeOverrides[date];
     return overrides?.length
       ? overrides
-      : [{ id: `base-${date}`, startTime: baseStart, endTime: baseEnd, instructorId: state.dayInstructorOverrides[date] ?? state.instructorId }];
+      : baseStart && baseEnd
+        ? [{ id: `base-${date}`, startTime: baseStart, endTime: baseEnd, instructorId: state.dayInstructorOverrides[date] ?? state.instructorId }]
+        : [];
   };
 
   const getInstructorName = (instructorId: string | null | undefined) => {
@@ -67,15 +101,12 @@ export function BookingSummaryCards({ onEditStep }: BookingSummaryCardsProps) {
 
   return (
     <div className="space-y-4">
-      {/* Customer Card */}
-      <Card>
+      {(!isStepOne || state.customer) && <Card>
         <CardHeader className="flex flex-row items-center justify-between pb-2">
           <CardTitle className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
             Zahlungspflichtiger Kunde
           </CardTitle>
-          <Button variant="ghost" size="sm" onClick={() => onEditStep(2)}>
-            Ändern
-          </Button>
+          {editAction(2)}
         </CardHeader>
         <CardContent className="pt-0">
           {state.customer && (
@@ -97,27 +128,25 @@ export function BookingSummaryCards({ onEditStep }: BookingSummaryCardsProps) {
             </div>
           )}
         </CardContent>
-      </Card>
+      </Card>}
 
       {/* Participants Card */}
-      <Card>
+      {(!isStepOne || displayedParticipants.length > 0) && <Card>
         <CardHeader className="flex flex-row items-center justify-between pb-2">
           <CardTitle className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
             Teilnehmer
           </CardTitle>
-          <Button variant="ghost" size="sm" onClick={() => onEditStep(2)}>
-            Ändern
-          </Button>
+          {editAction(2)}
         </CardHeader>
         <CardContent className="space-y-2 pt-0">
-          {state.selectedParticipants.map((participant) => (
+          {displayedParticipants.map((participant) => (
             <div key={participant.id} className="flex items-center gap-3">
               <User className="h-4 w-4 text-muted-foreground" />
               <div className="flex-1">
                 <span className="font-medium">
                   {participant.first_name} {participant.last_name}
                 </span>
-                {participant.isGuest && (
+                {"isGuest" in participant && participant.isGuest && (
                   <Badge variant="secondary" className="ml-2 text-xs">
                     Gast
                   </Badge>
@@ -125,23 +154,25 @@ export function BookingSummaryCards({ onEditStep }: BookingSummaryCardsProps) {
               </div>
               <span className="text-sm text-muted-foreground">
                 {getAgeDisplay(calculateAge(participant.birth_date))} ·{" "}
-                {getLevelLabel(participant.level_current_season || participant.level_last_season)} ·{" "}
+                {getLevelLabel(
+                  "skill_level" in participant
+                    ? participant.skill_level
+                    : participant.level_current_season || participant.level_last_season
+                )} ·{" "}
                 {participant.sport === "snowboard" ? "Snowboard" : "Ski"}
               </span>
             </div>
           ))}
         </CardContent>
-      </Card>
+      </Card>}
 
       {/* Course Card */}
-      <Card>
+      {(!isStepOne || hasCourseDraft) && <Card>
         <CardHeader className="flex flex-row items-center justify-between pb-2">
           <CardTitle className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
             Kurs
           </CardTitle>
-          <Button variant="ghost" size="sm" onClick={() => onEditStep(1)}>
-            Ändern
-          </Button>
+          {editAction(1)}
         </CardHeader>
         <CardContent className="space-y-3 pt-0">
           <p className="font-medium">
@@ -155,12 +186,12 @@ export function BookingSummaryCards({ onEditStep }: BookingSummaryCardsProps) {
             <div className="space-y-3">
               {state.privateGroupProposal.groups.map((group, idx) => {
                 const groupParticipants = state.selectedParticipants.filter(p => group.participantIds.includes(p.id));
-                const gStart = group.startTime || state.timeSlot?.split(" - ")[0] || "10:00";
-                const gEnd = group.endTime || state.timeSlot?.split(" - ")[1] || "12:00";
+                const gStart = group.startTime || state.timeSlot?.split(" - ")[0];
+                const gEnd = group.endTime || state.timeSlot?.split(" - ")[1];
                 return (
                   <div key={group.id} className="rounded-lg border p-2 space-y-1">
                     <p className="text-sm font-medium">
-                      Gruppe {idx + 1}: {gStart} - {gEnd}
+                      Gruppe {idx + 1}: {gStart && gEnd ? `${gStart} - ${gEnd}` : "Zeit noch offen"}
                     </p>
                     <p className="text-xs text-muted-foreground">
                       {groupParticipants.map(p => p.first_name).join(", ")}
@@ -181,8 +212,6 @@ export function BookingSummaryCards({ onEditStep }: BookingSummaryCardsProps) {
             <div className="space-y-3">
               {state.selectedDates.sort().map((dateStr) => {
                 const date = new Date(dateStr);
-                const [baseStart, baseEnd] = state.timeSlot?.split(" - ") || ["10:00", "12:00"];
-                
                 return (
                   <div key={dateStr} className="space-y-1">
                     <div className="flex items-center gap-2 text-sm font-medium">
@@ -213,7 +242,7 @@ export function BookingSummaryCards({ onEditStep }: BookingSummaryCardsProps) {
             </div>
           )}
         </CardContent>
-      </Card>
+      </Card>}
 
       {/* Lunch Care Card - Only for group courses with lunch selections */}
       {state.productType === "group" && (() => {
@@ -259,9 +288,7 @@ export function BookingSummaryCards({ onEditStep }: BookingSummaryCardsProps) {
               <CardTitle className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
                 Mittagsbetreuung
               </CardTitle>
-              <Button variant="ghost" size="sm" onClick={() => onEditStep(1)}>
-                Ändern
-              </Button>
+              {editAction(1)}
             </CardHeader>
             <CardContent className="space-y-2 pt-0">
               {lunchData.map((item) => (
@@ -287,14 +314,12 @@ export function BookingSummaryCards({ onEditStep }: BookingSummaryCardsProps) {
       })()}
 
       {/* Instructor & Details Card */}
-      <Card>
+      {(!isStepOne || hasCourseDraft) && <Card>
         <CardHeader className="flex flex-row items-center justify-between pb-2">
           <CardTitle className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
             Skilehrer & Details
           </CardTitle>
-          <Button variant="ghost" size="sm" onClick={() => onEditStep(1)}>
-            Ändern
-          </Button>
+          {editAction(1)}
         </CardHeader>
         <CardContent className="space-y-3 pt-0">
           {/* Multi-group instructor summary */}
@@ -353,10 +378,12 @@ export function BookingSummaryCards({ onEditStep }: BookingSummaryCardsProps) {
           </div>
 
           {/* Language */}
-          <div className="flex items-center gap-2">
-            <MessageSquare className="h-4 w-4 text-muted-foreground" />
-            <span>Unterrichtssprache: {LANGUAGE_LABELS[state.language] || state.language}</span>
-          </div>
+          {state.productType === "private" && (
+            <div className="flex items-center gap-2">
+              <MessageSquare className="h-4 w-4 text-muted-foreground" />
+              <span>Unterrichtssprache: {LANGUAGE_LABELS[state.language] || state.language}</span>
+            </div>
+          )}
 
           {/* Customer Notes */}
           {state.customerNotes && (
@@ -368,7 +395,14 @@ export function BookingSummaryCards({ onEditStep }: BookingSummaryCardsProps) {
             </div>
           )}
         </CardContent>
-      </Card>
+      </Card>}
+
+      {isStepOne && hasCourseDraft && (
+        <PriceBreakdown
+          discountPercent={0}
+          presentation="compact-draft"
+        />
+      )}
     </div>
   );
 }

@@ -8,7 +8,7 @@ import { Step2ProductAllocation } from "./Step2ProductAllocation";
 import { BookingSummaryCards } from "./BookingSummaryCards";
 
 export function Step1ProductCart() {
-  const { state, setCustomer, setCurrentStep, addCartItem, removeCartItem, setActiveCartItem, getAllCartItems } = useBookingWizard();
+  const { state, setCustomer, addCartItem, removeCartItem, setActiveCartItem, getAllCartItems } = useBookingWizard();
   const [showShortcut, setShowShortcut] = useState(false);
 
   const cartItems = getAllCartItems();
@@ -141,7 +141,7 @@ export function Step1ProductCart() {
       </div>
       <aside aria-label="Buchungszusammenfassung" className="min-w-0 border-t pt-4 xl:sticky xl:top-20 xl:max-h-[calc(100vh-7rem)] xl:overflow-y-auto xl:border-t-0 xl:pt-0 xl:pr-1">
         <h2 className="mb-3 text-sm font-semibold">Zusammenfassung</h2>
-        <BookingSummaryCards onEditStep={setCurrentStep} />
+        <BookingSummaryCards presentation="step-one" />
       </aside>
     </div>
   );

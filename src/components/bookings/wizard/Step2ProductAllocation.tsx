@@ -590,13 +590,13 @@ export function Step2ProductAllocation() {
                     </div>
                   </div>
                 )}
-                <div className="space-y-1.5">
+                {state.productType === "private" && <div className="space-y-1.5">
                   <Label className="flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground"><Globe className="h-3 w-3" />Sprache</Label>
                   <Select value={state.language} onValueChange={setLanguage}>
                     <SelectTrigger className="control-target text-sm"><SelectValue /></SelectTrigger>
                     <SelectContent>{LANGUAGES.map((lang) => <SelectItem key={lang.value} value={lang.value}>{lang.label}</SelectItem>)}</SelectContent>
                   </Select>
-                </div>
+                </div>}
               </div>
             ) : <p className="text-sm text-muted-foreground">Datum auswählen</p>}
 
@@ -606,7 +606,7 @@ export function Step2ProductAllocation() {
                 {MEETING_POINTS.map((point) => {
                   const isSelected = state.meetingPoint === point.id;
                   const isLocked = state.productType === "private" && allBeginnersOnly && point.id !== "sammelplatz_gorfion";
-                  return <Button key={point.id} type="button" variant={isSelected ? "default" : "outline"} size="sm" disabled={isLocked} onClick={() => !isLocked && setMeetingPoint(point.id)} className="control-target h-9 text-xs">{point.name.replace("Sammelplatz ", "").replace("Kasse ", "")}</Button>;
+                   return <Button key={point.id} type="button" variant={isSelected ? "secondary" : "outline"} size="sm" disabled={isLocked} onClick={() => !isLocked && setMeetingPoint(point.id)} className="control-target h-9 text-xs">{point.name.replace("Sammelplatz ", "").replace("Kasse ", "")}</Button>;
                 })}
               </div>
             </div>
@@ -637,13 +637,30 @@ export function Step2ProductAllocation() {
             </Label>
           </RadioGroup>
 
-          {state.assignLater ? (
+          {state.assignLater && (
             <div className="rounded-md border bg-muted/40 p-3">
               <p className="text-sm text-foreground">Datum und Zeit werden jetzt gebucht. Die Lehrperson wird später zugewiesen.</p>
-              {(!startTime || !endTime) && <div className="mt-2"><p className="text-sm text-destructive">{!startTime ? "Startzeit fehlt. Endzeit fehlt." : "Endzeit fehlt."}</p><Button variant="outline" size="sm" className="control-target mt-2" onClick={focusMissingTime}>Zeitfenster wählen</Button></div>}
+              {(!startTime || !endTime) && (
+                <div className="mt-2">
+                  <p className="text-sm text-destructive">
+                    {!startTime ? "Startzeit fehlt. Endzeit fehlt." : "Endzeit fehlt."}
+                  </p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="control-target mt-2"
+                    onClick={focusMissingTime}
+                  >
+                    Zeitfenster wählen
+                  </Button>
+                </div>
+              )}
             </div>
-          ) : (
-            <div className="space-y-3">
+          )}
+          <div
+            aria-hidden={state.assignLater}
+            className={cn("space-y-3", state.assignLater && "hidden")}
+          >
               <div className="space-y-1.5">
                 <Label htmlFor="preferred-teacher" className="flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground"><Search className="h-3 w-3" />Wunschlehrer</Label>
                 <Input id="preferred-teacher" placeholder="Name suchen..." value={preferredTeacher} onChange={(e) => setPreferredTeacher(e.target.value)} className="control-target text-sm" />
@@ -659,14 +676,13 @@ export function Step2ProductAllocation() {
                   <div className="mt-3 space-y-3 rounded-md border border-primary bg-primary/5 p-3">
                     <div className="flex flex-wrap items-center gap-2"><Badge variant="secondary">{state.miniSchedulerSelections.length} {state.miniSchedulerSelections.length === 1 ? "Termin" : "Termine"} ausgewählt</Badge><span className="text-xs text-muted-foreground">Mit „Mehrere Termine auswählen“ oder Strg/⌘ + Klick hinzufügen</span></div>
                     <div className="divide-y rounded-md border bg-background">{[...state.miniSchedulerSelections].sort((a,b) => `${a.date} ${a.startTime}`.localeCompare(`${b.date} ${b.startTime}`)).map((slot) => <div key={slot.id} className="flex items-center justify-between gap-3 px-3 py-2 text-xs"><span className="min-w-0"><strong>{format(parseISO(slot.date), "EEE, dd.MM.yyyy", { locale: de })}</strong><span className="text-muted-foreground"> · {slot.startTime}–{slot.endTime} · {slot.instructorName}</span></span><Button type="button" variant="ghost" size="icon" className="icon-action shrink-0" aria-label={`Termin ${slot.date} ${slot.startTime} entfernen`} onClick={() => toggleMiniSchedulerSlot({ instructorId: slot.instructorId, instructorName: slot.instructorName, date: slot.date, startTime: slot.startTime, endTime: slot.endTime })}><X className="h-3.5 w-3.5" /></Button></div>)}</div>
-                    <div className="flex justify-end gap-2"><Button variant="ghost" size="sm" onClick={clearMiniSchedulerSelection} className="control-target text-xs">Abbrechen</Button><Button size="sm" onClick={handleApplyMultiSelection} className="control-target text-xs"><Check className="mr-1 h-3 w-3" />Auswahl übernehmen</Button></div>
+                    <div className="flex justify-end gap-2"><Button variant="ghost" size="sm" onClick={clearMiniSchedulerSelection} className="control-target text-xs">Abbrechen</Button><Button variant="outline" size="sm" onClick={handleApplyMultiSelection} className="control-target text-xs"><Check className="mr-1 h-3 w-3" />Auswahl übernehmen</Button></div>
                   </div>
                 )}
               </div>
               {state.instructor && (!state.privateGroupProposal || state.privateGroupProposal.groups.length <= 1) && <div className="flex items-center gap-2 rounded-md border border-primary bg-primary/5 p-2"><Check className="h-4 w-4 text-primary" /><span className="text-sm font-medium">{state.instructor.first_name} {state.instructor.last_name}</span><Badge variant="secondary" className="ml-auto text-xs">Ausgewählt</Badge></div>}
               {showAvailabilityGrid && !state.instructor && <p className="text-center text-xs text-muted-foreground">Klicken Sie auf einen grünen Slot, um Teilnehmer zuzuweisen und in den Warenkorb zu legen.</p>}
-            </div>
-          )}
+          </div>
         </section>
       )}
 
@@ -677,8 +693,12 @@ export function Step2ProductAllocation() {
         </div>
         {(() => {
           const activeItem = state.cartItems.find((item) => item.id === state.activeCartItemId);
-          const ids = activeItem?.assignedParticipantIds ?? [];
-          const people = ids.map((id) => state.localParticipants.find((p) => p.id === id) ?? state.selectedParticipants.find((p) => p.id === id)).filter(Boolean);
+          const ids = state.productType === "group"
+            ? state.selectedParticipants.map((participant) => participant.id)
+            : activeItem?.assignedParticipantIds ?? [];
+          const people = ids
+            .map((id) => state.localParticipants.find((p) => p.id === id) ?? state.selectedParticipants.find((p) => p.id === id))
+            .filter(Boolean);
           return people.length > 0 ? <div className="divide-y rounded-md border">{people.map((person) => person && <div key={person.id} className="flex items-center gap-2 px-3 py-2"><Users className="h-4 w-4 text-muted-foreground" /><span className="text-sm font-medium">{person.first_name} {person.last_name || ""}</span></div>)}</div> : <p className="rounded-md border border-dashed p-3 text-sm text-muted-foreground">Noch keine Teilnehmer zugewiesen.</p>;
         })()}
         {state.productType === "private" && state.assignLater && (
