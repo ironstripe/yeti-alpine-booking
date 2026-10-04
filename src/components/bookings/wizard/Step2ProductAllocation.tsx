@@ -604,7 +604,8 @@ export function Step2ProductAllocation() {
             <h2 id="date-section-title" className="text-base font-semibold text-foreground">Termin</h2>
             <p className="text-sm text-muted-foreground">Datum, Zeit und Treffpunkt festlegen.</p>
           </div>
-          <div className="space-y-1.5">
+          <div className="grid items-start gap-4 [grid-template-columns:repeat(auto-fit,minmax(min(100%,18rem),1fr))]">
+          <div className="min-w-0 space-y-1.5">
             <Label className="flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground"><CalendarDays className="h-3 w-3" />{state.productType === "private" ? "Datum" : "Kurstage"}</Label>
             <RangeDatePicker
               selected={state.selectedDates.map((d) => parseISO(d))}
@@ -623,9 +624,9 @@ export function Step2ProductAllocation() {
             )}
           </div>
 
-          <div ref={timeControlsRef} className={cn("scroll-mt-24 space-y-3 rounded-md border p-3 transition-shadow", showTimeRequired && "ring-2 ring-destructive ring-offset-2 ring-offset-background")}>
+          <div ref={timeControlsRef} className={cn("min-w-0 scroll-mt-24 space-y-3 rounded-md border p-3 transition-shadow", showTimeRequired && "ring-2 ring-destructive ring-offset-2 ring-offset-background")}>
             {state.selectedDates.length > 0 ? (
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div className="grid gap-3">
                 {state.productType === "private" && (
                   <div className="space-y-1.5">
                     <Label className="flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground"><Clock className="h-3 w-3" />Zeitfenster</Label>
@@ -688,6 +689,7 @@ export function Step2ProductAllocation() {
                 })}
               </div>
             </div>
+          </div>
           </div>
 
           {state.productType === "private" && state.appointments !== null && <PlannedAppointmentsCard />}
