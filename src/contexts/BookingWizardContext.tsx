@@ -1443,12 +1443,16 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
   };
 
   const setAssignLater = (assignLater: boolean) => {
-    setState((prev) => ({
-      ...prev,
-      assignLater,
-      instructor: assignLater ? null : prev.instructor,
-      instructorId: assignLater ? null : prev.instructorId,
-    }));
+    setState((prev) => {
+      // Clears every teacher reference of the ACTIVE item; timing/participants kept.
+      const next = applyAssignLater(prev, assignLater);
+      return {
+        ...next,
+        cartItems: next.cartItems.map((item) =>
+          item.id === next.activeCartItemId ? extractCartItemFromState(next, item.id) : item
+        ),
+      };
+    });
   };
 
   const setMeetingPoint = (point: string | null) => {
