@@ -25,7 +25,11 @@ export function CustomerPayerCard({
     return (
       <div className="h-full">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <h3 className="text-sm font-semibold text-foreground">Auftraggeber</h3>
+          <div className="min-w-0">
+            <h3 className="break-words text-sm font-semibold text-foreground">Zahlungspflichtiger Kunde</h3>
+            <p className="text-sm text-muted-foreground">Wer bezahlt die Buchung?</p>
+            <p className="text-sm text-muted-foreground">Diese Person kann selbst teilnehmen oder für andere buchen.</p>
+          </div>
           {isSearching && customer && (
             <Button
               variant="ghost"
@@ -65,7 +69,11 @@ export function CustomerPayerCard({
   return (
     <div className="h-full">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <h3 className="text-sm font-semibold text-foreground">Auftraggeber</h3>
+        <div className="min-w-0">
+          <h3 className="break-words text-sm font-semibold text-foreground">Zahlungspflichtiger Kunde</h3>
+          <p className="text-sm text-muted-foreground">Wer bezahlt die Buchung?</p>
+          <p className="text-sm text-muted-foreground">Diese Person kann selbst teilnehmen oder für andere buchen.</p>
+        </div>
         <div className="flex flex-wrap gap-1">
           <Button
             variant="ghost"

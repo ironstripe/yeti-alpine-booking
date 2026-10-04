@@ -615,7 +615,7 @@ function BookingWizardContent() {
             )}
 
             <Button onClick={handleNext} disabled={!canProceed()}>
-              {state.currentStep === 1 ? "Weiter zum Kunden >" : "Weiter"}
+              {state.currentStep === 1 ? "Weiter zum zahlungspflichtigen Kunden" : "Weiter zur Prüfung"}
             </Button>
           </div>
         </footer>
