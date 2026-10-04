@@ -7,6 +7,8 @@ import {
   ChevronRight, 
   Calendar as CalendarIcon, 
   Target,
+  Maximize,
+  Minimize,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -72,7 +74,7 @@ export function SchedulerHeader({
 
   return (
     <div className="flex flex-col border-b bg-card w-full">
-      <div className="flex flex-wrap items-center gap-2 px-3 py-2">
+      <div className="flex flex-wrap items-center gap-1.5 px-2 py-1 md:flex-nowrap md:px-3">
         {/* Date Navigation Group */}
         <div className="flex flex-wrap items-center gap-1" role="group" aria-label="Datum auswählen">
           <Button variant="outline" size="icon" className="icon-action" onClick={goToPreviousDay} aria-label="Vorheriger Tag">
@@ -168,11 +170,25 @@ export function SchedulerHeader({
         </ToggleGroup>
         )}
 
+        <Button
+          variant="outline"
+          className="control-target gap-1.5 px-2.5 text-xs"
+          onClick={() => onFiltersChange({ isFullscreen: !filters.isFullscreen })}
+          aria-pressed={filters.isFullscreen}
+        >
+          {filters.isFullscreen ? (
+            <Minimize className="h-4 w-4" />
+          ) : (
+            <Maximize className="h-4 w-4" />
+          )}
+          {filters.isFullscreen ? "Vollbild verlassen" : "Vollbild"}
+        </Button>
+
         {/* Spacer */}
         <div className="hidden flex-1 md:block" />
 
         {/* Right-aligned Actions */}
-        <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+        <div className="flex min-w-0 flex-wrap items-center gap-1.5 md:flex-nowrap">
           {!isMobileScheduler && <MultiSelectToggle />}
 
           {/* Universal Search */}

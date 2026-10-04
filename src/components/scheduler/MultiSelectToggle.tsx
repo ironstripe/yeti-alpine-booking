@@ -1,6 +1,13 @@
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { useSchedulerSelection } from "@/contexts/SchedulerSelectionContext";
+import { CircleHelp } from "lucide-react";
 
 /** Visible alternative to Ctrl/Cmd+Click for picking several lesson slots. */
 export function MultiSelectToggle() {
@@ -17,10 +24,25 @@ export function MultiSelectToggle() {
       <Label htmlFor="multi-select-mode" className="text-xs font-medium cursor-pointer">
         Mehrfachauswahl
       </Label>
-      <span className="text-muted-foreground">
-        <span>Strg/⌘ + Klick oder rechte Maustaste</span>
-        {state.selections.length > 0 && ` · ${state.selections.length} ausgewählt`}
-      </span>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="icon-action text-muted-foreground"
+            aria-label="Mehrfachauswahl: Strg oder Befehlstaste plus Klick oder rechte Maustaste"
+          >
+            <CircleHelp className="h-4 w-4" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent side="bottom">
+          Strg/⌘ + Klick oder rechte Maustaste
+        </TooltipContent>
+      </Tooltip>
+      {state.selections.length > 0 && (
+        <span className="text-muted-foreground">{state.selections.length} ausgewählt</span>
+      )}
     </div>
   );
 }
