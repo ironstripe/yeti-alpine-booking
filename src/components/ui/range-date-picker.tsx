@@ -21,6 +21,8 @@ export interface RangeDatePickerProps {
   minDate?: Date;
   /** Show quick action buttons */
   showQuickActions?: boolean;
+  /** Show the weekday and full-week shortcuts */
+  showWeekShortcuts?: boolean;
   /** Show the selected-date summary below the calendar */
   showSelectionSummary?: boolean;
 }
@@ -34,6 +36,7 @@ export function RangeDatePicker({
   className,
   minDate = new Date(),
   showQuickActions = true,
+  showWeekShortcuts = true,
   showSelectionSummary = true,
 }: RangeDatePickerProps) {
   const [isDragging, setIsDragging] = useState(false);
@@ -296,24 +299,28 @@ export function RangeDatePicker({
           </ToggleGroup>
 
           <div className="flex gap-1 ml-auto">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="h-8 text-xs"
-              onClick={selectWeekdays}
-            >
-              Mo-Fr
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="h-8 text-xs"
-              onClick={selectFullWeek}
-            >
-              Ganze Woche
-            </Button>
+            {showWeekShortcuts && (
+              <>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-8 text-xs"
+                  onClick={selectWeekdays}
+                >
+                  Mo-Fr
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-8 text-xs"
+                  onClick={selectFullWeek}
+                >
+                  Ganze Woche
+                </Button>
+              </>
+            )}
             {selected.length > 0 && (
               <Button
                 type="button"
