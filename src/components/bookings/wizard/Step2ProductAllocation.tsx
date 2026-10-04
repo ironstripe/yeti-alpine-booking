@@ -826,7 +826,7 @@ export function Step2ProductAllocation() {
                 placeholder="Name suchen..."
                 value={preferredTeacher}
                 onChange={(e) => setPreferredTeacher(e.target.value)}
-                className="h-8 text-sm"
+                className="control-target text-sm"
               />
             </div>
             {/* Assign Later */}
@@ -834,7 +834,7 @@ export function Step2ProductAllocation() {
               <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1">
                 Ohne Lehrer
               </Label>
-              <div className="flex items-center gap-2 h-8 rounded-md border bg-background px-3">
+              <div className="control-target flex items-center gap-2 rounded-md border bg-background px-3">
                 <Checkbox
                   id="assign-later"
                   checked={state.assignLater}
