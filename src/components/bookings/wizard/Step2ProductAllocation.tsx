@@ -17,6 +17,7 @@ import {
   Sparkles,
   Maximize2,
   X,
+  ArrowLeft,
 } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
@@ -40,6 +41,7 @@ import {
 } from "@/components/ui/select";
 import type { BookingWarning } from "./BookingWarnings";
 import { MiniSchedulerGrid } from "./MiniSchedulerGrid";
+import { SchedulerAvailabilityScope, TeacherAvailabilityList } from "./TeacherAvailabilityList";
 import { SlotBookingPopover, type SlotBookingData } from "./SlotBookingPopover";
 import { GroupSelector } from "./GroupSelector";
 import { PeriodDayPlanner } from "./PeriodDayPlanner";
@@ -58,6 +60,7 @@ import {
 } from "@/lib/group-course-utils";
 import type { Tables } from "@/integrations/supabase/types";
 import { buildWizardTimeSlot, parseWizardTimeSlot } from "@/lib/privatePlan";
+import { buildIntendedIntervals, type IntendedInterval } from "@/lib/teacherShortlist";
 
 // Available start and end times (lift hours: 09:00 - 16:00)
 const START_TIMES = ["09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00"];
@@ -127,6 +130,8 @@ export function Step2ProductAllocation() {
   });
   const [preferredTeacher, setPreferredTeacher] = useState("");
   const [isFullscreen, setIsFullscreen] = useState(false);
+  // Time-first teacher choice: compact list by default, existing scheduler as alternative.
+  const [teacherView, setTeacherView] = useState<"list" | "scheduler">("list");
   const [showTimeRequired, setShowTimeRequired] = useState(false);
   const timeControlsRef = useRef<HTMLDivElement>(null);
   const startTimeTriggerRef = useRef<HTMLButtonElement>(null);
@@ -143,6 +148,8 @@ export function Step2ProductAllocation() {
     date: string;
     startTime: string;
     endTime: string;
+    /** Set when opened from the teacher list: exact intervals, read-only in the dialog */
+    plannedIntervals?: IntendedInterval[];
   } | null>(null);
 
   // Analyze participants for group course recommendations
@@ -477,6 +484,51 @@ export function Step2ProductAllocation() {
     }
   };
 
+  // Exact intervals this item will book (same derivation as the save path, no default times)
+  const intervalPlan = useMemo(
+    () =>
+      buildIntendedIntervals({
+        selectedDates: state.selectedDates,
+        timeSlot: state.timeSlot,
+        appointments: state.appointments,
+        timeSelections: state.timeSelections,
+        dayTimeOverrides: state.dayTimeOverrides,
+        dayInstructorOverrides: state.dayInstructorOverrides,
+      }),
+    [state.selectedDates, state.timeSlot, state.appointments, state.timeSelections, state.dayTimeOverrides, state.dayInstructorOverrides],
+  );
+
+  // Teacher list selection: same teacher setter + participant dialog, for ALL planned intervals.
+  const handleListSelect = (instructor: Tables<"instructors">, intervals: IntendedInterval[]) => {
+    if (intervals.length === 0) return;
+    setInstructor(instructor);
+    setPopoverSlot({
+      instructorId: instructor.id,
+      instructorName: `${instructor.first_name} ${instructor.last_name}`,
+      date: intervals[0].date,
+      startTime: intervals[0].startTime,
+      endTime: intervals[0].endTime,
+      plannedIntervals: intervals,
+    });
+  };
+
+  // Planned-mode dialog result: link participants + meeting point only; dates/times stay as planned.
+  const handleListAddToCart = (data: SlotBookingData) => {
+    if (state.activeCartItemId) {
+      setCartItemParticipants(state.activeCartItemId, data.participantIds);
+    }
+    setMeetingPoint(data.meetingPoint);
+  };
+
+  const focusAppointment = useCallback(() => {
+    if (startTime && endTime) {
+      startTimeTriggerRef.current?.focus({ preventScroll: true });
+      timeControlsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    } else {
+      focusMissingTime();
+    }
+  }, [startTime, endTime, focusMissingTime]);
+
   // Fullscreen ESC handler
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -700,31 +752,92 @@ export function Step2ProductAllocation() {
                 className="control-target text-sm"
               />
             </div>
-              <div className={cn("min-w-0 transition-opacity", isFullscreen && "fixed inset-0 z-50 overflow-auto bg-background p-4")}>
-                {isFullscreen ? (
-                  <div className="mb-3 flex items-center justify-between rounded-md bg-muted px-2 py-1.5"><span className="text-sm font-medium">Scheduler (Vollbild)</span><Button variant="ghost" size="sm" className="control-target" onClick={() => setIsFullscreen(false)}><X className="mr-1 h-4 w-4" />ESC zum Schließen</Button></div>
-                ) : <div className="mb-1 flex justify-end"><Button variant="ghost" size="sm" className="control-target gap-1 text-xs" onClick={() => setIsFullscreen(true)}><Maximize2 className="h-3 w-3" />Vollbild</Button></div>}
-                {showAvailabilityGrid ? (
-                  <MiniSchedulerGrid selectedDates={state.selectedDates} sport={state.sport} language={state.language} meetingPoint={state.meetingPoint} onSlotSelect={handleSlotSelect} selectedInstructor={state.instructor} preferredTeacher={preferredTeacher} selectedDuration={calculatedDuration} selectedStartTime={startTime} participantIds={state.selectedParticipants.map(p => p.id)} multiSelectSlots={state.miniSchedulerSelections} onMultiSelectToggle={toggleMiniSchedulerSlot} />
-                ) : <div className="flex flex-col items-center justify-center rounded-md border border-dashed py-8 text-center text-muted-foreground"><Info className="mb-2 h-6 w-6" /><p className="text-sm">Wählen Sie mindestens ein Datum</p></div>}
-                {state.miniSchedulerSelections.length > 0 && (
-                  <div className="mt-3 space-y-3 rounded-md border border-primary bg-primary/5 p-3">
-                    <div className="flex flex-wrap items-center gap-2"><Badge variant="secondary">{state.miniSchedulerSelections.length} {state.miniSchedulerSelections.length === 1 ? "Termin" : "Termine"} ausgewählt</Badge><span className="text-xs text-muted-foreground">Mit „Mehrere Termine auswählen“ oder Strg/⌘ + Klick hinzufügen</span></div>
-                    <div className="divide-y rounded-md border bg-background">{[...state.miniSchedulerSelections].sort((a,b) => `${a.date} ${a.startTime}`.localeCompare(`${b.date} ${b.startTime}`)).map((slot) => <div key={slot.id} className="flex items-center justify-between gap-3 px-3 py-2 text-xs"><span className="min-w-0"><strong>{format(parseISO(slot.date), "EEE, dd.MM.yyyy", { locale: de })}</strong><span className="text-muted-foreground"> · {slot.startTime}–{slot.endTime} · {slot.instructorName}</span></span><Button type="button" variant="ghost" size="icon" className="icon-action shrink-0" aria-label={`Termin ${slot.date} ${slot.startTime} entfernen`} onClick={() => toggleMiniSchedulerSlot({ instructorId: slot.instructorId, instructorName: slot.instructorName, date: slot.date, startTime: slot.startTime, endTime: slot.endTime })}><X className="h-3.5 w-3.5" /></Button></div>)}</div>
-                    <div className="flex justify-end gap-2">
-                      <Button variant="ghost" size="sm" onClick={clearMiniSchedulerSelection} className="control-target text-xs">
-                        Abbrechen
-                      </Button>
-                      <Button variant="outline" size="sm" onClick={handleApplyMultiSelection} className="control-target text-xs">
-                        <Check className="mr-1 h-3 w-3" />
-                        Auswahl übernehmen
-                      </Button>
+            {showAvailabilityGrid ? (
+              <SchedulerAvailabilityScope selectedDates={state.selectedDates}>
+                {(schedulerData) => (
+                  <>
+                    <div className={cn(teacherView !== "list" && "hidden")}>
+                      <TeacherAvailabilityList
+                        plan={intervalPlan}
+                        sport={state.sport}
+                        language={state.language}
+                        data={schedulerData}
+                        preferredTeacher={preferredTeacher}
+                        selectedInstructorId={state.instructorId}
+                        onSelect={handleListSelect}
+                        onFocusMissingTime={focusMissingTime}
+                        onChangeAppointment={focusAppointment}
+                        onAssignLater={() => setAssignLater(true)}
+                        onClearPreferredTeacher={() => setPreferredTeacher("")}
+                        onSearchOtherTimes={() => setTeacherView("scheduler")}
+                      />
                     </div>
-                  </div>
+                    {/* Existing scheduler stays mounted while the list is shown (state preserved) */}
+                    <div className={cn("space-y-3", teacherView !== "scheduler" && "hidden")}>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="control-target gap-1"
+                        onClick={() => {
+                          setIsFullscreen(false);
+                          setTeacherView("list");
+                        }}
+                      >
+                        <ArrowLeft className="h-4 w-4" />
+                        Zurück zur Lehrerliste
+                      </Button>
+                      <div className={cn("min-w-0 transition-opacity", isFullscreen && "fixed inset-0 z-50 overflow-auto bg-background p-4")}>
+                        {isFullscreen ? (
+                          <div className="mb-3 flex items-center justify-between rounded-md bg-muted px-2 py-1.5"><span className="text-sm font-medium">Scheduler (Vollbild)</span><Button variant="ghost" size="sm" className="control-target" onClick={() => setIsFullscreen(false)}><X className="mr-1 h-4 w-4" />ESC zum Schließen</Button></div>
+                        ) : <div className="mb-1 flex justify-end"><Button variant="ghost" size="sm" className="control-target gap-1 text-xs" onClick={() => setIsFullscreen(true)}><Maximize2 className="h-3 w-3" />Vollbild</Button></div>}
+                        <MiniSchedulerGrid
+                          selectedDates={state.selectedDates}
+                          sport={state.sport}
+                          language={state.language}
+                          meetingPoint={state.meetingPoint}
+                          onSlotSelect={handleSlotSelect}
+                          selectedInstructor={state.instructor}
+                          preferredTeacher={preferredTeacher}
+                          selectedDuration={calculatedDuration}
+                          selectedStartTime={startTime}
+                          participantIds={state.selectedParticipants.map(p => p.id)}
+                          multiSelectSlots={state.miniSchedulerSelections}
+                          onMultiSelectToggle={toggleMiniSchedulerSlot}
+                          schedulerData={schedulerData}
+                        />
+                        {state.miniSchedulerSelections.length > 0 && (
+                          <div className="mt-3 space-y-3 rounded-md border border-primary bg-primary/5 p-3">
+                            <div className="flex flex-wrap items-center gap-2"><Badge variant="secondary">{state.miniSchedulerSelections.length} {state.miniSchedulerSelections.length === 1 ? "Termin" : "Termine"} ausgewählt</Badge><span className="text-xs text-muted-foreground">Mit „Mehrere Termine auswählen“ oder Strg/⌘ + Klick hinzufügen</span></div>
+                            <div className="divide-y rounded-md border bg-background">{[...state.miniSchedulerSelections].sort((a,b) => `${a.date} ${a.startTime}`.localeCompare(`${b.date} ${b.startTime}`)).map((slot) => <div key={slot.id} className="flex items-center justify-between gap-3 px-3 py-2 text-xs"><span className="min-w-0"><strong>{format(parseISO(slot.date), "EEE, dd.MM.yyyy", { locale: de })}</strong><span className="text-muted-foreground"> · {slot.startTime}–{slot.endTime} · {slot.instructorName}</span></span><Button type="button" variant="ghost" size="icon" className="icon-action shrink-0" aria-label={`Termin ${slot.date} ${slot.startTime} entfernen`} onClick={() => toggleMiniSchedulerSlot({ instructorId: slot.instructorId, instructorName: slot.instructorName, date: slot.date, startTime: slot.startTime, endTime: slot.endTime })}><X className="h-3.5 w-3.5" /></Button></div>)}</div>
+                            <div className="flex justify-end gap-2">
+                              <Button variant="ghost" size="sm" onClick={clearMiniSchedulerSelection} className="control-target text-xs">
+                                Abbrechen
+                              </Button>
+                              <Button variant="outline" size="sm" onClick={handleApplyMultiSelection} className="control-target text-xs">
+                                <Check className="mr-1 h-3 w-3" />
+                                Auswahl übernehmen
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                      {!state.instructor && (
+                        <p className="text-center text-xs text-muted-foreground">
+                          Klicken Sie auf einen grünen Slot, um Teilnehmer zuzuweisen und in den Warenkorb zu legen.
+                        </p>
+                      )}
+                    </div>
+                  </>
                 )}
+              </SchedulerAvailabilityScope>
+            ) : (
+              <div className="flex flex-col items-center justify-center rounded-md border border-dashed py-8 text-center text-muted-foreground">
+                <Info className="mb-2 h-6 w-6" />
+                <p className="text-sm">Wählen Sie mindestens ein Datum</p>
               </div>
-              {state.instructor && (!state.privateGroupProposal || state.privateGroupProposal.groups.length <= 1) && <div className="flex items-center gap-2 rounded-md border border-primary bg-primary/5 p-2"><Check className="h-4 w-4 text-primary" /><span className="text-sm font-medium">{state.instructor.first_name} {state.instructor.last_name}</span><Badge variant="secondary" className="ml-auto text-xs">Ausgewählt</Badge></div>}
-              {showAvailabilityGrid && !state.instructor && <p className="text-center text-xs text-muted-foreground">Klicken Sie auf einen grünen Slot, um Teilnehmer zuzuweisen und in den Warenkorb zu legen.</p>}
+            )}
+            {state.instructor && (!state.privateGroupProposal || state.privateGroupProposal.groups.length <= 1) && <div className="flex items-center gap-2 rounded-md border border-primary bg-primary/5 p-2"><Check className="h-4 w-4 text-primary" /><span className="text-sm font-medium">{state.instructor.first_name} {state.instructor.last_name}</span><Badge variant="secondary" className="ml-auto text-xs">Ausgewählt</Badge></div>}
           </div>
         </section>
       )}
@@ -781,7 +894,23 @@ export function Step2ProductAllocation() {
         </section>
       )}
 
-      {popoverSlot && <SlotBookingPopover open={!!popoverSlot} onClose={() => setPopoverSlot(null)} instructorId={popoverSlot.instructorId} instructorName={popoverSlot.instructorName} date={popoverSlot.date} allDates={popoverSlot.instructorId ? undefined : state.selectedDates} startTime={popoverSlot.startTime} endTime={popoverSlot.endTime} preselectedCustomerId={state.customerId} sport={state.sport} defaultMeetingPoint={state.meetingPoint || "sammelplatz_gorfion"} onAddToCart={handleSlotAddToCart} />}
+      {popoverSlot && (
+        <SlotBookingPopover
+          open={!!popoverSlot}
+          onClose={() => setPopoverSlot(null)}
+          instructorId={popoverSlot.instructorId}
+          instructorName={popoverSlot.instructorName}
+          date={popoverSlot.date}
+          allDates={popoverSlot.instructorId || popoverSlot.plannedIntervals ? undefined : state.selectedDates}
+          plannedIntervals={popoverSlot.plannedIntervals}
+          startTime={popoverSlot.startTime}
+          endTime={popoverSlot.endTime}
+          preselectedCustomerId={state.customerId}
+          sport={state.sport}
+          defaultMeetingPoint={state.meetingPoint || "sammelplatz_gorfion"}
+          onAddToCart={popoverSlot.plannedIntervals ? handleListAddToCart : handleSlotAddToCart}
+        />
+      )}
     </div>
   );
 }
