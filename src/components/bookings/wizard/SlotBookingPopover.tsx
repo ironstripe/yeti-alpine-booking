@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, UserPlus, ShoppingCart, MapPin, Clock, Users } from "lucide-react";
+import { UserPlus, ShoppingCart, MapPin, Clock, Users } from "lucide-react";
 import { format, differenceInYears } from "date-fns";
 import { de } from "date-fns/locale";
 
@@ -298,15 +298,6 @@ export function SlotBookingPopover({
             {allParticipants.length === 0 && !showNewParticipant ? (
               <div className="text-sm text-muted-foreground rounded-md border border-dashed p-3 text-center">
                 Noch keine Teilnehmer ausgewählt.
-                <Button
-                  variant="link"
-                  size="sm"
-                  className="text-xs"
-                  onClick={() => setShowNewParticipant(true)}
-                >
-                  <Plus className="h-3 w-3 mr-1" />
-                  Neuen Teilnehmer erstellen
-                </Button>
               </div>
             ) : (
               <div className="space-y-1">
