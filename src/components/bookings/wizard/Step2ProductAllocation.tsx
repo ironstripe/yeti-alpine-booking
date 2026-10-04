@@ -614,6 +614,7 @@ export function Step2ProductAllocation() {
               onMonthChange={setSelectedMonth}
               minDate={new Date(new Date().setHours(0, 0, 0, 0))}
               showQuickActions={true}
+              showWeekShortcuts={false}
               showSelectionSummary={false}
               className="rounded-md border bg-background text-xs"
             />
