@@ -1,0 +1,1 @@
+- Keep step-one inputs in one vertical flow and reuse the existing summary cards as the read-only desktop sidebar. Why: preserve task order without duplicating booking state.
