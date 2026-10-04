@@ -33,7 +33,7 @@
 - [ ] Step 3: role-scoped authenticated policies (not started)
 
 ## Private-lesson appointments (plan 2026-09-30)
-- [x] Assign-later time UX/state correction: actionable focus to required time controls, null-safe cart synchronization, and explicit private time/product validation
+- [x] Assign-later time consistency: actionable missing-time focus, atomic incomplete-time clearing, cart isolation, and canonical variable-plan progression
 - [x] Stage 1: private_appointments table + ticket_items.appointment_id (additive)
 - [x] Stage 2: backfill dry run — 0 future private items, nothing to backfill
 

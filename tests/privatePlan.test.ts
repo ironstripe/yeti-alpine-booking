@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { buildWizardTimeSlot, validatePlan, deriveFromPlan, parseWizardTimeSlot } from "../src/lib/privatePlan";
+import { buildWizardTimeSlot, validatePlan, deriveFromPlan, hasValidPrivateTiming, parseWizardTimeSlot } from "../src/lib/privatePlan";
 const a = (date: string, startTime: string, durationMinutes: number, instructorId = "i1") => ({ date, startTime, durationMinutes, instructorId });
 describe("privatePlan", () => {
   test("valid multi-block day, different instructors on different dates", () => {
@@ -24,5 +24,11 @@ describe("privatePlan", () => {
     expect(buildWizardTimeSlot("12:00", "14:00")).toEqual({ startTime: "12:00", endTime: "14:00", duration: 2 });
     expect(buildWizardTimeSlot("14:00", null)).toBeNull();
     expect(buildWizardTimeSlot(null, null)).toBeNull();
+  });
+  test("accepts a valid canonical variable plan without requiring a shared time slot", () => {
+    const variablePlan = [a("2026-12-01", "09:00", 60), a("2026-12-02", "14:00", 120, "i2")];
+    expect(hasValidPrivateTiming(null, variablePlan)).toBe(true);
+    expect(hasValidPrivateTiming(null, [])).toBe(false);
+    expect(hasValidPrivateTiming(null, [a("2026-12-01", "15:30", 60)])).toBe(false);
   });
 });
