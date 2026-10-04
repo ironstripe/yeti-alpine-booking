@@ -73,11 +73,11 @@ UI-04 applies the shared control sizing and accessible names to scheduler naviga
 
 Scheduler booking details now use the established right-hand sheet with a stable record header, scrollable body and stable action footer. Conflict and change-confirmation dialogs remain separate sibling overlays with their existing state and handlers. Calendar bars, colors, grid geometry, density, drag/drop and booking semantics are unchanged.
 
-UI-04 browser verification covered scheduler controls, responsive wrapping, selection-toolbar visibility, and coarse-pointer targets. Booking-detail read/edit/cancel behavior and nested conflict/change-confirmation focus and Escape behavior were not reached with safe local data and remain unverified; build success is not treated as interaction evidence.
+UI-04 browser verification covered scheduler controls, responsive wrapping, selection-toolbar visibility, and coarse-pointer targets. Booking-detail read/edit/cancel behavior and nested conflict/change-confirmation focus and Escape behavior were verified later in UI-05A with synthetic local fixtures; see `docs/ui-verification.md`.
 
 ## Future proposals — not implemented in UI-01 through UI-04
 
-- **Approval and detail follow-up:** review complex ticket-edit dialogs, history, and related information after their workflows receive individual review. The standalone UI-02 approval-sheet browser check remains pending.
+- **Approval and detail follow-up:** review complex ticket-edit dialogs, history, and related information after their workflows receive individual review. The approval-sheet browser check was completed in UI-05A.
 - **Booking wizard follow-up:** review earlier-step field grouping, error placement, and cross-step pricing without changing booking rules.
 - **Scheduler follow-up:** separately review calendar type recognition, legend, geometry, density, selection, drag/drop, and touch behavior.
 - **Remaining modules:** progressively adopt the standard after individual workflow review; no app-wide redesign is implied by UI-01 through UI-03.
