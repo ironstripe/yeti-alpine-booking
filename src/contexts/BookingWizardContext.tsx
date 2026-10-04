@@ -3,6 +3,7 @@ import type { Tables } from "@/integrations/supabase/types";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchInstructor } from "@/lib/instructorsApi";
 import { dateSetChanged, deriveFromPlan, sortPlan, toMin, validatePlan } from "@/lib/privatePlan";
+import { applyAssignLater } from "@/lib/assignLaterState";
 
 export type WizardStep = 1 | 2 | 3;
 
