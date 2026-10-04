@@ -51,6 +51,12 @@ interface SlotBookingPopoverProps {
   date: string;
   /** All selected lesson dates (display only); defaults to [date] */
   allDates?: string[];
+  /**
+   * Exact intervals chosen in the teacher list. When set, every interval is shown
+   * read-only and the duration control is hidden: this dialog then only links
+   * participants and the meeting point, it never changes the planned times.
+   */
+  plannedIntervals?: { date: string; startTime: string; endTime: string }[];
   startTime: string;
   endTime: string;
   preselectedCustomerId: string | null;
@@ -73,6 +79,7 @@ export function SlotBookingPopover({
   instructorName,
   date,
   allDates,
+  plannedIntervals,
   startTime,
   endTime,
   preselectedCustomerId,
