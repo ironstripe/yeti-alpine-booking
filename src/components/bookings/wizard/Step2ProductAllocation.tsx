@@ -140,6 +140,7 @@ export function Step2ProductAllocation() {
   const startTimeTriggerRef = useRef<HTMLButtonElement>(null);
   const endTimeTriggerRef = useRef<HTMLButtonElement>(null);
   const timeRequiredTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const timeFocusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const activeCartItemRef = useRef(state.activeCartItemId);
   const locallyOwnedTimeSlotRef = useRef<string | null>(state.timeSlot);
   
@@ -269,14 +270,16 @@ export function Step2ProductAllocation() {
 
   useEffect(() => () => {
     if (timeRequiredTimerRef.current) clearTimeout(timeRequiredTimerRef.current);
+    if (timeFocusTimerRef.current) clearTimeout(timeFocusTimerRef.current);
   }, []);
 
   const focusMissingTime = useCallback(() => {
     setShowTimeRequired(true);
     timeControlsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-    window.requestAnimationFrame(() => {
+    if (timeFocusTimerRef.current) clearTimeout(timeFocusTimerRef.current);
+    timeFocusTimerRef.current = setTimeout(() => {
       (startTime ? endTimeTriggerRef.current : startTimeTriggerRef.current)?.focus({ preventScroll: true });
-    });
+    }, 250);
     if (timeRequiredTimerRef.current) clearTimeout(timeRequiredTimerRef.current);
     timeRequiredTimerRef.current = setTimeout(() => setShowTimeRequired(false), 1800);
   }, [startTime]);
