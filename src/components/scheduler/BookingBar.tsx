@@ -133,7 +133,7 @@ export function BookingBar({ booking, slotWidth, instructorSpecialization, isPla
               // Period bookings: subtle left border indicator
               booking.isPartOfPeriod && "border-l-2 border-l-primary",
               // Provisional website reservations: amber, dashed
-              booking.isProvisional && "bg-amber-400 text-amber-950 border-amber-600 border-dashed"
+              booking.isProvisional && "bg-amber-400 text-amber-950 border-amber-600 border-dashed dark:bg-amber-400 dark:text-amber-950 dark:border-amber-600"
             )}
             style={{
               ...style,
@@ -149,7 +149,7 @@ export function BookingBar({ booking, slotWidth, instructorSpecialization, isPla
               <Link2 className="h-2.5 w-2.5 text-primary shrink-0" />
             )}
             {hasCrossDiscipline && (
-              <AlertTriangle className="h-2.5 w-2.5 text-amber-900 dark:text-amber-200 shrink-0" />
+              <AlertTriangle className="h-2.5 w-2.5 shrink-0" />
             )}
             {isGroup && (
               <Users className="h-2.5 w-2.5 shrink-0" aria-hidden="true" />

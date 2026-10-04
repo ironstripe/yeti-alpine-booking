@@ -12,5 +12,5 @@
 - Remove fixtures, then run focused tests where available, TypeScript, build diagnostics, and diff review. Do not publish or perform writes.
 
 ## Technical notes
-- `getBookingBarClasses` is the live desktop/mobile booking palette; `BLOCK_COLORS` currently reaches only `SchedulerLegend`, which is mounted by the main `SchedulerGrid` when enabled. Mini-scheduler uses a separate operational ranking legend and is not part of this palette.
+- `getBookingBarClasses` is the live desktop/mobile booking palette. Before UI-06, `BLOCK_COLORS` reached only the otherwise-unmounted `SchedulerLegend`; the main `SchedulerGrid` used an inline compact legend. UI-06 mounts `SchedulerLegend compact` there. Mini-scheduler uses a separate operational ranking legend and is not part of this palette.
 - Instructor availability colors, absences, selection/focus styles, grid geometry, drag/drop, and scheduler calculations remain untouched.
