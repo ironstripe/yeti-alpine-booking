@@ -788,9 +788,9 @@ export function Step2ProductAllocation() {
                         Zurück zur Lehrerliste
                       </Button>
                       <div className={cn("min-w-0 transition-opacity", isFullscreen && "fixed inset-0 z-50 overflow-auto bg-background p-4")}>
-                          {isFullscreen ? (
-                            <div className="mb-3 flex items-center justify-between rounded-md bg-muted px-2 py-1.5"><span className="text-sm font-medium">Scheduler (Vollbild)</span><Button variant="ghost" size="sm" className="control-target" onClick={() => setIsFullscreen(false)}><X className="mr-1 h-4 w-4" />ESC zum Schließen</Button></div>
-                          ) : <div className="mb-1 flex justify-end"><Button variant="ghost" size="sm" className="control-target gap-1 text-xs" onClick={() => setIsFullscreen(true)}><Maximize2 className="h-3 w-3" />Vollbild</Button></div>}
+                        {isFullscreen ? (
+                          <div className="mb-3 flex items-center justify-between rounded-md bg-muted px-2 py-1.5"><span className="text-sm font-medium">Scheduler (Vollbild)</span><Button variant="ghost" size="sm" className="control-target" onClick={() => setIsFullscreen(false)}><X className="mr-1 h-4 w-4" />ESC zum Schließen</Button></div>
+                        ) : <div className="mb-1 flex justify-end"><Button variant="ghost" size="sm" className="control-target gap-1 text-xs" onClick={() => setIsFullscreen(true)}><Maximize2 className="h-3 w-3" />Vollbild</Button></div>}
                         <MiniSchedulerGrid
                           selectedDates={state.selectedDates}
                           sport={state.sport}
@@ -806,21 +806,21 @@ export function Step2ProductAllocation() {
                           onMultiSelectToggle={toggleMiniSchedulerSlot}
                           schedulerData={schedulerData}
                         />
-                          {state.miniSchedulerSelections.length > 0 && (
-                            <div className="mt-3 space-y-3 rounded-md border border-primary bg-primary/5 p-3">
-                              <div className="flex flex-wrap items-center gap-2"><Badge variant="secondary">{state.miniSchedulerSelections.length} {state.miniSchedulerSelections.length === 1 ? "Termin" : "Termine"} ausgewählt</Badge><span className="text-xs text-muted-foreground">Mit „Mehrere Termine auswählen“ oder Strg/⌘ + Klick hinzufügen</span></div>
-                              <div className="divide-y rounded-md border bg-background">{[...state.miniSchedulerSelections].sort((a,b) => `${a.date} ${a.startTime}`.localeCompare(`${b.date} ${b.startTime}`)).map((slot) => <div key={slot.id} className="flex items-center justify-between gap-3 px-3 py-2 text-xs"><span className="min-w-0"><strong>{format(parseISO(slot.date), "EEE, dd.MM.yyyy", { locale: de })}</strong><span className="text-muted-foreground"> · {slot.startTime}–{slot.endTime} · {slot.instructorName}</span></span><Button type="button" variant="ghost" size="icon" className="icon-action shrink-0" aria-label={`Termin ${slot.date} ${slot.startTime} entfernen`} onClick={() => toggleMiniSchedulerSlot({ instructorId: slot.instructorId, instructorName: slot.instructorName, date: slot.date, startTime: slot.startTime, endTime: slot.endTime })}><X className="h-3.5 w-3.5" /></Button></div>)}</div>
-                              <div className="flex justify-end gap-2">
-                                <Button variant="ghost" size="sm" onClick={clearMiniSchedulerSelection} className="control-target text-xs">
-                                  Abbrechen
-                                </Button>
-                                <Button variant="outline" size="sm" onClick={handleApplyMultiSelection} className="control-target text-xs">
-                                  <Check className="mr-1 h-3 w-3" />
-                                  Auswahl übernehmen
-                                </Button>
-                              </div>
+                        {state.miniSchedulerSelections.length > 0 && (
+                          <div className="mt-3 space-y-3 rounded-md border border-primary bg-primary/5 p-3">
+                            <div className="flex flex-wrap items-center gap-2"><Badge variant="secondary">{state.miniSchedulerSelections.length} {state.miniSchedulerSelections.length === 1 ? "Termin" : "Termine"} ausgewählt</Badge><span className="text-xs text-muted-foreground">Mit „Mehrere Termine auswählen“ oder Strg/⌘ + Klick hinzufügen</span></div>
+                            <div className="divide-y rounded-md border bg-background">{[...state.miniSchedulerSelections].sort((a,b) => `${a.date} ${a.startTime}`.localeCompare(`${b.date} ${b.startTime}`)).map((slot) => <div key={slot.id} className="flex items-center justify-between gap-3 px-3 py-2 text-xs"><span className="min-w-0"><strong>{format(parseISO(slot.date), "EEE, dd.MM.yyyy", { locale: de })}</strong><span className="text-muted-foreground"> · {slot.startTime}–{slot.endTime} · {slot.instructorName}</span></span><Button type="button" variant="ghost" size="icon" className="icon-action shrink-0" aria-label={`Termin ${slot.date} ${slot.startTime} entfernen`} onClick={() => toggleMiniSchedulerSlot({ instructorId: slot.instructorId, instructorName: slot.instructorName, date: slot.date, startTime: slot.startTime, endTime: slot.endTime })}><X className="h-3.5 w-3.5" /></Button></div>)}</div>
+                            <div className="flex justify-end gap-2">
+                              <Button variant="ghost" size="sm" onClick={clearMiniSchedulerSelection} className="control-target text-xs">
+                                Abbrechen
+                              </Button>
+                              <Button variant="outline" size="sm" onClick={handleApplyMultiSelection} className="control-target text-xs">
+                                <Check className="mr-1 h-3 w-3" />
+                                Auswahl übernehmen
+                              </Button>
                             </div>
-                          )}
+                          </div>
+                        )}
                       </div>
                       {!state.instructor && (
                         <p className="text-center text-xs text-muted-foreground">
