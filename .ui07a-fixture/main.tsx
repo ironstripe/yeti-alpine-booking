@@ -39,7 +39,7 @@ function Fixture() {
             compactStats={{visible:12,total:18}} />}
           <div data-testid="grid-scroll" className="min-h-0 flex-1 overflow-auto">
             <div data-testid="sticky-header" className="sticky top-0 h-10 border-b bg-background">09:00 · 10:00 · 11:00</div>
-            {Array.from({length:18}, (_, i) => <div key={i} data-testid="grid-row" className="h-[41px] border-b">Lehrer {i+1}</div>)}
+            {Array.from({length:18}, (_, i) => <div key={i} data-testid="grid-row" className="h-[41px] shrink-0 border-b">Lehrer {i+1}</div>)}
           </div>
         </div>
       </main>
