@@ -246,12 +246,13 @@ export function useCreateBooking() {
           for (const a of sortPlan(state.appointments)) {
             if (!state.selectedDates.includes(a.date)) throw new Error(`Termin am ${a.date} gehört zu keinem gewählten Datum.`);
             const instr = a.instructorId || state.instructorId;
-            if (!instr) throw new Error(`Bitte für ${a.date} ${a.startTime} eine Lehrperson wählen.`);
+            // Only this item's explicit "Später zuweisen" may omit the teacher.
+            if (!instr && !state.assignLater) throw new Error(`Bitte für ${a.date} ${a.startTime} eine Lehrperson wählen.`);
             appointments.push({
               date: a.date,
               time_start: a.startTime.slice(0, 5),
               time_end: endOf(a),
-              instructor_id: instr,
+              ...(instr ? { instructor_id: instr } : { assign_later: true as const }),
               ...(state.meetingPoint ? { meeting_point: state.meetingPoint } : {}),
             });
           }
@@ -266,12 +267,12 @@ export function useCreateBooking() {
             : [{ startTime: ts?.startTime || baseStart, endTime: ts?.endTime || baseEnd, instructorId: undefined as string | null | undefined }];
           for (const b of blocks) {
             const instr = b.instructorId !== undefined ? b.instructorId : dayInstr !== undefined ? dayInstr : state.instructorId;
-            if (!instr) throw new Error(`Bitte für ${dateStr} eine Lehrperson wählen.`);
+            if (!instr && !state.assignLater) throw new Error(`Bitte für ${dateStr} eine Lehrperson wählen.`);
             appointments.push({
               date: dateStr,
               time_start: b.startTime.slice(0, 5),
               time_end: b.endTime.slice(0, 5),
-              instructor_id: instr,
+              ...(instr ? { instructor_id: instr } : { assign_later: true as const }),
               ...(state.meetingPoint ? { meeting_point: state.meetingPoint } : {}),
             });
           }
