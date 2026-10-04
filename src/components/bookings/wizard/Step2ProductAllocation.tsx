@@ -137,8 +137,9 @@ export function Step2ProductAllocation() {
   
   // Slot popover state
   const [popoverSlot, setPopoverSlot] = useState<{
-    instructorId: string;
-    instructorName: string;
+    // null = "Später zuweisen": participant entry without a teacher slot
+    instructorId: string | null;
+    instructorName: string | null;
     date: string;
     startTime: string;
     endTime: string;
@@ -838,7 +839,12 @@ export function Step2ProductAllocation() {
                 <Checkbox
                   id="assign-later"
                   checked={state.assignLater}
-                  onCheckedChange={(checked) => setAssignLater(checked === true)}
+                  onCheckedChange={(checked) => {
+                    const on = checked === true;
+                    // Drop teacher-bound slot picks so no stale teacher survives the toggle
+                    if (on && state.miniSchedulerSelections.length > 0) clearMiniSchedulerSelection();
+                    setAssignLater(on);
+                  }}
                 />
                 <label htmlFor="assign-later" className="cursor-pointer text-sm">
                   Später zuweisen
@@ -1123,8 +1129,32 @@ export function Step2ProductAllocation() {
           </div>
         )}
 
+        {/* "Später zuweisen": participant entry independent of teacher slots */}
+        {showAvailabilityGrid && state.assignLater && (
+          <div className="flex flex-col gap-2 rounded-md border bg-muted/40 p-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="min-w-0 break-words text-sm text-foreground">
+              {startTime && endTime
+                ? `Ohne Lehrperson: ${state.selectedDates.length} ${state.selectedDates.length === 1 ? "Tag" : "Tage"}, ${startTime}–${endTime}. Die Lehrperson wird später zugewiesen.`
+                : "Wählen Sie ein Zeitfenster, um Teilnehmer hinzuzufügen."}
+            </p>
+            <Button
+              size="sm"
+              className="control-target shrink-0"
+              disabled={!startTime || !endTime}
+              onClick={() => {
+                if (!startTime || !endTime) return;
+                const dates = [...state.selectedDates].sort();
+                setPopoverSlot({ instructorId: null, instructorName: null, date: dates[0], startTime, endTime });
+              }}
+            >
+              <Users className="h-4 w-4 mr-1" />
+              Teilnehmer hinzufügen
+            </Button>
+          </div>
+        )}
+
         {/* Instruction hint */}
-        {showAvailabilityGrid && !state.instructor && (
+        {showAvailabilityGrid && !state.instructor && !state.assignLater && (
           <p className="text-xs text-muted-foreground text-center">
             Klicken Sie auf einen grünen Slot um Teilnehmer zuzuweisen und in den Warenkorb zu legen
           </p>
@@ -1139,6 +1169,7 @@ export function Step2ProductAllocation() {
           instructorId={popoverSlot.instructorId}
           instructorName={popoverSlot.instructorName}
           date={popoverSlot.date}
+          allDates={popoverSlot.instructorId ? undefined : state.selectedDates}
           startTime={popoverSlot.startTime}
           endTime={popoverSlot.endTime}
           preselectedCustomerId={state.customerId}

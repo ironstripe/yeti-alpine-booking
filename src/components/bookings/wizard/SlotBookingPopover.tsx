@@ -30,7 +30,8 @@ import { getLevelOptionsForAge, getLevelLabel } from "@/lib/level-utils";
 import type { Tables } from "@/integrations/supabase/types";
 
 export interface SlotBookingData {
-  instructorId: string;
+  /** null = "Später zuweisen" (assignLater); never a placeholder instructor */
+  instructorId: string | null;
   instructorName: string;
   date: string;
   startTime: string;
@@ -44,9 +45,12 @@ export interface SlotBookingData {
 interface SlotBookingPopoverProps {
   open: boolean;
   onClose: () => void;
-  instructorId: string;
-  instructorName: string;
+  /** null when the lesson is booked with "Später zuweisen" */
+  instructorId: string | null;
+  instructorName: string | null;
   date: string;
+  /** All selected lesson dates (display only); defaults to [date] */
+  allDates?: string[];
   startTime: string;
   endTime: string;
   preselectedCustomerId: string | null;
@@ -68,6 +72,7 @@ export function SlotBookingPopover({
   instructorId,
   instructorName,
   date,
+  allDates,
   startTime,
   endTime,
   preselectedCustomerId,
@@ -171,7 +176,7 @@ export function SlotBookingPopover({
   const handleAddToCart = () => {
     onAddToCart({
       instructorId,
-      instructorName,
+      instructorName: instructorName ?? "",
       date,
       startTime,
       endTime: actualEndTime,
@@ -223,10 +228,12 @@ export function SlotBookingPopover({
               <Clock className="h-3 w-3" />
               {startTime} – {actualEndTime}
             </Badge>
-            <Badge variant="outline">{instructorName}</Badge>
-            <Badge variant="secondary">
-              {format(new Date(date), "EEE d. MMM", { locale: de })}
-            </Badge>
+            <Badge variant="outline">{instructorId ? instructorName : "Lehrperson später zuweisen"}</Badge>
+            {(allDates && allDates.length > 1 ? [...allDates].sort() : [date]).map((d) => (
+              <Badge key={d} variant="secondary">
+                {format(new Date(d), "EEE d. MMM", { locale: de })}
+              </Badge>
+            ))}
           </div>
 
           <Separator />
