@@ -1,0 +1,10 @@
+import type { ReactNode } from "react";
+const Box = ({ children, label }: { children?: ReactNode; label: string }) => <section className="rounded-lg border bg-card p-4" data-stub={label}>{children ?? label}</section>;
+export const ProfileInfoCard = () => <Box label="profile"><h2 className="font-semibold">Profil</h2><p className="text-sm text-muted-foreground">Kontakt, Qualifikationen und Anstellung</p></Box>;
+export const SeasonStatsCard = () => <Box label="stats">Saison</Box>;
+export const AbsenceRequestCard = () => <Box label="absence">Abwesenheiten</Box>;
+export const RolesCapabilitiesCard = () => <Box label="roles">Rollen und Fähigkeiten</Box>;
+export const RecurringBlocksTab = () => <Box label="recurring">Wiederkehrende Sperren</Box>;
+export const InstructorRentalsCard = () => <Box label="rentals">Material</Box>;
+export const EditInstructorModal = () => null;
+export const WebsiteProfileDialog = () => null;
