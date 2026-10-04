@@ -273,9 +273,9 @@ export function Step2ProductAllocation() {
 
   const focusMissingTime = useCallback(() => {
     setShowTimeRequired(true);
-    timeControlsRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    timeControlsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     window.requestAnimationFrame(() => {
-      (startTime ? endTimeTriggerRef.current : startTimeTriggerRef.current)?.focus();
+      (startTime ? endTimeTriggerRef.current : startTimeTriggerRef.current)?.focus({ preventScroll: true });
     });
     if (timeRequiredTimerRef.current) clearTimeout(timeRequiredTimerRef.current);
     timeRequiredTimerRef.current = setTimeout(() => setShowTimeRequired(false), 1800);
@@ -430,13 +430,10 @@ export function Step2ProductAllocation() {
 
   // Update productId when product changes
   useEffect(() => {
-    if (state.productType === "private") {
-      const nextProductId = selectedProduct?.id ?? null;
-      if (nextProductId !== state.productId) setProductId(nextProductId);
-    } else if (selectedProduct && selectedProduct.id !== state.productId) {
+    if (selectedProduct && selectedProduct.id !== state.productId) {
       setProductId(selectedProduct.id);
     }
-  }, [selectedProduct, state.productId, state.productType, setProductId]);
+  }, [selectedProduct, state.productId, setProductId]);
 
   // Find lunch product
   const lunchProduct = products.find((p) => p.type === "lunch");
@@ -875,7 +872,7 @@ export function Step2ProductAllocation() {
                 {startTime && endTime
                   ? `Ohne Lehrperson: ${state.selectedDates.length} ${state.selectedDates.length === 1 ? "Tag" : "Tage"}, ${startTime}–${endTime}. Die Lehrperson wird später zugewiesen.`
                   : !startTime
-                    ? "Startzeit fehlt. Wählen Sie danach auch eine Endzeit."
+                    ? "Startzeit fehlt. Endzeit fehlt."
                     : "Endzeit fehlt."}
               </p>
               {(!startTime || !endTime) && (
