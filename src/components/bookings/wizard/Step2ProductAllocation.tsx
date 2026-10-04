@@ -458,17 +458,18 @@ export function Step2ProductAllocation() {
 
   // Handle adding a slot config to the cart
   const handleSlotAddToCart = (data: SlotBookingData) => {
+    // Link participants before changing root-level timing. The timing update can
+    // synchronously refresh the active cart snapshot, so keep this update first.
+    if (state.activeCartItemId) {
+      setCartItemParticipants(state.activeCartItemId, data.participantIds);
+    }
+
     // Update the active cart item with the slot data
     if (data.startTime && data.endTime) {
       setTimeSlot(`${data.startTime} - ${data.endTime}`);
       setDuration(data.duration);
     }
     setMeetingPoint(data.meetingPoint);
-    
-    // Set participants on the active cart item
-    if (state.activeCartItemId) {
-      setCartItemParticipants(state.activeCartItemId, data.participantIds);
-    }
     
     // Set the dates if not already set
     if (data.date && !state.selectedDates.includes(data.date)) {

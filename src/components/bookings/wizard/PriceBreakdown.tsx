@@ -25,6 +25,7 @@ interface PriceBreakdownProps {
   autoDiscountPercent?: number;
   autoDiscountReason?: string;
   presentation?: "full" | "compact-draft";
+  participantIds?: string[];
 }
 
 interface ParticipantLineItem {
@@ -49,8 +50,17 @@ export function PriceBreakdown({
   autoDiscountPercent = 0,
   autoDiscountReason,
   presentation = "full",
+  participantIds,
 }: PriceBreakdownProps) {
   const { state } = useBookingWizard();
+  const pricingParticipants = participantIds === undefined
+    ? state.selectedParticipants
+    : participantIds
+        .map((id) =>
+          state.localParticipants.find((participant) => participant.id === id)
+          ?? state.selectedParticipants.find((participant) => participant.id === id)
+        )
+        .filter((participant): participant is NonNullable<typeof participant> => Boolean(participant));
 
   // Fetch products with price tiers
   const { data: products = [], isLoading: productsLoading } = useProducts({
@@ -114,7 +124,7 @@ export function PriceBreakdown({
     // Check if we're in participant-specific booking mode
     if (state.useParticipantSpecificBooking && Object.keys(state.participantBookings).length > 0) {
       // Calculate for each participant individually
-      for (const participant of state.selectedParticipants) {
+      for (const participant of pricingParticipants) {
         const booking = state.participantBookings[participant.id];
         if (!booking) continue;
 
@@ -164,7 +174,7 @@ export function PriceBreakdown({
       }
 
       // Multiply by number of participants
-      const participantCount = state.selectedParticipants.length || 1;
+      const participantCount = pricingParticipants.length;
       totalCoursePrice = pricePerParticipant * participantCount;
 
       // Create a single line item for shared mode
@@ -183,7 +193,7 @@ export function PriceBreakdown({
       totalCoursePrice,
       productName: lineItems.length === 1 ? lineItems[0].courseName : "Gruppenkurs"
     };
-  }, [productType, state.useParticipantSpecificBooking, state.participantBookings, state.selectedParticipants, groupCourses, products, daysCount]);
+  }, [productType, state.useParticipantSpecificBooking, state.participantBookings, pricingParticipants, groupCourses, products, daysCount]);
 
   // Multi-group pricing calculation
   const isMultiGroup = state.privateGroupProposal && state.privateGroupProposal.groups.length > 1;
@@ -204,8 +214,9 @@ export function PriceBreakdown({
     
     for (let i = 0; i < state.privateGroupProposal.groups.length; i++) {
       const group = state.privateGroupProposal.groups[i];
-      const gStart = group.startTime || state.timeSlot?.split(" - ")[0] || "10:00";
-      const gEnd = group.endTime || state.timeSlot?.split(" - ")[1] || "12:00";
+      const gStart = group.startTime || state.timeSlot?.split(" - ")[0];
+      const gEnd = group.endTime || state.timeSlot?.split(" - ")[1];
+      if (!gStart || !gEnd) continue;
       const pCount = group.participantIds.length;
       
       const result = calculatePrivateLessonPrice(firstDate, gStart, gEnd, pCount, rates, highSeasonPeriods);
@@ -225,7 +236,7 @@ export function PriceBreakdown({
   }, [isMultiGroup, state.privateGroupProposal, state.selectedDates, state.timeSlot, rates, highSeasonPeriods, daysCount]);
 
   // Canonical plan: price every real block by its own date/time and participant count
-  const canonicalParticipants = state.selectedParticipants.length || state.numberOfPersons;
+  const canonicalParticipants = pricingParticipants.length || state.numberOfPersons;
   const canonicalBlocks = useMemo(() => {
     if (productType !== "private" || !state.appointments) return null;
     return sortPlan(state.appointments).map((a) => {
@@ -325,7 +336,7 @@ export function PriceBreakdown({
     : Boolean(
         daysCount > 0
         && state.selectedGroupId
-        && state.selectedParticipants.length > 0
+        && pricingParticipants.length > 0
         && groupCourseCalculation.totalCoursePrice > 0
       );
 

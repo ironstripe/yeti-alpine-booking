@@ -6,14 +6,36 @@ import { useBookingWizard } from "@/contexts/BookingWizardContext";
 import { CustomerSearch } from "./CustomerSearch";
 import { Step2ProductAllocation } from "./Step2ProductAllocation";
 import { BookingSummaryCards } from "./BookingSummaryCards";
+import { supabase } from "@/integrations/supabase/client";
 
 export function Step1ProductCart() {
-  const { state, setCustomer, addCartItem, removeCartItem, setActiveCartItem, getAllCartItems } = useBookingWizard();
+  const {
+    state,
+    setCustomer,
+    setSelectedParticipants,
+    addCartItem,
+    removeCartItem,
+    setActiveCartItem,
+    getAllCartItems,
+  } = useBookingWizard();
   const [showShortcut, setShowShortcut] = useState(false);
 
   const cartItems = getAllCartItems();
   const activeItem = cartItems.find(i => i.id === state.activeCartItemId);
   const hasValidItem = activeItem?.productType && activeItem.selectedDates.length > 0;
+
+  const selectShortcutCustomer = async (customer: Parameters<typeof setCustomer>[0]) => {
+    setCustomer(customer);
+    if (!customer) return;
+
+    const { data } = await supabase
+      .from("customer_participants")
+      .select("*")
+      .eq("customer_id", customer.id)
+      .is("merged_into_id", null)
+      .order("first_name");
+    if (data) setSelectedParticipants(data);
+  };
 
   return (
     <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_20rem]">
@@ -50,7 +72,7 @@ export function Step1ProductCart() {
             ) : (
               <CustomerSearch
                 selectedCustomer={null}
-                onSelect={setCustomer}
+                onSelect={selectShortcutCustomer}
                 onClear={() => {}}
               />
             )}

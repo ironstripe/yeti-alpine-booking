@@ -81,7 +81,7 @@ export function SlotBookingPopover({
   onAddToCart,
 }: SlotBookingPopoverProps) {
   const queryClient = useQueryClient();
-  const { state, addLocalParticipant } = useBookingWizard();
+  const { state, addLocalParticipant, setSelectedParticipants } = useBookingWizard();
   const [selectedParticipantIds, setSelectedParticipantIds] = useState<string[]>([]);
   const [duration, setDuration] = useState<number>(() => {
     const s = parseInt(startTime.split(":")[0]);
@@ -174,6 +174,17 @@ export function SlotBookingPopover({
   };
 
   const handleAddToCart = () => {
+    const selectedExistingParticipants = dbParticipants.filter((participant) =>
+      selectedParticipantIds.includes(participant.id)
+    );
+    if (selectedExistingParticipants.length > 0) {
+      const existingIds = new Set(state.selectedParticipants.map((participant) => participant.id));
+      setSelectedParticipants([
+        ...state.selectedParticipants,
+        ...selectedExistingParticipants.filter((participant) => !existingIds.has(participant.id)),
+      ]);
+    }
+
     onAddToCart({
       instructorId,
       instructorName: instructorName ?? "",
@@ -391,9 +402,9 @@ export function SlotBookingPopover({
                   <Button
                     size="sm"
                     className="h-7 text-xs"
-                    disabled={!newParticipant.first_name || (hasCustomer && createParticipantMutation.isPending)}
+                    disabled={!newParticipant.first_name || createParticipantMutation.isPending}
                     onClick={() => {
-                      if (hasCustomer) {
+                      if (hasCustomer && !state.customer) {
                         createParticipantMutation.mutate(newParticipant);
                       } else {
                         handleCreateLocalParticipant();
