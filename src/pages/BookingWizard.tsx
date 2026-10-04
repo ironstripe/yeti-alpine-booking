@@ -536,7 +536,7 @@ function BookingWizardContent() {
     <div className="min-h-screen bg-background">
       {/* Header */}
       <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="mx-auto flex h-14 max-w-3xl items-center justify-between px-4">
+        <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-4">
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button variant="ghost" size="sm">
@@ -583,7 +583,7 @@ function BookingWizardContent() {
       </header>
 
       {/* Progress */}
-      <div className="mx-auto max-w-5xl px-4">
+      <div className="mx-auto max-w-7xl px-4">
         <WizardProgress
           currentStep={state.currentStep}
           onStepClick={setCurrentStep}
@@ -591,7 +591,7 @@ function BookingWizardContent() {
       </div>
 
       {/* Content */}
-      <main className="mx-auto max-w-5xl px-4 pb-4 space-y-4">
+      <main className="mx-auto max-w-7xl space-y-4 px-4 pb-24">
         {state.currentStep === 1 && <SchedulerPrefillBanner />}
         {state.currentStep === 1 && <Step1ProductCart />}
         {state.currentStep === 2 && <Step2AssignCustomer />}
@@ -600,8 +600,8 @@ function BookingWizardContent() {
 
       {/* Sticky Footer - Only show for steps 1 and 2 */}
       {state.currentStep < 3 && (
-        <footer className="sticky bottom-0 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 p-3">
-          <div className="mx-auto flex max-w-5xl items-center justify-between gap-4">
+        <footer className="sticky bottom-0 z-40 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 p-3">
+          <div className="mx-auto flex max-w-7xl items-center justify-between gap-4">
             {state.currentStep > 1 ? (
               <Button
                 variant="outline"

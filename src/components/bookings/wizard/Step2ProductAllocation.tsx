@@ -16,7 +16,6 @@ import {
   AlertTriangle,
   Sparkles,
   Maximize2,
-  Minimize2,
   X,
 } from "lucide-react";
 
@@ -30,7 +29,6 @@ import { RangeDatePicker } from "@/components/ui/range-date-picker";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
@@ -40,7 +38,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { BookingWarnings, type BookingWarning } from "./BookingWarnings";
+import type { BookingWarning } from "./BookingWarnings";
 import { MiniSchedulerGrid } from "./MiniSchedulerGrid";
 import { SlotBookingPopover, type SlotBookingData } from "./SlotBookingPopover";
 import { GroupSelector } from "./GroupSelector";
@@ -53,12 +51,10 @@ import {
   isBeginnerLevel,
   canSelectAlternativeMeetingPoint,
 } from "@/lib/meeting-point-utils";
-import { LEVEL_OPTIONS, mapLevelToCourseSkill, getLevelLabel } from "@/lib/level-utils";
+import { mapLevelToCourseSkill } from "@/lib/level-utils";
 import { useCurrentSeason } from "@/hooks/useSeasons";
 import {
   getGroupRecommendationForParticipants,
-  formatGroupTimes,
-  GROUP_COURSE_TIMES,
 } from "@/lib/group-course-utils";
 import type { Tables } from "@/integrations/supabase/types";
 import { buildWizardTimeSlot, parseWizardTimeSlot } from "@/lib/privatePlan";
@@ -86,13 +82,11 @@ export function Step2ProductAllocation() {
     setSelectedDates,
     movePlannedDate,
     setTimeSlot,
-    setIncludeLunch,
     setInstructor,
     setAssignLater,
     setMeetingPoint,
     setLanguage,
     setSelectedGroupId,
-    setGroupCourseType,
     setLunchDaysForParticipant,
     setVegetarianForParticipant,
     setUseParticipantSpecificBooking,
@@ -103,7 +97,6 @@ export function Step2ProductAllocation() {
     toggleMiniSchedulerSlot,
     clearMiniSchedulerSelection,
     applyMiniSchedulerSelection,
-    setGroupInstructor,
     // Period day planner functions
     setDayInstructorOverride,
     setDayTimeOverride,
@@ -113,7 +106,6 @@ export function Step2ProductAllocation() {
     removeDayInstructorOverride,
     removeDayTimeOverride,
     setCartItemParticipants,
-    addCartItem,
   } = useBookingWizard();
 
   const [selectedMonth, setSelectedMonth] = useState<Date>(new Date());
@@ -514,90 +506,53 @@ export function Step2ProductAllocation() {
   }
 
   return (
-    <div className="grid grid-cols-1 gap-4 py-2 lg:grid-cols-5 items-start">
-      {/* Left Column - Requirements (40%) */}
-      <div className="space-y-3 lg:col-span-2 bg-slate-50 dark:bg-slate-900/50 rounded-lg p-3">
-        {/* Product Type */}
-        <div className="space-y-1.5">
-          <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Buchungstyp</Label>
-          <RadioGroup
-            value={state.productType || ""}
-            onValueChange={(value) => setProductType(value as "private" | "group")}
-            className="grid grid-cols-2 gap-2"
-          >
-            <Label
-              htmlFor="private"
-              className={`flex cursor-pointer items-center gap-2 rounded-md border-2 p-2 transition-colors ${
-                state.productType === "private"
-                  ? "border-primary bg-primary/5"
-                  : "border-muted hover:border-muted-foreground/30"
-              }`}
+    <div className="space-y-6 py-2">
+      <section aria-labelledby="booking-section-title" className="space-y-3 border-b pb-6">
+        <div>
+          <h2 id="booking-section-title" className="text-base font-semibold text-foreground">Buchung</h2>
+          <p className="text-sm text-muted-foreground">Unterrichtsart und Sport festlegen.</p>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="space-y-1.5">
+            <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Buchungstyp</Label>
+            <RadioGroup
+              value={state.productType || ""}
+              onValueChange={(value) => setProductType(value as "private" | "group")}
+              className="grid grid-cols-2 gap-2"
             >
-              <RadioGroupItem value="private" id="private" className="sr-only" />
-              <span className="text-base">👤</span>
-              <span className="text-sm font-medium">Privat</span>
-            </Label>
-            <Label
-              htmlFor="group"
-              className={cn(
-                "flex cursor-pointer items-center gap-2 rounded-md border-2 p-2 transition-colors",
-                state.productType === "group"
-                  ? "border-primary bg-primary/5"
-                  : "border-muted hover:border-muted-foreground/30",
-                groupRecommendation.hasAdults && "opacity-50 cursor-not-allowed"
-              )}
-            >
-              <RadioGroupItem 
-                value="group" 
-                id="group" 
-                className="sr-only" 
-                disabled={groupRecommendation.hasAdults}
-              />
-              <span className="text-base">👥</span>
-              <span className="text-sm font-medium">Gruppe</span>
-            </Label>
-          </RadioGroup>
-          
-          {/* Adult restriction warning */}
-          {groupRecommendation.hasAdults && (
-            <Alert variant="destructive" className="py-2">
-              <AlertTriangle className="h-3.5 w-3.5" />
-              <AlertDescription className="text-xs">
-                {groupRecommendation.hint}
-              </AlertDescription>
-            </Alert>
+              <Label htmlFor="private" className={cn("control-target flex cursor-pointer items-center gap-2 rounded-md border-2 px-3 transition-colors", state.productType === "private" ? "border-primary bg-primary/5" : "border-border hover:border-muted-foreground/30")}>
+                <RadioGroupItem value="private" id="private" className="sr-only" />
+                <span aria-hidden="true">👤</span><span className="text-sm font-medium">Privat</span>
+              </Label>
+              <Label htmlFor="group" className={cn("control-target flex cursor-pointer items-center gap-2 rounded-md border-2 px-3 transition-colors", state.productType === "group" ? "border-primary bg-primary/5" : "border-border hover:border-muted-foreground/30", groupRecommendation.hasAdults && "cursor-not-allowed opacity-50")}>
+                <RadioGroupItem value="group" id="group" className="sr-only" disabled={groupRecommendation.hasAdults} />
+                <span aria-hidden="true">👥</span><span className="text-sm font-medium">Gruppe</span>
+              </Label>
+            </RadioGroup>
+          </div>
+          {state.productType === "private" && (
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Sportart</Label>
+              <ToggleGroup type="single" value={state.sport || ""} onValueChange={(value) => setSport((value as "ski" | "snowboard") || null)} className="grid grid-cols-2 gap-2">
+                <ToggleGroupItem value="ski" className="control-target gap-1 px-3 text-sm"><span aria-hidden="true">⛷️</span>Ski</ToggleGroupItem>
+                <ToggleGroupItem value="snowboard" className="control-target gap-1 px-3 text-sm"><span aria-hidden="true">🏂</span>Snowboard</ToggleGroupItem>
+              </ToggleGroup>
+            </div>
           )}
         </div>
-
-        {/* Sport Selection (for private lessons) */}
-        {state.productType === "private" && (
-          <div className="space-y-1.5">
-            <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Sportart</Label>
-            <ToggleGroup
-              type="single"
-              value={state.sport || ""}
-              onValueChange={(value) => setSport((value as "ski" | "snowboard") || null)}
-              className="justify-start gap-2"
-            >
-              <ToggleGroupItem value="ski" className="control-target gap-1 px-3 text-sm">
-                <span>⛷️</span>
-                Ski
-              </ToggleGroupItem>
-              <ToggleGroupItem value="snowboard" className="control-target gap-1 px-3 text-sm">
-                <span>🏂</span>
-                Snowboard
-              </ToggleGroupItem>
-            </ToggleGroup>
-          </div>
+        {groupRecommendation.hasAdults && (
+          <Alert variant="destructive" className="py-2"><AlertTriangle className="h-3.5 w-3.5" /><AlertDescription className="text-xs">{groupRecommendation.hint}</AlertDescription></Alert>
         )}
+      </section>
 
-        {/* Date Selection - No Card wrapper for alignment */}
-        {state.productType && (
+      {state.productType && (
+        <section aria-labelledby="date-section-title" className="space-y-4 border-b pb-6">
+          <div>
+            <h2 id="date-section-title" className="text-base font-semibold text-foreground">Termin</h2>
+            <p className="text-sm text-muted-foreground">Datum, Zeit und Treffpunkt festlegen.</p>
+          </div>
           <div className="space-y-1.5">
-            <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1">
-              <CalendarDays className="h-3 w-3" />
-              {state.productType === "private" ? "Datum" : "Kurstage"}
-            </Label>
+            <Label className="flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground"><CalendarDays className="h-3 w-3" />{state.productType === "private" ? "Datum" : "Kurstage"}</Label>
             <RangeDatePicker
               selected={state.selectedDates.map((d) => parseISO(d))}
               onSelect={(dates) => handleDateSelect(dates)}
@@ -609,592 +564,143 @@ export function Step2ProductAllocation() {
             />
             {state.selectedDates.length > 0 && (
               <div className="flex flex-wrap gap-1">
-                {state.selectedDates.sort().slice(0, 5).map((date) => (
-                  <Badge key={date} variant="secondary" className="text-[10px] px-1.5 py-0">
-                    {format(parseISO(date), "E d.", { locale: de })}
-                  </Badge>
-                ))}
-                {state.selectedDates.length > 5 && (
-                  <Badge variant="outline" className="text-[10px] px-1.5 py-0">
-                    +{state.selectedDates.length - 5}
-                  </Badge>
-                )}
-              </div>
-            )}
-
-            {/* Canonical plan editor: the only editor once a private plan exists */}
-            {state.productType === "private" && state.appointments !== null && (
-              <div className="mt-3">
-                <PlannedAppointmentsCard />
-              </div>
-            )}
-
-            {/* Legacy Period Day Planner - only when no canonical plan exists */}
-            {state.productType === "private" && state.appointments === null && state.selectedDates.length > 1 && (
-              <div className="mt-3">
-                <PeriodDayPlanner
-                  selectedDates={state.selectedDates}
-                  baseInstructor={state.instructor}
-                  baseTimeSlot={state.timeSlot}
-                  dayInstructorOverrides={state.dayInstructorOverrides}
-                  dayTimeOverrides={state.dayTimeOverrides}
-                  onInstructorChange={setDayInstructorOverride}
-                  onDateChange={movePlannedDate}
-                  onTimeChange={setDayTimeOverride}
-                  onAddTimeBlock={addTimeBlock}
-                  onUpdateTimeBlock={updateTimeBlock}
-                  onRemoveTimeBlock={removeTimeBlock}
-                  onRemoveInstructorOverride={removeDayInstructorOverride}
-                  onRemoveTimeOverride={removeDayTimeOverride}
-                  sport={state.sport}
-                />
+                {[...state.selectedDates].sort().slice(0, 5).map((date) => <Badge key={date} variant="secondary" className="px-1.5 py-0 text-[10px]">{format(parseISO(date), "E d.", { locale: de })}</Badge>)}
+                {state.selectedDates.length > 5 && <Badge variant="outline" className="px-1.5 py-0 text-[10px]">+{state.selectedDates.length - 5}</Badge>}
               </div>
             )}
           </div>
-        )}
 
-        {/* Group Course Fixed Times Info */}
-        {state.productType === "group" && state.selectedDates.length > 0 && (
-          <div className="rounded-md border bg-muted/40 p-3">
-            <div className="flex items-center gap-2 mb-2">
-              <Clock className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm font-medium text-foreground">
-                Feste Kurszeiten
-              </span>
-            </div>
-            <div className="text-sm text-muted-foreground">
-              {groupRecommendation.hasToddlers ? (
-                <span>🧒 Windel-Wedelkurs: <strong>10:00 - 12:00</strong> (nur vormittags)</span>
-              ) : (
-                <span>📚 Standard: <strong>10:00 - 12:00</strong> + <strong>14:00 - 16:00</strong></span>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Price Preview - Compact */}
-        {selectedProduct && (
-          <div className="flex items-center justify-between rounded-md bg-muted/50 p-2">
-            <div>
-              <p className="text-xs font-medium">{selectedProduct.name}</p>
-              {state.productType === "private" && state.selectedDates.length > 1 && (
-                <p className="text-[10px] text-muted-foreground">
-                  {state.selectedDates.length}× CHF {selectedProduct.price}
-                </p>
-              )}
-            </div>
-            <p className="text-lg font-bold">
-              CHF{" "}
-              {state.productType === "private"
-                ? (selectedProduct.price * state.selectedDates.length).toFixed(0)
-                : selectedProduct.price.toFixed(0)}
-            </p>
-          </div>
-        )}
-
-      </div>
-
-      {/* Right Column - Controls + Live Availability (60%) */}
-      <div className="lg:col-span-3 space-y-4 lg:pt-3">
-        {/* Grid Control Bar - Time + Meeting Point */}
-        <div className="space-y-1.5">
-          <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-            <Clock className="h-3 w-3 inline mr-1" />
-            Zeitfenster & Treffpunkt
-          </Label>
-          <div
-            ref={timeControlsRef}
-            className={cn(
-              "flex min-h-[42px] scroll-mt-24 flex-wrap items-center gap-3 rounded-md border-2 p-2 transition-shadow",
-              showTimeRequired && "ring-2 ring-destructive ring-offset-2 ring-offset-background",
-            )}
-          >
-            {state.productType && state.selectedDates.length > 0 ? (
-              <>
-                {/* Time Selection - Only for private lessons */}
-                {state.productType === "private" && (
-                  <>
-                    <div className="flex items-center gap-1.5">
-                      <Select
-                        value={startTime || ""}
-                        onValueChange={(value) => {
-                          const nextEnd = endTime && parseInt(value.split(":")[0]) >= parseInt(endTime.split(":")[0])
-                            ? null
-                            : endTime;
-                          updateTimeWindow(value, nextEnd);
-                        }}
-                      >
-                        <SelectTrigger
-                          ref={startTimeTriggerRef}
-                          aria-invalid={showTimeRequired && !startTime}
-                          className="control-target w-[76px] text-xs"
-                        >
-                          <SelectValue placeholder="Start" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {START_TIMES.map((time) => (
-                            <SelectItem key={time} value={time}>
-                              {time}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <ArrowRight className="h-3 w-3 text-muted-foreground flex-shrink-0" />
-                      <Select
-                        value={endTime || ""}
-                        onValueChange={(value) => updateTimeWindow(startTime, value)}
-                        disabled={!startTime}
-                      >
-                        <SelectTrigger
-                          ref={endTimeTriggerRef}
-                          aria-invalid={showTimeRequired && !!startTime && !endTime}
-                          className="control-target w-[76px] text-xs"
-                        >
-                          <SelectValue placeholder="Ende" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {availableEndTimes.map((time) => (
-                            <SelectItem key={time} value={time}>
-                              {time}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      {calculatedDuration && (
-                        <Badge variant="secondary" className="text-xs h-5 px-1.5">
-                          {calculatedDuration}h
-                        </Badge>
-                      )}
-                    </div>
-
-                    {/* Separator */}
-                    <div className="w-px h-5 bg-border" />
-                  </>
-                )}
-
-                {/* Meeting Points - Horizontal Pills */}
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <MapPin className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
-                  {MEETING_POINTS.map((point) => {
-                    const isSelected = state.meetingPoint === point.id;
-                    // Only lock for private lessons with beginners; group courses always allow selection
-                    const isLocked = state.productType === "private" && allBeginnersOnly && point.id !== "sammelplatz_gorfion";
-                    return (
-                      <button
-                        key={point.id}
-                        onClick={() => !isLocked && setMeetingPoint(point.id)}
-                        disabled={isLocked}
-                        className={`control-target px-2.5 py-1 text-[10px] font-medium rounded-full border transition-all ${
-                          isSelected
-                            ? "bg-primary text-primary-foreground border-primary shadow-sm"
-                            : isLocked
-                            ? "cursor-not-allowed bg-muted/30 border-muted/50 text-muted-foreground/40"
-                            : "bg-background hover:bg-primary/10 hover:border-primary/50 border-border"
-                        }`}
-                      >
-                        {point.name.replace("Sammelplatz ", "").replace("Kasse ", "")}
-                      </button>
-                    );
-                  })}
-                </div>
-              </>
-            ) : (
-              <span className="text-xs text-muted-foreground">
-                {!state.productType 
-                  ? "Wählen Sie Buchungstyp" 
-                  : "Datum auswählen"}
-              </span>
-            )}
-          </div>
-        </div>
-
-        {/* Sprache + Wunschlehrer + Ohne Lehrer Row (aligned with Sportart) */}
-        {state.productType === "private" && (
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            {/* Language */}
-            <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1">
-                <Globe className="h-3 w-3" />
-                Sprache
-              </Label>
-              <Select value={state.language} onValueChange={setLanguage}>
-                <SelectTrigger className="control-target text-sm">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {LANGUAGES.map((lang) => (
-                    <SelectItem key={lang.value} value={lang.value}>
-                      {lang.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            {/* Preferred Teacher Search */}
-            <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1">
-                <Search className="h-3 w-3" />
-                Wunschlehrer
-              </Label>
-              <Input
-                placeholder="Name suchen..."
-                value={preferredTeacher}
-                onChange={(e) => setPreferredTeacher(e.target.value)}
-                className="control-target text-sm"
-              />
-            </div>
-            {/* Assign Later */}
-            <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1">
-                Ohne Lehrer
-              </Label>
-              <div className="control-target flex items-center gap-2 rounded-md border bg-background px-3">
-                <Checkbox
-                  id="assign-later"
-                  checked={state.assignLater}
-                  onCheckedChange={(checked) => setAssignLater(checked === true)}
-                />
-                <label htmlFor="assign-later" className="cursor-pointer text-sm">
-                  Später zuweisen
-                </label>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* "Später zuweisen": participant entry independent of teacher slots */}
-        {showAvailabilityGrid && state.assignLater && (
-          <div className="flex flex-col gap-2 rounded-md border bg-muted/40 p-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="min-w-0 flex-1">
-              <p className="break-words text-sm text-foreground">
-                {startTime && endTime
-                  ? `Ohne Lehrperson: ${state.selectedDates.length} ${state.selectedDates.length === 1 ? "Tag" : "Tage"}, ${startTime}–${endTime}. Die Lehrperson wird später zugewiesen.`
-                  : !startTime
-                    ? "Startzeit fehlt. Endzeit fehlt."
-                    : "Endzeit fehlt."}
-              </p>
-              {(!startTime || !endTime) && (
-                <Button variant="link" size="sm" className="control-target mt-1 h-auto px-0" onClick={focusMissingTime}>
-                  Zeitfenster wählen
-                </Button>
-              )}
-            </div>
-            <Button
-              size="sm"
-              className="control-target shrink-0"
-              disabled={!startTime || !endTime}
-              onClick={() => {
-                if (!startTime || !endTime) return;
-                const dates = [...state.selectedDates].sort();
-                setPopoverSlot({ instructorId: null, instructorName: null, date: dates[0], startTime, endTime });
-              }}
-            >
-              <Users className="h-4 w-4 mr-1" />
-              Teilnehmer hinzufügen
-            </Button>
-          </div>
-        )}
-
-        {/* Slim Warning Bar */}
-        {warnings.length > 0 && state.productType === "private" && state.selectedDates.length > 0 && (
-          <div className="flex flex-wrap items-center gap-3 px-3 py-1.5 bg-amber-50/80 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded text-[11px] text-amber-800 dark:text-amber-200">
-            {warnings.map((w) => {
-              const IconComponent = w.icon === "age" ? Users : w.icon === "beginner" ? MapPin : Clock;
-              return (
-                <div key={w.id} className="flex items-center gap-1">
-                  <IconComponent className="h-3 w-3" />
-                  <span>{w.message}</span>
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        {/* Group Course Selector or Availability Grid */}
-        {isGroupCourse ? (
-          <div className="space-y-4">
+          <div ref={timeControlsRef} className={cn("scroll-mt-24 space-y-3 rounded-md border p-3 transition-shadow", showTimeRequired && "ring-2 ring-destructive ring-offset-2 ring-offset-background")}>
             {state.selectedDates.length > 0 ? (
-              <>
-                {/* Participant-specific booking mode (auto-enabled when levels differ) */}
-                {state.useParticipantSpecificBooking ? (
-                  <>
-                    {/* Info banner explaining individual mode */}
-                    <Alert className="bg-muted/40">
-                      <Sparkles className="h-4 w-4 text-muted-foreground" />
-                      <AlertDescription className="text-foreground">
-                        <div className="space-y-1">
-                          <p className="font-medium">Individuelle Buchung aktiviert</p>
-                          <p className="text-sm">
-                            {hasDifferentLevels
-                              ? "Teilnehmer haben unterschiedliche Niveaus – jeder wird in den passenden Kurs eingeschrieben."
-                              : "Teilnehmer haben unterschiedliche Altersgruppen – jeder wird in den passenden Kurs eingeschrieben."}
-                          </p>
-                        </div>
-                      </AlertDescription>
-                    </Alert>
-
-                    {/* Individual participant cards */}
-                    <div className="space-y-3">
-                      {state.selectedParticipants.map((participant, index) => {
-                        const booking = state.participantBookings[participant.id];
-                        if (!booking) return null;
-
-                        const firstParticipantBooking = state.participantBookings[state.selectedParticipants[0]?.id];
-                        const hasDifference =
-                          index > 0 &&
-                          firstParticipantBooking &&
-                          (booking.groupCourseId !== firstParticipantBooking.groupCourseId ||
-                            booking.dates.length !== firstParticipantBooking.dates.length);
-
-                        return (
-                          <ParticipantBookingCard
-                            key={participant.id}
-                            participant={participant}
-                            booking={booking}
-                            onBookingChange={(newBooking) =>
-                              handleParticipantBookingChange(participant.id, newBooking)
-                            }
-                            onCopyToAll={() => copyBookingToAllParticipants(participant.id)}
-                            isFirst={index === 0}
-                            showDifferenceWarning={hasDifference}
-                          />
-                        );
-                      })}
+              <div className="grid gap-3 sm:grid-cols-2">
+                {state.productType === "private" && (
+                  <div className="space-y-1.5">
+                    <Label className="flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground"><Clock className="h-3 w-3" />Zeitfenster</Label>
+                    <div className="flex items-center gap-2">
+                      <Select value={startTime || ""} onValueChange={(value) => { const nextEnd = endTime && parseInt(value.split(":")[0]) >= parseInt(endTime.split(":")[0]) ? null : endTime; updateTimeWindow(value, nextEnd); }}>
+                        <SelectTrigger ref={startTimeTriggerRef} aria-invalid={showTimeRequired && !startTime} className="control-target min-w-0 flex-1 text-sm"><SelectValue placeholder="Start" /></SelectTrigger>
+                        <SelectContent>{START_TIMES.map((time) => <SelectItem key={time} value={time}>{time}</SelectItem>)}</SelectContent>
+                      </Select>
+                      <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+                      <Select value={endTime || ""} onValueChange={(value) => updateTimeWindow(startTime, value)} disabled={!startTime}>
+                        <SelectTrigger ref={endTimeTriggerRef} aria-invalid={showTimeRequired && !!startTime && !endTime} className="control-target min-w-0 flex-1 text-sm"><SelectValue placeholder="Ende" /></SelectTrigger>
+                        <SelectContent>{availableEndTimes.map((time) => <SelectItem key={time} value={time}>{time}</SelectItem>)}</SelectContent>
+                      </Select>
+                      {calculatedDuration && <Badge variant="secondary" className="h-5 shrink-0 px-1.5 text-xs">{calculatedDuration}h</Badge>}
                     </div>
-                  </>
-                ) : (
-                  <>
-                    {/* Shared group booking mode (original behavior) */}
-                    {/* Participant enrollment preview for multiple participants */}
-                    {state.selectedParticipants.length > 1 && (
-                      <Card className="bg-muted/40">
-                        <CardContent className="p-3">
-                          <div className="flex items-start gap-2 mb-2">
-                            <Users className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-                            <span className="min-w-0 break-words text-sm font-medium text-foreground">
-                              {state.selectedParticipants.length} Teilnehmer werden in diese Gruppe eingeschrieben:
-                            </span>
-                          </div>
-                          <div className="flex flex-wrap gap-2">
-                            {state.selectedParticipants.map((p) => (
-                              <Badge key={p.id} variant="secondary" className="bg-white">
-                                {p.first_name} {p.last_name}
-                              </Badge>
-                            ))}
-                          </div>
-                        </CardContent>
-                      </Card>
-                    )}
-
-                    <GroupSelector
-                      selectedDates={state.selectedDates}
-                      sport={state.sport}
-                      participants={state.selectedParticipants}
-                      selectedGroupId={state.selectedGroupId}
-                      onGroupSelect={setSelectedGroupId}
-                    />
-
-                    {/* Lunch Supervision Add-on (only in shared mode) */}
-                    {state.selectedParticipants.length > 0 && (
-                      <div className="pt-2">
-                        <LunchSupervisionAddon
-                          selectedDates={state.selectedDates}
-                          participants={state.selectedParticipants}
-                          lunchSelections={state.lunchSelections}
-                          vegetarianSelections={state.vegetarianSelections}
-                          onLunchDaysChange={setLunchDaysForParticipant}
-                          onVegetarianChange={setVegetarianForParticipant}
-                          lunchPricePerDay={lunchProduct?.price || 25}
-                        />
-                      </div>
-                    )}
-                  </>
+                  </div>
                 )}
-              </>
-            ) : (
-              <div className="flex flex-col items-center justify-center py-8 text-center rounded-lg border border-dashed">
-                <CalendarDays className="h-10 w-10 text-muted-foreground mb-2" />
-                <p className="font-medium text-sm">Wählen Sie zuerst die Kurstage</p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Dann werden verfügbare Gruppen angezeigt.
-                </p>
-              </div>
-            )}
-          </div>
-        ) : showAvailabilityGrid ? (
-          <div className={cn(
-            "transition-opacity",
-            state.assignLater && "hidden",
-            isFullscreen && "fixed inset-0 z-50 bg-background p-4 overflow-auto"
-          )}>
-            {/* Fullscreen header */}
-            {isFullscreen && (
-              <div className="flex items-center justify-between mb-3 px-2 py-1.5 rounded-md bg-muted">
-                <span className="text-sm font-medium">Scheduler (Vollbild)</span>
-                <Button variant="ghost" size="sm" className="control-target" onClick={() => setIsFullscreen(false)}>
-                  <X className="h-4 w-4 mr-1" />
-                  ESC zum Schließen
-                </Button>
-              </div>
-            )}
-            {/* Fullscreen toggle */}
-            {!isFullscreen && (
-              <div className="flex justify-end mb-1">
-                <Button variant="ghost" size="sm" className="control-target text-xs gap-1" onClick={() => setIsFullscreen(true)}>
-                  <Maximize2 className="h-3 w-3" />
-                  Vollbild
-                </Button>
-              </div>
-            )}
-            <MiniSchedulerGrid
-              selectedDates={state.selectedDates}
-              sport={state.sport}
-              language={state.language}
-              meetingPoint={state.meetingPoint}
-              onSlotSelect={handleSlotSelect}
-              selectedInstructor={state.instructor}
-              preferredTeacher={preferredTeacher}
-              selectedDuration={calculatedDuration}
-              selectedStartTime={startTime}
-              participantIds={state.selectedParticipants.map(p => p.id)}
-              multiSelectSlots={state.miniSchedulerSelections}
-              onMultiSelectToggle={toggleMiniSchedulerSlot}
-            />
-            
-            {/* Multi-select action bar */}
-            {state.miniSchedulerSelections.length > 0 && (
-              <div className="mt-3 space-y-3 rounded-lg border border-primary bg-primary/5 p-3">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <Badge variant="secondary" className="bg-primary/20 text-primary">
-                    {state.miniSchedulerSelections.length} {state.miniSchedulerSelections.length === 1 ? "Termin" : "Termine"} ausgewählt
-                  </Badge>
-                  {(() => {
-                    const instrMap = new Map<string, { name: string; count: number }>();
-                    for (const s of state.miniSchedulerSelections) {
-                      const entry = instrMap.get(s.instructorId);
-                      if (entry) entry.count++;
-                      else instrMap.set(s.instructorId, { name: s.instructorName, count: 1 });
-                    }
-                    if (instrMap.size > 1) {
-                      return (
-                        <span className="text-xs text-muted-foreground">
-                          {[...instrMap.values()].map(v => `${v.name} (${v.count})`).join(", ")}
-                        </span>
-                      );
-                    }
-                    return null;
-                  })()}
-                  <span className="text-xs text-muted-foreground">
-                    Mit „Mehrere Termine auswählen“ oder Strg/⌘ + Klick hinzufügen
-                  </span>
-                </div>
-                <div className="divide-y divide-border rounded-md border border-border bg-background">
-                  {[...state.miniSchedulerSelections]
-                    .sort((a, b) => `${a.date} ${a.startTime}`.localeCompare(`${b.date} ${b.startTime}`))
-                    .map((slot) => (
-                      <div key={slot.id} className="flex items-center justify-between gap-3 px-3 py-2 text-xs">
-                        <div className="min-w-0">
-                          <span className="font-medium">
-                            {format(parseISO(slot.date), "EEE, dd.MM.yyyy", { locale: de })}
-                          </span>
-                          <span className="text-muted-foreground">
-                            {` · ${slot.startTime}–${slot.endTime} · ${slot.instructorName}`}
-                          </span>
-                        </div>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="icon-action shrink-0"
-                          aria-label={`Termin ${slot.date} ${slot.startTime} entfernen`}
-                          title="Termin entfernen"
-                          onClick={() => toggleMiniSchedulerSlot({
-                            instructorId: slot.instructorId,
-                            instructorName: slot.instructorName,
-                            date: slot.date,
-                            startTime: slot.startTime,
-                            endTime: slot.endTime,
-                          })}
-                        >
-                          <X className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
-                    ))}
-                </div>
-                <div className="flex justify-end gap-2">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={clearMiniSchedulerSelection}
-                    className="control-target text-xs"
-                  >
-                    Abbrechen
-                  </Button>
-                  <Button
-                    size="sm"
-                    onClick={handleApplyMultiSelection}
-                    className="control-target text-xs"
-                  >
-                    <Check className="h-3 w-3 mr-1" />
-                    Auswahl übernehmen
-                  </Button>
+                <div className="space-y-1.5">
+                  <Label className="flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground"><Globe className="h-3 w-3" />Sprache</Label>
+                  <Select value={state.language} onValueChange={setLanguage}>
+                    <SelectTrigger className="control-target text-sm"><SelectValue /></SelectTrigger>
+                    <SelectContent>{LANGUAGES.map((lang) => <SelectItem key={lang.value} value={lang.value}>{lang.label}</SelectItem>)}</SelectContent>
+                  </Select>
                 </div>
               </div>
-            )}
-          </div>
-        ) : (
-          <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground rounded-lg border border-dashed">
-            <Info className="h-6 w-6 mb-2" />
-            <p className="text-sm">
-              {!state.productType
-                ? "Wählen Sie zunächst einen Buchungstyp"
-                : state.selectedDates.length === 0
-                ? "Wählen Sie mindestens ein Datum"
-                : !startTime || !endTime
-                ? "Wählen Sie ein Zeitfenster"
-                : "Konfiguration vervollständigen"}
-            </p>
-          </div>
-        )}
+            ) : <p className="text-sm text-muted-foreground">Datum auswählen</p>}
 
-        {/* Selected instructor display - hide when multi-group proposal is active */}
-        {state.instructor && !isGroupCourse && (!state.privateGroupProposal || state.privateGroupProposal.groups.length <= 1) && (
-          <div className="flex items-center gap-2 rounded-md border border-primary bg-primary/5 p-2">
-            <Check className="h-4 w-4 text-primary" />
-            <span className="text-sm font-medium">
-              {state.instructor.first_name} {state.instructor.last_name}
-            </span>
-            <Badge variant="secondary" className="ml-auto text-xs">
-              Ausgewählt
-            </Badge>
+            <div className="space-y-1.5">
+              <Label className="flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground"><MapPin className="h-3 w-3" />Treffpunkt</Label>
+              <div className="flex flex-wrap gap-1.5">
+                {MEETING_POINTS.map((point) => {
+                  const isSelected = state.meetingPoint === point.id;
+                  const isLocked = state.productType === "private" && allBeginnersOnly && point.id !== "sammelplatz_gorfion";
+                  return <Button key={point.id} type="button" variant={isSelected ? "default" : "outline"} size="sm" disabled={isLocked} onClick={() => !isLocked && setMeetingPoint(point.id)} className="control-target h-9 text-xs">{point.name.replace("Sammelplatz ", "").replace("Kasse ", "")}</Button>;
+                })}
+              </div>
+            </div>
           </div>
-        )}
 
-        {/* Instruction hint */}
-        {showAvailabilityGrid && !state.instructor && !state.assignLater && (
-          <p className="text-xs text-muted-foreground text-center">
-            Klicken Sie auf einen grünen Slot um Teilnehmer zuzuweisen und in den Warenkorb zu legen
-          </p>
-        )}
-      </div>
-
-      {/* Slot Booking Popover */}
-      {popoverSlot && (
-        <SlotBookingPopover
-          open={!!popoverSlot}
-          onClose={() => setPopoverSlot(null)}
-          instructorId={popoverSlot.instructorId}
-          instructorName={popoverSlot.instructorName}
-          date={popoverSlot.date}
-          allDates={popoverSlot.instructorId ? undefined : state.selectedDates}
-          startTime={popoverSlot.startTime}
-          endTime={popoverSlot.endTime}
-          preselectedCustomerId={state.customerId}
-          sport={state.sport}
-          defaultMeetingPoint={state.meetingPoint || "sammelplatz_gorfion"}
-          onAddToCart={handleSlotAddToCart}
-        />
+          {state.productType === "private" && state.appointments !== null && <PlannedAppointmentsCard />}
+          {state.productType === "private" && state.appointments === null && state.selectedDates.length > 1 && (
+            <PeriodDayPlanner selectedDates={state.selectedDates} baseInstructor={state.instructor} baseTimeSlot={state.timeSlot} dayInstructorOverrides={state.dayInstructorOverrides} dayTimeOverrides={state.dayTimeOverrides} onInstructorChange={setDayInstructorOverride} onDateChange={movePlannedDate} onTimeChange={setDayTimeOverride} onAddTimeBlock={addTimeBlock} onUpdateTimeBlock={updateTimeBlock} onRemoveTimeBlock={removeTimeBlock} onRemoveInstructorOverride={removeDayInstructorOverride} onRemoveTimeOverride={removeDayTimeOverride} sport={state.sport} />
+          )}
+          {state.productType === "group" && state.selectedDates.length > 0 && (
+            <div className="rounded-md border bg-muted/40 p-3"><div className="mb-2 flex items-center gap-2"><Clock className="h-4 w-4 text-muted-foreground" /><span className="text-sm font-medium">Feste Kurszeiten</span></div><p className="text-sm text-muted-foreground">{groupRecommendation.hasToddlers ? <>🧒 Windel-Wedelkurs: <strong>10:00 - 12:00</strong> (nur vormittags)</> : <>📚 Standard: <strong>10:00 - 12:00</strong> + <strong>14:00 - 16:00</strong></>}</p></div>
+          )}
+        </section>
       )}
+
+      {state.productType === "private" && (
+        <section aria-labelledby="assignment-section-title" className="space-y-4 border-b pb-6">
+          <div>
+            <h2 id="assignment-section-title" className="text-base font-semibold text-foreground">Lehrerzuweisung</h2>
+            <p className="text-sm text-muted-foreground">Lehrperson jetzt auswählen oder die Zuweisung offenlassen.</p>
+          </div>
+          <RadioGroup value={state.assignLater ? "later" : "now"} onValueChange={(value) => setAssignLater(value === "later")} className="grid gap-2 sm:grid-cols-2" aria-label="Zeitpunkt der Lehrerzuweisung">
+            <Label htmlFor="assignment-now" className={cn("control-target flex cursor-pointer items-center gap-3 rounded-md border-2 px-3", !state.assignLater ? "border-primary bg-primary/5" : "border-border")}>
+              <RadioGroupItem id="assignment-now" value="now" /><span className="text-sm font-medium">Jetzt auswählen</span>
+            </Label>
+            <Label htmlFor="assignment-later" className={cn("control-target flex cursor-pointer items-center gap-3 rounded-md border-2 px-3", state.assignLater ? "border-primary bg-primary/5" : "border-border")}>
+              <RadioGroupItem id="assignment-later" value="later" /><span className="text-sm font-medium">Später zuweisen</span>
+            </Label>
+          </RadioGroup>
+
+          {state.assignLater ? (
+            <div className="rounded-md border bg-muted/40 p-3">
+              <p className="text-sm text-foreground">Datum und Zeit werden jetzt gebucht. Die Lehrperson wird später zugewiesen.</p>
+              {(!startTime || !endTime) && <div className="mt-2"><p className="text-sm text-destructive">{!startTime ? "Startzeit fehlt. Endzeit fehlt." : "Endzeit fehlt."}</p><Button variant="outline" size="sm" className="control-target mt-2" onClick={focusMissingTime}>Zeitfenster wählen</Button></div>}
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="preferred-teacher" className="flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground"><Search className="h-3 w-3" />Wunschlehrer</Label>
+                <Input id="preferred-teacher" placeholder="Name suchen..." value={preferredTeacher} onChange={(e) => setPreferredTeacher(e.target.value)} className="control-target text-sm" />
+              </div>
+              <div className={cn("min-w-0 transition-opacity", isFullscreen && "fixed inset-0 z-50 overflow-auto bg-background p-4")}>
+                {isFullscreen ? (
+                  <div className="mb-3 flex items-center justify-between rounded-md bg-muted px-2 py-1.5"><span className="text-sm font-medium">Scheduler (Vollbild)</span><Button variant="ghost" size="sm" className="control-target" onClick={() => setIsFullscreen(false)}><X className="mr-1 h-4 w-4" />ESC zum Schließen</Button></div>
+                ) : <div className="mb-1 flex justify-end"><Button variant="ghost" size="sm" className="control-target gap-1 text-xs" onClick={() => setIsFullscreen(true)}><Maximize2 className="h-3 w-3" />Vollbild</Button></div>}
+                {showAvailabilityGrid ? (
+                  <MiniSchedulerGrid selectedDates={state.selectedDates} sport={state.sport} language={state.language} meetingPoint={state.meetingPoint} onSlotSelect={handleSlotSelect} selectedInstructor={state.instructor} preferredTeacher={preferredTeacher} selectedDuration={calculatedDuration} selectedStartTime={startTime} participantIds={state.selectedParticipants.map(p => p.id)} multiSelectSlots={state.miniSchedulerSelections} onMultiSelectToggle={toggleMiniSchedulerSlot} />
+                ) : <div className="flex flex-col items-center justify-center rounded-md border border-dashed py-8 text-center text-muted-foreground"><Info className="mb-2 h-6 w-6" /><p className="text-sm">Wählen Sie mindestens ein Datum</p></div>}
+                {state.miniSchedulerSelections.length > 0 && (
+                  <div className="mt-3 space-y-3 rounded-md border border-primary bg-primary/5 p-3">
+                    <div className="flex flex-wrap items-center gap-2"><Badge variant="secondary">{state.miniSchedulerSelections.length} {state.miniSchedulerSelections.length === 1 ? "Termin" : "Termine"} ausgewählt</Badge><span className="text-xs text-muted-foreground">Mit „Mehrere Termine auswählen“ oder Strg/⌘ + Klick hinzufügen</span></div>
+                    <div className="divide-y rounded-md border bg-background">{[...state.miniSchedulerSelections].sort((a,b) => `${a.date} ${a.startTime}`.localeCompare(`${b.date} ${b.startTime}`)).map((slot) => <div key={slot.id} className="flex items-center justify-between gap-3 px-3 py-2 text-xs"><span className="min-w-0"><strong>{format(parseISO(slot.date), "EEE, dd.MM.yyyy", { locale: de })}</strong><span className="text-muted-foreground"> · {slot.startTime}–{slot.endTime} · {slot.instructorName}</span></span><Button type="button" variant="ghost" size="icon" className="icon-action shrink-0" aria-label={`Termin ${slot.date} ${slot.startTime} entfernen`} onClick={() => toggleMiniSchedulerSlot({ instructorId: slot.instructorId, instructorName: slot.instructorName, date: slot.date, startTime: slot.startTime, endTime: slot.endTime })}><X className="h-3.5 w-3.5" /></Button></div>)}</div>
+                    <div className="flex justify-end gap-2"><Button variant="ghost" size="sm" onClick={clearMiniSchedulerSelection} className="control-target text-xs">Abbrechen</Button><Button size="sm" onClick={handleApplyMultiSelection} className="control-target text-xs"><Check className="mr-1 h-3 w-3" />Auswahl übernehmen</Button></div>
+                  </div>
+                )}
+              </div>
+              {state.instructor && (!state.privateGroupProposal || state.privateGroupProposal.groups.length <= 1) && <div className="flex items-center gap-2 rounded-md border border-primary bg-primary/5 p-2"><Check className="h-4 w-4 text-primary" /><span className="text-sm font-medium">{state.instructor.first_name} {state.instructor.last_name}</span><Badge variant="secondary" className="ml-auto text-xs">Ausgewählt</Badge></div>}
+              {showAvailabilityGrid && !state.instructor && <p className="text-center text-xs text-muted-foreground">Klicken Sie auf einen grünen Slot, um Teilnehmer zuzuweisen und in den Warenkorb zu legen.</p>}
+            </div>
+          )}
+        </section>
+      )}
+
+      <section aria-labelledby="participants-section-title" className="space-y-3 border-b pb-6">
+        <div>
+          <h2 id="participants-section-title" className="text-base font-semibold text-foreground">Teilnehmer</h2>
+          <p className="text-sm text-muted-foreground">Personen für dieses Produkt.</p>
+        </div>
+        {(() => {
+          const activeItem = state.cartItems.find((item) => item.id === state.activeCartItemId);
+          const ids = activeItem?.assignedParticipantIds ?? [];
+          const people = ids.map((id) => state.localParticipants.find((p) => p.id === id) ?? state.selectedParticipants.find((p) => p.id === id)).filter(Boolean);
+          return people.length > 0 ? <div className="divide-y rounded-md border">{people.map((person) => person && <div key={person.id} className="flex items-center gap-2 px-3 py-2"><Users className="h-4 w-4 text-muted-foreground" /><span className="text-sm font-medium">{person.first_name} {person.last_name || ""}</span></div>)}</div> : <p className="rounded-md border border-dashed p-3 text-sm text-muted-foreground">Noch keine Teilnehmer zugewiesen.</p>;
+        })()}
+        {state.productType === "private" && state.assignLater && (
+          <Button type="button" variant="outline" size="sm" className="control-target" disabled={!startTime || !endTime || state.selectedDates.length === 0} onClick={() => { if (!startTime || !endTime) { focusMissingTime(); return; } const dates = [...state.selectedDates].sort(); setPopoverSlot({ instructorId: null, instructorName: null, date: dates[0], startTime, endTime }); }}><Users className="mr-1 h-4 w-4" />Teilnehmer hinzufügen</Button>
+        )}
+      </section>
+
+      {warnings.length > 0 && state.productType === "private" && state.selectedDates.length > 0 && (
+        <div className="flex flex-wrap items-center gap-3 rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-foreground">{warnings.map((w) => { const IconComponent = w.icon === "age" ? Users : w.icon === "beginner" ? MapPin : Clock; return <div key={w.id} className="flex items-center gap-1"><IconComponent className="h-3 w-3" /><span>{w.message}</span></div>; })}</div>
+      )}
+
+      {isGroupCourse && (
+        <section aria-label="Kursauswahl" className="space-y-4">
+          {state.selectedDates.length > 0 ? state.useParticipantSpecificBooking ? (
+            <><Alert className="bg-muted/40"><Sparkles className="h-4 w-4 text-muted-foreground" /><AlertDescription><p className="font-medium">Individuelle Buchung aktiviert</p><p className="text-sm">{hasDifferentLevels ? "Teilnehmer haben unterschiedliche Niveaus – jeder wird in den passenden Kurs eingeschrieben." : "Teilnehmer haben unterschiedliche Altersgruppen – jeder wird in den passenden Kurs eingeschrieben."}</p></AlertDescription></Alert><div className="space-y-3">{state.selectedParticipants.map((participant, index) => { const booking = state.participantBookings[participant.id]; if (!booking) return null; const first = state.participantBookings[state.selectedParticipants[0]?.id]; const differs = index > 0 && first && (booking.groupCourseId !== first.groupCourseId || booking.dates.length !== first.dates.length); return <ParticipantBookingCard key={participant.id} participant={participant} booking={booking} onBookingChange={(next) => handleParticipantBookingChange(participant.id, next)} onCopyToAll={() => copyBookingToAllParticipants(participant.id)} isFirst={index === 0} showDifferenceWarning={!!differs} />; })}</div></>
+          ) : (
+            <><GroupSelector selectedDates={state.selectedDates} sport={state.sport} participants={state.selectedParticipants} selectedGroupId={state.selectedGroupId} onGroupSelect={setSelectedGroupId} />{state.selectedParticipants.length > 0 && <LunchSupervisionAddon selectedDates={state.selectedDates} participants={state.selectedParticipants} lunchSelections={state.lunchSelections} vegetarianSelections={state.vegetarianSelections} onLunchDaysChange={setLunchDaysForParticipant} onVegetarianChange={setVegetarianForParticipant} lunchPricePerDay={lunchProduct?.price || 25} />}</>
+          ) : <div className="flex flex-col items-center justify-center rounded-md border border-dashed py-8 text-center"><CalendarDays className="mb-2 h-10 w-10 text-muted-foreground" /><p className="text-sm font-medium">Wählen Sie zuerst die Kurstage</p></div>}
+        </section>
+      )}
+
+      {popoverSlot && <SlotBookingPopover open={!!popoverSlot} onClose={() => setPopoverSlot(null)} instructorId={popoverSlot.instructorId} instructorName={popoverSlot.instructorName} date={popoverSlot.date} allDates={popoverSlot.instructorId ? undefined : state.selectedDates} startTime={popoverSlot.startTime} endTime={popoverSlot.endTime} preselectedCustomerId={state.customerId} sport={state.sport} defaultMeetingPoint={state.meetingPoint || "sammelplatz_gorfion"} onAddToCart={handleSlotAddToCart} />}
     </div>
   );
 }

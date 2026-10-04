@@ -1,6 +1,7 @@
 # Roadmap
 
 ## UI optimization
+- [x] Booking step-one UX: single input column, early explicit teacher assignment, unified participant section, sticky desktop summary, responsive footer-safe layout
 - [x] UI-01 foundations + bookings/payment pilot: UI standard, accessible primary action pairing, icon actions, neutral source badge, ticket links, responsive filters, payment sheet
 - [x] UI-02 approval/detail + final wizard review: approval sheet, detail skeleton/header, sticky desktop summary, touch and long-title refinements
 - [x] UI-03 form ergonomics: stable dialog anatomy and responsive fields for customer, instructor, course and product forms
