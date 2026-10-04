@@ -2,6 +2,7 @@ import React from "react";
 import { createRoot } from "react-dom/client";
 import { MemoryRouter } from "react-router-dom";
 import { DndContext } from "@dnd-kit/core";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { TooltipProvider } from "../src/components/ui/tooltip";
 import { BookingBar } from "../src/components/scheduler/BookingBar";
 import "../src/index.css";
@@ -11,10 +12,11 @@ const base = {
   participantName: "Provisorische Buchung", participantSport: "snowboard",
   isProvisional: true, source: "website",
 };
+const queryClient = new QueryClient({defaultOptions:{queries:{retry:false}}});
 function App() {
-  return <MemoryRouter><TooltipProvider><DndContext>
+  return <QueryClientProvider client={queryClient}><MemoryRouter><TooltipProvider><DndContext>
     <div className="relative h-[64px] w-[500px] bg-background" data-testid="paid"><BookingBar booking={{...base,id:"provisional-paid",ticketId:"paid",isPaid:true} as any} slotWidth={25} instructorSpecialization="ski" /></div>
     <div className="relative h-[64px] w-[500px] bg-background" data-testid="unpaid"><BookingBar booking={{...base,id:"provisional-unpaid",ticketId:"unpaid",isPaid:false} as any} slotWidth={25} instructorSpecialization="ski" /></div>
-  </DndContext></TooltipProvider></MemoryRouter>;
+  </DndContext></TooltipProvider></MemoryRouter></QueryClientProvider>;
 }
 createRoot(document.getElementById("root")!).render(<App />);
