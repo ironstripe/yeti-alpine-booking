@@ -78,3 +78,31 @@ Network: 72 remote requests intercepted, none reached a live service; 18 aborted
 
 - One unlabelled icon button remains: the red delete icon inside the date picker child component (outside the four files).
 - Not tested: real products/instructor availability grid, group-course data, fullscreen mode, period summary/automatic-prefill and individual-booking panels (their conditions were not reached with the seed), customer search/create/edit dialogs, local-participant persistence (deliberately avoided).
+
+## UI-06 — scheduler visual signals and date-picker labels (2026-10-04)
+
+- Baseline: `fd15e3e97d57746cda887ef57f63f2ccdaa0f41a`. The current main scheduler did **not** import or mount `SchedulerLegend`; it rendered an inline hardcoded compact legend. UI-06 mounts `SchedulerLegend compact` at that same conditional location. `SchedulerLegend` otherwise had no app consumer. `BLOCK_COLORS` reached only its non-compact rendering. The wizard mini-scheduler uses a separate availability/ranking legend and was not changed.
+- Source reach: shared static booking classes feed desktop `BookingBar`, mobile `MobileSchedulerAgenda` markers and the compact main legend. `BLOCK_COLORS` keeps every `BlockType`, label, branch and legend item in the same order, with aligned presentation values only.
+
+### Method and safety
+
+- Temporary standalone Vite fixture (removed before final diff) mounted the real `BookingBar`, both `SchedulerLegend` presentations, `MobileSchedulerAgenda` and `RangeDatePicker` with synthetic paid/open/group/office/provisional bookings, a cross-discipline warning, short 30-minute group bar and long labels.
+- Browser matrix: 1440×900 and 390×560, light and `.dark`; touch enabled at 390. Every non-localhost request was intercepted and aborted. Existing detail components initiated only read requests; no write or mutation was triggered.
+
+### Results
+
+| Check | Result |
+|---|---|
+| Static booking palette agrees across desktop bars, mobile markers and compact legend | PASS |
+| Group `Users` and office `Building` cues; long labels truncate without changing bars | PASS |
+| Paid/open/group/office/provisional normal text contrast | PASS: light minimum 8.57:1; dark minimum 9.90:1 |
+| Provisional striped amber and cross-discipline icon remain visible | PASS |
+| Booking geometry versus baseline class/style source | PASS: positions, width formula, height, padding and coordinates unchanged; measured light/dark identical (96×58px standard, 46×58px short) |
+| Date-picker names | PASS: `Ausgewählte Daten löschen`, `Vorheriger Monat`, `Nächster Monat` |
+| Date-picker action targets | PASS: 36×36 precise pointer, 44×44 coarse pointer |
+| Existing clear callback | PASS: synthetic selection count 2 → 0 |
+
+### Limits
+
+- Not tested with authenticated live scheduler records, real booking detail dialogs, actual drag/drop, fullscreen, selection overlays or physical touch hardware. No save, booking, approval, payment or other live action was performed.
+- `BlockingBar` reserve/absence styling and instructor availability/category colours were deliberately not changed. The non-compact legend remains currently unmounted but aligned for any future direct consumer.
