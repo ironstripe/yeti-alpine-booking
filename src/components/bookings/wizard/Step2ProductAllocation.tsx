@@ -590,13 +590,26 @@ export function Step2ProductAllocation() {
                     </div>
                   </div>
                 )}
-                {state.productType === "private" && <div className="space-y-1.5">
-                  <Label className="flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground"><Globe className="h-3 w-3" />Sprache</Label>
-                  <Select value={state.language} onValueChange={setLanguage}>
-                    <SelectTrigger className="control-target text-sm"><SelectValue /></SelectTrigger>
-                    <SelectContent>{LANGUAGES.map((lang) => <SelectItem key={lang.value} value={lang.value}>{lang.label}</SelectItem>)}</SelectContent>
-                  </Select>
-                </div>}
+                {state.productType === "private" && (
+                  <div className="space-y-1.5">
+                    <Label className="flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      <Globe className="h-3 w-3" />
+                      Sprache
+                    </Label>
+                    <Select value={state.language} onValueChange={setLanguage}>
+                      <SelectTrigger className="control-target text-sm">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {LANGUAGES.map((lang) => (
+                          <SelectItem key={lang.value} value={lang.value}>
+                            {lang.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
               </div>
             ) : <p className="text-sm text-muted-foreground">Datum auswählen</p>}
 
@@ -606,7 +619,19 @@ export function Step2ProductAllocation() {
                 {MEETING_POINTS.map((point) => {
                   const isSelected = state.meetingPoint === point.id;
                   const isLocked = state.productType === "private" && allBeginnersOnly && point.id !== "sammelplatz_gorfion";
-                   return <Button key={point.id} type="button" variant={isSelected ? "secondary" : "outline"} size="sm" disabled={isLocked} onClick={() => !isLocked && setMeetingPoint(point.id)} className="control-target h-9 text-xs">{point.name.replace("Sammelplatz ", "").replace("Kasse ", "")}</Button>;
+                  return (
+                    <Button
+                      key={point.id}
+                      type="button"
+                      variant={isSelected ? "secondary" : "outline"}
+                      size="sm"
+                      disabled={isLocked}
+                      onClick={() => !isLocked && setMeetingPoint(point.id)}
+                      className="control-target h-9 text-xs"
+                    >
+                      {point.name.replace("Sammelplatz ", "").replace("Kasse ", "")}
+                    </Button>
+                  );
                 })}
               </div>
             </div>
@@ -661,10 +686,19 @@ export function Step2ProductAllocation() {
             aria-hidden={state.assignLater}
             className={cn("space-y-3", state.assignLater && "hidden")}
           >
-              <div className="space-y-1.5">
-                <Label htmlFor="preferred-teacher" className="flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground"><Search className="h-3 w-3" />Wunschlehrer</Label>
-                <Input id="preferred-teacher" placeholder="Name suchen..." value={preferredTeacher} onChange={(e) => setPreferredTeacher(e.target.value)} className="control-target text-sm" />
-              </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="preferred-teacher" className="flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                <Search className="h-3 w-3" />
+                Wunschlehrer
+              </Label>
+              <Input
+                id="preferred-teacher"
+                placeholder="Name suchen..."
+                value={preferredTeacher}
+                onChange={(e) => setPreferredTeacher(e.target.value)}
+                className="control-target text-sm"
+              />
+            </div>
               <div className={cn("min-w-0 transition-opacity", isFullscreen && "fixed inset-0 z-50 overflow-auto bg-background p-4")}>
                 {isFullscreen ? (
                   <div className="mb-3 flex items-center justify-between rounded-md bg-muted px-2 py-1.5"><span className="text-sm font-medium">Scheduler (Vollbild)</span><Button variant="ghost" size="sm" className="control-target" onClick={() => setIsFullscreen(false)}><X className="mr-1 h-4 w-4" />ESC zum Schließen</Button></div>
@@ -676,7 +710,15 @@ export function Step2ProductAllocation() {
                   <div className="mt-3 space-y-3 rounded-md border border-primary bg-primary/5 p-3">
                     <div className="flex flex-wrap items-center gap-2"><Badge variant="secondary">{state.miniSchedulerSelections.length} {state.miniSchedulerSelections.length === 1 ? "Termin" : "Termine"} ausgewählt</Badge><span className="text-xs text-muted-foreground">Mit „Mehrere Termine auswählen“ oder Strg/⌘ + Klick hinzufügen</span></div>
                     <div className="divide-y rounded-md border bg-background">{[...state.miniSchedulerSelections].sort((a,b) => `${a.date} ${a.startTime}`.localeCompare(`${b.date} ${b.startTime}`)).map((slot) => <div key={slot.id} className="flex items-center justify-between gap-3 px-3 py-2 text-xs"><span className="min-w-0"><strong>{format(parseISO(slot.date), "EEE, dd.MM.yyyy", { locale: de })}</strong><span className="text-muted-foreground"> · {slot.startTime}–{slot.endTime} · {slot.instructorName}</span></span><Button type="button" variant="ghost" size="icon" className="icon-action shrink-0" aria-label={`Termin ${slot.date} ${slot.startTime} entfernen`} onClick={() => toggleMiniSchedulerSlot({ instructorId: slot.instructorId, instructorName: slot.instructorName, date: slot.date, startTime: slot.startTime, endTime: slot.endTime })}><X className="h-3.5 w-3.5" /></Button></div>)}</div>
-                    <div className="flex justify-end gap-2"><Button variant="ghost" size="sm" onClick={clearMiniSchedulerSelection} className="control-target text-xs">Abbrechen</Button><Button variant="outline" size="sm" onClick={handleApplyMultiSelection} className="control-target text-xs"><Check className="mr-1 h-3 w-3" />Auswahl übernehmen</Button></div>
+                    <div className="flex justify-end gap-2">
+                      <Button variant="ghost" size="sm" onClick={clearMiniSchedulerSelection} className="control-target text-xs">
+                        Abbrechen
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={handleApplyMultiSelection} className="control-target text-xs">
+                        <Check className="mr-1 h-3 w-3" />
+                        Auswahl übernehmen
+                      </Button>
+                    </div>
                   </div>
                 )}
               </div>
@@ -697,9 +739,27 @@ export function Step2ProductAllocation() {
             ? state.selectedParticipants.map((participant) => participant.id)
             : activeItem?.assignedParticipantIds ?? [];
           const people = ids
-            .map((id) => state.localParticipants.find((p) => p.id === id) ?? state.selectedParticipants.find((p) => p.id === id))
+            .map((id) =>
+              state.localParticipants.find((participant) => participant.id === id)
+              ?? state.selectedParticipants.find((participant) => participant.id === id)
+            )
             .filter(Boolean);
-          return people.length > 0 ? <div className="divide-y rounded-md border">{people.map((person) => person && <div key={person.id} className="flex items-center gap-2 px-3 py-2"><Users className="h-4 w-4 text-muted-foreground" /><span className="text-sm font-medium">{person.first_name} {person.last_name || ""}</span></div>)}</div> : <p className="rounded-md border border-dashed p-3 text-sm text-muted-foreground">Noch keine Teilnehmer zugewiesen.</p>;
+          return people.length > 0 ? (
+            <div className="divide-y rounded-md border">
+              {people.map((person) => person && (
+                <div key={person.id} className="flex items-center gap-2 px-3 py-2">
+                  <Users className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm font-medium">
+                    {person.first_name} {person.last_name || ""}
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="rounded-md border border-dashed p-3 text-sm text-muted-foreground">
+              Noch keine Teilnehmer zugewiesen.
+            </p>
+          );
         })()}
         {state.productType === "private" && state.assignLater && (
           <Button type="button" variant="outline" size="sm" className="control-target" disabled={!startTime || !endTime || state.selectedDates.length === 0} onClick={() => { if (!startTime || !endTime) { focusMissingTime(); return; } const dates = [...state.selectedDates].sort(); setPopoverSlot({ instructorId: null, instructorName: null, date: dates[0], startTime, endTime }); }}><Users className="mr-1 h-4 w-4" />Teilnehmer hinzufügen</Button>

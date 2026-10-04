@@ -317,12 +317,16 @@ export function PriceBreakdown({
   const vatAmount = afterDiscount * VAT_RATE;
   const total = afterDiscount;
   const hasPrice = productType === "private"
-    ? Boolean(canonicalBlocks?.length || multiGroupPricing?.length || privateLessonPrice)
+    ? Boolean(
+        (canonicalBlocks?.length && canonicalTotal > 0)
+        || (multiGroupPricing?.length && courseTotal > 0)
+        || (privateLessonPrice && privateLessonPrice.totalPrice > 0)
+      )
     : Boolean(
         daysCount > 0
         && state.selectedGroupId
         && state.selectedParticipants.length > 0
-        && (groupCourseCalculation.lineItems.length > 0 || groupCourseCalculation.totalCoursePrice > 0)
+        && groupCourseCalculation.totalCoursePrice > 0
       );
 
   const formatCurrency = (amount: number) => {
