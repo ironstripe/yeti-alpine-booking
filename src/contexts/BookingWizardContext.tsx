@@ -2,7 +2,7 @@ import { createContext, useContext, useState, useCallback, ReactNode } from "rea
 import type { Tables } from "@/integrations/supabase/types";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchInstructor } from "@/lib/instructorsApi";
-import { dateSetChanged, deriveFromPlan, sortPlan, toMin, validatePlan } from "@/lib/privatePlan";
+import { dateSetChanged, deriveFromPlan, parseWizardTimeSlot, sortPlan, toMin, validatePlan } from "@/lib/privatePlan";
 import { applyAssignLater } from "@/lib/assignLaterState";
 
 export type WizardStep = 1 | 2 | 3;
@@ -1522,7 +1522,8 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
           const hasParticipants = item.assignedParticipantIds.length > 0;
           
           if (item.productType === "private") {
-            return hasProduct && hasMeetingPoint && hasParticipants && (item.instructorId !== null || item.assignLater);
+            const hasPrivateConfiguration = item.productId !== null && parseWizardTimeSlot(item.timeSlot) !== null;
+            return hasProduct && hasPrivateConfiguration && hasMeetingPoint && hasParticipants && (item.instructorId !== null || item.assignLater);
           }
           return hasProduct && hasMeetingPoint && hasParticipants;
         });

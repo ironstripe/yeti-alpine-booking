@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { validatePlan, deriveFromPlan } from "../src/lib/privatePlan";
+import { buildWizardTimeSlot, validatePlan, deriveFromPlan, parseWizardTimeSlot } from "../src/lib/privatePlan";
 const a = (date: string, startTime: string, durationMinutes: number, instructorId = "i1") => ({ date, startTime, durationMinutes, instructorId });
 describe("privatePlan", () => {
   test("valid multi-block day, different instructors on different dates", () => {
@@ -13,5 +13,16 @@ describe("privatePlan", () => {
     expect(d.selectedDates).toEqual(["2026-12-01","2026-12-02"]);
     expect(d.dayInstructorOverrides).toEqual({ "2026-12-02": "i2" });
     expect(d.timeSelections).toHaveLength(2);
+  });
+  test("parses only complete forward time windows without defaults", () => {
+    expect(parseWizardTimeSlot("12:00 - 14:00")).toEqual({ startTime: "12:00", endTime: "14:00", duration: 2 });
+    expect(parseWizardTimeSlot(null)).toBeNull();
+    expect(parseWizardTimeSlot("12:00 - 12:00")).toBeNull();
+    expect(parseWizardTimeSlot("invalid")).toBeNull();
+  });
+  test("clears an incomplete selection instead of retaining a prior window", () => {
+    expect(buildWizardTimeSlot("12:00", "14:00")).toEqual({ startTime: "12:00", endTime: "14:00", duration: 2 });
+    expect(buildWizardTimeSlot("14:00", null)).toBeNull();
+    expect(buildWizardTimeSlot(null, null)).toBeNull();
   });
 });
