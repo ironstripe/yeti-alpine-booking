@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useSchedulerData } from "@/hooks/useSchedulerData";
+import { cn } from "@/lib/utils";
 import type { SchedulerInstructor } from "@/lib/scheduler-utils";
 import { toMin } from "@/lib/privatePlan";
 import {
@@ -305,8 +306,4 @@ export function TeacherAvailabilityList({
       {body}
     </div>
   );
-}
-
-function cn(...c: (string | false | null | undefined)[]) {
-  return c.filter(Boolean).join(" ");
 }

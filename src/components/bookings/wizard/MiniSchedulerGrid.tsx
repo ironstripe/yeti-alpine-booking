@@ -8,13 +8,14 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { useSchedulerData } from "@/hooks/useSchedulerData";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import type { Tables } from "@/integrations/supabase/types";
 import { isCrossDiscipline } from "@/lib/level-utils";
 import { getMeetingPointById } from "@/lib/meeting-point-utils";
 import type { MiniSchedulerSlot } from "@/contexts/BookingWizardContext";
+import { filterEligibleInstructors } from "@/lib/teacherShortlist";
+import type { SchedulerAvailabilityData } from "./TeacherAvailabilityList";
 
 interface MiniSchedulerGridProps {
   selectedDates: string[];
@@ -30,6 +31,8 @@ interface MiniSchedulerGridProps {
   // Multi-select support
   multiSelectSlots?: MiniSchedulerSlot[];
   onMultiSelectToggle?: (slot: Omit<MiniSchedulerSlot, "id">) => void;
+  /** Scheduler data loaded once by SchedulerAvailabilityScope (shared with the teacher list) */
+  schedulerData: Pick<SchedulerAvailabilityData, "instructors" | "bookings" | "absences" | "isLoading">;
 }
 
 // Grid hours: 09:00 - 16:00
@@ -48,6 +51,7 @@ export function MiniSchedulerGrid({
   participantIds = [],
   multiSelectSlots = [],
   onMultiSelectToggle,
+  schedulerData,
 }: MiniSchedulerGridProps) {
   // Hover state for preview
   const [hoveredSlot, setHoveredSlot] = useState<{
@@ -92,23 +96,7 @@ export function MiniSchedulerGrid({
     return () => document.removeEventListener("mouseup", handleGlobalMouseUp);
   }, [handleGlobalMouseUp]);
 
-  // Determine date range from selected dates
-  const dateRange = useMemo(() => {
-    if (selectedDates.length === 0) {
-      const today = new Date();
-      return { start: today, end: today };
-    }
-    const sorted = [...selectedDates].sort();
-    return {
-      start: parseISO(sorted[0]),
-      end: parseISO(sorted[sorted.length - 1]),
-    };
-  }, [selectedDates]);
-
-  const { instructors, bookings, absences, isLoading } = useSchedulerData({
-    startDate: dateRange.start,
-    endDate: dateRange.end,
-  });
+  const { instructors, bookings, absences, isLoading } = schedulerData;
 
   // Fetch booking history for continuity detection
   const { data: bookingHistory = [] } = useQuery({
@@ -247,20 +235,8 @@ export function MiniSchedulerGrid({
   const sortedInstructors = useMemo(() => {
     if (!instructors) return [];
 
-    // Filter by sport if specified
-    let filtered = instructors.filter((i) => i.status === "active");
-    if (sport) {
-      filtered = filtered.filter(
-        (i) => i.specialization === sport || i.specialization === "both"
-      );
-    }
-
-    // Filter by language if specified
-    if (language && language !== "de") {
-      filtered = filtered.filter(
-        (i) => i.languages?.includes(language) || i.languages?.includes("de")
-      );
-    }
+    // Active / sport / language eligibility (shared with the teacher list)
+    const filtered = filterEligibleInstructors(instructors, sport, language);
 
     // 4-Tier Ranking Algorithm
     const getAvailabilityScore = (instructor: typeof instructors[0]) => {
