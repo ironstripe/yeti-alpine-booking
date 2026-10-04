@@ -16,8 +16,8 @@ import { SelectionToolbar } from "./SelectionToolbar";
 
 import { SchedulerSelectionProvider, useSchedulerSelection } from "@/contexts/SchedulerSelectionContext";
 import { useUserRole } from "@/hooks/useUserRole";
-import { hasOverlap, getBookingBarClasses, getDaysForViewMode, generateDateRange, isWithinOperationalHours, type SchedulerBooking } from "@/lib/scheduler-utils";
-import { AlertCircle, Building, Users, X } from "lucide-react";
+import { hasOverlap, getDaysForViewMode, generateDateRange, isWithinOperationalHours, type SchedulerBooking } from "@/lib/scheduler-utils";
+import { AlertCircle, X } from "lucide-react";
 import { ColumnResizeHandle } from "./ColumnResizeHandle";
 import { 
   BookingChangeConfirmDialog, 
@@ -31,6 +31,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { MobileSlotContext, type MobileSlotTapPayload } from "./mobile/MobileSlotContext";
 import { MobileSlotSheet } from "./mobile/MobileSlotSheet";
 import { MobileSchedulerAgenda } from "./mobile/MobileSchedulerAgenda";
+import { SchedulerLegend } from "./SchedulerLegend";
 
 const MOBILE_VIEW_KEY = "scheduler.mobileView";
 
@@ -676,41 +677,7 @@ function SchedulerGridContent() {
 
         {/* Legend - Compact (conditional) */}
         {showLegend && (
-          <div className="border-t border-border px-3 py-2 flex flex-wrap gap-3 text-[10px]">
-            <div className="flex items-center gap-1">
-              <div className={cn("w-2 h-2 rounded-sm border", getBookingBarClasses("private", true))} />
-              <span>Bezahlt</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <div className={cn("w-2 h-2 rounded-sm border", getBookingBarClasses("private", false))} />
-              <span>Offen</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <div className={cn("w-2 h-2 rounded-sm border", getBookingBarClasses("group", false))} />
-              <Users className="h-3 w-3" aria-hidden="true" />
-              <span>Gruppe</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <div className={cn("w-2 h-2 rounded-sm border", getBookingBarClasses("office_shift", false))} />
-              <Building className="h-3 w-3" aria-hidden="true" />
-              <span>Büro</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <div className="w-2 h-2 rounded-sm bg-gray-300" />
-              <span>Abwesend</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <div className="w-2 h-2 rounded-sm bg-primary/20 border-l-2 border-l-primary" />
-              <span>Periode</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <div className="w-2 h-2 rounded-sm bg-blue-500/20 border border-blue-500" />
-              <span>Auswahl</span>
-            </div>
-            <div className="ml-auto text-muted-foreground">
-              09:00–16:00
-            </div>
-          </div>
+          <SchedulerLegend compact />
         )}
 
         {/* Selection Toolbar (summary/remove-only tray) */}
