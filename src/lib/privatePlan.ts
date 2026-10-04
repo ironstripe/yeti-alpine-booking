@@ -13,6 +13,31 @@ export const fromMin = (n: number) =>
   `${String(Math.floor(n / 60)).padStart(2, "0")}:${String(n % 60).padStart(2, "0")}`;
 export const endOf = (a: AppointmentSlot) => fromMin(toMin(a.startTime) + a.durationMinutes);
 
+export interface WizardTimeWindow {
+  startTime: string;
+  endTime: string;
+  duration: number;
+}
+
+/** Parse the shared wizard time window without inventing a default. */
+export function parseWizardTimeSlot(slot: string | null | undefined): WizardTimeWindow | null {
+  if (!slot) return null;
+  const match = slot.match(/^(\d{2}:\d{2}) - (\d{2}:\d{2})$/);
+  if (!match) return null;
+  const startTime = match[1];
+  const endTime = match[2];
+  const startMinutes = toMin(startTime);
+  const endMinutes = toMin(endTime);
+  if (!Number.isFinite(startMinutes) || !Number.isFinite(endMinutes) || endMinutes <= startMinutes) return null;
+  return { startTime, endTime, duration: (endMinutes - startMinutes) / 60 };
+}
+
+/** Build a complete wizard time window, or null while either control is incomplete. */
+export function buildWizardTimeSlot(startTime: string | null, endTime: string | null): WizardTimeWindow | null {
+  if (!startTime || !endTime) return null;
+  return parseWizardTimeSlot(`${startTime} - ${endTime}`);
+}
+
 export function sortPlan(list: AppointmentSlot[]): AppointmentSlot[] {
   return [...list].sort((a, b) => a.date.localeCompare(b.date) || a.startTime.localeCompare(b.startTime));
 }

@@ -61,6 +61,7 @@ import {
   GROUP_COURSE_TIMES,
 } from "@/lib/group-course-utils";
 import type { Tables } from "@/integrations/supabase/types";
+import { buildWizardTimeSlot, parseWizardTimeSlot } from "@/lib/privatePlan";
 
 // Available start and end times (lift hours: 09:00 - 16:00)
 const START_TIMES = ["09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00"];
@@ -134,6 +135,11 @@ export function Step2ProductAllocation() {
   });
   const [preferredTeacher, setPreferredTeacher] = useState("");
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [showTimeRequired, setShowTimeRequired] = useState(false);
+  const timeControlsRef = useRef<HTMLDivElement>(null);
+  const startTimeTriggerRef = useRef<HTMLButtonElement>(null);
+  const endTimeTriggerRef = useRef<HTMLButtonElement>(null);
+  const timeRequiredTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   
   // Slot popover state
   const [popoverSlot, setPopoverSlot] = useState<{
@@ -230,56 +236,40 @@ export function Step2ProductAllocation() {
     enabled: !!currentSeason?.id,
   });
 
-  // Calculate duration from start and end time
-  const calculatedDuration = useMemo(() => {
-    if (!startTime || !endTime) return null;
-    const startHour = parseInt(startTime.split(":")[0]);
-    const endHour = parseInt(endTime.split(":")[0]);
-    return endHour - startHour;
-  }, [startTime, endTime]);
+  const calculatedDuration = useMemo(
+    () => buildWizardTimeSlot(startTime, endTime)?.duration ?? null,
+    [startTime, endTime],
+  );
 
-  // Ref to track the last timeSlot value written by local dropdowns.
-  // This lets us distinguish local changes from external changes (e.g. applyMiniSchedulerSelection).
-  const localTimeSlotRef = useRef<string | null>(state.timeSlot);
+  const updateTimeWindow = useCallback((nextStart: string | null, nextEnd: string | null) => {
+    setStartTime(nextStart);
+    setEndTime(nextEnd);
+    const next = buildWizardTimeSlot(nextStart, nextEnd);
+    setTimeSlot(next ? `${next.startTime} - ${next.endTime}` : null);
+    setDuration(next?.duration ?? null);
+  }, [setDuration, setTimeSlot]);
 
-  // Write local startTime/endTime to context, and update the ref
+  // The active cart item and canonical scheduler plan own the external value.
+  // Sync null as well, so one cart item can never inherit another item's visible time.
   useEffect(() => {
-    if (startTime && endTime) {
-      const timeSlotValue = `${startTime} - ${endTime}`;
-      // Only write to context if the value actually changed
-      if (timeSlotValue !== state.timeSlot) {
-        setTimeSlot(timeSlotValue);
-      }
-      localTimeSlotRef.current = timeSlotValue;
-      if (calculatedDuration) {
-        setDuration(calculatedDuration);
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [startTime, endTime, calculatedDuration]);
+    const external = parseWizardTimeSlot(state.timeSlot);
+    setStartTime(external?.startTime ?? null);
+    setEndTime(external?.endTime ?? null);
+  }, [state.activeCartItemId, state.timeSlot]);
 
-  // Sync from context to local when context changes externally (e.g. applyMiniSchedulerSelection)
-  useEffect(() => {
-    if (state.timeSlot && state.timeSlot !== localTimeSlotRef.current) {
-      const parts = state.timeSlot.split(" - ");
-      if (parts.length === 2) {
-        setStartTime(parts[0]);
-        setEndTime(parts[1]);
-        localTimeSlotRef.current = state.timeSlot;
-        console.log("Step2: Synced time from external context change:", parts[0], "-", parts[1]);
-      }
-    } else if (state.timeSlot && !startTime && !endTime) {
-      // Initial sync when local state is empty
-      const parts = state.timeSlot.split(" - ");
-      if (parts.length === 2) {
-        setStartTime(parts[0]);
-        setEndTime(parts[1]);
-        localTimeSlotRef.current = state.timeSlot;
-        console.log("Step2: Initial sync from context:", parts[0], "-", parts[1]);
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.timeSlot]);
+  useEffect(() => () => {
+    if (timeRequiredTimerRef.current) clearTimeout(timeRequiredTimerRef.current);
+  }, []);
+
+  const focusMissingTime = useCallback(() => {
+    setShowTimeRequired(true);
+    timeControlsRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    window.requestAnimationFrame(() => {
+      (startTime ? endTimeTriggerRef.current : startTimeTriggerRef.current)?.focus();
+    });
+    if (timeRequiredTimerRef.current) clearTimeout(timeRequiredTimerRef.current);
+    timeRequiredTimerRef.current = setTimeout(() => setShowTimeRequired(false), 1800);
+  }, [startTime]);
 
   // Derive time from scheduler appointments if timeSlot not yet set
   useEffect(() => {
@@ -703,7 +693,13 @@ export function Step2ProductAllocation() {
             <Clock className="h-3 w-3 inline mr-1" />
             Zeitfenster & Treffpunkt
           </Label>
-          <div className="flex flex-wrap items-center gap-3 rounded-md border-2 p-2 min-h-[42px]">
+          <div
+            ref={timeControlsRef}
+            className={cn(
+              "flex min-h-[42px] scroll-mt-24 flex-wrap items-center gap-3 rounded-md border-2 p-2 transition-shadow",
+              showTimeRequired && "ring-2 ring-destructive ring-offset-2 ring-offset-background",
+            )}
+          >
             {state.productType && state.selectedDates.length > 0 ? (
               <>
                 {/* Time Selection - Only for private lessons */}
@@ -713,13 +709,17 @@ export function Step2ProductAllocation() {
                       <Select
                         value={startTime || ""}
                         onValueChange={(value) => {
-                          setStartTime(value);
-                          if (endTime && parseInt(value.split(":")[0]) >= parseInt(endTime.split(":")[0])) {
-                            setEndTime(null);
-                          }
+                          const nextEnd = endTime && parseInt(value.split(":")[0]) >= parseInt(endTime.split(":")[0])
+                            ? null
+                            : endTime;
+                          updateTimeWindow(value, nextEnd);
                         }}
                       >
-                        <SelectTrigger className="control-target w-[76px] text-xs">
+                        <SelectTrigger
+                          ref={startTimeTriggerRef}
+                          aria-invalid={showTimeRequired && !startTime}
+                          className="control-target w-[76px] text-xs"
+                        >
                           <SelectValue placeholder="Start" />
                         </SelectTrigger>
                         <SelectContent>
@@ -733,10 +733,14 @@ export function Step2ProductAllocation() {
                       <ArrowRight className="h-3 w-3 text-muted-foreground flex-shrink-0" />
                       <Select
                         value={endTime || ""}
-                        onValueChange={setEndTime}
+                        onValueChange={(value) => updateTimeWindow(startTime, value)}
                         disabled={!startTime}
                       >
-                        <SelectTrigger className="control-target w-[76px] text-xs">
+                        <SelectTrigger
+                          ref={endTimeTriggerRef}
+                          aria-invalid={showTimeRequired && !!startTime && !endTime}
+                          className="control-target w-[76px] text-xs"
+                        >
                           <SelectValue placeholder="Ende" />
                         </SelectTrigger>
                         <SelectContent>
@@ -852,11 +856,18 @@ export function Step2ProductAllocation() {
         {/* "Später zuweisen": participant entry independent of teacher slots */}
         {showAvailabilityGrid && state.assignLater && (
           <div className="flex flex-col gap-2 rounded-md border bg-muted/40 p-3 sm:flex-row sm:items-center sm:justify-between">
-            <p className="min-w-0 break-words text-sm text-foreground">
-              {startTime && endTime
-                ? `Ohne Lehrperson: ${state.selectedDates.length} ${state.selectedDates.length === 1 ? "Tag" : "Tage"}, ${startTime}–${endTime}. Die Lehrperson wird später zugewiesen.`
-                : "Wählen Sie ein Zeitfenster, um Teilnehmer hinzuzufügen."}
-            </p>
+            <div className="min-w-0 flex-1">
+              <p className="break-words text-sm text-foreground">
+                {startTime && endTime
+                  ? `Ohne Lehrperson: ${state.selectedDates.length} ${state.selectedDates.length === 1 ? "Tag" : "Tage"}, ${startTime}–${endTime}. Die Lehrperson wird später zugewiesen.`
+                  : "Für Teilnehmer wird zuerst ein vollständiges Zeitfenster benötigt."}
+              </p>
+              {(!startTime || !endTime) && (
+                <Button variant="link" size="sm" className="control-target mt-1 h-auto px-0" onClick={focusMissingTime}>
+                  Zeitfenster wählen
+                </Button>
+              )}
+            </div>
             <Button
               size="sm"
               className="control-target shrink-0"
