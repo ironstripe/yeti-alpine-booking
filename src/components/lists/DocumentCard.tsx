@@ -1,4 +1,3 @@
-import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import type { LucideIcon } from "lucide-react";
 
@@ -20,20 +19,30 @@ export function DocumentCard({
   onGenerate,
 }: DocumentCardProps) {
   return (
-    <Card className="hover:shadow-md transition-shadow">
-      <CardContent className="pt-6 flex flex-col items-center text-center">
-        <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mb-4">
-          <Icon className="h-6 w-6 text-primary" />
+    <li className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2 border-b px-3 py-3 last:border-b-0 sm:flex-nowrap sm:px-4">
+      <div className="flex min-w-0 flex-1 items-center gap-3">
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
+          <Icon className="h-4 w-4" aria-hidden="true" />
         </div>
-        <h3 className="font-semibold text-base mb-1">{title}</h3>
-        <p className="text-sm text-muted-foreground mb-3">{subtitle}</p>
-        <p className="text-lg font-bold mb-4">
+        <div className="min-w-0 text-left">
+          <h3 className="font-medium text-foreground">{title}</h3>
+          <p className="break-words text-sm text-muted-foreground">{subtitle}</p>
+        </div>
+      </div>
+      <div className="ml-11 flex min-w-0 flex-1 items-center justify-between gap-3 sm:ml-0 sm:flex-none">
+        <p className="min-w-0 text-sm tabular-nums text-muted-foreground sm:w-28 sm:text-right">
           {count} {countLabel}
         </p>
-        <Button onClick={onGenerate} className="w-full" disabled={count === 0}>
+        <Button
+          variant="outline"
+          size="sm"
+          className="control-target shrink-0"
+          onClick={onGenerate}
+          disabled={count === 0}
+        >
           Erstellen
         </Button>
-      </CardContent>
-    </Card>
+      </div>
+    </li>
   );
 }

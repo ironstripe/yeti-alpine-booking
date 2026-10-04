@@ -88,12 +88,13 @@ export default function Lists() {
         title="Listen & Dokumente"
         description={dateDisplay}
         actions={
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
             <div className="flex items-center gap-1">
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8"
+                className="icon-action"
+                aria-label="Vorheriger Tag"
                 onClick={() => setSelectedDate(subDays(selectedDate, 1))}
               >
                 <ChevronLeft className="h-4 w-4" />
@@ -101,7 +102,8 @@ export default function Lists() {
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8"
+                className="icon-action"
+                aria-label="Nächster Tag"
                 onClick={() => setSelectedDate(addDays(selectedDate, 1))}
               >
                 <ChevronRight className="h-4 w-4" />
@@ -111,6 +113,7 @@ export default function Lists() {
               <Button
                 variant="outline"
                 size="sm"
+                className="control-target"
                 onClick={() => setSelectedDate(startOfDay(new Date()))}
               >
                 Heute
@@ -121,13 +124,13 @@ export default function Lists() {
       />
 
       <div className="space-y-6">
-        {/* Document Cards Grid */}
+        {/* Available documents */}
         <Card>
-          <CardHeader>
+          <CardHeader className="pb-3">
             <CardTitle className="text-base">Verfügbare Listen</CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+          <CardContent className="p-0">
+            <ul className="border-t">
               <DocumentCard
                 icon={UtensilsCrossed}
                 title="Mittagsliste"
@@ -181,7 +184,7 @@ export default function Lists() {
                 countLabel="Tickets"
                 onGenerate={() => setDailyOverviewOpen(true)}
               />
-            </div>
+            </ul>
           </CardContent>
         </Card>
 
@@ -204,22 +207,16 @@ export default function Lists() {
 
           {/* Quick Info Card */}
           <Card className="lg:col-span-2">
-            <CardHeader>
+            <CardHeader className="pb-3">
               <CardTitle className="text-base">Hinweise</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-2 text-sm text-muted-foreground">
-              <p>
-                • Alle Listen werden für den ausgewählten Tag generiert
-              </p>
-              <p>
-                • "Als PDF speichern" öffnet den Browser-Druckdialog - wählen Sie dort "Als PDF speichern"
-              </p>
-              <p>
-                • Die Skilehrer-Einsatzpläne können einzeln (A5) oder als Übersicht gedruckt werden
-              </p>
-              <p>
-                • Anwesenheitslisten werden pro Gruppe erstellt und enthalten Checkboxen zum Abhaken
-              </p>
+            <CardContent className="text-sm text-muted-foreground">
+              <ul className="list-disc space-y-1.5 pl-5">
+                <li>Alle Listen werden für den ausgewählten Tag generiert</li>
+                <li>"Als PDF speichern" öffnet den Browser-Druckdialog - wählen Sie dort "Als PDF speichern"</li>
+                <li>Die Skilehrer-Einsatzpläne können einzeln (A5) oder als Übersicht gedruckt werden</li>
+                <li>Anwesenheitslisten werden pro Gruppe erstellt und enthalten Checkboxen zum Abhaken</li>
+              </ul>
             </CardContent>
           </Card>
         </div>

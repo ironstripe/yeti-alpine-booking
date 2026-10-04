@@ -100,3 +100,9 @@ The shared range date picker gives its clear, previous-month and next-month icon
 The scheduler uses a compact local heading instead of the standard descriptive page header so the remaining viewport height belongs to the schedule. Date, view, fullscreen, search, settings and booking-type controls stay in one desktop row when space permits and wrap naturally on narrow screens.
 
 Fullscreen is a visible labelled toolbar action as well as a settings option; both use the existing scheduler fullscreen state. The multi-select interaction hint is available from a focusable help action instead of permanently occupying toolbar width. Scheduler rows, slots, booking geometry, sticky regions, drag/drop and selection behaviour remain unchanged.
+
+## UI-08 lists and documents
+
+Available documents use one compact semantic list instead of narrow dashboard tiles. Each row keeps a quiet category icon, left-aligned title and description, aligned count metadata, and a secondary outline action. Zero counts remain readable neutral metadata and retain the existing disabled action rule.
+
+Date navigation follows the shared labelled 36px precise-pointer / 44px coarse-pointer action convention. Batch-print controls and notes use reduced spacing, while every checkbox, default, preview input and print handler retains its existing behavior.

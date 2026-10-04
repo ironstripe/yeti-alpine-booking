@@ -128,3 +128,8 @@ Network: 72 remote requests intercepted, none reached a live service; 18 aborted
 
 - Selection-state retention was not claimed: the attempted synthetic click was rejected by the existing current-date/future-date validation in this time-shifted fixture. No validation or selection logic was changed to force the scenario.
 - Portal stacking was checked for the existing settings menu in fullscreen and showed no observed overlap problem. Other portalled sheets/dialogs and physical touch hardware were not exercised.
+
+## UI-08 — calm lists and documents (2026-10-04)
+
+- Presentation scope: `Lists.tsx`, `DocumentCard.tsx`, and `BatchPrintCard.tsx`. Titles, subtitles, counts, count labels, preview handlers, checkbox defaults, print handler, and exact `disabled={count === 0}` behavior remain unchanged.
+- The known Ticket-Übersicht action still opens the daily overview. Stapeldruck still opens only the first eligible selected dialog after its informational toast and does not open attendance-only selection. These functional mismatches were intentionally not changed in this UI package.

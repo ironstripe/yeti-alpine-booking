@@ -35,16 +35,16 @@ export function BatchPrintCard({
 }: BatchPrintCardProps) {
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className="pb-3">
         <CardTitle className="text-base">Stapeldruck</CardTitle>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-3">
         <p className="text-sm text-muted-foreground">
           Alle Morgenlisten auf einmal drucken:
         </p>
 
-        <div className="space-y-3">
-          <div className="flex items-center gap-2">
+        <div className="space-y-1">
+          <div className="flex min-h-9 items-center gap-2 py-1">
             <Checkbox
               id="batch-lunch"
               checked={lunchList}
@@ -54,7 +54,7 @@ export function BatchPrintCard({
               Mittagsliste
             </Label>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex min-h-9 items-center gap-2 py-1">
             <Checkbox
               id="batch-groups"
               checked={groupAssignment}
@@ -64,7 +64,7 @@ export function BatchPrintCard({
               Gruppeneinteilung
             </Label>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex min-h-9 items-center gap-2 py-1">
             <Checkbox
               id="batch-instructors"
               checked={instructorSchedules}
@@ -74,7 +74,7 @@ export function BatchPrintCard({
               Skilehrer-Einsatzpläne (einzeln)
             </Label>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex min-h-9 items-center gap-2 py-1">
             <Checkbox
               id="batch-overview"
               checked={dailyOverview}
@@ -84,7 +84,7 @@ export function BatchPrintCard({
               Tagesübersicht
             </Label>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex min-h-9 items-center gap-2 py-1">
             <Checkbox
               id="batch-attendance"
               checked={attendanceLists}
@@ -97,8 +97,9 @@ export function BatchPrintCard({
         </div>
 
         <Button
+          variant="outline"
           onClick={onPrint}
-          className="w-full"
+          className="control-target w-full"
           disabled={!hasAnySelection}
         >
           <Printer className="h-4 w-4 mr-2" />
