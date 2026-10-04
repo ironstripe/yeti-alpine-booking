@@ -31,6 +31,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { MobileSlotContext, type MobileSlotTapPayload } from "./mobile/MobileSlotContext";
 import { MobileSlotSheet } from "./mobile/MobileSlotSheet";
 import { MobileSchedulerAgenda } from "./mobile/MobileSchedulerAgenda";
+import { SchedulerLegend } from "./SchedulerLegend";
 
 const MOBILE_VIEW_KEY = "scheduler.mobileView";
 
@@ -676,39 +677,7 @@ function SchedulerGridContent() {
 
         {/* Legend - Compact (conditional) */}
         {showLegend && (
-          <div className="border-t border-border px-3 py-2 flex flex-wrap gap-3 text-[10px]">
-            <div className="flex items-center gap-1">
-              <div className="w-2 h-2 rounded-sm bg-emerald-500" />
-              <span>Bezahlt</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <div className="w-2 h-2 rounded-sm bg-orange-500" />
-              <span>Offen</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <div className="w-2 h-2 rounded-sm bg-blue-600" />
-              <span>Gruppe</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <div className="w-2 h-2 rounded-sm bg-purple-600" />
-              <span>Büro</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <div className="w-2 h-2 rounded-sm bg-gray-300" />
-              <span>Abwesend</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <div className="w-2 h-2 rounded-sm bg-primary/20 border-l-2 border-l-primary" />
-              <span>Periode</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <div className="w-2 h-2 rounded-sm bg-blue-500/20 border border-blue-500" />
-              <span>Auswahl</span>
-            </div>
-            <div className="ml-auto text-muted-foreground">
-              09:00–16:00
-            </div>
-          </div>
+          <SchedulerLegend compact />
         )}
 
         {/* Selection Toolbar (summary/remove-only tray) */}

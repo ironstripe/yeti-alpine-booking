@@ -86,3 +86,11 @@ Existing confirmation-resend, duplicate-booking, and cancellation placeholder ha
 ## UI-05B wizard steps 1–2
 
 The cart, product/time step, customer step and payer card follow the same control sizing (`control-target`, `icon-action`), wrap long names and contact data instead of truncating, stack the private-lesson filter row on narrow screens, and use muted neutral styling for purely informational panels. Warnings, errors and selection highlights keep their existing colours. Scheduler grid geometry and wizard behaviour are unchanged.
+
+## UI-06 scheduler visual signals
+
+The main scheduler's booking bars use calm neutral category surfaces for group courses and office shifts, with `Users` and `Building` icons as non-colour cues. Private lessons retain operational payment recognition: paid uses a subtle green surface and open uses a subtle amber surface. Provisional reservations keep their striped amber override, while period, shared, cross-discipline, selection and absence signals retain their established meaning and precedence.
+
+The active compact legend rendered by `SchedulerGrid` now uses the shared `SchedulerLegend` presentation and the same static booking class function as desktop bars and mobile agenda markers. The non-compact legacy legend remains available and its existing order and membership are unchanged; its `BLOCK_COLORS` swatches are aligned to the equivalent booking types. The wizard mini-scheduler has a separate availability/ranking legend and is intentionally unchanged, as are instructor colours, blocking-bar presentation, grid geometry and drag/drop behaviour.
+
+The shared range date picker gives its clear, previous-month and next-month icon actions exact German accessible names and the established 36px precise-pointer / 44px coarse-pointer target. Date cells and selection behaviour are unchanged.

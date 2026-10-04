@@ -257,7 +257,7 @@ function AgendaRow({
               className={cn(
                 "h-2.5 w-2.5 shrink-0 rounded-sm border",
                 booking.isProvisional
-                  ? "bg-amber-400 border-amber-600"
+                  ? "bg-amber-400 text-amber-950 border-amber-600"
                   : getBookingBarClasses(
                       booking.type as "private" | "group" | "office_shift",
                       booking.isPaid

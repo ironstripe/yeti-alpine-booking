@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/tooltip";
 import { BookingDetailDialog } from "./BookingDetailDialog";
 import { OfficeHoursDetailDialog } from "./OfficeHoursDetailDialog";
-import { AlertTriangle, Building, Hourglass, Link2 } from "lucide-react";
+import { AlertTriangle, Building, Hourglass, Link2, Users } from "lucide-react";
 import { useIsTouchDevice, useIsMobileScheduler } from "@/hooks/use-touch-device";
 
 const TAP_MOVE_THRESHOLD = 8; // px
@@ -149,7 +149,10 @@ export function BookingBar({ booking, slotWidth, instructorSpecialization, isPla
               <Link2 className="h-2.5 w-2.5 text-primary shrink-0" />
             )}
             {hasCrossDiscipline && (
-              <AlertTriangle className="h-2.5 w-2.5 text-yellow-300 shrink-0" />
+              <AlertTriangle className="h-2.5 w-2.5 text-amber-900 dark:text-amber-200 shrink-0" />
+            )}
+            {isGroup && (
+              <Users className="h-2.5 w-2.5 shrink-0" aria-hidden="true" />
             )}
             {isOfficeShift && (
               <Building className="h-2.5 w-2.5 shrink-0" />
