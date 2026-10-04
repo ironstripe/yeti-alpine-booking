@@ -133,3 +133,14 @@ Network: 72 remote requests intercepted, none reached a live service; 18 aborted
 
 - Presentation scope: `Lists.tsx`, `DocumentCard.tsx`, and `BatchPrintCard.tsx`. Titles, subtitles, counts, count labels, preview handlers, checkbox defaults, print handler, and exact `disabled={count === 0}` behavior remain unchanged.
 - The known Ticket-Übersicht action still opens the daily overview. Stapeldruck still opens only the first eligible selected dialog after its informational toast and does not open attendance-only selection. These functional mismatches were intentionally not changed in this UI package.
+
+### Method and results
+
+- A temporary standalone Vite fixture (removed before final diff) mounted the real `Lists` page and all real preview components. The existing data hooks alone were replaced with isolated zero/nonzero synthetic values. Every non-localhost request was aborted; no print action or live write ran.
+- Browser matrix: 1440×900, 1024×768, and 390×560 touch, each in light and dark. All six rows rendered without clipped titles, counts or actions and without horizontal page overflow.
+- Zero data disabled all six `Erstellen` actions. Nonzero data enabled all six and opened, in existing order, Mittagsliste, Gruppeneinteilung, Tagesübersicht, Skilehrer-Einsatzplan, Anwesenheitsliste, and Tagesübersicht for Ticket-Übersicht.
+- `Erstellen` and date-arrow targets measured 36px with a precise pointer and 44px with a coarse pointer. Date arrows exposed `Vorheriger Tag` and `Nächster Tag`.
+
+### Limits
+
+- Preview dialogs were opened and closed only; option changes, print/download actions, batch print, real records, and physical touch hardware were not exercised. The known handler mismatches above remain unchanged.
