@@ -58,7 +58,7 @@ export function InstructorFilters({
           <Label htmlFor="instructor-search" className="mb-1.5 block text-sm font-medium">
             Suche
           </Label>
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Search className="absolute bottom-3 left-3 h-4 w-4 text-muted-foreground" />
           <Input
             id="instructor-search"
             placeholder="Suche nach Name..."

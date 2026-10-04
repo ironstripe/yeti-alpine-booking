@@ -6,9 +6,9 @@ import { Plus, Upload } from "lucide-react";
 import { useInstructors, type InstructorWithBookings } from "@/hooks/useInstructors";
 import { StatusSummaryBar } from "@/components/instructors/StatusSummaryBar";
 import { InstructorFilters } from "@/components/instructors/InstructorFilters";
-import { InstructorCard } from "@/components/instructors/InstructorCard";
 import { InstructorEmptyState } from "@/components/instructors/InstructorEmptyState";
-import { InstructorGridSkeleton } from "@/components/instructors/InstructorCardSkeleton";
+import { InstructorTableSkeleton } from "@/components/instructors/InstructorCardSkeleton";
+import { InstructorTable } from "@/components/instructors/InstructorTable";
 import { NewInstructorModal } from "@/components/instructors/NewInstructorModal";
 import { BulkUploadModal } from "@/components/instructors/BulkUploadModal";
 import { useStaffInstructorPhotos } from "@/hooks/useStaffInstructorPhotos";
@@ -152,7 +152,7 @@ const Instructors = () => {
       />
 
       {isLoading ? (
-        <InstructorGridSkeleton />
+        <InstructorTableSkeleton />
       ) : (
         <>
           <StatusSummaryBar
@@ -181,17 +181,12 @@ const Instructors = () => {
               onAddInstructor={handleAddInstructor}
             />
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {filteredInstructors.map((instructor) => (
-                <InstructorCard
-                  key={instructor.id}
-                  instructor={instructor}
-                  photoUrl={staffPhotoUrls[instructor.id]}
-                  isPulsing={pulsingIds.has(instructor.id)}
-                  onClick={() => handleInstructorClick(instructor)}
-                />
-              ))}
-            </div>
+            <InstructorTable
+              instructors={filteredInstructors}
+              photoUrls={staffPhotoUrls}
+              pulsingIds={pulsingIds}
+              onRowClick={handleInstructorClick}
+            />
           )}
         </>
       )}
