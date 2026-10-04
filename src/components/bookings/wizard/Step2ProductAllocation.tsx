@@ -849,6 +849,30 @@ export function Step2ProductAllocation() {
           </div>
         )}
 
+        {/* "Später zuweisen": participant entry independent of teacher slots */}
+        {showAvailabilityGrid && state.assignLater && (
+          <div className="flex flex-col gap-2 rounded-md border bg-muted/40 p-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="min-w-0 break-words text-sm text-foreground">
+              {startTime && endTime
+                ? `Ohne Lehrperson: ${state.selectedDates.length} ${state.selectedDates.length === 1 ? "Tag" : "Tage"}, ${startTime}–${endTime}. Die Lehrperson wird später zugewiesen.`
+                : "Wählen Sie ein Zeitfenster, um Teilnehmer hinzuzufügen."}
+            </p>
+            <Button
+              size="sm"
+              className="control-target shrink-0"
+              disabled={!startTime || !endTime}
+              onClick={() => {
+                if (!startTime || !endTime) return;
+                const dates = [...state.selectedDates].sort();
+                setPopoverSlot({ instructorId: null, instructorName: null, date: dates[0], startTime, endTime });
+              }}
+            >
+              <Users className="h-4 w-4 mr-1" />
+              Teilnehmer hinzufügen
+            </Button>
+          </div>
+        )}
+
         {/* Slim Warning Bar */}
         {warnings.length > 0 && state.productType === "private" && state.selectedDates.length > 0 && (
           <div className="flex flex-wrap items-center gap-3 px-3 py-1.5 bg-amber-50/80 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded text-[11px] text-amber-800 dark:text-amber-200">
@@ -978,7 +1002,7 @@ export function Step2ProductAllocation() {
         ) : showAvailabilityGrid ? (
           <div className={cn(
             "transition-opacity",
-            state.assignLater && "opacity-50 pointer-events-none",
+            state.assignLater && "hidden",
             isFullscreen && "fixed inset-0 z-50 bg-background p-4 overflow-auto"
           )}>
             {/* Fullscreen header */}
@@ -1121,30 +1145,6 @@ export function Step2ProductAllocation() {
             <Badge variant="secondary" className="ml-auto text-xs">
               Ausgewählt
             </Badge>
-          </div>
-        )}
-
-        {/* "Später zuweisen": participant entry independent of teacher slots */}
-        {showAvailabilityGrid && state.assignLater && (
-          <div className="flex flex-col gap-2 rounded-md border bg-muted/40 p-3 sm:flex-row sm:items-center sm:justify-between">
-            <p className="min-w-0 break-words text-sm text-foreground">
-              {startTime && endTime
-                ? `Ohne Lehrperson: ${state.selectedDates.length} ${state.selectedDates.length === 1 ? "Tag" : "Tage"}, ${startTime}–${endTime}. Die Lehrperson wird später zugewiesen.`
-                : "Wählen Sie ein Zeitfenster, um Teilnehmer hinzuzufügen."}
-            </p>
-            <Button
-              size="sm"
-              className="control-target shrink-0"
-              disabled={!startTime || !endTime}
-              onClick={() => {
-                if (!startTime || !endTime) return;
-                const dates = [...state.selectedDates].sort();
-                setPopoverSlot({ instructorId: null, instructorName: null, date: dates[0], startTime, endTime });
-              }}
-            >
-              <Users className="h-4 w-4 mr-1" />
-              Teilnehmer hinzufügen
-            </Button>
           </div>
         )}
 
