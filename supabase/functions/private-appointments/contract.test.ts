@@ -23,6 +23,22 @@ Deno.test("schema: accepts documented shapes, rejects others", () => {
   assert(!RequestSchema.safeParse({ action: "period_update", period_group_id: crypto.randomUUID(), changes: {} }).success);
 });
 
+Deno.test("schema: create slots need a teacher or explicit assign_later intent", () => {
+  const base = { action: "create", submission_key: "schema-key-0001", customer_id: crypto.randomUUID(), product_id: crypto.randomUUID(),
+    participants: [{ participant_id: crypto.randomUUID() }] };
+  const t = { date: "2030-01-10", time_start: "12:00", time_end: "14:00" };
+  const ok = (a: unknown[]) => RequestSchema.safeParse({ ...base, appointments: a }).success;
+  assert(ok([{ ...t, instructor_id: crypto.randomUUID() }]));
+  assert(ok([{ ...t, assign_later: true }]));
+  assert(ok([{ ...t, instructor_id: crypto.randomUUID() }, { ...t, assign_later: true }]));
+  assert(!ok([t]));
+  assert(!ok([{ ...t, assign_later: false }]));
+  assert(!ok([{ ...t, assign_later: "true" }]));
+  assert(!ok([{ ...t, instructor_id: null }]));
+  assert(!ok([{ ...t, instructor_id: crypto.randomUUID(), assign_later: true }]));
+  assert(!RequestSchema.safeParse({ ...validMove, instructor_id: undefined }).success); // assignment always needs a teacher
+});
+
 Deno.test("status + body mapping never leaks internals", () => {
   assertEquals(statusFor({ ok: true }), 200);
   assertEquals(statusFor({ error: "conflict" }), 409);

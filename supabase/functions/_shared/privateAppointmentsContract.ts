@@ -5,7 +5,12 @@ const uuid = z.string().uuid();
 const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const time = z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/);
 
-const slot = z.object({ date, time_start: time, time_end: time, instructor_id: uuid, meeting_point: z.string().max(200).optional() });
+const meeting_point = z.string().max(200).optional();
+// A slot either names a real teacher, or carries the explicit "Später zuweisen" intent
+// (assign_later: true, no instructor_id). A merely missing teacher matches neither.
+const assignedSlot = z.object({ date, time_start: time, time_end: time, instructor_id: uuid, meeting_point, assign_later: z.undefined() });
+const laterSlot = z.object({ date, time_start: time, time_end: time, assign_later: z.literal(true), instructor_id: z.undefined(), meeting_point });
+const slot = z.union([assignedSlot, laterSlot]);
 const participant = z.union([
   z.object({ participant_id: uuid }).strict(),
   z.object({

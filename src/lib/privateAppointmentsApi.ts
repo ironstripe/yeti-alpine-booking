@@ -62,7 +62,10 @@ export type PaParticipant =
   | { participant_id: string }
   | { guest_key: string; first_name: string; last_name?: string; birth_date: string; sport?: "ski" | "snowboard" };
 
-export interface PaSlot { date: string; time_start: string; time_end: string; instructor_id: string; meeting_point?: string }
+/** A real teacher, or the explicit "Später zuweisen" intent (never a missing/fake teacher). */
+export type PaSlot =
+  | { date: string; time_start: string; time_end: string; instructor_id: string; meeting_point?: string }
+  | { date: string; time_start: string; time_end: string; assign_later: true; meeting_point?: string };
 
 export const paCreate = (p: {
   submission_key: string; customer_id: string; product_id: string; notes?: string;
