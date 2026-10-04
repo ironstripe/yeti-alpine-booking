@@ -837,7 +837,7 @@ export function Step2ProductAllocation() {
                 <p className="text-sm">Wählen Sie mindestens ein Datum</p>
               </div>
             )}
-              {state.instructor && (!state.privateGroupProposal || state.privateGroupProposal.groups.length <= 1) && <div className="flex items-center gap-2 rounded-md border border-primary bg-primary/5 p-2"><Check className="h-4 w-4 text-primary" /><span className="text-sm font-medium">{state.instructor.first_name} {state.instructor.last_name}</span><Badge variant="secondary" className="ml-auto text-xs">Ausgewählt</Badge></div>}
+            {state.instructor && (!state.privateGroupProposal || state.privateGroupProposal.groups.length <= 1) && <div className="flex items-center gap-2 rounded-md border border-primary bg-primary/5 p-2"><Check className="h-4 w-4 text-primary" /><span className="text-sm font-medium">{state.instructor.first_name} {state.instructor.last_name}</span><Badge variant="secondary" className="ml-auto text-xs">Ausgewählt</Badge></div>}
           </div>
         </section>
       )}
