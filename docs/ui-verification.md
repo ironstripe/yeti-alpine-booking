@@ -204,3 +204,7 @@ Network: 72 remote requests intercepted, none reached a live service; 18 aborted
 ### UI-11 method
 
 - An isolated fixture (removed before this note) mounted the real `RecurringBlocksTab` with an isolated query client. At 390×844 all requested labels rendered, preset buttons wrapped cleanly, document width equalled viewport width (390/390), and external requests were aborted; no save, delete, or live data action ran. The dialog itself was not opened in the fixture; dialog strings were verified in the source diff only.
+
+## Private booking "Später zuweisen" (functional fix, 2026-10-04)
+- Step 1 offers "Teilnehmer hinzufügen" without a teacher; `setAssignLater(true)` clears every teacher reference of the active item only (root/per-block instructor, appointments' instructorId, per-day overrides, mini-scheduler picks, group-proposal teachers) while keeping dates, times, durations and participants. Turning it off never restores a teacher. Scheduler provenance (`schedulerPrefill.plan`) is kept unchanged as the original record; the banner then shows the plan as adjusted.
+- Known save blocker (not changed, backend out of scope): `pa_create_booking` rejects appointments without `instructor_id`, and the client stops earlier with "Bitte für … eine Lehrperson wählen". Teacher-less private bookings therefore cannot be saved yet.
