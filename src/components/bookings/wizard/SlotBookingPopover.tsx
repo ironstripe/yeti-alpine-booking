@@ -278,14 +278,19 @@ export function SlotBookingPopover({
 
           {/* Participants */}
           <div className="space-y-2">
-            <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1">
+            <Label className="flex items-center gap-1 text-sm font-semibold text-foreground">
               <Users className="h-3 w-3" />
-              Teilnehmer
+              Wer nimmt am Unterricht teil?
             </Label>
+            {!hasCustomer && (
+              <p className="text-sm text-muted-foreground">
+                Erfasse hier die Personen, die Unterricht erhalten. Den zahlungspflichtigen Kunden wählst du im nächsten Schritt. Bereits erfasste Teilnehmer werden nach der Kundenauswahl verfügbar.
+              </p>
+            )}
 
             {allParticipants.length === 0 && !showNewParticipant ? (
               <div className="text-sm text-muted-foreground rounded-md border border-dashed p-3 text-center">
-                Noch keine Teilnehmer.
+                Noch keine Teilnehmer ausgewählt.
                 <Button
                   variant="link"
                   size="sm"
@@ -324,7 +329,7 @@ export function SlotBookingPopover({
                       </div>
                       {p.isLocal && (
                         <Badge variant="outline" className="text-[10px] h-5 text-muted-foreground">
-                          Lokal
+                          Neu erfasst
                         </Badge>
                       )}
                       {p.level_current_season && (

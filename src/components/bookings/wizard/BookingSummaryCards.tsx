@@ -71,7 +71,7 @@ export function BookingSummaryCards({ onEditStep }: BookingSummaryCardsProps) {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between pb-2">
           <CardTitle className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
-            Kunde
+            Zahlungspflichtiger Kunde
           </CardTitle>
           <Button variant="ghost" size="sm" onClick={() => onEditStep(2)}>
             Ändern

@@ -16,7 +16,7 @@ export function Step1ProductCart() {
 
   return (
     <div className="space-y-4">
-      {/* Customer Shortcut (Schnellbuchung) */}
+      {/* Existing customer shortcut */}
       <div>
         <Button
           variant="outline"
@@ -27,10 +27,11 @@ export function Step1ProductCart() {
         >
           <div className="flex min-w-0 items-center gap-2">
             <Search className="h-4 w-4" />
-            <span className="min-w-0 break-words">Schnellbuchung – Kunde vorab wählen</span>
+            <span className="min-w-0 break-words">Bestehenden Kunden auswählen</span>
           </div>
           {showShortcut ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
         </Button>
+        <p className="mt-1 px-1 text-sm text-muted-foreground">Bereits erfasste Teilnehmer übernehmen.</p>
         {showShortcut && (
           <div className="mt-2">
             {state.customer ? (

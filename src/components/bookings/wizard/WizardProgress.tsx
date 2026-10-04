@@ -8,22 +8,22 @@ interface WizardProgressProps {
 }
 
 const steps = [
-  { step: 1 as WizardStep, label: "Produkt & Teilnehmer" },
-  { step: 2 as WizardStep, label: "Kunde" },
-  { step: 3 as WizardStep, label: "Abschluss" },
+  { step: 1 as WizardStep, label: "Unterricht & Teilnehmer" },
+  { step: 2 as WizardStep, label: "Zahlungspflichtiger Kunde" },
+  { step: 3 as WizardStep, label: "Prüfen & abschliessen" },
 ];
 
 export function WizardProgress({ currentStep, onStepClick }: WizardProgressProps) {
   return (
     <div className="flex items-center justify-center py-3">
-      <div className="flex items-center gap-0">
+      <div className="flex w-full max-w-2xl items-start justify-center gap-0">
         {steps.map((step, index) => {
           const isCompleted = step.step < currentStep;
           const isCurrent = step.step === currentStep;
           const isFuture = step.step > currentStep;
 
           return (
-            <div key={step.step} className="flex items-center">
+            <div key={step.step} className="flex min-w-0 flex-1 items-start last:flex-none">
               {/* Step dot */}
               <button
                 onClick={() => {
@@ -34,7 +34,7 @@ export function WizardProgress({ currentStep, onStepClick }: WizardProgressProps
                 }}
                 disabled={isFuture}
                 className={cn(
-                  "flex flex-col items-center gap-1.5 transition-all",
+                  "flex min-w-0 flex-col items-center gap-1.5 transition-all",
                   isFuture ? "cursor-not-allowed" : "cursor-pointer"
                 )}
               >
@@ -54,7 +54,7 @@ export function WizardProgress({ currentStep, onStepClick }: WizardProgressProps
                 </div>
                 <span
                   className={cn(
-                    "text-[11px] font-medium",
+                    "max-w-24 break-words text-center text-[11px] font-medium leading-tight sm:max-w-40",
                     isCurrent && "text-primary",
                     isCompleted && "text-foreground",
                     isFuture && "text-muted-foreground"
@@ -68,7 +68,7 @@ export function WizardProgress({ currentStep, onStepClick }: WizardProgressProps
               {index < steps.length - 1 && (
                 <div
                   className={cn(
-                    "mx-1.5 mt-[-16px] h-0.5 w-8 md:w-16",
+                    "mx-1.5 mt-4 h-0.5 min-w-3 flex-1 sm:mx-3",
                     step.step < currentStep ? "bg-primary" : "bg-muted-foreground/30"
                   )}
                 />
