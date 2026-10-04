@@ -21,6 +21,8 @@ export interface RangeDatePickerProps {
   minDate?: Date;
   /** Show quick action buttons */
   showQuickActions?: boolean;
+  /** Show the selected-date summary below the calendar */
+  showSelectionSummary?: boolean;
 }
 
 export function RangeDatePicker({
@@ -32,6 +34,7 @@ export function RangeDatePicker({
   className,
   minDate = new Date(),
   showQuickActions = true,
+  showSelectionSummary = true,
 }: RangeDatePickerProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState<Date | null>(null);
@@ -425,7 +428,7 @@ export function RangeDatePicker({
       />
 
       {/* Selection summary */}
-      {selectionSummary && (
+      {showSelectionSummary && selectionSummary && (
         <div className="flex items-center justify-between text-sm bg-muted/50 rounded-md px-3 py-2">
           <span className="text-muted-foreground">Ausgewählt:</span>
           <span className="font-medium">{selectionSummary}</span>
