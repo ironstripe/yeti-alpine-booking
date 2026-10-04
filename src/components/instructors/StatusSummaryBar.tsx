@@ -1,5 +1,6 @@
 import { cn } from "@/lib/utils";
 import type { Instructor } from "@/hooks/useInstructors";
+import { Button } from "@/components/ui/button";
 
 interface StatusSummaryBarProps {
   instructors: Instructor[];
@@ -27,54 +28,51 @@ export function StatusSummaryBar({
       key: "available",
       label: "Verfügbar",
       count: availableCount,
-      bgColor: "bg-green-100 hover:bg-green-200",
-      textColor: "text-green-800",
+      textColor: "text-foreground",
       dotColor: "bg-green-500",
-      activeRing: "ring-green-500",
     },
     {
       key: "on_call",
       label: "Auf Abruf",
       count: onCallCount,
-      bgColor: "bg-orange-100 hover:bg-orange-200",
-      textColor: "text-orange-800",
+      textColor: "text-foreground",
       dotColor: "bg-orange-500",
-      activeRing: "ring-orange-500",
     },
     {
       key: "unavailable",
       label: "Nicht verfügbar",
       count: unavailableCount,
-      bgColor: "bg-red-100 hover:bg-red-200",
-      textColor: "text-red-800",
+      textColor: "text-foreground",
       dotColor: "bg-red-500",
-      activeRing: "ring-red-500",
     },
   ];
 
   return (
-    <div className="flex flex-wrap gap-3 mb-6">
+    <div className="mb-5 flex flex-wrap items-center gap-2" aria-label="Verfügbarkeit filtern">
       {statuses.map((status) => (
-        <button
+        <Button
           key={status.key}
+          type="button"
+          variant="outline"
+          size="sm"
           onClick={() =>
             onFilterClick(activeFilter === status.key ? null : status.key)
           }
+          aria-pressed={activeFilter === status.key}
           className={cn(
-            "flex items-center gap-2 px-4 py-2 rounded-lg transition-all",
-            status.bgColor,
+            "control-target gap-2 font-normal",
             status.textColor,
-            activeFilter === status.key && `ring-2 ${status.activeRing}`
+            activeFilter === status.key && "border-foreground bg-muted"
           )}
         >
-          <span className={cn("w-3 h-3 rounded-full", status.dotColor)} />
-          <span className="font-medium">{status.label}:</span>
-          <span className="font-bold">{status.count}</span>
-        </button>
+          <span className={cn("h-2 w-2 rounded-full", status.dotColor)} aria-hidden="true" />
+          <span>{status.label}</span>
+          <span className="font-semibold tabular-nums">{status.count}</span>
+        </Button>
       ))}
-      <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-muted text-muted-foreground">
-        <span className="font-medium">Total:</span>
-        <span className="font-bold">{instructors.length} Skilehrer</span>
+      <div className="flex min-h-9 items-center gap-2 rounded-md px-3 text-sm text-muted-foreground">
+        <span>Total</span>
+        <span className="font-semibold tabular-nums text-foreground">{instructors.length}</span>
       </div>
     </div>
   );

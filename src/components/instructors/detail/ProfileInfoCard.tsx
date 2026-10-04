@@ -19,9 +19,10 @@ type Instructor = Tables<"instructors">;
 interface ProfileInfoCardProps {
   instructor: Instructor;
   onEdit: () => void;
+  compact?: boolean;
 }
 
-export function ProfileInfoCard({ instructor, onEdit }: ProfileInfoCardProps) {
+export function ProfileInfoCard({ instructor, onEdit, compact = false }: ProfileInfoCardProps) {
   const [showBankDetails, setShowBankDetails] = useState(false);
   const [bankOpen, setBankOpen] = useState(false);
 
@@ -64,14 +65,14 @@ export function ProfileInfoCard({ instructor, onEdit }: ProfileInfoCardProps) {
 
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between">
+      <CardHeader className={compact ? "flex flex-row items-center justify-between pb-3" : "flex flex-row items-center justify-between"}>
         <CardTitle className="text-lg">Profil</CardTitle>
         <Button variant="outline" size="sm" onClick={onEdit}>
           <Edit className="h-4 w-4 mr-2" />
           Bearbeiten
         </Button>
       </CardHeader>
-      <CardContent className="space-y-6">
+      <CardContent className={compact ? "grid gap-5 lg:grid-cols-2" : "space-y-6"}>
         {/* Contact Section */}
         <div>
           <h4 className="text-sm font-medium text-muted-foreground mb-3">Kontakt</h4>
@@ -133,7 +134,7 @@ export function ProfileInfoCard({ instructor, onEdit }: ProfileInfoCardProps) {
         {/* Employment Section */}
         <div>
           <h4 className="text-sm font-medium text-muted-foreground mb-3">Anstellung</h4>
-          <div className="grid grid-cols-2 gap-3 text-sm">
+          <div className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
             {instructor.hourly_rate != null && (
               <div>
                 <span className="text-muted-foreground">Stundenlohn:</span>
@@ -163,7 +164,7 @@ export function ProfileInfoCard({ instructor, onEdit }: ProfileInfoCardProps) {
 
         {/* Bank Details Section (Collapsible) */}
         {(instructor.bank_name || instructor.iban || instructor.ahv_number) && (
-          <Collapsible open={bankOpen} onOpenChange={setBankOpen}>
+          <Collapsible open={bankOpen} onOpenChange={setBankOpen} className={compact ? "lg:col-span-2" : undefined}>
             <CollapsibleTrigger asChild>
               <Button variant="ghost" className="w-full justify-between px-0 hover:bg-transparent">
                 <h4 className="text-sm font-medium text-muted-foreground">Bankverbindung</h4>
@@ -214,7 +215,7 @@ export function ProfileInfoCard({ instructor, onEdit }: ProfileInfoCardProps) {
 
         {/* Notes Section */}
         {instructor.notes && (
-          <div>
+          <div className={compact ? "lg:col-span-2" : undefined}>
             <h4 className="text-sm font-medium text-muted-foreground mb-2">Notizen</h4>
             <p className="text-sm bg-muted/50 p-3 rounded-md">{instructor.notes}</p>
           </div>

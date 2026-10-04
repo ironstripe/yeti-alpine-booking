@@ -6,6 +6,7 @@ interface StatusToggleProps {
   isPulsing: boolean;
   isUpdating: boolean;
   lastChanged?: string;
+  compact?: boolean;
 }
 
 const statuses = [
@@ -20,12 +21,13 @@ export function StatusToggle({
   isPulsing,
   isUpdating,
   lastChanged,
+  compact = false,
 }: StatusToggleProps) {
   const activeStatus = statuses.find((s) => s.value === currentStatus) || statuses[2];
 
   return (
-    <div className="flex flex-col items-center gap-4">
-      <div className="flex items-center gap-2 p-2 bg-muted/50 rounded-full">
+    <div className={cn("flex items-center", compact ? "flex-row flex-wrap gap-3" : "flex-col gap-4")}>
+      <div className={cn("flex items-center gap-2 bg-muted/50 rounded-full", compact ? "p-1" : "p-2")}>
         {statuses.map((status) => {
           const isActive = status.value === (currentStatus || "unavailable");
           return (
@@ -34,7 +36,8 @@ export function StatusToggle({
               onClick={() => onStatusChange(status.value)}
               disabled={isUpdating}
               className={cn(
-                "w-10 h-10 rounded-full transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                "rounded-full transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                compact ? "control-target" : "h-10 w-10",
                 isActive
                   ? cn(status.color, "ring-4", status.ring, isPulsing && "animate-status-pulse")
                   : "bg-transparent border-2 border-muted-foreground/30 hover:border-muted-foreground/50",
@@ -47,8 +50,8 @@ export function StatusToggle({
         })}
       </div>
 
-      <div className="text-center">
-        <p className="font-medium text-lg">{activeStatus.label}</p>
+      <div className={compact ? "text-left" : "text-center"}>
+        <p className={cn("font-medium", compact ? "text-sm" : "text-lg")}>{activeStatus.label}</p>
         {lastChanged && (
           <p className="text-sm text-muted-foreground">
             Zuletzt geändert: {lastChanged}
