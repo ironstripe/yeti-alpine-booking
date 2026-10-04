@@ -788,7 +788,6 @@ export function Step2ProductAllocation() {
                         Zurück zur Lehrerliste
                       </Button>
                       <div className={cn("min-w-0 transition-opacity", isFullscreen && "fixed inset-0 z-50 overflow-auto bg-background p-4")}>
-
                           {isFullscreen ? (
                             <div className="mb-3 flex items-center justify-between rounded-md bg-muted px-2 py-1.5"><span className="text-sm font-medium">Scheduler (Vollbild)</span><Button variant="ghost" size="sm" className="control-target" onClick={() => setIsFullscreen(false)}><X className="mr-1 h-4 w-4" />ESC zum Schließen</Button></div>
                           ) : <div className="mb-1 flex justify-end"><Button variant="ghost" size="sm" className="control-target gap-1 text-xs" onClick={() => setIsFullscreen(true)}><Maximize2 className="h-3 w-3" />Vollbild</Button></div>}
