@@ -96,4 +96,4 @@
 - [x] Merged people hidden in participant search pickers
 - [x] Booking wizard/lists: age rules for people with unknown DOB (needs a decision: which course age checks apply when DOB unknown)
 - [ ] #36 26/27 website course booking: SQL + API + invoice/confirmation delivery + staff resend implemented and tested locally (SQL 43/43, API 19/19). Blocked: owner approval to apply SQL/deploy; production school e-mail (sender) missing; OnePager client switch to contract v1.
-- [ ] Activate "Später zuweisen" save path: apply supabase/pending/pa_assign_later.sql → deploy private-appointments → publish frontend (blocked: needs owner go-ahead)
+- [x] Activate "Später zuweisen" save path: migration drizzle/migrations/0001_pa_assign_later.sql applied + private-appointments deployed 2026-10-04 (frontend index-fsCIuKrT.js already live; real save not yet exercised end-to-end)
