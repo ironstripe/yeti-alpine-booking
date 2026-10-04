@@ -132,8 +132,8 @@ export function filterEligibleInstructors<
   if (sport) {
     filtered = filtered.filter((i) => i.specialization === sport || i.specialization === "both");
   }
-  if (language && language !== "de") {
-    filtered = filtered.filter((i) => i.languages?.includes(language) || i.languages?.includes("de"));
+  if (language) {
+    filtered = filtered.filter((i) => i.languages?.includes(language) === true);
   }
   return filtered;
 }

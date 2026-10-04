@@ -109,10 +109,35 @@ describe("whole-plan selection", () => {
 });
 
 describe("filterEligibleInstructors", () => {
-  const i = (id: string, specialization: string, languages: string[], status = "active") => ({ id, status, specialization, languages });
-  test("keeps the existing active/sport/language rule", () => {
-    const list = [i("a", "ski", ["de"]), i("b", "snowboard", ["de"]), i("c", "both", ["en"]), i("d", "ski", ["fr"], "inactive"), i("e", "ski", ["it"])];
-    expect(filterEligibleInstructors(list, "ski", "en").map((x) => x.id)).toEqual(["a", "c"]);
-    expect(filterEligibleInstructors(list, "ski", "de").map((x) => x.id)).toEqual(["a", "c", "e"]);
+  const i = (id: string, specialization: string, languages: string[] | null, status = "active") => ({ id, status, specialization, languages });
+  const list = [
+    i("de", "ski", ["de"]),
+    i("fr", "ski", ["fr"]),
+    i("de-fr", "both", ["de", "fr"]),
+    i("en", "ski", ["en"]),
+    i("it", "ski", ["it"]),
+    i("empty", "ski", []),
+    i("missing", "ski", null),
+    i("wrong-sport", "snowboard", ["fr"]),
+    i("inactive", "ski", ["fr"], "inactive"),
+  ];
+
+  test("French requires explicit French and keeps active/sport criteria", () => {
+    expect(filterEligibleInstructors(list, "ski", "fr").map((x) => x.id)).toEqual(["fr", "de-fr"]);
+  });
+
+  test("English and Italian require their exact stored language", () => {
+    expect(filterEligibleInstructors(list, "ski", "en").map((x) => x.id)).toEqual(["en"]);
+    expect(filterEligibleInstructors(list, "ski", "it").map((x) => x.id)).toEqual(["it"]);
+  });
+
+  test("German requires explicit German", () => {
+    expect(filterEligibleInstructors(list, "ski", "de").map((x) => x.id)).toEqual(["de", "de-fr"]);
+  });
+
+  test("no selected language adds no language restriction", () => {
+    expect(filterEligibleInstructors(list, "ski", null).map((x) => x.id)).toEqual([
+      "de", "fr", "de-fr", "en", "it", "empty", "missing",
+    ]);
   });
 });
