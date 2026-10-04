@@ -3,6 +3,7 @@ import type { Tables } from "@/integrations/supabase/types";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchInstructor } from "@/lib/instructorsApi";
 import { dateSetChanged, deriveFromPlan, sortPlan, toMin, validatePlan } from "@/lib/privatePlan";
+import { applyAssignLater } from "@/lib/assignLaterState";
 
 export type WizardStep = 1 | 2 | 3;
 
@@ -1443,12 +1444,16 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
   };
 
   const setAssignLater = (assignLater: boolean) => {
-    setState((prev) => ({
-      ...prev,
-      assignLater,
-      instructor: assignLater ? null : prev.instructor,
-      instructorId: assignLater ? null : prev.instructorId,
-    }));
+    setState((prev) => {
+      // Clears every teacher reference of the ACTIVE item; timing/participants kept.
+      const next = applyAssignLater(prev, assignLater);
+      return {
+        ...next,
+        cartItems: next.cartItems.map((item) =>
+          item.id === next.activeCartItemId ? extractCartItemFromState(next, item.id) : item
+        ),
+      };
+    });
   };
 
   const setMeetingPoint = (point: string | null) => {

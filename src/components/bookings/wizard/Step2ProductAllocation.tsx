@@ -839,12 +839,7 @@ export function Step2ProductAllocation() {
                 <Checkbox
                   id="assign-later"
                   checked={state.assignLater}
-                  onCheckedChange={(checked) => {
-                    const on = checked === true;
-                    // Drop teacher-bound slot picks so no stale teacher survives the toggle
-                    if (on && state.miniSchedulerSelections.length > 0) clearMiniSchedulerSelection();
-                    setAssignLater(on);
-                  }}
+                  onCheckedChange={(checked) => setAssignLater(checked === true)}
                 />
                 <label htmlFor="assign-later" className="cursor-pointer text-sm">
                   Später zuweisen
