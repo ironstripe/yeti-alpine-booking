@@ -1,16 +1,17 @@
-# UI-06 scheduler visual signals
+# UI-08 calm lists and documents
 
 ## Scope
-- Update only the static scheduler booking palette and direct presentation consumers so desktop bars, mobile markers, and the active desktop legend agree.
-- Keep booking type/status branching, paid truthiness, provisional precedence, conflict/cancellation meaning, geometry, interactions, and all data behavior unchanged.
-- Add a neutral group-type icon to booking bars and accessible Swiss-German labels plus shared action sizing to the range date picker controls.
-- Record actual component reach, measured contrast, fixture coverage, and remaining untested scope in the UI docs and roadmap.
+- Replace the six tall document tiles with one compact semantic six-row list inside the existing available-lists section.
+- Keep every existing title, subtitle, count, count label, preview handler, and exact zero-count disabled rule unchanged.
+- Add neutral small icons, aligned quiet counts, outline create actions, and responsive wrapping without horizontal overflow.
+- Add accessible German names and existing 36/44px sizing to date arrows; visually compact batch print and notes while preserving every control and handler.
+- Document the known ticket-overview and batch-print behavior without changing it.
 
 ## Verification
-- Use temporary synthetic local fixtures with all remote traffic blocked to render actual booking bars, the active legend path, mobile agenda, and range date picker in light/dark at 1440px and 390px, including short bars and long labels.
-- Compare booking bar positions and dimensions with the reviewed baseline; measure computed composited text/background contrast; confirm date-picker accessible names, 36/44px targets, and unchanged clear callback wiring.
-- Remove fixtures, then run focused tests where available, TypeScript, build diagnostics, and diff review. Do not publish or perform writes.
+- Mount the real page/components with isolated synthetic zero and nonzero data at 1440×900, 1024×768, and 390×560 in light/dark.
+- Block external traffic; verify six zero-state buttons disabled, nonzero actions open their original previews, targets are 36/44px, and no content clips or overflows.
+- Do not print or invoke live writes. Remove fixtures, then run TypeScript, preview build diagnostics, and diff checks.
 
 ## Technical notes
-- `getBookingBarClasses` is the live desktop/mobile booking palette. Before UI-06, `BLOCK_COLORS` reached only the otherwise-unmounted `SchedulerLegend`; the main `SchedulerGrid` used an inline compact legend. UI-06 mounts `SchedulerLegend compact` there. Mini-scheduler uses a separate operational ranking legend and is not part of this palette.
-- Instructor availability colors, absences, selection/focus styles, grid geometry, drag/drop, and scheduler calculations remain untouched.
+- Presentation-only changes are limited to `Lists.tsx`, `DocumentCard.tsx`, `BatchPrintCard.tsx`, and UI documentation/roadmap.
+- No hooks, defaults, counts, preview props, state, handlers, dependencies, or backend behavior will change.
