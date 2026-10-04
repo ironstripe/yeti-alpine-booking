@@ -37,12 +37,33 @@ Request: umsg_01m44c63tyfcdt43w5pf5yvw4f (Ivo, 2026-10-04). Continue this plan; 
 | 6 | P1 3 h | no |
 | 7 | P1 5 h | yes, still 10 % |
 
+## Discount ownership (authoritative, Ivo 2026-10-04)
+- Individually agreed / manual discounts belong to the INVOICE MODULE. Reuse it as is.
+- The booking wizard gets NO new manual-discount control or workflow, and no new request-level
+  discount implementation. The booking pricing work covers only the automatic same-day 10 %.
+- Automatic and individually agreed discounts must stay distinguishable (separate fields/labels),
+  never merged into one figure.
+- Existing invoice mechanism (inspected in source, not runtime-tested): `invoices.subtotal`,
+  `invoices.discount` (one absolute amount, default 0) and `invoices.total`, all passed in by the
+  caller of `issueInvoice` (`_shared/invoice-service.ts`); the document prints Zwischensumme,
+  "Rabatt" and Total (`_shared/invoiceDocument.ts`, `InvoicePrintTemplate.tsx`). It computes no
+  percentages and defines no combination rule itself. Preserve this; do not invent stacking.
+- Consequence for implementation: the automatic 10 % is carried on the affected booking lines
+  (per participant/appointment, server-priced) so line amounts and the invoice subtotal already
+  contain it, labelled as the automatic same-day discount; `invoices.discount` stays reserved for
+  the individually agreed invoice discount.
+
 ## Open decisions (must be answered before building the affected parts)
 1. Continue with option (a) server change unapplied + full flow, or (b) current-server subset first.
-2. Same-day separate private sets: priced per lesson (current) — the discount rule above now covers
-   hour counting for the discount only; base pricing stays per lesson.
-3. Manual request discount on lessons added later to an existing booking: apply or not?
-4. Shared lesson where only some participants qualify (case 4): which part of the lesson price the
+2. Same-day separate private sets: base pricing stays per lesson; the rule above counts hours
+   only for the discount.
+3. Shared lesson where only some participants qualify (case 4): which part of the lesson price the
    10 % applies to (base vs. that participant's supplement). Not decided; no allocation rule invented.
-5. Stacking of automatic 10 % with a manual discount (today's legacy client adds percentages; the
-   server path applies manual only). Not decided; no stacking rule invented.
+4. Existing wizard manual-discount field (`DiscountSection`, server applies it per appointment line)
+   overlaps the invoice module's ownership. It will not be extended; whether to keep, hide or retire
+   it is Ivo's decision and is not changed in this work.
+5. Line-level presentation of the automatic discount on the invoice (separate line vs. note in line
+   details): to be confirmed; the amounts are unaffected.
+
+Superseded: "manual request discount on lessons added later" and "stacking auto + manual" are no
+longer booking-side questions; manual discounts follow the existing invoice module.
