@@ -7,6 +7,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { BookingDetailDialog } from "@/components/scheduler/BookingDetailDialog";
 import { BookingApprovalModal } from "@/components/bookings/BookingApprovalModal";
+import { BookingDetailDialog as BaselineDetail } from "./BaselineDetail";
 import { EditInstructorModal } from "@/components/instructors/EditInstructorModal";
 
 const qc = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity, retry: false }, mutations: { retry: false } } });
@@ -32,6 +33,7 @@ function App() {
     <div className="p-6">
       <button id="opener" className="border px-3 py-2" onClick={() => setOpen(true)}>Öffnen</button>
       {which === "detail" && <BookingDetailDialog open={open} onOpenChange={setOpen} ticketItemId="ti1" />}
+      {which === "baseline" && <BaselineDetail open={open} onOpenChange={setOpen} ticketItemId="ti1" />}
       {which === "approval" && <BookingApprovalModal open={open} onOpenChange={setOpen} ticket={{ id: "t1", ticket_number: "T-2026-999999-SYNTHETIC-LONG-NUMBER", customer_name: "Kunde " + LONG, customer_email: "sehr.lange." + "y".repeat(40) + "@example.invalid", total_amount: 1234.5, source_channel: "email" }} />}
       {which === "instructor" && <EditInstructorModal open={open} onOpenChange={setOpen} instructor={{ ...inst("i1", "Anna", "Test"), birth_date: null, gender: null, level: null, hourly_rate: null, entry_date: null, street: null, zip: null, city: null, country: "CH", bank_name: null, notes: null } as any} />}
     </div>
