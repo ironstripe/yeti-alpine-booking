@@ -1,3 +1,9 @@
+## UI-09 backoffice instructor management
+
+- Browser verification used the authenticated local application shell at 1440×900, 1280×720 and 390×560 in light and dark presentation. The overview rendered 98 synthetic/read-only records in a semantic table with six stable columns, 52px desktop rows, real detail links, the existing order, visible filter labels and no page-level horizontal overflow. The table itself intentionally scrolls horizontally on narrow screens.
+- The staff detail route retained its existing action destinations and role conditions. Its compact header, availability control, today's assignments, profile grid and subordinate website section were exercised with long production-like content without clipping. The teacher self-view remains on the original page branch; teacher-portal routes and shared teacher components were not restyled.
+- Website-profile editing rendered as a 520px desktop sheet and full-width 390px mobile sheet with one scrollable body and stable footer. Focus trapping, labelled close, nested confirmation structure and cancel controls remained present. Escape closing was exercised before changing fields; dirty-state behavior was not separately testable because this dialog had no pre-existing dirty-close guard.
+- No save, upload, invite, message or status action was triggered. Requests observed during authenticated rendering were existing reads/session traffic; no application mutation was initiated by the test. Physical touch hardware, actual portrait upload and successful publication remain untested.
 # UI verification log
 
 ## UI-05A — closing browser verification gaps (2026-10-04)

@@ -7,13 +7,14 @@ import type { TodayBooking } from "@/hooks/useInstructorDetail";
 
 interface TodayScheduleCardProps {
   bookings: TodayBooking[];
+  compact?: boolean;
 }
 
 const timeSlots = [
   "09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00"
 ];
 
-export function TodayScheduleCard({ bookings }: TodayScheduleCardProps) {
+export function TodayScheduleCard({ bookings, compact = false }: TodayScheduleCardProps) {
   const today = format(new Date(), "EEEE, d. MMMM", { locale: de });
 
   const getBookingForSlot = (slot: string) => {
@@ -33,7 +34,7 @@ export function TodayScheduleCard({ bookings }: TodayScheduleCardProps) {
 
   return (
     <Card>
-      <CardHeader className="pb-3">
+      <CardHeader className={compact ? "pb-2" : "pb-3"}>
         <div className="flex items-center gap-2">
           <Calendar className="h-4 w-4 text-muted-foreground" />
           <CardTitle className="text-lg">Heute</CardTitle>
@@ -42,8 +43,8 @@ export function TodayScheduleCard({ bookings }: TodayScheduleCardProps) {
       </CardHeader>
       <CardContent>
         {bookings.length === 0 ? (
-          <div className="text-center py-8 text-muted-foreground">
-            <Clock className="h-8 w-8 mx-auto mb-2 opacity-50" />
+          <div className={compact ? "flex items-center gap-2 py-2 text-muted-foreground" : "text-center py-8 text-muted-foreground"}>
+            <Clock className={compact ? "h-4 w-4" : "h-8 w-8 mx-auto mb-2 opacity-50"} />
             <p className="text-sm">Keine Buchungen für heute</p>
           </div>
         ) : (

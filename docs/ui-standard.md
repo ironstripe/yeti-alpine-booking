@@ -106,3 +106,9 @@ Toolbar wrapping follows the scheduler's actual available container width, inclu
 Available documents use one compact semantic list instead of narrow dashboard tiles. Each row keeps a quiet category icon, left-aligned title and description, aligned count metadata, and a secondary outline action. Zero counts remain readable neutral metadata and retain the existing disabled action rule.
 
 Date navigation follows the shared labelled 36px precise-pointer / 44px coarse-pointer action convention. Batch-print controls and notes use reduced spacing, while every checkbox, default, preview input and print handler retains its existing behavior.
+
+## UI-09 backoffice instructor management
+
+The staff instructor overview uses a compact semantic table with real detail links, subdued portraits, neutral qualification and booking metadata, and small operational availability cues. Existing filters, ordering, counts, photo precedence, row navigation, import and creation actions remain unchanged; narrow screens may scroll the table horizontally rather than compressing its records.
+
+The staff detail view keeps assignments near the profile header, presents profile and operational summaries in a compact workspace, and gives roles, qualifications, absences and recurring blocks useful full width. The teacher self-view retains its previous presentation. Website-profile editing follows the standard 520px right-sheet anatomy without changing publication, portrait, validation, confirmation or close behavior.

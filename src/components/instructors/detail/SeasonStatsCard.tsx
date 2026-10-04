@@ -4,9 +4,10 @@ import type { SeasonStats } from "@/hooks/useInstructorDetail";
 
 interface SeasonStatsCardProps {
   stats: SeasonStats | undefined;
+  compact?: boolean;
 }
 
-export function SeasonStatsCard({ stats }: SeasonStatsCardProps) {
+export function SeasonStatsCard({ stats, compact = false }: SeasonStatsCardProps) {
   const currentYear = new Date().getFullYear();
   const seasonLabel = new Date().getMonth() >= 11
     ? `${currentYear}/${currentYear + 1}`
@@ -62,10 +63,10 @@ export function SeasonStatsCard({ stats }: SeasonStatsCardProps) {
           {statItems.map((item) => (
             <div
               key={item.label}
-              className={`p-3 rounded-lg ${item.bgColor}`}
+              className={compact ? "rounded-md border bg-muted/30 p-3" : `p-3 rounded-lg ${item.bgColor}`}
             >
               <div className="flex items-center gap-2 mb-1">
-                <item.icon className={`h-4 w-4 ${item.color}`} />
+                <item.icon className={compact && item.label !== "Ausstehende Bestätigung" ? "h-4 w-4 text-muted-foreground" : `h-4 w-4 ${item.color}`} />
                 <span className="text-xs text-muted-foreground">{item.label}</span>
               </div>
               <p className="text-lg font-semibold">{item.value}</p>
