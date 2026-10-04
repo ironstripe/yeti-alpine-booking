@@ -194,3 +194,13 @@ Network: 72 remote requests intercepted, none reached a live service; 18 aborted
 ### UI-10 limits
 
 - The full wizard data flow, customer search/edit/create, participant persistence, availability, final submission, and live records were not exercised. The fixture was removed before the final diff.
+
+## UI-11 — recurring-block copy clarification (2026-10-04)
+
+- Text-only presentation change in `RecurringBlocksTab.tsx` and `RecurringBlockDialog.tsx`: heading “Wiederkehrenden Block hinzufügen” with the neutral helper sentence, preset buttons “Nachmittage blockieren” (13:00–16:00) and “Vormittage blockieren” (09:00–12:00) with muted sublabels, “Eigener Block …”, “Bestehende wiederkehrende Blöcke”, dialog label “Blockierte Zeit *”, and edit heading “Wiederkehrenden Block bearbeiten”.
+- All preset times, weekdays, reasons, keys, hooks, handlers, validation, conflict checking, persistence, and the submit action remained unchanged. No props or hooks were introduced; the shared teacher-portal component only received approved wording.
+- Diff verified as strings and local wrapping JSX only; `git diff --check` and TypeScript passed.
+
+### UI-11 method
+
+- An isolated fixture (removed before this note) mounted the real `RecurringBlocksTab` with an isolated query client. At 390×844 all requested labels rendered, preset buttons wrapped cleanly, document width equalled viewport width (390/390), and external requests were aborted; no save, delete, or live data action ran. The dialog itself was not opened in the fixture; dialog strings were verified in the source diff only.
