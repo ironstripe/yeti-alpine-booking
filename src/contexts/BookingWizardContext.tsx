@@ -1,3 +1,4 @@
+import type { ServerGroupRef } from "@/lib/groupCoursePlan";
 import { createContext, useContext, useState, useCallback, ReactNode } from "react";
 import type { Tables } from "@/integrations/supabase/types";
 import { supabase } from "@/integrations/supabase/client";
@@ -70,6 +71,8 @@ export interface ParticipantBookingDetails {
   groupMeetingPoint?: string | null;
   groupBlocks?: Array<{ date: string; startTime: string; endTime: string }>;
   groupPersistenceBlocker?: string | null;
+  /** 26/27 staff server booking reference (server re-checks everything). */
+  groupServer?: ServerGroupRef | null;
 }
 
 export interface GroupPlanSnapshot {
@@ -79,6 +82,7 @@ export interface GroupPlanSnapshot {
   meetingPoint: string | null;
   blocks: Array<{ date: string; startTime: string; endTime: string }>;
   persistenceBlocker: string | null;
+  server?: ServerGroupRef | null;
 }
 
 // Per-day time override for period bookings (supports multiple time blocks per day)
@@ -931,6 +935,7 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
           groupMeetingPoint: prev.groupPlan?.meetingPoint ?? null,
           groupBlocks: prev.groupPlan?.blocks ?? [],
           groupPersistenceBlocker: prev.groupPlan?.persistenceBlocker ?? null,
+          groupServer: prev.groupPlan?.server ?? null,
         };
       }
       return { ...prev, participantBookings: bookings };

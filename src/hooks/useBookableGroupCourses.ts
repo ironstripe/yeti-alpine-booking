@@ -32,7 +32,7 @@ export function useBookableGroupCourses(selectedDates: string[], sport: "ski" | 
           product:product_id(id, name, type, is_active, season_id, season:season_id(id, name, start_date, end_date)),
           schedules:group_course_schedules(day_of_week, start_time, end_time, is_active),
           course_dates:training_course_dates(date, is_cancelled)
-        `).is("archived_at" as never, null),
+        `).is("archived_at", null),
         supabase.from("bc_product_tariff_sources").select("product_id"),
         needsServer ? fetchStaffGroupOptions([...selectedDates].sort(), sport!) : Promise.resolve(null),
       ]);
