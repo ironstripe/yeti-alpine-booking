@@ -69,7 +69,7 @@ export function BookingSummaryCards({
     state.productType === "private" && !(state.privateGroupProposal && state.privateGroupProposal.groups.length > 1);
   // Ordinary private create: exactly the applied linked participants (same set the submit sends).
   const displayedParticipants =
-    isStepOne || (isOrdinaryPrivate && !state.isEditMode) ? linkedParticipants : state.selectedParticipants;
+    isStepOne || (!state.isEditMode && (isOrdinaryPrivate || state.productType === "group")) ? linkedParticipants : state.selectedParticipants;
   const sortedDates = [...state.selectedDates].sort();
   // Same effective plan as readiness and save; no default times.
   const effectivePlan = state.productType === "private" ? buildEffectivePrivatePlan(state) : null;
@@ -189,6 +189,20 @@ export function BookingSummaryCards({
             {state.duration && ` · ${state.duration} Stunden`}
             {state.sport && ` · ${state.sport === "snowboard" ? "Snowboard" : "Ski"}`}
           </p>
+          {state.productType === "group" && !state.useParticipantSpecificBooking && state.groupPlan && (
+            <div className="space-y-1">
+              <p className="font-medium">{state.groupPlan.courseName}</p>
+              {state.groupPlan.productName && <p className="text-sm text-muted-foreground">{state.groupPlan.productName}</p>}
+            </div>
+          )}
+          {state.productType === "group" && state.useParticipantSpecificBooking && (
+            <div className="space-y-2">
+              {linkedParticipants.map((participant) => {
+                const booking = state.participantBookings[participant.id];
+                return <div key={participant.id} className="rounded-md border p-2 text-sm"><span className="font-medium">{participant.first_name}: </span>{booking?.groupCourseName || "Kurs noch offen"}</div>;
+              })}
+            </div>
+          )}
           
           {/* Multi-group: show per-group time info */}
           {state.productType === "private" && state.privateGroupProposal && state.privateGroupProposal.groups.length > 1 ? (
@@ -240,11 +254,13 @@ export function BookingSummaryCards({
                         ))}
                       </div>
                     ) : (
-                      state.timeSlot && (
-                        <div className="ml-6 text-sm text-muted-foreground">
-                          {state.timeSlot}
-                        </div>
-                      )
+                      <div className="ml-6 space-y-1 text-sm text-muted-foreground">
+                        {(state.useParticipantSpecificBooking
+                          ? linkedParticipants.flatMap((participant) => state.participantBookings[participant.id]?.groupBlocks ?? []).filter((block) => block.date === dateStr)
+                          : state.groupPlan?.blocks.filter((block) => block.date === dateStr) ?? []
+                        ).map((block, index) => <div key={`${dateStr}-${block.startTime}-${index}`}>{block.startTime}–{block.endTime}</div>)}
+                        {state.productType === "group" && !state.selectedGroupId && !state.useParticipantSpecificBooking && <span>Kurs noch offen</span>}
+                      </div>
                     )}
                   </div>
                 );
@@ -384,7 +400,9 @@ export function BookingSummaryCards({
           {/* Meeting Point */}
           <div className="flex items-center gap-2">
             <MapPin className="h-4 w-4 text-muted-foreground" />
-            <span>Treffpunkt: {MEETING_POINT_LABELS[state.meetingPoint || ""] || state.meetingPoint}</span>
+            <span>Treffpunkt: {state.productType === "group" && !state.useParticipantSpecificBooking
+              ? state.groupPlan?.meetingPoint || "Noch offen"
+              : MEETING_POINT_LABELS[state.meetingPoint || ""] || state.meetingPoint}</span>
           </div>
 
           {/* Language */}

@@ -100,3 +100,6 @@
 - [ ] #36 26/27 website course booking: SQL + API + invoice/confirmation delivery + staff resend implemented and tested locally (SQL 43/43, API 19/19). Blocked: owner approval to apply SQL/deploy; production school e-mail (sender) missing; OnePager client switch to contract v1.
 - [x] Activate "Später zuweisen" save path: migration drizzle/migrations/0001_pa_assign_later.sql applied + private-appointments deployed 2026-10-04 (frontend index-fsCIuKrT.js already live; real save not yet exercised end-to-end)
 - [x] Private booking: time-first teacher list (full / partial / unavailable over exact intervals), "Andere Zeiten suchen" → existing scheduler + back; synthetic browser checks 14/14, unit 15/15 (unpublished)
+
+## Group booking UX
+- [x] Explicit sport/course selection, shared eligibility, participant linking, truthful schedules/summary, and fail-closed split-block save guard; 72 focused tests plus write-blocked desktop/mobile wizard checks passed (unpublished)

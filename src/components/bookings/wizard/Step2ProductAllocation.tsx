@@ -63,6 +63,8 @@ import { buildWizardTimeSlot, parseWizardTimeSlot } from "@/lib/privatePlan";
 import { type IntendedInterval, type IntervalPlan } from "@/lib/teacherShortlist";
 import { buildEffectivePrivatePlan } from "@/lib/effectivePrivatePlan";
 import type { ReadinessField } from "@/lib/wizardReadiness";
+import { useBookableGroupCourses } from "@/hooks/useBookableGroupCourses";
+import type { SelectedParticipant } from "@/contexts/BookingWizardContext";
 
 // Available start and end times (lift hours: 09:00 - 16:00)
 const START_TIMES = ["09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00"];
@@ -92,6 +94,7 @@ export function Step2ProductAllocation() {
     setMeetingPoint,
     setLanguage,
     setSelectedGroupId,
+    setGroupPlan,
     setLunchDaysForParticipant,
     setVegetarianForParticipant,
     setUseParticipantSpecificBooking,
@@ -183,33 +186,6 @@ export function Step2ProductAllocation() {
     const uniqueGroups = new Set(ageGroups);
     return uniqueGroups.size > 1;
   }, [state.selectedParticipants]);
-
-  // Auto-enable participant-specific mode for group bookings with different levels
-  useEffect(() => {
-    if (
-      state.productType === "group" &&
-      state.selectedParticipants.length > 1 &&
-      (hasDifferentLevels || hasAgeMismatch) &&
-      !state.useParticipantSpecificBooking
-    ) {
-      // Clear shared group selection to avoid confusion
-      setSelectedGroupId(null);
-      // Initialize individual bookings for each participant
-      initializeParticipantBookings();
-      // Enable participant-specific mode
-      setUseParticipantSpecificBooking(true);
-      console.log("Step2: Auto-enabled participant-specific mode due to level/age mismatch");
-    }
-  }, [
-    state.productType,
-    state.selectedParticipants.length,
-    hasDifferentLevels,
-    hasAgeMismatch,
-    state.useParticipantSpecificBooking,
-    setSelectedGroupId,
-    initializeParticipantBookings,
-    setUseParticipantSpecificBooking,
-  ]);
 
   // Handler for participant booking changes
   const handleParticipantBookingChange = useCallback(
@@ -420,12 +396,6 @@ export function Step2ProductAllocation() {
           p.name.includes(sportName)
       );
     }
-    if (state.productType === "group" && state.selectedDates.length > 0) {
-      const daysCount = state.selectedDates.length;
-      return products.find(
-        (p) => p.type === "group" && p.name.includes(`${daysCount} Tag`)
-      );
-    }
     return null;
   }, [products, state.productType, state.duration, state.sport, state.selectedDates.length]);
 
@@ -513,6 +483,40 @@ export function Step2ProductAllocation() {
     () => state.cartItems.find((item) => item.id === state.activeCartItemId)?.assignedParticipantIds ?? [],
     [state.cartItems, state.activeCartItemId],
   );
+  const groupPeople = useMemo(() => activeAssignedIds.map((id) => {
+    const person = state.selectedParticipants.find((participant) => participant.id === id);
+    if (person) return person;
+    const local = state.localParticipants.find((participant) => participant.id === id);
+    return local ? {
+      id: local.id,
+      first_name: local.first_name,
+      last_name: local.last_name,
+      birth_date: local.birth_date,
+      level_last_season: null,
+      level_current_season: local.skill_level,
+      sport: local.sport,
+    } satisfies SelectedParticipant : null;
+  }).filter((participant): participant is SelectedParticipant => !!participant), [activeAssignedIds, state.localParticipants, state.selectedParticipants]);
+  const { data: groupCourses = [] } = useBookableGroupCourses(state.selectedDates, state.sport);
+  const selectedGroupCourse = groupCourses.find((course) => course.id === state.selectedGroupId) ?? null;
+
+  useEffect(() => {
+    if (!selectedGroupCourse) {
+      if (state.groupPlan) setGroupPlan(null);
+      return;
+    }
+    if (state.productId !== selectedGroupCourse.product?.id) setProductId(selectedGroupCourse.product?.id ?? null);
+    if (selectedGroupCourse.meeting_point && state.meetingPoint !== selectedGroupCourse.meeting_point) setMeetingPoint(selectedGroupCourse.meeting_point);
+    if (state.groupPlan?.courseId === selectedGroupCourse.id && state.groupPlan.blocks.length === selectedGroupCourse.blocks.length) return;
+    setGroupPlan({
+      courseId: selectedGroupCourse.id,
+      courseName: selectedGroupCourse.name,
+      productName: selectedGroupCourse.product?.name ?? null,
+      meetingPoint: selectedGroupCourse.meeting_point,
+      blocks: selectedGroupCourse.blocks,
+      persistenceBlocker: selectedGroupCourse.persistenceBlocker,
+    });
+  }, [selectedGroupCourse, setGroupPlan, setMeetingPoint, setProductId, state.groupPlan, state.meetingPoint, state.productId]);
 
   // Explicit participant (re-)entry for the active item: exact canonical plan, current teacher
   // state and linked participants; result only links participants/meeting point (no time/teacher writes).
@@ -531,6 +535,19 @@ export function Step2ProductAllocation() {
       startTime: first.startTime,
       endTime: first.endTime,
       plannedIntervals: intervalPlan.intervals,
+      initialParticipantIds: activeAssignedIds,
+      title: "Teilnehmer zuweisen",
+    });
+  };
+
+  const openGroupParticipantEntry = () => {
+    const firstDate = state.selectedDates[0] ?? "";
+    setPopoverSlot({
+      instructorId: null,
+      instructorName: null,
+      date: firstDate,
+      startTime: "00:00",
+      endTime: "00:00",
       initialParticipantIds: activeAssignedIds,
       title: "Teilnehmer zuweisen",
     });
@@ -575,6 +592,7 @@ export function Step2ProductAllocation() {
         meetingPoint: "date-section-title",
         teacher: "assignment-section-title",
         participants: "participants-section-title",
+        course: "group-course-section-title",
       }[field];
       const section = document.getElementById(sectionId)?.closest("section");
       if (!section) return;
@@ -642,7 +660,7 @@ export function Step2ProductAllocation() {
               </Label>
             </RadioGroup>
           </div>
-          {state.productType === "private" && (
+          {state.productType && (
             <div className="space-y-1.5">
               <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Sportart</Label>
               <ToggleGroup type="single" value={state.sport || ""} onValueChange={(value) => setSport((value as "ski" | "snowboard") || null)} className="grid grid-cols-2 gap-2">
@@ -761,9 +779,6 @@ export function Step2ProductAllocation() {
           {state.productType === "private" && state.appointments !== null && <PlannedAppointmentsCard />}
           {state.productType === "private" && state.appointments === null && state.selectedDates.length > 1 && (
             <PeriodDayPlanner selectedDates={state.selectedDates} baseInstructor={state.instructor} baseTimeSlot={state.timeSlot} dayInstructorOverrides={state.dayInstructorOverrides} dayTimeOverrides={state.dayTimeOverrides} onInstructorChange={setDayInstructorOverride} onDateChange={movePlannedDate} onTimeChange={setDayTimeOverride} onAddTimeBlock={addTimeBlock} onUpdateTimeBlock={updateTimeBlock} onRemoveTimeBlock={removeTimeBlock} onRemoveInstructorOverride={removeDayInstructorOverride} onRemoveTimeOverride={removeDayTimeOverride} sport={state.sport} />
-          )}
-          {state.productType === "group" && state.selectedDates.length > 0 && (
-            <div className="rounded-md border bg-muted/40 p-3"><div className="mb-2 flex items-center gap-2"><Clock className="h-4 w-4 text-muted-foreground" /><span className="text-sm font-medium">Feste Kurszeiten</span></div><p className="text-sm text-muted-foreground">{groupRecommendation.hasToddlers ? <>🧒 Windel-Wedelkurs: <strong>10:00 - 12:00</strong> (nur vormittags)</> : <>📚 Standard: <strong>10:00 - 12:00</strong> + <strong>14:00 - 16:00</strong></>}</p></div>
           )}
         </section>
       )}
@@ -916,9 +931,7 @@ export function Step2ProductAllocation() {
         </div>
         {(() => {
           const activeItem = state.cartItems.find((item) => item.id === state.activeCartItemId);
-          const ids = state.productType === "group"
-            ? state.selectedParticipants.map((participant) => participant.id)
-            : activeItem?.assignedParticipantIds ?? [];
+          const ids = activeItem?.assignedParticipantIds ?? [];
           const people = ids
             .map((id) =>
               state.localParticipants.find((participant) => participant.id === id)
@@ -942,7 +955,7 @@ export function Step2ProductAllocation() {
             </p>
           );
         })()}
-        {state.productType === "private" && (
+        {state.productType === "private" ? (
           <div className="flex flex-wrap items-center gap-2">
             <Button
               type="button"
@@ -967,7 +980,11 @@ export function Step2ProductAllocation() {
               </span>
             )}
           </div>
-        )}
+        ) : state.productType === "group" ? (
+          <Button type="button" variant="outline" size="sm" className="control-target" onClick={openGroupParticipantEntry} data-participant-entry>
+            <Users className="mr-1 h-4 w-4" />{activeAssignedIds.length > 0 ? "Teilnehmer bearbeiten" : "Teilnehmer hinzufügen"}
+          </Button>
+        ) : null}
       </section>
 
       {warnings.length > 0 && state.productType === "private" && state.selectedDates.length > 0 && (
@@ -975,11 +992,11 @@ export function Step2ProductAllocation() {
       )}
 
       {isGroupCourse && (
-        <section aria-label="Kursauswahl" className="space-y-4">
+        <section id="group-course-section-title" aria-label="Kursauswahl" className="space-y-4">
           {state.selectedDates.length > 0 ? state.useParticipantSpecificBooking ? (
-            <><Alert className="bg-muted/40"><Sparkles className="h-4 w-4 text-muted-foreground" /><AlertDescription><p className="font-medium">Individuelle Buchung aktiviert</p><p className="text-sm">{hasDifferentLevels ? "Teilnehmer haben unterschiedliche Niveaus – jeder wird in den passenden Kurs eingeschrieben." : "Teilnehmer haben unterschiedliche Altersgruppen – jeder wird in den passenden Kurs eingeschrieben."}</p></AlertDescription></Alert><div className="space-y-3">{state.selectedParticipants.map((participant, index) => { const booking = state.participantBookings[participant.id]; if (!booking) return null; const first = state.participantBookings[state.selectedParticipants[0]?.id]; const differs = index > 0 && first && (booking.groupCourseId !== first.groupCourseId || booking.dates.length !== first.dates.length); return <ParticipantBookingCard key={participant.id} participant={participant} booking={booking} onBookingChange={(next) => handleParticipantBookingChange(participant.id, next)} onCopyToAll={() => copyBookingToAllParticipants(participant.id)} isFirst={index === 0} showDifferenceWarning={!!differs} />; })}</div></>
+            <><Alert className="bg-muted/40"><Users className="h-4 w-4 text-muted-foreground" /><AlertDescription><p className="font-medium">Kurs pro Teilnehmer</p><p className="text-sm">Jede Kurswahl erfolgt ausdrücklich und wird nicht automatisch ersetzt.</p></AlertDescription></Alert><div className="space-y-3">{groupPeople.map((participant, index) => { const booking = state.participantBookings[participant.id]; if (!booking) return null; const first = state.participantBookings[groupPeople[0]?.id]; const differs = index > 0 && first && (booking.groupCourseId !== first.groupCourseId || booking.dates.length !== first.dates.length); return <ParticipantBookingCard key={participant.id} participant={participant} booking={booking} sport={state.sport} onBookingChange={(next) => handleParticipantBookingChange(participant.id, next)} onCopyToAll={() => copyBookingToAllParticipants(groupPeople[0]?.id)} isFirst={index === 0} showDifferenceWarning={!!differs} />; })}</div><Button variant="outline" size="sm" onClick={() => { setUseParticipantSpecificBooking(false); setSelectedGroupId(null); setGroupPlan(null); }}>Gemeinsamen Kurs wählen</Button></>
           ) : (
-            <><GroupSelector selectedDates={state.selectedDates} sport={state.sport} participants={state.selectedParticipants} selectedGroupId={state.selectedGroupId} onGroupSelect={setSelectedGroupId} />{state.selectedParticipants.length > 0 && <LunchSupervisionAddon selectedDates={state.selectedDates} participants={state.selectedParticipants} lunchSelections={state.lunchSelections} vegetarianSelections={state.vegetarianSelections} onLunchDaysChange={setLunchDaysForParticipant} onVegetarianChange={setVegetarianForParticipant} lunchPricePerDay={lunchProduct?.price || 25} />}</>
+            <><GroupSelector selectedDates={state.selectedDates} sport={state.sport} participants={groupPeople} selectedGroupId={state.selectedGroupId} onGroupSelect={setSelectedGroupId} onMeetingPointChange={setMeetingPoint} />{groupPeople.length > 1 && <Button variant="outline" size="sm" onClick={() => { initializeParticipantBookings(); setSelectedGroupId(null); setGroupPlan(null); setUseParticipantSpecificBooking(true); }}>Kurse pro Teilnehmer wählen</Button>}{groupPeople.length > 0 && <LunchSupervisionAddon selectedDates={state.selectedDates} participants={groupPeople} lunchSelections={state.lunchSelections} vegetarianSelections={state.vegetarianSelections} onLunchDaysChange={setLunchDaysForParticipant} onVegetarianChange={setVegetarianForParticipant} lunchPricePerDay={lunchProduct?.price || 25} />}</>
           ) : <div className="flex flex-col items-center justify-center rounded-md border border-dashed py-8 text-center"><CalendarDays className="mb-2 h-10 w-10 text-muted-foreground" /><p className="text-sm font-medium">Wählen Sie zuerst die Kurstage</p></div>}
         </section>
       )}
@@ -1002,6 +1019,7 @@ export function Step2ProductAllocation() {
           initialParticipantIds={popoverSlot.initialParticipantIds}
           title={popoverSlot.title}
           participantEntry={!!popoverSlot.plannedIntervals && popoverSlot.title === "Teilnehmer zuweisen"}
+          participantsOnly={state.productType === "group" && popoverSlot.title === "Teilnehmer zuweisen"}
         />
       )}
     </div>

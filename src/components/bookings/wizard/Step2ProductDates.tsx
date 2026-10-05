@@ -378,6 +378,7 @@ export function Step2ProductDates() {
             <ParticipantBookingCard
               key={participant.id}
               participant={participant}
+              sport={state.sport}
               booking={state.participantBookings[participant.id] || {
                 participantId: participant.id,
                 productType: "group",

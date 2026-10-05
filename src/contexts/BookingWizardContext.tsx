@@ -65,6 +65,20 @@ export interface ParticipantBookingDetails {
   endTime: string | null;
   lunchDays: string[];
   isVegetarian: boolean;
+  groupCourseName?: string | null;
+  groupProductName?: string | null;
+  groupMeetingPoint?: string | null;
+  groupBlocks?: Array<{ date: string; startTime: string; endTime: string }>;
+  groupPersistenceBlocker?: string | null;
+}
+
+export interface GroupPlanSnapshot {
+  courseId: string;
+  courseName: string;
+  productName: string | null;
+  meetingPoint: string | null;
+  blocks: Array<{ date: string; startTime: string; endTime: string }>;
+  persistenceBlocker: string | null;
 }
 
 // Per-day time override for period bookings (supports multiple time blocks per day)
@@ -124,6 +138,7 @@ export interface CartItem {
   numberOfPersons: number;
   includeLunch: boolean;
   selectedGroupId: string | null;
+  groupPlan: GroupPlanSnapshot | null;
   groupCourseType: "windel_wedelkurs" | "kids_village" | "standard" | null;
   lunchSelections: Record<string, string[]>;
   vegetarianSelections: Record<string, boolean>;
@@ -158,6 +173,7 @@ export function createEmptyCartItem(): CartItem {
     numberOfPersons: 1,
     includeLunch: false,
     selectedGroupId: null,
+    groupPlan: null,
     groupCourseType: null,
     lunchSelections: {},
     vegetarianSelections: {},
@@ -194,6 +210,7 @@ function extractCartItemFromState(state: BookingWizardState, itemId: string): Ca
     numberOfPersons: state.numberOfPersons,
     includeLunch: state.includeLunch,
     selectedGroupId: state.selectedGroupId,
+    groupPlan: state.groupPlan,
     groupCourseType: state.groupCourseType,
     lunchSelections: state.lunchSelections,
     vegetarianSelections: state.vegetarianSelections,
@@ -229,6 +246,7 @@ function applyCartItemToState(item: CartItem): Partial<BookingWizardState> {
     numberOfPersons: item.numberOfPersons,
     includeLunch: item.includeLunch,
     selectedGroupId: item.selectedGroupId,
+    groupPlan: item.groupPlan,
     groupCourseType: item.groupCourseType,
     lunchSelections: item.lunchSelections,
     vegetarianSelections: item.vegetarianSelections,
@@ -282,6 +300,7 @@ export interface BookingWizardState {
   
   // Group course specific
   selectedGroupId: string | null;
+  groupPlan: GroupPlanSnapshot | null;
   groupCourseType: "windel_wedelkurs" | "kids_village" | "standard" | null;
   lunchSelections: Record<string, string[]>; // { participantId: ['2026-01-06', ...] }
   vegetarianSelections: Record<string, boolean>; // { participantId: true/false }
@@ -354,6 +373,7 @@ interface BookingWizardContextType {
   addGuestParticipant: (participant: Omit<SelectedParticipant, "id" | "isGuest">) => void;
   // Local participants
   addLocalParticipant: (participant: LocalParticipant) => void;
+  updateLocalParticipant: (participant: LocalParticipant) => void;
   removeLocalParticipant: (id: string) => void;
   replaceLocalParticipantIds: (idMap: Record<string, string>) => void;
   // Step 2 setters
@@ -372,6 +392,7 @@ interface BookingWizardContextType {
   updatePlannedAppointments: (next: AppointmentSlot[]) => string | null;
   // Group course setters
   setSelectedGroupId: (id: string | null) => void;
+  setGroupPlan: (plan: GroupPlanSnapshot | null) => void;
   setGroupCourseType: (type: "windel_wedelkurs" | "kids_village" | "standard" | null) => void;
   setLunchDaysForParticipant: (participantId: string, days: string[]) => void;
   setVegetarianForParticipant: (participantId: string, isVegetarian: boolean) => void;
@@ -445,6 +466,7 @@ const initialState: BookingWizardState = {
   includeLunch: false,
   numberOfPersons: 1,
   selectedGroupId: null,
+  groupPlan: null,
   groupCourseType: null,
   lunchSelections: {},
   vegetarianSelections: {},
@@ -612,6 +634,13 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
     }));
   };
 
+  const updateLocalParticipant = (participant: LocalParticipant) => {
+    setState((prev) => ({
+      ...prev,
+      localParticipants: prev.localParticipants.map((item) => item.id === participant.id ? participant : item),
+    }));
+  };
+
   const removeLocalParticipant = (id: string) => {
     setState((prev) => ({
       ...prev,
@@ -671,6 +700,13 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
       ...prev,
       productType: type,
       productId: null,
+      selectedGroupId: type === "group" ? prev.selectedGroupId : null,
+      groupPlan: type === "group" ? prev.groupPlan : null,
+      timeSlot: type === "group" ? null : prev.timeSlot,
+      duration: type === "group" ? null : prev.duration,
+      appointments: type === "group" ? null : prev.appointments,
+      timeSelections: type === "group" ? [] : prev.timeSelections,
+      dayTimeOverrides: type === "group" ? {} : prev.dayTimeOverrides,
       // Reset instructor if switching to group (not needed)
       instructorId: type === "group" ? null : prev.instructorId,
       instructor: type === "group" ? null : prev.instructor,
@@ -682,7 +718,23 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
   };
 
   const setSport = (sport: "ski" | "snowboard" | null) => {
-    setState((prev) => ({ ...prev, sport }));
+    setState((prev) => ({
+      ...prev,
+      sport,
+      selectedGroupId: prev.sport === sport ? prev.selectedGroupId : null,
+      groupPlan: prev.sport === sport ? prev.groupPlan : null,
+      participantBookings: prev.sport === sport ? prev.participantBookings : Object.fromEntries(
+        Object.entries(prev.participantBookings).map(([id, booking]) => [id, {
+          ...booking,
+          groupCourseId: null,
+          groupCourseName: null,
+          groupProductName: null,
+          groupMeetingPoint: null,
+          groupBlocks: [],
+          groupPersistenceBlocker: null,
+        }]),
+      ),
+    }));
   };
 
   const setDateRange = (range: { start: string; end: string } | null) => {
@@ -692,6 +744,9 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
   const setSelectedDates = (dates: string[]) => {
     setState((prev) => {
       let newState = { ...prev, selectedDates: dates, schedulerPrefill: dateSetChanged(prev.selectedDates, dates) ? null : prev.schedulerPrefill };
+      if (prev.productType === "group" && dateSetChanged(prev.selectedDates, dates)) {
+        newState = { ...newState, selectedGroupId: null, groupPlan: null };
+      }
       // Reconcile canonical private plan: drop blocks on removed dates (no orphans).
       if (prev.appointments) {
         const kept = prev.appointments.filter((a) => dates.includes(a.date));
@@ -715,7 +770,18 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
           const shouldSync = booking.dates.length === 0 || sortedBookingDates === sortedPreviousDates;
           
           if (shouldSync) {
-            updatedBookings[pId] = { ...booking, dates: [...dates] };
+            updatedBookings[pId] = {
+              ...booking,
+              dates: [...dates],
+              ...(prev.productType === "group" && dateSetChanged(previousDates, dates) ? {
+                groupCourseId: null,
+                groupCourseName: null,
+                groupProductName: null,
+                groupMeetingPoint: null,
+                groupBlocks: [],
+                groupPersistenceBlocker: null,
+              } : {}),
+            };
           }
         }
         newState.participantBookings = updatedBookings;
@@ -799,7 +865,11 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
 
   // Group course setters
   const setSelectedGroupId = (id: string | null) => {
-    setState((prev) => ({ ...prev, selectedGroupId: id }));
+    setState((prev) => ({ ...prev, selectedGroupId: id, groupPlan: id ? prev.groupPlan : null }));
+  };
+
+  const setGroupPlan = (groupPlan: GroupPlanSnapshot | null) => {
+    setState((prev) => ({ ...prev, groupPlan }));
   };
 
   const setGroupCourseType = (type: "windel_wedelkurs" | "kids_village" | "standard" | null) => {
@@ -844,17 +914,23 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
   const initializeParticipantBookings = () => {
     setState((prev) => {
       const bookings: Record<string, ParticipantBookingDetails> = {};
-      for (const p of prev.selectedParticipants) {
-        bookings[p.id] = {
-          participantId: p.id,
+      const assignedIds = prev.cartItems.find((item) => item.id === prev.activeCartItemId)?.assignedParticipantIds ?? [];
+      for (const participantId of assignedIds) {
+        bookings[participantId] = {
+          participantId,
           productType: prev.productType || "group",
           productId: prev.productId,
           groupCourseId: prev.selectedGroupId,
           dates: [...prev.selectedDates],
           startTime: prev.timeSlot?.split(" - ")[0] || null,
           endTime: prev.timeSlot?.split(" - ")[1] || null,
-          lunchDays: prev.lunchSelections[p.id] || [],
-          isVegetarian: prev.vegetarianSelections[p.id] || false,
+          lunchDays: prev.lunchSelections[participantId] || [],
+          isVegetarian: prev.vegetarianSelections[participantId] || false,
+          groupCourseName: prev.groupPlan?.courseName ?? null,
+          groupProductName: prev.groupPlan?.productName ?? null,
+          groupMeetingPoint: prev.groupPlan?.meetingPoint ?? null,
+          groupBlocks: prev.groupPlan?.blocks ?? [],
+          groupPersistenceBlocker: prev.groupPlan?.persistenceBlocker ?? null,
         };
       }
       return { ...prev, participantBookings: bookings };
@@ -1726,6 +1802,7 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
         toggleParticipant,
         addGuestParticipant,
         addLocalParticipant,
+        updateLocalParticipant,
         removeLocalParticipant,
         replaceLocalParticipantIds,
         setProductType,
@@ -1741,6 +1818,7 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
         movePlannedDate,
         updatePlannedAppointments,
         setSelectedGroupId,
+        setGroupPlan,
         setGroupCourseType,
         setLunchDaysForParticipant,
         setVegetarianForParticipant,
