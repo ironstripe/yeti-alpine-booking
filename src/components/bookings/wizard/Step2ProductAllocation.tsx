@@ -718,6 +718,25 @@ export function Step2ProductAllocation() {
           <div ref={timeControlsRef} className={cn("min-w-0 scroll-mt-24 space-y-3 rounded-md border p-3 transition-shadow", showTimeRequired && "ring-2 ring-destructive ring-offset-2 ring-offset-background")}>
             {state.selectedDates.length > 0 ? (
               <div className="grid gap-3">
+                {isGroupCourse && (
+                  <div className="space-y-1.5" data-group-course-times>
+                    <Label className="flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground"><Clock className="h-3 w-3" />Kurszeiten</Label>
+                    {state.groupPlan && !state.useParticipantSpecificBooking ? (
+                      <ul className="space-y-1 text-sm">
+                        {[...state.selectedDates].sort().map((date) => (
+                          <li key={date} className="flex flex-wrap gap-x-2">
+                            <span className="min-w-24 font-medium">{format(parseISO(date), "EEE dd.MM.", { locale: de })}</span>
+                            {state.groupPlan!.blocks.filter((block) => block.date === date).map((block) => (
+                              <span key={`${date}-${block.startTime}`} className="text-muted-foreground">{block.startTime}–{block.endTime}</span>
+                            ))}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">{state.useParticipantSpecificBooking ? "Kurszeiten pro Teilnehmer unten." : "Ergeben sich aus dem gewählten Kurs."}</p>
+                    )}
+                  </div>
+                )}
                 {state.productType === "private" && (
                   <div className="space-y-1.5">
                     <Label className="flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground"><Clock className="h-3 w-3" />Zeitfenster</Label>
