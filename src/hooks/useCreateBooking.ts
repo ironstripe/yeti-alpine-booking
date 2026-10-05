@@ -1155,6 +1155,7 @@ export function useCreateBooking() {
       queryClient.invalidateQueries({ queryKey: ["action-tasks"] });
       queryClient.invalidateQueries({ queryKey: ["group-course-instances"] });
       queryClient.invalidateQueries({ queryKey: ["group-courses-for-booking"] });
+      queryClient.invalidateQueries({ queryKey: ["bookable-group-courses"] });
     },
   });
 }
