@@ -57,6 +57,8 @@ const FIELD_MESSAGES: Record<string, string> = {
   billing_partner_id: "Bitte das Hotel wählen, das die Rechnung übernimmt.",
   settlement: "Ungültige Zahlungsangabe.",
   finalization: "Ungültige Zahlungs- oder Notizangaben.",
+  discount_percent: "Rabatt muss zwischen 0 und 100 % liegen.",
+  discount_reason: "Bitte einen Grund für den Rabatt angeben.",
 };
 
 /**
