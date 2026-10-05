@@ -47,6 +47,18 @@ export function AppLayout({ children }: AppLayoutProps) {
         {/* Mobile Header */}
         <MobileHeader />
 
+        {/* Mobile booking entry point */}
+        <div className="border-b border-border bg-card px-4 py-2 md:hidden">
+          <Button
+            type="button"
+            onClick={() => navigate("/bookings/new")}
+            className="h-11 w-full gap-2"
+          >
+            <Plus className="h-4 w-4" />
+            Neue Buchung
+          </Button>
+        </div>
+
         {/* Desktop Header with Command Bar and Notifications */}
         <div className="hidden md:flex h-14 border-b border-border items-center justify-between px-6 bg-card">
           <div className="flex items-center gap-4">
