@@ -1,3 +1,4 @@
+import { MEETING_POINTS } from "@/lib/meeting-point-utils";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import { User, Users, Calendar, MapPin, MessageSquare, GraduationCap, UtensilsCrossed, Leaf } from "lucide-react";
@@ -31,11 +32,8 @@ interface BookingSummaryCardsProps {
   presentation?: "final-review" | "step-one";
 }
 
-const MEETING_POINT_LABELS: Record<string, string> = {
-  hotel_gorfion: "Hotel Gorfion",
-  malbipark: "Malbipark",
-  kasse_taeli: "Kasse Täli",
-};
+// Catalog names (same source as the meeting point buttons); unknown stored text is shown as-is.
+const MEETING_POINT_LABELS: Record<string, string> = Object.fromEntries(MEETING_POINTS.map((p) => [p.id, p.name]));
 
 const LANGUAGE_LABELS: Record<string, string> = {
   de: "Deutsch",
