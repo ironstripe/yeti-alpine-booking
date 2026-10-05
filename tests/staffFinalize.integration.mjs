@@ -221,7 +221,7 @@ try {
         const lunch = await sql`SELECT date::text d, is_vegetarian v, discount_percent dp FROM ticket_items WHERE ticket_id=${r.ticket_id} AND item_type='lunch' AND participant_id=${pid} ORDER BY 1`;
         assert.deepEqual(lunch.map((x) => x.d), l.lunch_dates ?? []);
         assert.ok(lunch.every((x) => x.v === !!l.vegetarian));
-        const g = await sql`SELECT meeting_point, course_id, discount_percent, discount_reason FROM ticket_items WHERE ticket_id=${r.ticket_id} AND item_type='group' AND participant_id=${pid}`;
+        const g = await sql`SELECT meeting_point, discount_percent, discount_reason FROM ticket_items WHERE ticket_id=${r.ticket_id} AND item_type='group' AND participant_id=${pid}`;
         assert.equal(g.length, 1); assert.equal(g[0].meeting_point, l.meeting_point);
         if (p.discount_percent) { assert.equal(Number(g[0].discount_percent), p.discount_percent); assert.equal(g[0].discount_reason, p.discount_reason); }
         results.push(`     ${l.guest?.first_name}: ${blocks.length} blocks, lunch ${lunch.map((x) => x.d.slice(5)).join(',') || '-'}${l.vegetarian ? ' vegi' : ''}, point ${g[0].meeting_point}`);
