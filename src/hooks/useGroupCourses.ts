@@ -10,7 +10,10 @@ import type {
   TrainingCourseDate 
 } from '@/types/group-courses';
 import { generateSaturdays } from '@/lib/dates/saturday-generator';
-import { classifyInvoke, type CourseActionOutcome, type CourseDependencies } from '@/lib/courseManagement';
+import {
+  classifyInvoke, isCourseRelatedQueryKey, needsReadback, resolveReadback,
+  type CourseActionOutcome, type CourseDependencies,
+} from '@/lib/courseManagement';
 
 // Fetch all group courses with their schedules and linked products
 export function useGroupCourses(options?: { activeOnly?: boolean }) {
