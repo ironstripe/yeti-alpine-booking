@@ -786,6 +786,7 @@ export function Step2ProductAllocation() {
                 })}
               </div>
             </div>
+            )}
           </div>
           </div>
 
