@@ -10,6 +10,7 @@ import type {
   TrainingCourseDate 
 } from '@/types/group-courses';
 import { generateSaturdays } from '@/lib/dates/saturday-generator';
+import { classifyInvoke, type CourseActionOutcome, type CourseDependencies } from '@/lib/courseManagement';
 
 // Fetch all group courses with their schedules and linked products
 export function useGroupCourses(options?: { activeOnly?: boolean }) {
@@ -429,26 +430,72 @@ export function useUpdateGroupCourse() {
   });
 }
 
-// Delete group course
-export function useDeleteGroupCourse() {
-  const queryClient = useQueryClient();
+// Course archive / restore / guarded delete — ONLY via the office/admin Edge Function
+// `course-management` (server-side dependency check in one transaction). There is
+// deliberately no raw `group_courses.delete()` fallback.
+export function useCourseManagementCapability() {
+  return useQuery({
+    queryKey: ['course-management-capability'],
+    staleTime: 60_000,
+    retry: false,
+    queryFn: async (): Promise<boolean> => {
+      const { data, error } = await supabase.functions.invoke('course-management', { body: { action: 'capabilities' } });
+      if (error) return false;
+      return (data as { installed?: boolean })?.installed === true;
+    },
+  });
+}
 
-  return useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from('group_courses')
-        .delete()
-        .eq('id', id);
-
+export function useCourseDependencies(courseId: string | undefined, enabled: boolean) {
+  return useQuery({
+    queryKey: ['course-dependencies', courseId],
+    enabled: !!courseId && enabled,
+    retry: false,
+    staleTime: 0,
+    queryFn: async (): Promise<CourseDependencies> => {
+      const { data, error } = await supabase.functions.invoke('course-management', {
+        body: { action: 'dependencies', course_id: courseId },
+      });
       if (error) throw error;
+      const deps = (data as { dependencies?: CourseDependencies })?.dependencies;
+      if (!deps) throw new Error('missing dependencies');
+      return deps;
+    },
+  });
+}
+
+export function useCourseAction() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, action }: { id: string; action: 'archive' | 'restore' | 'delete' }): Promise<CourseActionOutcome> => {
+      const { data, error } = await supabase.functions.invoke('course-management', { body: { action, course_id: id } });
+      return classifyInvoke(data, error as never);
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['group-courses'] });
+      queryClient.invalidateQueries({ queryKey: ['bookable-group-courses'] });
+      queryClient.invalidateQueries({ queryKey: ['course-dependencies'] });
+    },
+  });
+}
+
+// Rename = display name only. Partial update of `name`; never schedules, products, prices or IDs.
+export function useRenameGroupCourse() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, name }: { id: string; name: string }) => {
+      const { data, error } = await supabase
+        .from('group_courses')
+        .update({ name: name.trim() })
+        .eq('id', id)
+        .select('id');
+      if (error) throw error;
+      if (!data || data.length !== 1) throw new Error('Der Kurs wurde nicht gefunden oder du darfst ihn nicht ändern.');
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['group-courses'] });
-      toast.success('Training erfolgreich gelöscht');
-    },
-    onError: (error) => {
-      console.error('Error deleting course:', error);
-      toast.error('Fehler beim Löschen des Trainings');
+      queryClient.invalidateQueries({ queryKey: ['group-course'] });
+      queryClient.invalidateQueries({ queryKey: ['bookable-group-courses'] });
     },
   });
 }
