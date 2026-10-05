@@ -21,6 +21,8 @@ export interface GroupCourse {
   course_type: CourseType;
   period_start_date: string | null;
   period_end_date: string | null;
+  /** Set when archived (hidden from list/new selection). Absent until the archive migration is applied. */
+  archived_at?: string | null;
   // NEW: Progression tracking - which training comes next
   next_training_id: string | null;
   sort_order: number;

@@ -565,15 +565,10 @@ export function TrainingFormModal({ open, onOpenChange, course, mode }: Training
                   name="name"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>{isOfficeMode ? 'Schichtname *' : 'Name (= Niveau) *'}</FormLabel>
+                      <FormLabel>{isOfficeMode ? 'Schichtname *' : 'Kursname *'}</FormLabel>
                       <FormControl>
                         <Input placeholder={isOfficeMode ? 'Büro Vormittag' : 'Blauer Prinz'} {...field} />
                       </FormControl>
-                      {!isOfficeMode && (
-                        <FormDescription className="text-xs">
-                          Der Name definiert gleichzeitig das Kursniveau
-                        </FormDescription>
-                      )}
                       <FormMessage />
                     </FormItem>
                   )}

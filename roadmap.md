@@ -100,3 +100,9 @@
 - [ ] #36 26/27 website course booking: SQL + API + invoice/confirmation delivery + staff resend implemented and tested locally (SQL 43/43, API 19/19). Blocked: owner approval to apply SQL/deploy; production school e-mail (sender) missing; OnePager client switch to contract v1.
 - [x] Activate "Später zuweisen" save path: migration drizzle/migrations/0001_pa_assign_later.sql applied + private-appointments deployed 2026-10-04 (frontend index-fsCIuKrT.js already live; real save not yet exercised end-to-end)
 - [x] Private booking: time-first teacher list (full / partial / unavailable over exact intervals), "Andere Zeiten suchen" → existing scheduler + back; synthetic browser checks 14/14, unit 15/15 (unpublished)
+
+## Course management repair (5 Oct 2026)
+- [x] Rename (name-only), specific delete/archive dialogs, archive filter, no raw DELETE, frontend + local SQL tests
+- [ ] Apply `supabase/pending/course_archive_delete.sql` + deploy `course-management` function (blocked: owner approval; until then archive/delete show "noch nicht installiert")
+- [ ] Archive the two "26/27 Samstag Ski Erwachsene" courses in the app after backend install (blocked: install above)
+- [ ] Scheduler course navigation fix (plan item 6) — still open, next focused patch

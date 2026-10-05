@@ -9,21 +9,20 @@ import { TrainingFormModal } from '@/components/trainings/TrainingFormModal';
 import { TrainingsFilters } from '@/components/trainings/TrainingsFilters';
 import { TrainingsEmptyState } from '@/components/trainings/TrainingsEmptyState';
 import { TrainingsLayout } from '@/components/trainings/TrainingsLayout';
-import { useGroupCourses, useDeleteGroupCourse } from '@/hooks/useGroupCourses';
-import { useConfirmDialog } from '@/components/ui/confirm-dialog';
-import { toast } from '@/hooks/use-toast';
+import { CourseRemovalDialog, RenameCourseDialog, type CourseRemovalMode } from '@/components/trainings/CourseManageDialogs';
+import { useGroupCourses } from '@/hooks/useGroupCourses';
 import type { GroupCourseWithSchedules } from '@/types/group-courses';
 
 const Trainings = () => {
   const navigate = useNavigate();
   const { data: courses, isLoading } = useGroupCourses();
-  const deleteCourse = useDeleteGroupCourse();
-  const { confirm, dialog } = useConfirmDialog();
 
   // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedCourse, setSelectedCourse] = useState<GroupCourseWithSchedules | undefined>();
   const [modalMode, setModalMode] = useState<'create' | 'edit' | 'copy'>('create');
+  const [renameCourse, setRenameCourse] = useState<GroupCourseWithSchedules | null>(null);
+  const [removal, setRemoval] = useState<{ course: GroupCourseWithSchedules; mode: CourseRemovalMode } | null>(null);
 
   // Category toggle: 'courses' for customer trainings, 'internal' for office shifts
   const [category, setCategory] = useState<'courses' | 'internal'>('courses');
@@ -35,28 +34,28 @@ const Trainings = () => {
 
   const hasFilters = search !== '' || disciplineFilter !== 'all' || statusFilter !== 'all';
 
-  // Filter courses by category first, then by other filters
   const filteredCourses = useMemo(() => {
     if (!courses) return [];
 
     return courses.filter(course => {
-      // Category filter - internal vs customer-facing
       const isInternal = course.is_internal || course.course_type === 'office';
       if (category === 'internal' && !isInternal) return false;
       if (category === 'courses' && isInternal) return false;
 
-      // Search filter - search by name (which IS the level)
+      // Archived courses only appear in the explicit "Archiviert" filter.
+      const isArchived = !!course.archived_at;
+      if (statusFilter === 'archived') { if (!isArchived) return false; }
+      else if (isArchived) return false;
+
       if (search && !course.name.toLowerCase().includes(search.toLowerCase())) {
         return false;
       }
 
-      // Discipline filter (not relevant for internal trainings)
       if (category === 'courses' && disciplineFilter !== 'all' && course.discipline !== disciplineFilter) {
         return false;
       }
 
-      // Status filter
-      if (statusFilter !== 'all') {
+      if (statusFilter === 'active' || statusFilter === 'inactive') {
         const isActive = course.is_active ?? true;
         if (statusFilter === 'active' && !isActive) return false;
         if (statusFilter === 'inactive' && isActive) return false;
@@ -88,34 +87,6 @@ const Trainings = () => {
     navigate(`/trainings/capacity?course=${course.id}`);
   };
 
-  const handleDeleteClick = async (course: GroupCourseWithSchedules) => {
-    const confirmed = await confirm({
-      title: 'Kurs löschen',
-      description: `Bist du sicher, dass du "${course.name}" löschen möchtest? Diese Aktion kann nicht rückgängig gemacht werden.`,
-      confirmLabel: 'Löschen',
-      cancelLabel: 'Abbrechen',
-      variant: 'destructive',
-    });
-
-    if (confirmed) {
-      deleteCourse.mutate(course.id, {
-        onSuccess: () => {
-          toast({
-            title: 'Kurs gelöscht',
-            description: `"${course.name}" wurde erfolgreich gelöscht.`,
-          });
-        },
-        onError: () => {
-          toast({
-            title: 'Fehler',
-            description: 'Der Kurs konnte nicht gelöscht werden.',
-            variant: 'destructive',
-          });
-        },
-      });
-    }
-  };
-
   return (
     <TrainingsLayout
       actions={
@@ -126,7 +97,6 @@ const Trainings = () => {
       }
     >
 
-      {/* Category Tabs */}
       <Tabs value={category} onValueChange={(v) => setCategory(v as 'courses' | 'internal')} className="mb-4">
         <TabsList>
           <TabsTrigger value="courses">Kurse</TabsTrigger>
@@ -159,7 +129,10 @@ const Trainings = () => {
               onEdit={handleEditClick}
               onCopy={handleCopyClick}
               onViewCapacity={handleViewCapacity}
-              onDelete={handleDeleteClick}
+              onDelete={(c) => setRemoval({ course: c, mode: 'delete' })}
+              onRename={setRenameCourse}
+              onArchive={(c) => setRemoval({ course: c, mode: 'archive' })}
+              onRestore={(c) => setRemoval({ course: c, mode: 'restore' })}
             />
           ))}
         </div>
@@ -178,7 +151,13 @@ const Trainings = () => {
         mode={modalMode}
       />
 
-      {dialog}
+      <RenameCourseDialog course={renameCourse} onClose={() => setRenameCourse(null)} />
+      <CourseRemovalDialog
+        course={removal?.course ?? null}
+        mode={removal?.mode ?? 'delete'}
+        onClose={() => setRemoval(null)}
+        onSwitchToArchive={() => setRemoval((r) => (r ? { course: r.course, mode: 'archive' } : r))}
+      />
     </TrainingsLayout>
   );
 };
