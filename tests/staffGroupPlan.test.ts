@@ -100,8 +100,8 @@ describe("staff group payload", () => {
   });
   test("per-participant different courses map to their own course and dates", () => {
     const r = buildStaffGroupLines(groupState({ useParticipantSpecificBooking: true, participantBookings: {
-      pa: { groupServer: { courseId: "c1", productId: "p4", block: null, unitPrice: 320 }, dates: WEEK },
-      "guest-1": { groupServer: { courseId: "c2", productId: "p2", block: "pm", unitPrice: 70 }, dates: ["2026-12-15"] },
+      pa: { groupServer: { courseId: "c1", productId: "p4", block: null, unitPrice: 320 }, dates: WEEK, groupMeetingPoint: "Täli" },
+      "guest-1": { groupServer: { courseId: "c2", productId: "p2", block: "pm", unitPrice: 70 }, dates: ["2026-12-15"], groupMeetingPoint: null, groupMeetingPointChoice: "malbipark" },
     } } as never));
     expect(r.kind === "server" && r.lines.map((l) => `${l.course_id}:${l.block}:${l.dates.length}`)).toEqual(["c1:null:5", "c2:pm:1"]);
   });
