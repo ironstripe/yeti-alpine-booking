@@ -218,23 +218,28 @@ export function TeacherAvailabilityList({
                             {hasOtherBookings && " · Hat an diesen Tagen bereits Buchungen"}
                           </p>
                         </div>
-                        {selected && (
-                          <Badge variant="secondary" className="gap-1 text-xs">
-                            <Check className="h-3 w-3" />
+                        {selected ? (
+                          <span
+                            role="status"
+                            className="inline-flex shrink-0 items-center gap-1 rounded-md bg-secondary px-2 py-1 text-xs font-medium text-secondary-foreground"
+                            aria-label={`${instructor.first_name} ${instructor.last_name} ausgewählt`}
+                          >
+                            <Check className="h-3 w-3" aria-hidden="true" />
                             Ausgewählt
-                          </Badge>
+                          </span>
+                        ) : (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="control-target shrink-0"
+                            disabled={!selectable}
+                            aria-label={`${instructor.first_name} ${instructor.last_name} für alle Termine auswählen`}
+                            onClick={() => onSelect(instructor, intervals)}
+                          >
+                            Auswählen
+                          </Button>
                         )}
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="control-target shrink-0"
-                          disabled={!selectable}
-                          aria-label={`${instructor.first_name} ${instructor.last_name} für alle Termine auswählen`}
-                          onClick={() => onSelect(instructor, intervals)}
-                        >
-                          Auswählen
-                        </Button>
                       </li>
                     );
                   })}

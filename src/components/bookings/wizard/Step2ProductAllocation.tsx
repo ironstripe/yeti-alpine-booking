@@ -528,19 +528,11 @@ export function Step2ProductAllocation() {
   };
 
   // Teacher list selection: same teacher setter + participant dialog, for ALL planned intervals.
+  // Teacher list selection only assigns the teacher; participants are entered via the
+  // explicit participant action below (no automatic dialog, plan untouched).
   const handleListSelect = (instructor: Tables<"instructors">, intervals: IntendedInterval[]) => {
     if (intervals.length === 0) return;
     setInstructor(instructor);
-    setPopoverSlot({
-      instructorId: instructor.id,
-      instructorName: `${instructor.first_name} ${instructor.last_name}`,
-      date: intervals[0].date,
-      startTime: intervals[0].startTime,
-      endTime: intervals[0].endTime,
-      plannedIntervals: intervals,
-      initialParticipantIds: activeAssignedIds,
-      title: "Teilnehmer zuweisen",
-    });
   };
 
   // Planned-mode dialog result: link participants + meeting point only; dates/times stay as planned.
@@ -877,7 +869,6 @@ export function Step2ProductAllocation() {
                 <p className="text-sm">Wählen Sie mindestens ein Datum</p>
               </div>
             )}
-            {state.instructor && (!state.privateGroupProposal || state.privateGroupProposal.groups.length <= 1) && <div className="flex items-center gap-2 rounded-md border border-primary bg-primary/5 p-2"><Check className="h-4 w-4 text-primary" /><span className="text-sm font-medium">{state.instructor.first_name} {state.instructor.last_name}</span><Badge variant="secondary" className="ml-auto text-xs">Ausgewählt</Badge></div>}
           </div>
         </section>
       )}
