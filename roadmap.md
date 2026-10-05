@@ -103,6 +103,7 @@
 
 ## Course management repair (5 Oct 2026)
 - [x] Rename (name-only), specific delete/archive dialogs, archive filter, no raw DELETE, frontend + local SQL tests
-- [ ] Apply `supabase/pending/course_archive_delete.sql` + deploy `course-management` function (blocked: owner approval; until then archive/delete show "noch nicht installiert")
-- [ ] Archive the two "26/27 Samstag Ski Erwachsene" courses in the app after backend install (blocked: install above)
+- [x] Real delete for unused courses (technical source links no longer block); migration 0002 installed, `course-management` deployed, capability verified
+- [ ] Ivo deletes the example courses himself in the app (user action; frontend must be published to reach the live app)
+- [ ] Group-flow branch `e1047b4` integration — authorised, separate step
 - [ ] Scheduler course navigation fix (plan item 6) — still open, next focused patch

@@ -1,4 +1,4 @@
--- Course archive + protected hard delete.
+-- Course archive + protected hard delete. INSTALLED as drizzle/migrations/0002_course_archive_delete.sql (kept here as reviewed source).
 -- Additive: two nullable columns on group_courses, one service_role-only audit table and three
 -- service_role-only functions, called exclusively by the office/admin Edge Function `course-management`.
 -- Technical 26/27 source links (bc_2627_course_period_sources / _product_variants rows owned by the
