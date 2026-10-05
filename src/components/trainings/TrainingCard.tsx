@@ -78,7 +78,7 @@ export function TrainingCard({ course, onEdit, onCopy, onViewCapacity, onDelete,
             )}
             <h3 className="font-semibold text-lg">{course.name}</h3>
           </div>
-          <div className="flex gap-1.5">
+          <div className="flex flex-wrap justify-end gap-1.5 shrink-0 max-w-[50%]">
             {isOfficeCourse && (
               <Badge variant="secondary">Intern</Badge>
             )}
