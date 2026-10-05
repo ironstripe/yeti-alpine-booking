@@ -24,6 +24,14 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Separator } from "@/components/ui/separator";
 import { MEETING_POINTS } from "@/lib/meeting-point-utils";
 import { getLevelOptionsForAge, getLevelLabel } from "@/lib/level-utils";
@@ -67,6 +75,12 @@ interface SlotBookingPopoverProps {
   initialParticipantIds?: string[];
   /** Scoped title override; other usages keep "Slot konfigurieren". */
   title?: string;
+  /**
+   * Participant-entry mode (wizard step 1): primary action reads "Teilnehmer übernehmen",
+   * an explicit "Abbrechen" exists, and closing with unapplied changes asks
+   * Übernehmen / Verwerfen / Weiter bearbeiten. Other callers keep their behaviour.
+   */
+  participantEntry?: boolean;
 }
 
 interface NewParticipantForm {
@@ -92,9 +106,13 @@ export function SlotBookingPopover({
   onAddToCart,
   initialParticipantIds,
   title,
+  participantEntry = false,
 }: SlotBookingPopoverProps) {
   const queryClient = useQueryClient();
-  const { state, addLocalParticipant, setSelectedParticipants } = useBookingWizard();
+  const { state, addLocalParticipant, removeLocalParticipant, setSelectedParticipants } = useBookingWizard();
+  // Locals created in THIS dialog session; removed again when the session is discarded.
+  const [createdLocalIds, setCreatedLocalIds] = useState<string[]>([]);
+  const [confirmCloseOpen, setConfirmCloseOpen] = useState(false);
   const [selectedParticipantIds, setSelectedParticipantIds] = useState<string[]>(() => initialParticipantIds ?? []);
   const [duration, setDuration] = useState<number>(() => {
     const s = parseInt(startTime.split(":")[0]);
@@ -183,6 +201,7 @@ export function SlotBookingPopover({
       sport: (sport || "ski") as "ski" | "snowboard",
     });
     setSelectedParticipantIds((prev) => [...prev, id]);
+    setCreatedLocalIds((prev) => [...prev, id]);
     resetNewParticipantForm();
   };
 
@@ -216,11 +235,36 @@ export function SlotBookingPopover({
       meetingPoint,
       sport,
     });
+    // Locals created but NOT selected are not kept in the pool (no orphan persisted later).
+    for (const id of createdLocalIds) if (!selectedParticipantIds.includes(id)) removeLocalParticipant(id);
+    setCreatedLocalIds([]);
     setSelectedParticipantIds([]);
     onClose();
   };
 
   const canAdd = selectedParticipantIds.length > 0;
+
+  const initialKey = [...(initialParticipantIds ?? [])].sort().join(",");
+  const isDirty =
+    [...selectedParticipantIds].sort().join(",") !== initialKey ||
+    createdLocalIds.length > 0 ||
+    meetingPoint !== defaultMeetingPoint ||
+    showNewParticipant;
+
+  const discardAndClose = () => {
+    for (const id of createdLocalIds) removeLocalParticipant(id);
+    setCreatedLocalIds([]);
+    setConfirmCloseOpen(false);
+    onClose();
+  };
+
+  const requestClose = () => {
+    if (participantEntry && isDirty) {
+      setConfirmCloseOpen(true);
+      return;
+    }
+    onClose();
+  };
 
   // Combine local participants + DB participants for display
   const localParticipants = state.localParticipants;
@@ -246,7 +290,7 @@ export function SlotBookingPopover({
   const hasCustomer = !!preselectedCustomerId;
 
   return (
-    <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
+    <Sheet open={open} onOpenChange={(o) => !o && requestClose()}>
       <SheetContent side="right" className="w-[400px] sm:w-[440px] overflow-y-auto">
         <SheetHeader>
           <SheetTitle className="text-base">{title ?? "Slot konfigurieren"}</SheetTitle>
@@ -475,22 +519,62 @@ export function SlotBookingPopover({
 
           <Separator />
 
-          {/* Add to cart */}
+          {/* Add to cart / apply participants */}
+          {participantEntry && !canAdd && (
+            <p className="text-xs text-muted-foreground" role="status">
+              Mindestens einen Teilnehmer auswählen oder erstellen.
+            </p>
+          )}
           <Button
             className="w-full"
             disabled={!canAdd}
             onClick={handleAddToCart}
           >
-            <ShoppingCart className="h-4 w-4 mr-2" />
-            In den Warenkorb
+            {participantEntry ? <Users className="h-4 w-4 mr-2" /> : <ShoppingCart className="h-4 w-4 mr-2" />}
+            {participantEntry ? "Teilnehmer übernehmen" : "In den Warenkorb"}
             {selectedParticipantIds.length > 0 && (
               <Badge variant="secondary" className="ml-2 bg-primary-foreground/20">
                 {selectedParticipantIds.length} TN
               </Badge>
             )}
           </Button>
+          {participantEntry && (
+            <Button variant="outline" className="w-full" onClick={requestClose}>
+              Abbrechen
+            </Button>
+          )}
         </div>
       </SheetContent>
+
+      {participantEntry && (
+        <AlertDialog open={confirmCloseOpen} onOpenChange={setConfirmCloseOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Änderungen übernehmen?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Die Teilnehmerauswahl ist noch nicht übernommen. Ohne Übernehmen wird sie nicht für diesen Unterricht gezählt.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter className="gap-2">
+              <Button variant="ghost" onClick={() => setConfirmCloseOpen(false)}>
+                Weiter bearbeiten
+              </Button>
+              <Button variant="outline" onClick={discardAndClose}>
+                Verwerfen
+              </Button>
+              <Button
+                disabled={!canAdd || showNewParticipant}
+                onClick={() => {
+                  setConfirmCloseOpen(false);
+                  handleAddToCart();
+                }}
+              >
+                Übernehmen
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
     </Sheet>
   );
 }
