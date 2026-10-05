@@ -5,7 +5,7 @@ import { format, differenceInYears, parseISO } from "date-fns";
 import { de } from "date-fns/locale";
 
 import { supabase } from "@/integrations/supabase/client";
-import { useBookingWizard } from "@/contexts/BookingWizardContext";
+import { useBookingWizard, type LocalParticipant } from "@/contexts/BookingWizardContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -81,6 +81,7 @@ interface SlotBookingPopoverProps {
    * Übernehmen / Verwerfen / Weiter bearbeiten. Other callers keep their behaviour.
    */
   participantEntry?: boolean;
+  participantsOnly?: boolean;
 }
 
 interface NewParticipantForm {
@@ -107,9 +108,10 @@ export function SlotBookingPopover({
   initialParticipantIds,
   title,
   participantEntry = false,
+  participantsOnly = false,
 }: SlotBookingPopoverProps) {
   const queryClient = useQueryClient();
-  const { state, addLocalParticipant, removeLocalParticipant, setSelectedParticipants } = useBookingWizard();
+  const { state, addLocalParticipant, updateLocalParticipant, removeLocalParticipant, setSelectedParticipants } = useBookingWizard();
   // Locals created in THIS dialog session; removed again when the session is discarded.
   const [createdLocalIds, setCreatedLocalIds] = useState<string[]>([]);
   const [confirmCloseOpen, setConfirmCloseOpen] = useState(false);
@@ -127,6 +129,7 @@ export function SlotBookingPopover({
     birth_date: "",
     skill_level: "",
   });
+  const [editingLocalId, setEditingLocalId] = useState<string | null>(null);
 
   const lockedDuration = useMemo(() => {
     const [sh, sm] = startTime.split(":").map(Number);
@@ -186,11 +189,26 @@ export function SlotBookingPopover({
 
   const resetNewParticipantForm = () => {
     setShowNewParticipant(false);
+    setEditingLocalId(null);
     setNewParticipant({ first_name: "", last_name: "", birth_date: "", skill_level: "" });
   };
 
   // Create local participant (no DB write)
   const handleCreateLocalParticipant = () => {
+    if (editingLocalId) {
+      const existing = state.localParticipants.find((participant) => participant.id === editingLocalId);
+      if (!existing) return;
+      updateLocalParticipant({
+        ...existing,
+        first_name: newParticipant.first_name,
+        last_name: newParticipant.last_name || null,
+        birth_date: newParticipant.birth_date || null,
+        skill_level: newParticipant.skill_level || null,
+        sport: (sport || existing.sport) as LocalParticipant["sport"],
+      });
+      resetNewParticipantForm();
+      return;
+    }
     const id = `local-${crypto.randomUUID()}`;
     addLocalParticipant({
       id,
@@ -204,6 +222,19 @@ export function SlotBookingPopover({
     // Discard/orphan tracking only for the participant-entry dialog; other callers keep prior behaviour.
     if (participantEntry) setCreatedLocalIds((prev) => [...prev, id]);
     resetNewParticipantForm();
+  };
+
+  const editLocalParticipant = (id: string) => {
+    const participant = state.localParticipants.find((item) => item.id === id);
+    if (!participant) return;
+    setEditingLocalId(id);
+    setShowNewParticipant(true);
+    setNewParticipant({
+      first_name: participant.first_name,
+      last_name: participant.last_name || "",
+      birth_date: participant.birth_date || "",
+      skill_level: participant.skill_level || "",
+    });
   };
 
   const toggleParticipant = (id: string) => {
@@ -301,7 +332,7 @@ export function SlotBookingPopover({
 
         <div className="space-y-4 mt-4">
           {/* Slot Info */}
-          {plannedIntervals ? (
+          {!participantsOnly && (plannedIntervals ? (
             <div className="space-y-2" data-testid="planned-intervals">
               <Badge variant="outline">{instructorId ? instructorName : "Lehrperson später zuweisen"}</Badge>
               <ul className="divide-y rounded-md border text-sm">
@@ -327,12 +358,12 @@ export function SlotBookingPopover({
               </Badge>
             ))}
           </div>
-          )}
+          ))}
 
-          <Separator />
+          {!participantsOnly && <Separator />}
 
           {/* Duration (hidden in planned mode: times come from the plan) */}
-          {!plannedIntervals && (
+          {!plannedIntervals && !participantsOnly && (
           <div className="space-y-1.5">
             <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
               Dauer
@@ -357,7 +388,7 @@ export function SlotBookingPopover({
           )}
 
           {/* Meeting Point */}
-          <div className="space-y-1.5">
+          {!participantsOnly && <div className="space-y-1.5">
             <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1">
               <MapPin className="h-3 w-3" />
               Treffpunkt
@@ -374,9 +405,9 @@ export function SlotBookingPopover({
                 ))}
               </SelectContent>
             </Select>
-          </div>
+          </div>}
 
-          <Separator />
+          {!participantsOnly && <Separator />}
 
           {/* Participants */}
           <div className="space-y-2">
@@ -402,16 +433,15 @@ export function SlotBookingPopover({
                     ? differenceInYears(new Date(), new Date(p.birth_date))
                     : null;
                   return (
-                    <button
+                    <div
                       key={p.id}
-                      onClick={() => toggleParticipant(p.id)}
                       className={`w-full flex items-center gap-2 rounded-md border p-2 text-left text-sm transition-colors ${
                         isSelected
                           ? "border-primary bg-primary/5"
                           : "border-border hover:border-muted-foreground/30"
                       }`}
                     >
-                      <Checkbox checked={isSelected} className="pointer-events-none" />
+                      <Checkbox checked={isSelected} onCheckedChange={() => toggleParticipant(p.id)} aria-label={`${p.first_name} auswählen`} />
                       <div className="flex-1 min-w-0">
                         <span className="font-medium">
                           {p.first_name} {p.last_name || ""}
@@ -430,7 +460,8 @@ export function SlotBookingPopover({
                           {getLevelLabel(p.level_current_season)}
                         </Badge>
                       )}
-                    </button>
+                      {p.isLocal && <Button type="button" variant="ghost" size="sm" className="control-target" onClick={() => editLocalParticipant(p.id)}>Bearbeiten</Button>}
+                    </div>
                   );
                 })}
               </div>
@@ -439,7 +470,7 @@ export function SlotBookingPopover({
             {/* New participant form */}
             {showNewParticipant ? (
               <div className="space-y-2 rounded-md border p-3 bg-muted/30">
-                <p className="text-xs font-semibold">Neuer Teilnehmer</p>
+                <p className="text-xs font-semibold">{editingLocalId ? "Teilnehmer bearbeiten" : "Neuer Teilnehmer"}</p>
                 <div className="grid grid-cols-2 gap-2">
                   <Input
                     placeholder="Vorname *"
@@ -495,7 +526,7 @@ export function SlotBookingPopover({
                       }
                     }}
                   >
-                    {hasCustomer && createParticipantMutation.isPending ? "Speichern..." : "Erstellen"}
+                    {editingLocalId ? "Änderungen übernehmen" : hasCustomer && createParticipantMutation.isPending ? "Speichern..." : "Erstellen"}
                   </Button>
                   <Button
                     variant="ghost"

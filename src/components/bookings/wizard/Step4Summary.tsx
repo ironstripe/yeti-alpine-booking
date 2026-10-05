@@ -205,7 +205,7 @@ export function Step4Summary({ onEditStep }: Step4SummaryProps) {
         // CREATE MODE: Use createBooking hook
         const result = await createBooking.mutateAsync({
           ...state,
-          ...(state.productType === "private" ? { selectedParticipants: linkedParticipants } : {}),
+          ...((state.productType === "private" || state.productType === "group") ? { selectedParticipants: linkedParticipants } : {}),
           paymentMethod,
           settlement,
           billingPartnerId,

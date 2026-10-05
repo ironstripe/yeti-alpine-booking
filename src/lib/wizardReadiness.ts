@@ -5,7 +5,7 @@
 import type { CartItem } from "@/contexts/BookingWizardContext";
 import { buildEffectivePrivatePlan } from "@/lib/effectivePrivatePlan";
 
-export type ReadinessField = "product" | "dates" | "time" | "teacher" | "meetingPoint" | "participants";
+export type ReadinessField = "product" | "dates" | "time" | "teacher" | "meetingPoint" | "participants" | "course";
 
 export interface ReadinessIssue {
   itemId: string;
@@ -24,6 +24,18 @@ export function itemReadinessIssues(item: CartItem, itemIndex: number): Readines
     if (plan.status === "missing_time") add("time", plan.message);
     else if (plan.status === "invalid") add("time", plan.message);
     if (item.instructorId === null && !item.assignLater) add("teacher", "Lehrperson wählen oder „Später zuweisen“");
+  }
+  if (item.productType === "group" && item.selectedDates.length > 0) {
+    if (!item.sport) add("product", "Sportart wählen");
+    if (item.useParticipantSpecificBooking) {
+      const missing = item.assignedParticipantIds.filter((id) => !item.participantBookings[id]?.groupCourseId);
+      if (missing.length > 0) add("course", "Für jeden Teilnehmer einen Kurs wählen");
+      const blocker = item.assignedParticipantIds.map((id) => item.participantBookings[id]?.groupPersistenceBlocker).find(Boolean);
+      if (blocker) add("course", blocker);
+    } else {
+      if (!item.selectedGroupId || !item.groupPlan) add("course", "Kurs wählen");
+      else if (item.groupPlan.persistenceBlocker) add("course", item.groupPlan.persistenceBlocker);
+    }
   }
   if (item.meetingPoint === null) add("meetingPoint", "Treffpunkt fehlt");
   if (item.assignedParticipantIds.length === 0) add("participants", "Teilnehmer fehlen");
