@@ -1,4 +1,19 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  isCustomerEmailUniqueViolation,
+  lookupCustomerByExactEmail,
+  type EmailConflictLookup,
+} from "@/lib/customerEmailConflict";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -63,6 +78,9 @@ interface InlineCustomerFormProps {
 
 export function InlineCustomerForm({ onSuccess, onCancel }: InlineCustomerFormProps) {
   const createCustomer = useCreateCustomer();
+  const submittingRef = useRef(false);
+  const [resolving, setResolving] = useState(false);
+  const [conflict, setConflict] = useState<EmailConflictLookup | null>(null);
 
   const form = useForm<CustomerFormData>({
     resolver: zodResolver(customerSchema),
@@ -125,6 +143,9 @@ export function InlineCustomerForm({ onSuccess, onCancel }: InlineCustomerFormPr
   };
 
   const onSubmit = async (data: CustomerFormData) => {
+    if (submittingRef.current) return;
+    submittingRef.current = true;
+    setResolving(true);
     try {
       const customerData = {
         first_name: data.first_name || null,
@@ -140,14 +161,30 @@ export function InlineCustomerForm({ onSuccess, onCancel }: InlineCustomerFormPr
         additional_emails: data.additional_emails.length > 0 ? data.additional_emails : null,
       };
 
-      const newCustomer = await createCustomer.mutateAsync(customerData);
+      let newCustomer: Tables<"customers">;
+      try {
+        newCustomer = await createCustomer.mutateAsync(customerData);
+      } catch (error) {
+        console.error("Error creating customer:", error);
+        if (isCustomerEmailUniqueViolation(error)) {
+          setConflict(await lookupCustomerByExactEmail(data.email));
+        } else {
+          toast.error("Kunde konnte nicht erstellt werden", {
+            description: "Eingaben bleiben erhalten. Bitte prüfen und erneut versuchen.",
+          });
+        }
+        return;
+      }
       toast.success("Kunde erstellt");
       onSuccess(newCustomer);
-    } catch (error) {
-      toast.error("Fehler beim Erstellen des Kunden");
-      console.error("Error creating customer:", error);
+    } finally {
+      submittingRef.current = false;
+      setResolving(false);
     }
   };
+
+  const closeConflict = () => setConflict(null);
+  const busy = resolving || createCustomer.isPending;
 
   return (
     <Card>
@@ -495,8 +532,8 @@ export function InlineCustomerForm({ onSuccess, onCancel }: InlineCustomerFormPr
               <Button type="button" variant="outline" onClick={onCancel}>
                 Abbrechen
               </Button>
-              <Button type="submit" disabled={createCustomer.isPending}>
-                {createCustomer.isPending && (
+              <Button type="submit" disabled={busy}>
+                {busy && (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 )}
                 Kunde erstellen
@@ -505,6 +542,71 @@ export function InlineCustomerForm({ onSuccess, onCancel }: InlineCustomerFormPr
           </form>
         </Form>
       </CardContent>
+
+      <AlertDialog
+        open={conflict !== null}
+        onOpenChange={(open) => {
+          if (!open) closeConflict();
+        }}
+      >
+        <AlertDialogContent
+          className="w-[calc(100vw-2rem)] max-w-md"
+          onCloseAutoFocus={(e) => {
+            e.preventDefault();
+            form.setFocus("email");
+          }}
+        >
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {conflict?.status === "found" ? "Kunde bereits vorhanden" : "E-Mail bereits vergeben"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {conflict?.status === "found"
+                ? "Diese E-Mail gehört bereits zu einem Kunden. Möchtest du den bestehenden Kunden für diese Buchung auswählen?"
+                : conflict?.status === "lookup_failed"
+                  ? "Diese E-Mail gehört bereits zu einem Kunden, der zugehörige Kunde konnte aber nicht geladen werden. Bitte E-Mail korrigieren oder den Kunden über die Suche auswählen."
+                  : "Diese E-Mail gehört bereits zu einem Kunden, der nicht auswählbar ist (archiviert, zusammengeführt oder ohne Berechtigung). Bitte E-Mail korrigieren oder das Büro-Team informieren."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          {conflict?.status === "found" && (
+            <div className="rounded-md border bg-muted/40 p-3 text-sm">
+              <p className="font-medium">
+                {[conflict.customer.first_name, conflict.customer.last_name].filter(Boolean).join(" ")}
+              </p>
+              {conflict.customer.customer_number && (
+                <p className="text-muted-foreground">{conflict.customer.customer_number}</p>
+              )}
+              <p className="break-all text-muted-foreground">{conflict.customer.email}</p>
+              <p className="mt-2 text-xs text-muted-foreground">
+                Es werden die bestehenden Kundendaten verwendet.
+              </p>
+            </div>
+          )}
+
+          <AlertDialogFooter className="gap-2 sm:gap-2">
+            <AlertDialogCancel
+              type="button"
+              className="mt-0 h-auto min-h-11 whitespace-normal sm:min-h-9 sm:whitespace-nowrap"
+            >
+              E-Mail korrigieren
+            </AlertDialogCancel>
+            {conflict?.status === "found" && (
+              <AlertDialogAction
+                type="button"
+                className="h-auto min-h-11 whitespace-normal sm:min-h-9 sm:whitespace-nowrap"
+                onClick={() => {
+                  const existing = conflict.customer;
+                  setConflict(null);
+                  onSuccess(existing);
+                }}
+              >
+                Bestehenden Kunden auswählen
+              </AlertDialogAction>
+            )}
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   );
 }
