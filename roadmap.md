@@ -146,3 +146,13 @@ Legend: impl = in code on this commit · runtime = observed test · live = insta
 - [ ] Full step 1→3 browser save with mocked server — unverified (payload covered by unit tests)
 - [x] Installed (0003) + deployed
 - [x] Validated 26/27 group offers activated (ledger 4d)
+
+## Browser acceptance — bounded group cases (5 Oct 2026, base 0d0082f)
+All real business writes intercepted (any non-GET to the backend fails with 403 unless it is a read RPC or the read-only `options` call; staff-group-booking `create` captured + answered locally). Synthetic payer "Paula Synthetik" served by the test; no early participant insert observed (0 blocked writes in every run).
+- [x] A — Chromium 1440: Gruppe → Ski → 14–18 Dec → "26/27 Ski Blauer Star" (product Kinder 4h, 320) → 2 new draft children → reopen/close dialog (both kept) → Treffpunkt Malbipark (course has none) → lunch child 1 on 14/15/17 + vegetarian, child 2 none → preview CHF 730 (2×320 + 3×30, AM+PM once) → payer → back/reopen (all kept) → review → 10 % "Geschwisterrabatt Test" → total CHF 657 → "Buchung erstellen" sends one create with both guests, full dates, malbipark, lunch_dates/vegetarian, discount.
+- [x] B — WebKit 390: one "Neue Buchung" outside wizard, none inside → Gruppe → Snowboard → 14–18 picked course, cleared, 21–25 (course reset, re-picked "26/27 Snowboard Anfänger" AM) → 2 new children with snowboard levels → per-person mode (2 selectors) and back → Gorfion → CHF 460 (2×230) → payer → review shows only 21–25 → create payload only 21–25, 230/person. Time list readable at 390.
+- [x] C — Chromium 1440 per-person: child 1 Blauer Star + Täli, child 2 Roter Star + Schneeflucht → CHF 640 → create payload with two courses, two points.
+- [x] Captured payload A replayed in a throwaway local database (production schema + installed 0006, synthetic IDs): ticket total 657 = UI; each child 10 distinct AM+PM course sessions on exactly 14–18; lunch only child 1 on 14/15/17 vegetarian; meeting point malbipark; discount 10 % + reason on every line; no payment (pay later). staffFinalize 10/10.
+- [x] Fixed: date picker endless redraw after clicking a day (blocked course choice); report hours key per real group session (two courses at the same time stay two; same session across people counted once); "Gruppenkurs0" in summary; raw meeting point id in summary.
+- [ ] Open: level chosen for a NEW child is not sent with the server save (guest payload has no level field) — needs a decision before changing the server save.
+- [ ] Open: summary VAT line shows 7.7 % (current Swiss rate is 8.1 %) — display only, not changed here.

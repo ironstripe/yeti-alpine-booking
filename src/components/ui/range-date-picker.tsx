@@ -123,21 +123,29 @@ export function RangeDatePicker({
     [isDateDisabled, isRangeMode, rangeStart, selected, onSelect]
   );
 
+  // Preview update that keeps the same object when the range is unchanged. Day cells remount on
+  // every render; without this, a hovered cell's mouseenter re-sets state forever (render loop).
+  const setPreviewIfChanged = useCallback((from: Date, to: Date) => {
+    setDragPreview((prev) =>
+      prev?.from && prev?.to && isSameDay(prev.from, from) && isSameDay(prev.to, to) ? prev : { from, to }
+    );
+  }, []);
+
   // Handle drag over day
   const handleDayMouseEnter = useCallback(
     (date: Date) => {
       if (isRangeMode && rangeStart) {
         // Update preview in range mode
-        setDragPreview({ from: rangeStart, to: date });
+        setPreviewIfChanged(rangeStart, date);
         return;
       }
       
       if (!isDragging || !dragStart) return;
       const from = dragStart <= date ? dragStart : date;
       const to = dragStart <= date ? date : dragStart;
-      setDragPreview({ from, to });
+      setPreviewIfChanged(from, to);
     },
-    [isDragging, dragStart, isRangeMode, rangeStart]
+    [isDragging, dragStart, isRangeMode, rangeStart, setPreviewIfChanged]
   );
 
   // Handle drag end
