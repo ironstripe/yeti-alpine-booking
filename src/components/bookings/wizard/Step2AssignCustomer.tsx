@@ -1,80 +1,33 @@
-import { useEffect, useRef } from "react";
-import { useMutation } from "@tanstack/react-query";
 import { useBookingWizard } from "@/contexts/BookingWizardContext";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ShoppingCart, Users, UserCheck, Info } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { ShoppingCart, Users, UserCheck, AlertTriangle } from "lucide-react";
 import { CustomerPayerCard } from "./CustomerPayerCard";
-import { supabase } from "@/integrations/supabase/client";
-import { toast } from "sonner";
+import { useParticipantOwnership } from "@/hooks/useParticipantOwnership";
 
 export function Step2AssignCustomer() {
-  const { state, setCustomer, getAllCartItems, replaceLocalParticipantIds } = useBookingWizard();
+  const { state, setCustomer, getAllCartItems, setCartItemParticipants, setCurrentStep } = useBookingWizard();
   const cartItems = getAllCartItems();
-  const hasPersisted = useRef(false);
-
-  // Persist local participants to DB when customer is selected
-  const persistMutation = useMutation({
-    mutationFn: async (customerId: string) => {
-      const locals = state.localParticipants;
-      if (locals.length === 0) return {};
-
-      const idMap: Record<string, string> = {};
-
-      for (const lp of locals) {
-        const { data, error } = await supabase
-          .from("customer_participants")
-          .insert({
-            customer_id: customerId,
-            first_name: lp.first_name,
-            last_name: lp.last_name || null,
-            birth_date: lp.birth_date || null,
-            level_current_season: lp.skill_level || null,
-            sport: lp.sport,
-          })
-          .select()
-          .single();
-
-        if (error) throw error;
-        idMap[lp.id] = data.id;
-      }
-
-      return idMap;
-    },
-    onSuccess: (idMap) => {
-      if (Object.keys(idMap).length > 0) {
-        replaceLocalParticipantIds(idMap);
-        toast.success(`${Object.keys(idMap).length} Teilnehmer dem Kunden zugeordnet`);
-      }
-    },
-    onError: (err) => {
-      console.error("Failed to persist local participants:", err);
-      toast.error("Fehler beim Speichern der Teilnehmer");
-    },
-  });
-
-  // Auto-persist when customer is set and there are local participants
-  useEffect(() => {
-    if (
-      state.customer &&
-      state.localParticipants.length > 0 &&
-      !hasPersisted.current &&
-      !persistMutation.isPending
-    ) {
-      hasPersisted.current = true;
-      persistMutation.mutate(state.customer.id);
-    }
-    // Reset flag if customer changes
-    if (!state.customer) {
-      hasPersisted.current = false;
-    }
-  }, [state.customer, state.localParticipants.length]);
+  const activeItem = state.cartItems.find((item) => item.id === state.activeCartItemId);
+  const linkedIds = activeItem?.assignedParticipantIds ?? [];
+  // New people stay local until the booking is saved; the server creates them in the SAME
+  // transaction as the booking (no early writes, no duplicates on retry).
+  const newPeople = linkedIds.filter((id) => id.startsWith("local-") || id.startsWith("guest-")).length;
+  const { foreign } = useParticipantOwnership(linkedIds, state.customerId);
 
   const isExistingCustomerPrefill = !!state.customer && !!state.conversationId;
 
+  const removeForeign = () => {
+    if (!activeItem) return;
+    const foreignIds = new Set(foreign.map((f) => f.id));
+    setCartItemParticipants(activeItem.id, linkedIds.filter((id) => !foreignIds.has(id)));
+    setCurrentStep(1);
+  };
+
   return (
     <div className="space-y-4">
-      {/* Existing customer info banner */}
       {isExistingCustomerPrefill && (
         <Card className="border-primary/30 bg-primary/5">
           <CardContent className="p-3 flex items-start gap-2">
@@ -86,19 +39,33 @@ export function Step2AssignCustomer() {
         </Card>
       )}
 
-      {/* Local participants info */}
-      {state.localParticipants.length > 0 && !state.customer && (
-        <Card className="border-amber-500/50 bg-amber-50/50 dark:bg-amber-950/20">
+      {newPeople > 0 && (
+        <Card className="bg-muted/40">
           <CardContent className="p-3 flex items-start gap-2">
-            <Users className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+            <Users className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
             <span className="min-w-0 break-words text-sm">
-              {state.localParticipants.length} Teilnehmer werden dem Kunden zugeordnet, sobald einer ausgewählt wird.
+              {newPeople} neue{newPeople === 1 ? "r" : ""} Teilnehmer {newPeople === 1 ? "wird" : "werden"} beim Speichern der Buchung dem gewählten Kunden zugeordnet.
             </span>
           </CardContent>
         </Card>
       )}
 
-      {/* Cart summary reminder when multiple items */}
+      {foreign.length > 0 && (
+        <Alert variant="destructive" data-testid="foreign-participants">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription className="space-y-2">
+            <p className="font-medium">Teilnehmer gehören zu einem anderen Kunden</p>
+            <ul className="list-disc pl-5 text-sm">
+              {foreign.map((f) => <li key={f.id}>{f.name}{f.ownerName ? ` (Kunde ${f.ownerName})` : ""}</li>)}
+            </ul>
+            <p className="text-sm">
+              Bestehende Teilnehmer werden nicht automatisch auf einen anderen Kunden übertragen. Entweder den ursprünglichen Kunden als Zahler wählen, oder diese Teilnehmer aus der Buchung entfernen und in Schritt 1 die Teilnehmer des neuen Kunden bzw. neue Teilnehmer zuweisen.
+            </p>
+            <Button type="button" variant="outline" size="sm" onClick={removeForeign}>Entfernen und Teilnehmer neu zuweisen</Button>
+          </AlertDescription>
+        </Alert>
+      )}
+
       {cartItems.length > 1 && (
         <Card className="bg-muted/30">
           <CardContent className="p-3 flex flex-wrap items-center gap-2">

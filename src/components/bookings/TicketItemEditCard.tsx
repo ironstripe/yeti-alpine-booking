@@ -43,11 +43,17 @@ import {
   isValidTimeRange,
   calculateDuration
 } from "@/lib/booking-utils";
-import { MEETING_POINTS, getMeetingPointById } from "@/lib/meeting-point-utils";
+import { MEETING_POINTS } from "@/lib/meeting-point-utils";
+import { isPackageGroupItem, meetingPointLabel, scheduleByDay, type ScheduledItem } from "@/lib/ticketItemSchedule";
 
 interface TicketItem {
   id: string;
   date: string;
+  end_date?: string | null;
+  item_type?: string | null;
+  group_name?: string | null;
+  is_vegetarian?: boolean | null;
+  enrollments?: ScheduledItem["enrollments"];
   time_start: string | null;
   time_end: string | null;
   meeting_point: string | null;
@@ -95,7 +101,10 @@ export function TicketItemEditCard({ item, onUpdate }: TicketItemEditCardProps) 
   const [internalNotes, setInternalNotes] = useState(item.internal_notes || "");
   const [instructorNotes, setInstructorNotes] = useState(item.instructor_notes || "");
 
-  // Derived values
+  // Package group lines (all course days/blocks) and lunch lines are not edited as a single
+  // lesson here: course changes go through course planning, never via date/time of one line.
+  const packageItem = isPackageGroupItem(item);
+  const lessonEditable = !packageItem && item.item_type !== "lunch";
   const editableStatus = useMemo(() => getEditableStatus(item.date), [item.date]);
 
   const duration = useMemo(() => {
@@ -339,7 +348,7 @@ export function TicketItemEditCard({ item, onUpdate }: TicketItemEditCardProps) 
   return (
     <div className={cn(
       "flex justify-between items-start p-3 rounded-lg transition-colors",
-      editableStatus.editable 
+      (editableStatus.editable && lessonEditable)
         ? "bg-muted/50 hover:bg-muted/80 cursor-pointer group" 
         : "bg-muted/30"
     )}>
@@ -355,11 +364,25 @@ export function TicketItemEditCard({ item, onUpdate }: TicketItemEditCardProps) 
             </Badge>
           )}
         </div>
-        <p className="text-sm text-muted-foreground">
-          {format(new Date(item.date), 'dd.MM.yyyy', { locale: de })}
-          {item.time_start && ` · ${item.time_start.substring(0, 5)}`}
-          {item.time_end && ` - ${item.time_end.substring(0, 5)}`}
-        </p>
+        {packageItem ? (
+          <div className="text-sm text-muted-foreground" data-testid="package-schedule">
+            {item.group_name && <p>{item.group_name}</p>}
+            {scheduleByDay(item).map((day) => (
+              <p key={day.date}>
+                {format(new Date(day.date), 'EEE dd.MM.yyyy', { locale: de })}
+                {day.times.length > 0 && ` · ${day.times.join(", ")}`}
+              </p>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            {format(new Date(item.date), 'dd.MM.yyyy', { locale: de })}
+            {item.item_type === "lunch" ? " · Mittagsbetreuung" : ""}
+            {item.item_type === "lunch" && item.is_vegetarian ? " (vegetarisch)" : ""}
+            {item.time_start && ` · ${item.time_start.substring(0, 5)}`}
+            {item.time_end && ` - ${item.time_end.substring(0, 5)}`}
+          </p>
+        )}
         {item.instructor && (
           <p className="text-sm text-muted-foreground">
             <Users className="h-3 w-3 inline mr-1" />
@@ -369,13 +392,13 @@ export function TicketItemEditCard({ item, onUpdate }: TicketItemEditCardProps) 
         {item.meeting_point && (
           <p className="text-sm text-muted-foreground">
             <MapPin className="h-3 w-3 inline mr-1" />
-            {getMeetingPointById(item.meeting_point)?.name}
+            {meetingPointLabel(item.meeting_point)}
           </p>
         )}
       </div>
       <div className="flex items-center gap-2">
         <p className="font-medium">CHF {formatCurrency(item.line_total || item.unit_price || 0)}</p>
-        {editableStatus.editable && (
+        {editableStatus.editable && lessonEditable && (
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>

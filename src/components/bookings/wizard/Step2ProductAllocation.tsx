@@ -47,6 +47,7 @@ import { GroupSelector } from "./GroupSelector";
 import { PeriodDayPlanner } from "./PeriodDayPlanner";
 import { PlannedAppointmentsCard } from "./PlannedAppointmentsCard";
 import { LunchSupervisionAddon } from "./LunchSupervisionAddon";
+import { useLunchProduct } from "@/hooks/useLunchProduct";
 import { ParticipantBookingCard } from "./ParticipantBookingCard";
 import {
   MEETING_POINTS,
@@ -404,8 +405,8 @@ export function Step2ProductAllocation() {
     }
   }, [selectedProduct, state.productId, setProductId]);
 
-  // Find lunch product
-  const lunchProduct = products.find((p) => p.type === "lunch");
+  // Authoritative lunch product (same unique-active rule as the server; no fallback price)
+  const { data: lunchProduct = null, isLoading: lunchLoading } = useLunchProduct();
 
   const handleDateSelect = (dates: Date[] | undefined) => {
     if (dates) {
@@ -1049,7 +1050,7 @@ export function Step2ProductAllocation() {
           {state.selectedDates.length > 0 ? state.useParticipantSpecificBooking ? (
             <><Alert className="bg-muted/40"><Users className="h-4 w-4 text-muted-foreground" /><AlertDescription><p className="font-medium">Kurs pro Teilnehmer</p><p className="text-sm">Jede Kurswahl erfolgt ausdrücklich und wird nicht automatisch ersetzt.</p></AlertDescription></Alert><div className="space-y-3">{groupPeople.map((participant, index) => { const booking = state.participantBookings[participant.id]; if (!booking) return null; const first = state.participantBookings[groupPeople[0]?.id]; const differs = index > 0 && first && (booking.groupCourseId !== first.groupCourseId || booking.dates.length !== first.dates.length); return <ParticipantBookingCard key={participant.id} participant={participant} booking={booking} sport={state.sport} onBookingChange={(next) => handleParticipantBookingChange(participant.id, next)} onCopyToAll={() => copyBookingToAllParticipants(groupPeople[0]?.id)} isFirst={index === 0} showDifferenceWarning={!!differs} />; })}</div><Button variant="outline" size="sm" onClick={() => { setUseParticipantSpecificBooking(false); setSelectedGroupId(null); setGroupPlan(null); }}>Gemeinsamen Kurs wählen</Button></>
           ) : (
-            <><GroupSelector selectedDates={state.selectedDates} sport={state.sport} participants={groupPeople} selectedGroupId={state.selectedGroupId} onGroupSelect={setSelectedGroupId} onMeetingPointChange={setMeetingPoint} />{groupPeople.length > 1 && <Button variant="outline" size="sm" onClick={() => { initializeParticipantBookings(); setSelectedGroupId(null); setGroupPlan(null); setUseParticipantSpecificBooking(true); }}>Kurse pro Teilnehmer wählen</Button>}{groupPeople.length > 0 && <LunchSupervisionAddon selectedDates={state.selectedDates} participants={groupPeople} lunchSelections={state.lunchSelections} vegetarianSelections={state.vegetarianSelections} onLunchDaysChange={setLunchDaysForParticipant} onVegetarianChange={setVegetarianForParticipant} lunchPricePerDay={lunchProduct?.price || 25} />}</>
+            <><GroupSelector selectedDates={state.selectedDates} sport={state.sport} participants={groupPeople} selectedGroupId={state.selectedGroupId} onGroupSelect={setSelectedGroupId} onMeetingPointChange={setMeetingPoint} />{groupPeople.length > 1 && <Button variant="outline" size="sm" onClick={() => { initializeParticipantBookings(); setSelectedGroupId(null); setGroupPlan(null); setUseParticipantSpecificBooking(true); }}>Kurse pro Teilnehmer wählen</Button>}{groupPeople.length > 0 && (lunchProduct ? <LunchSupervisionAddon selectedDates={state.selectedDates} participants={groupPeople} lunchSelections={state.lunchSelections} vegetarianSelections={state.vegetarianSelections} onLunchDaysChange={setLunchDaysForParticipant} onVegetarianChange={setVegetarianForParticipant} lunchPricePerDay={lunchProduct.price} /> : !lunchLoading && <p className="text-sm text-muted-foreground">Mittagsbetreuung: kein eindeutiger Preis im Produktkatalog hinterlegt.</p>)}</>
           ) : <div className="flex flex-col items-center justify-center rounded-md border border-dashed py-8 text-center"><CalendarDays className="mb-2 h-10 w-10 text-muted-foreground" /><p className="text-sm font-medium">Wählen Sie zuerst die Kurstage</p></div>}
         </section>
       )}

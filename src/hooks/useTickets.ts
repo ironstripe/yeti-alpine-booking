@@ -82,7 +82,8 @@ function computeTicketDetails(ticket: any): TicketWithDetails {
   const items = ticket.ticket_items || [];
   
   // Compute date range
-  const dates = items.map((i: any) => i.date).filter(Boolean).sort();
+  // Package group lines span date..end_date (all real course days).
+  const dates = items.flatMap((i: any) => [i.date, i.end_date]).filter(Boolean).sort();
   const dateRange = dates.length > 0 
     ? { start: dates[0], end: dates[dates.length - 1] }
     : null;
@@ -193,6 +194,7 @@ export function useTickets(filters: TicketFilters) {
           ticket_items (
             id,
             date,
+            end_date,
             time_start,
             time_end,
             instructor_confirmation,

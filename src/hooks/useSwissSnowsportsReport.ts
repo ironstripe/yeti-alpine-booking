@@ -1,7 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
-import { isActiveItemStatus, minutesBetween, sessionKey } from "@/lib/finance";
+import { isActiveItemStatus } from "@/lib/finance";
+import { ENROLLMENT_BLOCKS_SELECT, itemSessions } from "@/lib/ticketItemSchedule";
 import type { DateRange } from "./useReportsData";
 
 export interface SwissSnowsportsRow {
@@ -50,14 +51,15 @@ export function useSwissSnowsportsReport(dateRange: DateRange) {
         .select(
           `
           id, date, time_start, time_end, status, line_total,
-          participant_id, instructor_id, actual_duration_minutes,
+          participant_id, instructor_id, actual_duration_minutes, item_type, end_date,
           product:products!ticket_items_product_id_fkey (
             name, type, duration_minutes, discipline, audience, reporting_category
-          )
+          ),
+          ${ENROLLMENT_BLOCKS_SELECT}
         `
         )
-        .gte("date", startDate)
-        .lte("date", endDate);
+        .lte("date", endDate)
+        .or(`date.gte.${startDate},end_date.gte.${startDate}`);
 
       if (error) throw error;
 
@@ -98,22 +100,13 @@ export function useSwissSnowsportsReport(dateRange: DateRange) {
           groups.set(key, group);
         }
 
-        group.revenue += Number(item.line_total || 0);
-        if (item.participant_id) group.participants.add(item.participant_id);
-
-        const sKey = sessionKey({
-          instructorId: item.instructor_id,
-          date: item.date,
-          timeStart: item.time_start,
-          timeEnd: item.time_end,
-        });
-        if (!group.sessions.has(sKey)) {
-          const minutes =
-            item.actual_duration_minutes ??
-            (item.time_start && item.time_end
-              ? minutesBetween(item.time_start, item.time_end)
-              : p.duration_minutes ?? 0);
-          group.sessions.set(sKey, minutes || 0);
+        // Revenue/participants by start date (unchanged); sessions = real blocks inside the range.
+        if (item.date >= startDate) {
+          group.revenue += Number(item.line_total || 0);
+          if (item.participant_id) group.participants.add(item.participant_id);
+        }
+        for (const s of itemSessions(item, startDate, endDate)) {
+          if (!group.sessions.has(s.key)) group.sessions.set(s.key, s.minutes);
         }
       });
 

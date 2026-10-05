@@ -8,6 +8,7 @@ import { buildEffectivePrivatePlan } from "@/lib/effectivePrivatePlan";
 import { paCreate, type PaParticipant, type PaSlot } from "@/lib/privateAppointmentsApi";
 import { endOf, sortPlan, validatePlan } from "@/lib/privatePlan";
 import { buildStaffGroupLines, staffGroupHasLunch } from "@/lib/staffGroupPayload";
+import { fetchLunchProduct } from "@/hooks/useLunchProduct";
 import { createStaffGroupBooking } from "@/lib/staffGroupBookingApi";
 import {
   preflightGroupLines,
@@ -85,6 +86,19 @@ async function runGroupPreflight(lines: GroupLineRequest[]): Promise<Map<string,
 }
 
 
+/** Office settlement/notes sent with the booking; the server applies them in the same transaction. */
+function buildFinalization(state: BookingWizardState) {
+  return {
+    payment_method: state.paymentMethod ?? null,
+    settlement: state.settlement === "paid_now" ? ("paid_now" as const) : ("pay_later" as const),
+    billing_partner_id: state.paymentMethod === "hotel" ? state.billingPartnerId ?? null : null,
+    payment_due_date: state.paymentDueDate ?? null,
+    ...(state.internalNotes?.trim() ? { internal_notes: state.internalNotes.trim() } : {}),
+    ...(state.instructorNotes?.trim() ? { instructor_notes: state.instructorNotes.trim() } : {}),
+    ...(state.conversationId ? { conversation_id: state.conversationId } : {}),
+  };
+}
+
 export function useCreateBooking() {
   const queryClient = useQueryClient();
 
@@ -112,8 +126,7 @@ export function useCreateBooking() {
       let staffLunchPrice: number | null = null;
       if (state.productType === "group" && staffGroupHasLunch(state)) {
         // Same authoritative row the server uses: exactly one active lunch product.
-        const { data: lunchRows } = await supabase.from("products").select("price").eq("type", "lunch").eq("is_active", true);
-        staffLunchPrice = lunchRows && lunchRows.length === 1 ? Number(lunchRows[0].price) : null;
+        staffLunchPrice = (await fetchLunchProduct())?.price ?? null;
       }
       const staffGroup = buildStaffGroupLines(state, staffLunchPrice);
       if (staffGroup.kind === "error") throw new Error(staffGroup.message);
@@ -123,39 +136,21 @@ export function useCreateBooking() {
           customer_id: state.customerId,
           ...(state.customerNotes ? { notes: state.customerNotes } : {}),
           lines: staffGroup.lines,
+          finalization: buildFinalization(state),
         };
         // Same payload in this browser session => same key => server replays, never duplicates.
+        // Booking, settlement (payment) and notes are ONE server transaction: a replay is complete.
         const fp = "yeti.staffgroup.submit." + JSON.stringify(payload);
         let submissionKey = sessionStorage.getItem(fp);
         if (!submissionKey) { submissionKey = crypto.randomUUID(); sessionStorage.setItem(fp, submissionKey); }
         const created = await createStaffGroupBooking({ submission_key: submissionKey, ...payload });
-        const total = Number(created.total) || 0;
-        if (!created.replayed) {
-          await supabase.from("tickets").update({
-            payment_method: state.paymentMethod,
-            billing_partner_id: state.paymentMethod === "hotel" ? state.billingPartnerId : null,
-            payment_due_date: state.paymentDueDate,
-          }).eq("id", created.ticket_id);
-          if (state.settlement === "paid_now" && isImmediateMethod(state.paymentMethod) && total > 0) {
-            const { error: payErr } = await supabase.from("payments").insert({
-              ticket_id: created.ticket_id,
-              amount: total,
-              payment_method: state.paymentMethod!,
-              payment_date: format(new Date(), "yyyy-MM-dd"),
-              status: "completed",
-              created_by: user.id,
-            });
-            if (payErr) throw payErr;
-            await supabase.from("tickets").update({ paid_amount: total }).eq("id", created.ticket_id);
-            await logTicketEvent(created.ticket_id, "PAYMENT_RECORDED", { amount: total, payment_method: state.paymentMethod, settlement: "paid_now" });
-          }
-          await createInitialComments(created.ticket_id, state.internalNotes, state.instructorNotes, user.id, user.email?.split("@")[0] || "System");
-          if (state.conversationId) {
-            await supabase.from("conversations").update({ related_ticket_id: created.ticket_id, status: "processed" }).eq("id", state.conversationId);
-          }
-        }
         sessionStorage.removeItem(fp);
         return { ticketId: created.ticket_id, ticketNumber: created.ticket_number };
+      }
+
+      // New (not yet saved) people are only created by the atomic server paths (private / 26/27 group).
+      if (state.productType !== "private" && state.selectedParticipants.some((p) => p.isGuest || p.id.startsWith("local-") || p.id.startsWith("guest-"))) {
+        throw new Error("Neue Teilnehmer können bei diesem Kurs nicht direkt mitgespeichert werden. Bitte den Teilnehmer zuerst beim Kunden anlegen und dann zuweisen.");
       }
 
       // ============ #15 GROUP PREFLIGHT (before ANY write) ============
@@ -268,12 +263,15 @@ export function useCreateBooking() {
 
       // Calculate lunch cost from lunchSelections (for groups) or includeLunch (for private)
       let lunchTotal = 0;
-      const lunchProduct = products?.find((p) => p.type === "lunch");
-      const lunchPricePerDay = lunchProduct ? Number(lunchProduct.price) : 25;
+      // Same unique-active lunch product as the server path; never a guessed price.
+      const lunchProducts = (products ?? []).filter((p) => p.type === "lunch");
+      const lunchProduct = lunchProducts.length === 1 && Number(lunchProducts[0].price) > 0 ? lunchProducts[0] : undefined;
+      const lunchPricePerDay = lunchProduct ? Number(lunchProduct.price) : 0;
       
       if (state.productType === "group" && Object.keys(state.lunchSelections).length > 0) {
         const totalLunchDays = Object.values(state.lunchSelections)
           .reduce((sum, days) => sum + days.length, 0);
+        if (totalLunchDays > 0 && !lunchProduct) throw new Error("Für die Mittagsbetreuung ist kein eindeutiger Preis hinterlegt. Bitte im Produktkatalog prüfen.");
         lunchTotal = totalLunchDays * lunchPricePerDay;
       } else if (state.includeLunch && lunchProduct) {
         lunchTotal = Number(lunchProduct.price) * daysCount;
@@ -338,7 +336,7 @@ export function useCreateBooking() {
           }
         }
         const participants: PaParticipant[] = state.selectedParticipants.map((pt) =>
-          pt.id.startsWith("guest-")
+          pt.id.startsWith("guest-") || pt.isGuest
             ? {
                 guest_key: pt.id,
                 first_name: pt.first_name,
@@ -355,6 +353,7 @@ export function useCreateBooking() {
           appointments,
           participants,
           ...(discountPercent > 0 ? { discount_percent: discountPercent, discount_reason: discountReason } : {}),
+          finalization: buildFinalization(state),
         };
         // Same payload in this browser session => same key => server replays, never duplicates.
         const fp = "yeti.pa.submit." + JSON.stringify(payload);
@@ -362,33 +361,6 @@ export function useCreateBooking() {
         if (!submissionKey) { submissionKey = crypto.randomUUID(); sessionStorage.setItem(fp, submissionKey); }
 
         const created = await paCreate({ submission_key: submissionKey, ...payload });
-        const total = Number(created.total) || 0;
-
-        if (!created.replayed) {
-          await supabase.from("tickets").update({
-            payment_method: state.paymentMethod,
-            billing_partner_id: state.paymentMethod === "hotel" ? state.billingPartnerId : null,
-            payment_due_date: state.paymentDueDate,
-          }).eq("id", created.ticket_id);
-
-          if (state.settlement === "paid_now" && isImmediateMethod(state.paymentMethod) && total > 0) {
-            const { error: payErr } = await supabase.from("payments").insert({
-              ticket_id: created.ticket_id,
-              amount: total,
-              payment_method: state.paymentMethod!,
-              payment_date: format(new Date(), "yyyy-MM-dd"),
-              status: "completed",
-              created_by: user.id,
-            });
-            if (payErr) throw payErr;
-            await supabase.from("tickets").update({ paid_amount: total }).eq("id", created.ticket_id);
-            await logTicketEvent(created.ticket_id, "PAYMENT_RECORDED", { amount: total, payment_method: state.paymentMethod, settlement: "paid_now" });
-          }
-          await createInitialComments(created.ticket_id, state.internalNotes, state.instructorNotes, user.id, user.email?.split("@")[0] || "System");
-          if (state.conversationId) {
-            await supabase.from("conversations").update({ related_ticket_id: created.ticket_id, status: "processed" }).eq("id", state.conversationId);
-          }
-        }
         sessionStorage.removeItem(fp);
         try { sessionStorage.removeItem("yeti.scheduler.planningDraft.v1"); } catch { /* ignore */ }
         return { ticketId: created.ticket_id, ticketNumber: created.ticket_number };
