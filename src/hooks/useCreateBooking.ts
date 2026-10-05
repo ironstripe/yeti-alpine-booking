@@ -132,10 +132,16 @@ export function useCreateBooking() {
       if (staffGroup.kind === "error") throw new Error(staffGroup.message);
       if (staffGroup.kind === "server") {
         if (!state.customerId) throw new Error("Bitte zahlungspflichtigen Kunden wählen.");
+        const staffDiscount = Number(state.discountPercent) || 0;
+        const staffDiscountReason = (state.discountReason || "").trim();
+        if (staffDiscount < 0 || staffDiscount > 100) throw new Error("Rabatt muss zwischen 0 und 100 % liegen.");
+        if (staffDiscount > 0 && !staffDiscountReason) throw new Error("Bitte gib einen Grund für den Rabatt an");
         const payload = {
           customer_id: state.customerId,
           ...(state.customerNotes ? { notes: state.customerNotes } : {}),
           lines: staffGroup.lines,
+          // Office discretionary discount: same per-line discount_percent/reason as the other office paths.
+          ...(staffDiscount > 0 ? { discount_percent: staffDiscount, discount_reason: staffDiscountReason } : {}),
           finalization: buildFinalization(state),
         };
         // Same payload in this browser session => same key => server replays, never duplicates.
