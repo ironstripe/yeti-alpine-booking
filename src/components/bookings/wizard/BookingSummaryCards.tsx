@@ -186,7 +186,7 @@ export function BookingSummaryCards({
         <CardContent className="space-y-3 pt-0">
           <p className="font-medium">
             {state.productType === "private" ? "Privatstunde" : "Gruppenkurs"}
-            {state.duration && ` · ${state.duration} Stunden`}
+            {state.productType === "private" && !!state.duration && ` · ${state.duration} Stunden`}
             {state.sport && ` · ${state.sport === "snowboard" ? "Snowboard" : "Ski"}`}
           </p>
           {state.productType === "group" && !state.useParticipantSpecificBooking && state.groupPlan && (
