@@ -84,3 +84,24 @@ This section closes omissions in the plan above; it does not approve deployment,
 
 ### Required evidence before reporting completion
 Record each requirement as implemented / runtime-tested / published / still blocked in the existing roadmap. Test 14–18 and 21–25 Dec fixture plans, Ski/Snowboard, same-count date changes, per-person courses, payer-first and participant-first paths, add/remove/cancel/reentry and summary/save consistency at 1440px and 390px. Do not replace missing fixtures with an untested claim. A passing isolated test does not make the failing combined test suite pass. Report actual main commit and retain the scheduler course/date/instance navigation as a separate unfinished authorised task.
+
+## 7. Ivo's release authorisation — 2026-10-05 21:05 Europe/Berlin
+
+Ivo explicitly approved completion and publication of ALL today's discussed corrections in the existing main development stream. Earlier local-only/no-publication restrictions for this specific approved release are superseded. This records user authorisation, not an answer to or circumvention of a tool approval.
+
+The consolidated continuation is queued as umsg_01m46qfhcnfx59mf6cz6cb1gd0 on main. Continue this same work, no separate branch/remix or duplicated implementation. Read that complete prompt before proceeding.
+
+Release checklist:
+1. Mobile labelled New Booking entry, 44px, no duplicate inside wizard.
+2. Private NOW/LATER and actual canonical save; exact multiple-date/same-day blocks; explicit participant entry/reentry/cancel and no teacher-selection auto-popup/duplicate confirmation; retain language filtering.
+3. Focused customer-change search/cancel, guided duplicate-email handling, and actual save after relevant payer/participant selection without silent reparenting.
+4. All group requirements in section6 including visible Ski/Snowboard, proper skill IDs, active-item participants, course times beside calendar, course meeting point, semantic synchronization, complete group save.
+5. Scheduler course navigation from desktop/mobile to existing /trainings/planning at exact course/date/week/instance; open DailyAssignmentModal. Do not default to current week or create records.
+6. Preserve/test name-only course rename and deployed atomic unused-course deletion; no real deletion test or resurrection of the eight removed courses.
+7. Full checklist evidence and one reviewed main commit, necessary backend installed with source/readback parity, then frontend publication and live verification.
+
+NO pricing workaround: supersede the earlier per-person quote-call proposal. Correct the GROUP-only capacity/count restriction in the authoritative quote rule to the already confirmed unlimited GROUP-sales policy. Keep private limits, internal planning capacity, exact price tiers and other business validation. Verify actual SQL/package/AM-PM/add-on/invoice totals; never fake availability or prices.
+
+After local real SQL and fixture UI tests, install only the necessary staff server changes and activate only fully validated existing 26/27 offers needed for this flow. Inspect exact source prices, dates/instances, disciplines/levels and completeness first; no blanket activation of incomplete/contradictory offers, deleted-course regeneration, unrelated migration, website checkout/email/payment or school workflow. Document exact catalog changes and rollback.
+
+Already authorised publication will be executed by Codex after reviewing the completed implementation. Do not request routine repeated business approval, and do not bypass a genuine tool gate. No final "done" while any of today's checklist requirements remains unimplemented or unverified. Older mixed-cart/multi-product expansions must not be claimed complete merely because the UI accepts them.
