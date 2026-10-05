@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
+import { buildEffectivePrivatePlan } from "@/lib/effectivePrivatePlan";
 import { useBookingWizard, WizardStep } from "@/contexts/BookingWizardContext";
 import { calculateAge, getAgeDisplay, getLevelLabel } from "@/lib/participant-utils";
 import { formatPhoneDisplay } from "@/lib/phone-utils";
@@ -65,7 +66,14 @@ export function BookingSummaryCards({
       ?? state.selectedParticipants.find((participant) => participant.id === id)
     )
     .filter((participant): participant is NonNullable<typeof participant> => Boolean(participant));
-  const displayedParticipants = isStepOne ? linkedParticipants : state.selectedParticipants;
+  const isOrdinaryPrivate =
+    state.productType === "private" && !(state.privateGroupProposal && state.privateGroupProposal.groups.length > 1);
+  // Ordinary private create: exactly the applied linked participants (same set the submit sends).
+  const displayedParticipants =
+    isStepOne || (isOrdinaryPrivate && !state.isEditMode) ? linkedParticipants : state.selectedParticipants;
+  const sortedDates = [...state.selectedDates].sort();
+  // Same effective plan as readiness and save; no default times.
+  const effectivePlan = state.productType === "private" ? buildEffectivePrivatePlan(state) : null;
   const hasCourseDraft = Boolean(
     state.productType
     || state.selectedDates.length
@@ -85,19 +93,15 @@ export function BookingSummaryCards({
   };
 
   const getPrivateBlocks = (date: string) => {
-    if (state.appointments) {
-      // Canonical plan: exact per-block instructor IDs
-      return sortPlan(state.appointments.filter((a) => a.date === date)).map((a, i) => ({
-        id: `plan-${date}-${i}`, startTime: a.startTime, endTime: endOf(a), instructorId: a.instructorId ?? state.instructorId,
+    if (!effectivePlan || effectivePlan.status !== "ready") return [];
+    return effectivePlan.intervals
+      .filter((iv) => iv.date === date)
+      .map((iv, i) => ({
+        id: `plan-${date}-${i}`,
+        startTime: iv.startTime,
+        endTime: iv.endTime,
+        instructorId: state.assignLater ? null : iv.fixedInstructorId ?? state.instructorId,
       }));
-    }
-    const [baseStart, baseEnd] = state.timeSlot?.split(" - ") ?? [];
-    const overrides = state.dayTimeOverrides[date];
-    return overrides?.length
-      ? overrides
-      : baseStart && baseEnd
-        ? [{ id: `base-${date}`, startTime: baseStart, endTime: baseEnd, instructorId: state.dayInstructorOverrides[date] ?? state.instructorId }]
-        : [];
   };
 
   const getInstructorName = (instructorId: string | null | undefined) => {
@@ -206,7 +210,7 @@ export function BookingSummaryCards({
                 );
               })}
               <div className="space-y-1">
-                {state.selectedDates.sort().map((dateStr) => (
+                {sortedDates.map((dateStr) => (
                   <div key={dateStr} className="flex items-center gap-2 text-sm">
                     <Calendar className="h-4 w-4 text-muted-foreground" />
                     <span>{format(new Date(dateStr), "EEE, dd.MM.yyyy", { locale: de })}</span>
@@ -216,7 +220,7 @@ export function BookingSummaryCards({
             </div>
           ) : (
             <div className="space-y-3">
-              {state.selectedDates.sort().map((dateStr) => {
+              {sortedDates.map((dateStr) => {
                 const date = new Date(dateStr);
                 return (
                   <div key={dateStr} className="space-y-1">
@@ -227,11 +231,12 @@ export function BookingSummaryCards({
                     
                     {state.productType === "private" ? (
                       <div className="ml-6 space-y-1 text-sm text-muted-foreground">
+                        {getPrivateBlocks(dateStr).length === 0 && <span>Zeit noch offen</span>}
                         {getPrivateBlocks(dateStr).map((block) => (
                           <div key={block.id} className="flex flex-wrap items-center gap-x-2">
                             <span>{block.startTime}–{block.endTime}</span>
                             <span aria-hidden="true">·</span>
-                            <span>{getInstructorName(block.instructorId ?? state.dayInstructorOverrides[dateStr] ?? state.instructorId)}</span>
+                            <span>{getInstructorName(block.instructorId)}</span>
                           </div>
                         ))}
                       </div>

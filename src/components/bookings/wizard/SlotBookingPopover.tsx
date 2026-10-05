@@ -201,7 +201,8 @@ export function SlotBookingPopover({
       sport: (sport || "ski") as "ski" | "snowboard",
     });
     setSelectedParticipantIds((prev) => [...prev, id]);
-    setCreatedLocalIds((prev) => [...prev, id]);
+    // Discard/orphan tracking only for the participant-entry dialog; other callers keep prior behaviour.
+    if (participantEntry) setCreatedLocalIds((prev) => [...prev, id]);
     resetNewParticipantForm();
   };
 
@@ -236,8 +237,10 @@ export function SlotBookingPopover({
       sport,
     });
     // Locals created but NOT selected are not kept in the pool (no orphan persisted later).
-    for (const id of createdLocalIds) if (!selectedParticipantIds.includes(id)) removeLocalParticipant(id);
-    setCreatedLocalIds([]);
+    if (participantEntry) {
+      for (const id of createdLocalIds) if (!selectedParticipantIds.includes(id)) removeLocalParticipant(id);
+      setCreatedLocalIds([]);
+    }
     setSelectedParticipantIds([]);
     onClose();
   };
