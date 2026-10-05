@@ -37,7 +37,7 @@ describe("26/27 server group options", () => {
 });
 
 function groupState(over: Partial<BookingWizardState> = {}): BookingWizardState {
-  const item = { ...createEmptyCartItem("i1"), productType: "group" as const, assignedParticipantIds: ["pa", "guest-1"] };
+  const item = { ...createEmptyCartItem(), id: "i1", productType: "group" as const, assignedParticipantIds: ["pa", "guest-1"] };
   const server = serverOptionToBookable(opt()).server!;
   return {
     productType: "group", sport: "ski", selectedDates: WEEK, cartItems: [item], activeCartItemId: "i1",
@@ -73,7 +73,7 @@ describe("staff group payload", () => {
       "guest-1": { groupServer: null, dates: WEEK, groupCourseId: "legacy" },
     } } as never);
     expect(buildStaffGroupLines(mixed).kind).toBe("error");
-    const s = groupState(); s.cartItems = [...s.cartItems, createEmptyCartItem("i2")];
+    const s = groupState(); s.cartItems = [...s.cartItems, { ...createEmptyCartItem(), id: "i2" }];
     expect(buildStaffGroupLines(s).kind).toBe("error");
     expect(buildStaffGroupLines(groupState({ lunchSelections: { pa: ["2026-12-14"] } })).kind).toBe("error");
   });
@@ -91,7 +91,7 @@ describe("staff group payload", () => {
 
 describe("group readiness", () => {
   test("group does not require a manual meeting point; course + participants suffice", () => {
-    const item = { ...createEmptyCartItem("i1"), productType: "group" as const, sport: "ski" as const, selectedDates: WEEK, assignedParticipantIds: ["pa"], selectedGroupId: "k", groupPlan: { courseId: "k", courseName: "x", productName: null, meetingPoint: null, blocks: [], persistenceBlocker: null }, meetingPoint: null };
+    const item = { ...createEmptyCartItem(), id: "i1", productType: "group" as const, sport: "ski" as const, selectedDates: WEEK, assignedParticipantIds: ["pa"], selectedGroupId: "k", groupPlan: { courseId: "k", courseName: "x", productName: null, meetingPoint: null, blocks: [], persistenceBlocker: null }, meetingPoint: null };
     expect(itemReadinessIssues(item as never, 0)).toEqual([]);
   });
 });
