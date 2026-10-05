@@ -111,7 +111,7 @@ DECLARE
   v_lines jsonb := p->'lines'; e jsonb; g jsonb; i int; blk jsonb;
   v_pid uuid; v_course record; v_dates date[]; v_block text; v_blocks jsonb; v_quote jsonb;
   v_price numeric; v_item uuid; v_seen text[] := ARRAY[]::text[]; v_guest jsonb := '{}'::jsonb;
-  v_parts uuid[] := ARRAY[]::uuid[]; v_tg uuid; v_first date; v_last date;
+  v_parts uuid[] := ARRAY[]::uuid[]; v_tg uuid; v_first date; v_last date; v_detail text;
 BEGIN
   IF v_key IS NULL OR length(v_key) NOT BETWEEN 8 AND 100 THEN
     RETURN jsonb_build_object('error', 'invalid', 'field', 'submission_key');
@@ -239,8 +239,8 @@ BEGIN
     'participant_ids', to_jsonb(v_parts));
 EXCEPTION WHEN SQLSTATE 'P0001' THEN
   -- whole transaction rolled back to the function entry; nothing persisted
-  GET STACKED DIAGNOSTICS e = PG_EXCEPTION_DETAIL;
-  RETURN jsonb_build_object('error', 'invalid', 'field', SQLERRM, 'line', e);
+  GET STACKED DIAGNOSTICS v_detail = PG_EXCEPTION_DETAIL;
+  RETURN jsonb_build_object('error', 'invalid', 'field', SQLERRM, 'line', v_detail);
 WHEN SQLSTATE '22023' THEN
   RETURN jsonb_build_object('error', 'invalid', 'field', 'tariff', 'message', SQLERRM);
 END $$;
