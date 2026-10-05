@@ -117,6 +117,12 @@ Legend: impl = in code on this commit · runtime = observed test · live = insta
    - Lunch: 26/27 lunch days + vegetarian saved per participant/day from the single active lunch product (live: CHF 30, product belongs to season 25/26 — Ivo should confirm it is also the 26/27 price; server rejects price drift). impl yes · runtime: unit + local PG (association, total, replay).
    - Concurrency: courses FOR SHARE then instances FOR UPDATE in id order before any write; blocks re-resolved after locks. Quote cached once per product+block+dates. runtime: local PG 29/29 incl. 2 parallel different bookings (4 sessions), parallel duplicate participant, instance moved while waiting.
    - NOT done: full Chromium+WebKit 1440/390 browser acceptance (item 4 of the request), mobile scheduler close/back/reload after onboarding, private assign-later persistence re-run, completed customer-switch booking payload. These remain open.
+4f. Release step 20:02 — migration 0006 INSTALLED (`staff_booking_finalize`, `bc_2627_staff_group_book` v3, `pa_create_booking_finalized`; live bodies md5-identical to tested source, EXECUTE service_role only); `private-appointments` + `staff-group-booking` DEPLOYED (no auth → 401).
+   - Booking + payment/notes/metadata + new people in ONE server transaction; trusted actor from auth. runtime: local PG 9/9 (group paid-now, hotel/invoice, 2 new people + lunch/veg + discount, discount validation, payment fault → full rollback → same-key retry once with payment → replay no double; private LATER persisted with NULL teacher + payment; private error rolls back new person; privileges) + 29/29 group + 16/16 assign-later.
+   - Office discount on group: existing per-line discount_percent/reason (0–100, reason required), shown = saved. No automatic rule.
+   - Price preview: chosen 26/27 variant's quoted unit price per linked person (shared + per person), unique lunch price (CHF 30, sources 26449/5256), lunch only on booked dates; unit test 370/320/170/230, changed dates, unlinked/decoy ignored.
+   - Draft people: no early inserts; local IDs sent as new people with their own course/lunch/vegetarian data; drafts kept on failure; foreign-owner participants flagged before submit. unit tests.
+   - Still open: browser acceptance (next turn).
 7. This ledger — yes. NOT in this release: school workflow (analysis only), multi-item/mixed private+group carts (still refused), public website hold/invoice/email pipeline (not installed).
 
 ## Course management repair (5 Oct 2026)
