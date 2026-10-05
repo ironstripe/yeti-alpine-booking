@@ -15,6 +15,13 @@
       "when": 1791137468424,
       "tag": "0001_pa_assign_later",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1791221096501,
+      "tag": "0002_course_archive_delete",
+      "breakpoints": true
     }
   ]
 }

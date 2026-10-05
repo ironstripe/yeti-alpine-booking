@@ -846,6 +846,33 @@ export type Database = {
           },
         ]
       }
+      course_deletion_log: {
+        Row: {
+          course_id: string
+          course_name: string
+          deleted_at: string
+          deleted_by: string | null
+          id: string
+          snapshot: Json
+        }
+        Insert: {
+          course_id: string
+          course_name: string
+          deleted_at?: string
+          deleted_by?: string | null
+          id?: string
+          snapshot: Json
+        }
+        Update: {
+          course_id?: string
+          course_name?: string
+          deleted_at?: string
+          deleted_by?: string | null
+          id?: string
+          snapshot?: Json
+        }
+        Relationships: []
+      }
       customer_contacts: {
         Row: {
           created_at: string | null
@@ -1960,6 +1987,8 @@ export type Database = {
       }
       group_courses: {
         Row: {
+          archived_at: string | null
+          archived_by: string | null
           color: string | null
           course_type: string | null
           created_at: string | null
@@ -1985,6 +2014,8 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          archived_at?: string | null
+          archived_by?: string | null
           color?: string | null
           course_type?: string | null
           created_at?: string | null
@@ -2010,6 +2041,8 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          archived_at?: string | null
+          archived_by?: string | null
           color?: string | null
           course_type?: string | null
           created_at?: string | null
@@ -5753,6 +5786,15 @@ export type Database = {
       }
       copy_instructor_assignments_from_previous_week: {
         Args: { p_target_week_start_date: string }
+        Returns: Json
+      }
+      course_delete_if_unused: {
+        Args: { p_actor: string; p_course: string }
+        Returns: Json
+      }
+      course_dependencies: { Args: { p_course: string }; Returns: Json }
+      course_set_archived: {
+        Args: { p_actor: string; p_archive: boolean; p_course: string }
         Returns: Json
       }
       create_next_friday_race_event: { Args: never; Returns: string }
