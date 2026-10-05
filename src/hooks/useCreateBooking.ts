@@ -111,9 +111,12 @@ export function useCreateBooking() {
       // participant-specific / mixed family path.
       const participantMode =
         state.useParticipantSpecificBooking && Object.keys(state.participantBookings).length > 0;
+      const activeItem = state.cartItems.find((item) => item.id === state.activeCartItemId);
+      const linkedIds = activeItem?.assignedParticipantIds ?? [];
+      const bookingParticipants = linkedIds.map((id) => state.selectedParticipants.find((participant) => participant.id === id)).filter((participant): participant is NonNullable<typeof participant> => !!participant);
       if (state.productType === "group") {
         const persistenceBlocker = participantMode
-          ? state.selectedParticipants.map((p) => state.participantBookings[p.id]?.groupPersistenceBlocker).find(Boolean)
+          ? linkedIds.map((id) => state.participantBookings[id]?.groupPersistenceBlocker).find(Boolean)
           : state.groupPlan?.persistenceBlocker;
         if (persistenceBlocker) throw new Error(persistenceBlocker);
         if (!participantMode && (!state.selectedGroupId || state.groupPlan?.courseId !== state.selectedGroupId)) {
@@ -121,7 +124,7 @@ export function useCreateBooking() {
         }
       }
       const groupLines: GroupLineRequest[] = participantMode
-        ? state.selectedParticipants
+        ? bookingParticipants
             .map((p) => ({ p, b: state.participantBookings[p.id] }))
             .filter(({ b }) => b?.productType === "group")
             .map(({ p, b }) => ({
@@ -433,7 +436,7 @@ export function useCreateBooking() {
       // ============ PARTICIPANT-SPECIFIC BOOKING MODE ============
       if (state.useParticipantSpecificBooking && Object.keys(state.participantBookings).length > 0) {
         // Each participant has their own booking details
-        for (const participant of state.selectedParticipants) {
+        for (const participant of bookingParticipants) {
           const pBooking = state.participantBookings[participant.id];
           if (!pBooking) continue;
 
@@ -646,7 +649,7 @@ export function useCreateBooking() {
           console.log("📅 Created period booking metadata:", { periodGroupId, periodStartDate, periodEndDate });
         }
         
-        for (const participant of state.selectedParticipants) {
+        for (const participant of bookingParticipants) {
           const participantLunchDays = state.lunchSelections[participant.id] || [];
           const isVegetarian = state.vegetarianSelections[participant.id] || false;
           
@@ -1006,7 +1009,7 @@ export function useCreateBooking() {
           }
 
           // Create enrollments for each participant
-          for (const participant of state.selectedParticipants) {
+          for (const participant of bookingParticipants) {
             const ticketItem = insertedItems?.find(
               ti => ti.participant_id === participant.id && 
                    ti.date === dateStr &&
