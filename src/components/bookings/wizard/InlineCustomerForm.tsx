@@ -587,14 +587,14 @@ export function InlineCustomerForm({ onSuccess, onCancel }: InlineCustomerFormPr
           <AlertDialogFooter className="gap-2 sm:gap-2">
             <AlertDialogCancel
               type="button"
-              className="mt-0 h-auto min-h-11 whitespace-normal sm:min-h-9"
+              className="mt-0 h-auto min-h-11 whitespace-normal sm:min-h-9 sm:whitespace-nowrap"
             >
               E-Mail korrigieren
             </AlertDialogCancel>
             {conflict?.status === "found" && (
               <AlertDialogAction
                 type="button"
-                className="h-auto min-h-11 whitespace-normal sm:min-h-9"
+                className="h-auto min-h-11 whitespace-normal sm:min-h-9 sm:whitespace-nowrap"
                 onClick={() => {
                   const existing = conflict.customer;
                   setConflict(null);
