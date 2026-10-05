@@ -335,7 +335,7 @@ export function SlotBookingPopover({
 
           {/* Duration (hidden in planned mode: times come from the plan) */}
           {!plannedIntervals && !participantsOnly && (
-          {!participantsOnly && <div className="space-y-1.5">
+          <div className="space-y-1.5">
             <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
               Dauer
             </Label>
@@ -355,11 +355,11 @@ export function SlotBookingPopover({
                 })}
               </SelectContent>
             </Select>
-          </div>}
+          </div>
           )}
 
           {/* Meeting Point */}
-          <div className="space-y-1.5">
+          {!participantsOnly && <div className="space-y-1.5">
             <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1">
               <MapPin className="h-3 w-3" />
               Treffpunkt
@@ -376,9 +376,9 @@ export function SlotBookingPopover({
                 ))}
               </SelectContent>
             </Select>
-          </div>
+          </div>}
 
-          <Separator />
+          {!participantsOnly && <Separator />}
 
           {/* Participants */}
           <div className="space-y-2">
