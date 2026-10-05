@@ -69,6 +69,8 @@ export interface ParticipantBookingDetails {
   groupCourseName?: string | null;
   groupProductName?: string | null;
   groupMeetingPoint?: string | null;
+  /** Explicit office choice, only used when the course has no meeting point. */
+  groupMeetingPointChoice?: string | null;
   groupBlocks?: Array<{ date: string; startTime: string; endTime: string }>;
   groupPersistenceBlocker?: string | null;
   /** 26/27 staff server booking reference (server re-checks everything). */
@@ -933,6 +935,7 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
           groupCourseName: prev.groupPlan?.courseName ?? null,
           groupProductName: prev.groupPlan?.productName ?? null,
           groupMeetingPoint: prev.groupPlan?.meetingPoint ?? null,
+          groupMeetingPointChoice: prev.groupPlan && !prev.groupPlan.meetingPoint ? prev.meetingPoint : null,
           groupBlocks: prev.groupPlan?.blocks ?? [],
           groupPersistenceBlocker: prev.groupPlan?.persistenceBlocker ?? null,
           groupServer: prev.groupPlan?.server ?? null,

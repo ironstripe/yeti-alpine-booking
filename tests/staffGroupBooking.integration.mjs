@@ -27,6 +27,7 @@ async function t(name, fn) {
 const id = (n) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
 const S = id(1), S_OLD = id(9), P4 = id(2), P2 = id(3), P_OLD = id(4), ACTOR = id(0xbeef), CUST = id(0xc1), CUST2 = id(0xc2);
 const PA = id(0xa1), PB = id(0xa2), PC = id(0xa3), PX = id(0xa9);
+const C_NOMP = id(0x150), LUNCH = id(0x5), C_CONC = id(0x160);
 const C_BLUE = id(0x100), C_RED = id(0x110), C_INACTIVE = id(0x120), C_SB = id(0x130), C_OLD = id(0x140);
 const WEEK = ['2026-12-14', '2026-12-15', '2026-12-16', '2026-12-17', '2026-12-18'];
 const XMAS = ['2026-12-21', '2026-12-22', '2026-12-23', '2026-12-24', '2026-12-25'];
@@ -39,9 +40,9 @@ const counts = async () => (await sql`SELECT (SELECT count(*)::int FROM tickets)
 const line = (o) => ({ course_id: C_BLUE, product_id: P4, dates: WEEK, sport: 'ski', ...o });
 let keyN = 0; const key = () => `test-key-${++keyN}-${Date.now()}`;
 
-async function seedCourse(cid, name, { discipline = 'ski', active = true, dates = [...WEEK, ...XMAS], pmOnly = false, product = P4, variants = [[P4, [1, 2, 3, 4, 5]], [P2, [1]]] } = {}) {
+async function seedCourse(cid, name, { mp = 'Täli', discipline = 'ski', active = true, dates = [...WEEK, ...XMAS], pmOnly = false, product = P4, variants = [[P4, [1, 2, 3, 4, 5]], [P2, [1]]] } = {}) {
   await sql`INSERT INTO group_courses(id,name,discipline,min_age,max_age,price_per_day,is_active,product_id,course_type,meeting_point,skill_level_id,max_participants)
-    VALUES (${cid},${name},${discipline},4,16,0,${active},${product},'weekly','Täli',NULL,2)`;
+    VALUES (${cid},${name},${discipline},4,16,0,${active},${product},'weekly',${mp},NULL,2)`;
   for (const d of dates) {
     const slots = pmOnly ? [['14:00', '16:00']] : [['10:00', '12:00'], ['14:00', '16:00']];
     for (const [a, b] of slots) await sql`INSERT INTO group_course_instances(course_id,date,start_time,end_time,status,current_participants) VALUES (${cid},${d},${a},${b},'scheduled',0)`;
@@ -53,7 +54,7 @@ async function seedCourse(cid, name, { discipline = 'ski', active = true, dates 
 }
 
 try {
-  for (const f of ['tests/sql/baseline_prelude.sql', 'tests/sql/production_schema_baseline.sql', 'supabase/pending/course_archive_delete.sql', 'supabase/pending/bc_2627_staff_group_booking.sql']) {
+  for (const f of ['tests/sql/baseline_prelude.sql', 'tests/sql/production_schema_baseline.sql', 'supabase/pending/course_archive_delete.sql', 'supabase/pending/bc_2627_staff_group_booking.sql', 'supabase/pending/bc_2627_staff_group_booking_v2.sql']) {
     const r = psqlFile(f); if (r.status !== 0) throw new Error(`psql ${f}: ${r.stderr}`);
   }
   await sql.unsafe(`
@@ -76,12 +77,15 @@ try {
   await seedCourse(C_RED, 'Ski Roter Prinz');
   await seedCourse(C_INACTIVE, 'Ski Inaktiv', { active: false });
   await seedCourse(C_SB, 'Snowboard Kids', { discipline: 'snowboard' });
+  await seedCourse(C_NOMP, 'Ski Ohne Treffpunkt', { mp: null });
+  await seedCourse(C_CONC, 'Ski Parallel');
+  await sql`INSERT INTO products(id,name,type,price,season_id,is_active) VALUES (${LUNCH},'Mittagsbetreuung','lunch',30,${S_OLD},true)`;
   await seedCourse(C_OLD, 'Alt 25/26', { product: P_OLD, variants: [[P_OLD, [5]]] });
 
   await t('options: 14-18 Dec ski lists active 26/27 courses with exact quote, every AM/PM block, no inactive/snowboard/wrong-season', async () => {
     const o = await options(WEEK, 'ski');
     const ids = o.map((x) => x.course_id);
-    assert.deepEqual([...new Set(ids)].sort(), [C_BLUE, C_RED].sort());
+    assert.deepEqual([...new Set(ids)].sort(), [C_BLUE, C_RED, C_NOMP, C_CONC].sort());
     const blue = o.find((x) => x.course_id === C_BLUE && x.product_id === P4);
     assert.equal(Number(blue.unit_price), 320);
     assert.equal(blue.blocks.length, 10);
@@ -175,6 +179,77 @@ try {
     const r = await book({ submission_key: key(), customer_id: CUST2, lines: [1, 2, 3].map((n) => line({ course_id: C_RED, dates: XMAS, guest: { guest_key: 'g' + n, first_name: 'Q' + n, birth_date: '2018-01-01' } })) });
     assert.ok(r.ok, JSON.stringify(r)); assert.equal(Number(r.total), 3 * TIERS4[4]);
     const it = await sql`SELECT DISTINCT unit_price FROM ticket_items WHERE ticket_id=${r.ticket_id}`; assert.equal(it.length, 1); assert.equal(Number(it[0].unit_price), TIERS4[4]);
+  });
+  const nomp = (o) => line({ course_id: C_NOMP, dates: XMAS, ...o });
+  await t('meeting point: course without point requires explicit catalog value; nothing written otherwise', async () => {
+    const before = await counts();
+    assert.equal((await book({ submission_key: key(), customer_id: CUST, lines: [nomp({ participant_id: PA })] })).field, 'meeting_point');
+    assert.equal((await book({ submission_key: key(), customer_id: CUST, lines: [nomp({ participant_id: PA, meeting_point: 'Irgendwo' })] })).field, 'meeting_point');
+    assert.deepEqual(await counts(), before);
+    const r = await book({ submission_key: key(), customer_id: CUST, lines: [nomp({ participant_id: PA, meeting_point: 'malbipark' })] });
+    assert.ok(r.ok, JSON.stringify(r));
+    const it = await sql`SELECT meeting_point FROM ticket_items WHERE ticket_id=${r.ticket_id}`; assert.equal(it[0].meeting_point, 'malbipark');
+    assert.equal((await sql`SELECT meeting_point FROM group_courses WHERE id=${C_NOMP}`)[0].meeting_point, null, 'course not changed');
+  });
+  await t('meeting point: course value authoritative, differing explicit value rejected, equal accepted', async () => {
+    assert.equal((await book({ submission_key: key(), customer_id: CUST2, lines: [line({ course_id: C_BLUE, dates: XMAS, guest: { guest_key: 'm1', first_name: 'M', birth_date: '2018-01-01' }, meeting_point: 'malbipark' })] })).field, 'meeting_point');
+    const r = await book({ submission_key: key(), customer_id: CUST2, lines: [line({ course_id: C_BLUE, dates: XMAS, guest: { guest_key: 'm1', first_name: 'M', birth_date: '2018-01-01' }, meeting_point: 'Täli' })] });
+    assert.ok(r.ok, JSON.stringify(r)); assert.equal((await sql`SELECT meeting_point FROM ticket_items WHERE ticket_id=${r.ticket_id}`)[0].meeting_point, 'Täli');
+  });
+  await t('lunch: per participant days + vegetarian, priced from lunch product, total = package + lunch, replay adds nothing', async () => {
+    const k = key();
+    const p = { submission_key: k, customer_id: CUST2, lines: [
+      line({ course_id: C_RED, dates: WEEK, guest: { guest_key: 'l1', first_name: 'L1', birth_date: '2018-01-01' }, lunch_dates: ['2026-12-15', '2026-12-14', '2026-12-17'], vegetarian: true, expected_lunch_unit_price: 30 }),
+      line({ course_id: C_RED, dates: WEEK, guest: { guest_key: 'l2', first_name: 'L2', birth_date: '2018-01-01' } }),
+    ] };
+    const r = await book(p); assert.ok(r.ok, JSON.stringify(r));
+    assert.equal(Number(r.total), 2 * 320 + 3 * 30);
+    const l = await sql`SELECT ti.date::text d, ti.is_vegetarian v, ti.unit_price, cp.first_name FROM ticket_items ti JOIN customer_participants cp ON cp.id=ti.participant_id WHERE ticket_id=${r.ticket_id} AND item_type='lunch' ORDER BY 1`;
+    assert.deepEqual(l.map((x) => `${x.first_name}:${x.d}:${x.v}:${Number(x.unit_price)}`), ['L1:2026-12-14:true:30', 'L1:2026-12-15:true:30', 'L1:2026-12-17:true:30']);
+    const g = await sql`SELECT cp.first_name, ti.is_vegetarian FROM ticket_items ti JOIN customer_participants cp ON cp.id=ti.participant_id WHERE ticket_id=${r.ticket_id} AND item_type='group' ORDER BY 1`;
+    assert.deepEqual(g.map((x) => `${x.first_name}:${x.is_vegetarian}`), ['L1:true', 'L2:false']);
+    const before = await counts(); const again = await book(p); assert.equal(again.replayed, true); assert.deepEqual(await counts(), before);
+  });
+  await t('lunch: day outside course dates, or price drift, rejected without writes', async () => {
+    const before = await counts();
+    const g = { guest_key: 'lx', first_name: 'LX', birth_date: '2018-01-01' };
+    assert.equal((await book({ submission_key: key(), customer_id: CUST2, lines: [line({ course_id: C_RED, dates: XMAS, guest: g, lunch_dates: ['2026-12-14'] })] })).field, 'lunch');
+    assert.equal((await book({ submission_key: key(), customer_id: CUST2, lines: [line({ course_id: C_RED, dates: XMAS, guest: g, lunch_dates: ['2026-12-21'], expected_lunch_unit_price: 25 })] })).field, 'lunch_price_changed');
+    assert.deepEqual(await counts(), before);
+  });
+  await t('concurrency: two sessions, different keys + participants, same AM/PM instances -> both succeed once, seats exact, no deadlock', async () => {
+    const seats0 = (await sql`SELECT sum(current_participants)::int s FROM group_course_instances WHERE course_id=${C_CONC}`)[0].s;
+    const mk = (n) => ({ submission_key: key(), customer_id: CUST2, lines: [line({ course_id: C_CONC, dates: WEEK, guest: { guest_key: 'c' + n, first_name: 'C' + n, birth_date: '2018-01-01' } }), line({ course_id: C_CONC, dates: WEEK, guest: { guest_key: 'd' + n, first_name: 'D' + n, birth_date: '2018-01-01' } })] });
+    const slow = (p) => sql.begin(async (tx) => { const r = (await tx`SELECT public.bc_2627_staff_group_book(${tx.json(p)}::jsonb, ${ACTOR}::uuid) r`)[0].r; await tx`SELECT pg_sleep(0.4)`; return r; });
+    const rs = await Promise.all([slow(mk(1)), slow(mk(2)), book(mk(3)), book(mk(4))]);
+    for (const r of rs) assert.ok(r.ok, JSON.stringify(r));
+    assert.equal(new Set(rs.map((r) => r.ticket_id)).size, 4);
+    const seats1 = (await sql`SELECT sum(current_participants)::int s FROM group_course_instances WHERE course_id=${C_CONC}`)[0].s;
+    assert.equal(seats1 - seats0, 8 * 10);
+    const enr = (await sql`SELECT count(*)::int n FROM group_course_enrollments e JOIN group_course_instances i ON i.id=e.instance_id WHERE i.course_id=${C_CONC}`)[0].n;
+    assert.equal(enr, seats1);
+  });
+  await t('concurrency: same participant, different keys, concurrently -> exactly one enrollment set, other rolled back', async () => {
+    const before = await counts();
+    const mk = () => ({ submission_key: key(), customer_id: CUST, lines: [line({ course_id: C_CONC, dates: XMAS, participant_id: PB })] });
+    const slow = (p) => sql.begin(async (tx) => { const r = (await tx`SELECT public.bc_2627_staff_group_book(${tx.json(p)}::jsonb, ${ACTOR}::uuid) r`)[0].r; await tx`SELECT pg_sleep(0.4)`; return r; });
+    const rs = await Promise.all([slow(mk()), slow(mk())]);
+    assert.equal(rs.filter((r) => r.ok).length, 1, JSON.stringify(rs));
+    assert.equal(rs.find((r) => !r.ok).field, 'already_enrolled');
+    const after = await counts();
+    assert.equal(after.tickets - before.tickets, 1); assert.equal(after.enr - before.enr, 10); assert.equal(after.seats - before.seats, 10);
+  });
+  await t('stale snapshot: instance moved while booking waits on lock -> blocks rejected, nothing written', async () => {
+    const inst = (await sql`SELECT id FROM group_course_instances WHERE course_id=${C_CONC} AND date='2026-12-22' AND start_time='14:00'`)[0].id;
+    const before = await counts();
+    let release; const gate = new Promise((r) => { release = r; });
+    const mover = sql.begin(async (tx) => { await tx`UPDATE group_course_instances SET start_time='14:30' WHERE id=${inst}`; await gate; });
+    await new Promise((r) => setTimeout(r, 150));
+    const pending = book({ submission_key: key(), customer_id: CUST, lines: [line({ course_id: C_CONC, dates: XMAS, participant_id: PC })] });
+    await new Promise((r) => setTimeout(r, 300)); release(); await mover;
+    const r = await pending;
+    assert.equal(r.field, 'blocks', JSON.stringify(r)); assert.deepEqual(await counts(), before);
+    await sql`UPDATE group_course_instances SET start_time='14:00' WHERE id=${inst}`;
   });
   await t('roles: anon/authenticated cannot execute; service_role can', async () => {
     for (const role of ['anon', 'authenticated']) {

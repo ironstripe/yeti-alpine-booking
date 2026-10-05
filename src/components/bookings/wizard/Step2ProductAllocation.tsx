@@ -314,10 +314,7 @@ export function Step2ProductAllocation() {
     if (state.productType === "private" && allBeginnersOnly && state.meetingPoint !== "sammelplatz_gorfion") {
       setMeetingPoint("sammelplatz_gorfion");
     }
-    // For group courses: set default meeting point if not already set
-    if (state.productType === "group" && !state.meetingPoint) {
-      setMeetingPoint("sammelplatz_gorfion");
-    }
+    // Group courses: no default — course value or explicit office choice only.
   }, [state.productType, allBeginnersOnly, state.meetingPoint, setMeetingPoint]);
 
   // Auto-select "private" for adult participants when group is disabled
@@ -501,14 +498,22 @@ export function Step2ProductAllocation() {
   const { data: groupCourses = [] } = useBookableGroupCourses(state.selectedDates, state.sport);
   const selectedGroupCourse = groupCourses.find((course) => course.id === state.selectedGroupId) ?? null;
 
+  const groupMeetingCourseRef = useRef<string | null>(state.groupPlan?.courseId ?? null);
   useEffect(() => {
     if (!selectedGroupCourse) {
       if (state.groupPlan) setGroupPlan(null);
       return;
     }
     if (state.productId !== selectedGroupCourse.product?.id) setProductId(selectedGroupCourse.product?.id ?? null);
-    // Group meeting point comes only from the course (never a private default).
-    if (state.meetingPoint !== (selectedGroupCourse.meeting_point ?? null)) setMeetingPoint(selectedGroupCourse.meeting_point ?? null);
+    // Group meeting point: the course value is authoritative. Without one, the explicit office
+    // choice is kept for the same course (back/reopen) and cleared only when the course changes.
+    const courseChanged = groupMeetingCourseRef.current !== selectedGroupCourse.id;
+    groupMeetingCourseRef.current = selectedGroupCourse.id;
+    if (selectedGroupCourse.meeting_point) {
+      if (state.meetingPoint !== selectedGroupCourse.meeting_point) setMeetingPoint(selectedGroupCourse.meeting_point);
+    } else if (courseChanged && state.meetingPoint !== null) {
+      setMeetingPoint(null);
+    }
     const next = {
       courseId: selectedGroupCourse.id,
       courseName: selectedGroupCourse.name,
@@ -780,7 +785,22 @@ export function Step2ProductAllocation() {
             {isGroupCourse ? (
               <div className="space-y-1.5">
                 <Label className="flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground"><MapPin className="h-3 w-3" />Treffpunkt</Label>
-                <p className="text-sm text-muted-foreground">{state.groupPlan?.meetingPoint ?? (state.groupPlan ? "Im Kurs nicht hinterlegt" : "Ergibt sich aus dem gewählten Kurs")}</p>
+                {state.groupPlan?.meetingPoint ? (
+                  <p className="text-sm">{state.groupPlan.meetingPoint}</p>
+                ) : state.groupPlan && !state.useParticipantSpecificBooking ? (
+                  <div className="space-y-1" data-readiness-target="meetingPoint">
+                    <p className="text-xs text-muted-foreground">Im Kurs nicht hinterlegt – bitte wählen.</p>
+                    <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label="Treffpunkt">
+                      {MEETING_POINTS.map((point) => (
+                        <Button key={point.id} type="button" role="radio" aria-checked={state.meetingPoint === point.id} variant={state.meetingPoint === point.id ? "secondary" : "outline"} size="sm" onClick={() => setMeetingPoint(point.id)} className="control-target h-9 text-xs">
+                          {point.name.replace("Sammelplatz ", "").replace("Kasse ", "")}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">{state.useParticipantSpecificBooking ? "Pro Teilnehmer beim Kurs" : "Ergibt sich aus dem gewählten Kurs"}</p>
+                )}
               </div>
             ) : (
             <div className="space-y-1.5">

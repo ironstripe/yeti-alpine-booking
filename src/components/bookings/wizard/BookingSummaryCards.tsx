@@ -400,8 +400,13 @@ export function BookingSummaryCards({
           {/* Meeting Point */}
           <div className="flex items-center gap-2">
             <MapPin className="h-4 w-4 text-muted-foreground" />
-            <span>Treffpunkt: {state.productType === "group" && !state.useParticipantSpecificBooking
-              ? state.groupPlan?.meetingPoint || "Noch offen"
+            <span>Treffpunkt: {state.productType === "group" && state.useParticipantSpecificBooking
+              ? state.selectedParticipants
+                  .filter((p) => state.participantBookings[p.id])
+                  .map((p) => { const b = state.participantBookings[p.id]; const mp = b.groupMeetingPoint ?? b.groupMeetingPointChoice; return `${p.first_name}: ${mp ? MEETING_POINT_LABELS[mp] || mp : "Noch offen"}`; })
+                  .join(" · ")
+              : state.productType === "group"
+              ? (() => { const mp = state.groupPlan?.meetingPoint ?? state.meetingPoint; return mp ? MEETING_POINT_LABELS[mp] || mp : "Noch offen"; })()
               : MEETING_POINT_LABELS[state.meetingPoint || ""] || state.meetingPoint}</span>
           </div>
 
