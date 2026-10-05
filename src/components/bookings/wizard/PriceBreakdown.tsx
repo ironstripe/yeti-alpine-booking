@@ -321,7 +321,7 @@ export function PriceBreakdown({
     }
     
     return items;
-  }, [productType, state.useParticipantSpecificBooking, state.participantBookings, state.selectedParticipants, state.lunchSelections, state.vegetarianSelections, lunchPricePerDay]);
+  }, [productType, state.useParticipantSpecificBooking, state.participantBookings, pricingParticipants, state.selectedDates, state.lunchSelections, state.vegetarianSelections, lunchPricePerDay]);
   
   let lunchTotal = 0;
   let lunchDaysCount = 0;
