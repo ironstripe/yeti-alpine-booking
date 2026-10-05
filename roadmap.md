@@ -105,5 +105,20 @@
 - [x] Rename (name-only), specific delete/archive dialogs, archive filter, no raw DELETE, frontend + local SQL tests
 - [x] Real delete for unused courses (technical source links no longer block); migration 0002 installed, `course-management` deployed, capability verified
 - [ ] Ivo deletes the example courses himself in the app (user action; frontend must be published to reach the live app)
-- [ ] Group-flow branch `e1047b4` integration — authorised, separate step
+- [x] Group-flow branch `e1047b4` integrated on main (`275eb66`; copied file-by-file after a refused tool command — disclosed; no later work lost)
 - [ ] Scheduler course navigation fix (plan item 6) — still open, next focused patch
+
+## Group booking completion (5 Oct 2026) — acceptance list
+- [x] Ski/Snowboard visible for group; discipline change clears incompatible courses (browser 1440/390)
+- [x] "Teilnehmer hinzufügen" always visible; create/apply/reopen/close; only explicitly assigned people linked to the active item (browser + unit)
+- [x] No "Empfohlen", no auto-selection; capacity shown as info only, never blocks (browser + SQL: 3 people over source capacity 2)
+- [x] Course times beside calendar (desktop) / stacked (mobile); all AM/PM blocks per date; meeting point from course only
+- [x] Plan sync compares full content (dates, times, product, meeting point, server price), also per participant
+- [x] Footer "Kurs wählen" focuses course selector, or the explanation when no course exists
+- [x] Per-participant courses (different levels) with summary/readiness agreement (browser with fixture options)
+- [x] Full-suite test interference fixed (163/163)
+- [x] Staff atomic 26/27 group save prepared: `supabase/pending/bc_2627_staff_group_booking.sql` + rollback, `staff-group-booking` function, frontend path; local PG 20/20
+- [ ] Payer shortcut → participant offer with real customer fixture (search returned no customers in test browser) — unverified
+- [ ] Full step 1→3 browser save with mocked server — unverified (payload covered by unit tests)
+- [ ] Install migration + deploy `staff-group-booking` — needs Ivo's approval
+- [ ] Activate 26/27 group courses/products (catalogue) — needs Ivo's explicit approval

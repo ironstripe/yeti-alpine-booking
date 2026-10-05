@@ -7,6 +7,8 @@ import { logTicketEvent } from "@/lib/ticket-audit";
 import { buildEffectivePrivatePlan } from "@/lib/effectivePrivatePlan";
 import { paCreate, type PaParticipant, type PaSlot } from "@/lib/privateAppointmentsApi";
 import { endOf, sortPlan, validatePlan } from "@/lib/privatePlan";
+import { buildStaffGroupLines } from "@/lib/staffGroupPayload";
+import { createStaffGroupBooking } from "@/lib/staffGroupBookingApi";
 import {
   preflightGroupLines,
   type GroupLineRequest,
@@ -105,6 +107,50 @@ export function useCreateBooking() {
       // Get current user for comment attribution
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
+
+      // ============ 26/27 STAFF GROUP PATH (one atomic server transaction) ============
+      const staffGroup = buildStaffGroupLines(state);
+      if (staffGroup.kind === "error") throw new Error(staffGroup.message);
+      if (staffGroup.kind === "server") {
+        if (!state.customerId) throw new Error("Bitte zahlungspflichtigen Kunden wählen.");
+        const payload = {
+          customer_id: state.customerId,
+          ...(state.customerNotes ? { notes: state.customerNotes } : {}),
+          lines: staffGroup.lines,
+        };
+        // Same payload in this browser session => same key => server replays, never duplicates.
+        const fp = "yeti.staffgroup.submit." + JSON.stringify(payload);
+        let submissionKey = sessionStorage.getItem(fp);
+        if (!submissionKey) { submissionKey = crypto.randomUUID(); sessionStorage.setItem(fp, submissionKey); }
+        const created = await createStaffGroupBooking({ submission_key: submissionKey, ...payload });
+        const total = Number(created.total) || 0;
+        if (!created.replayed) {
+          await supabase.from("tickets").update({
+            payment_method: state.paymentMethod,
+            billing_partner_id: state.paymentMethod === "hotel" ? state.billingPartnerId : null,
+            payment_due_date: state.paymentDueDate,
+          }).eq("id", created.ticket_id);
+          if (state.settlement === "paid_now" && isImmediateMethod(state.paymentMethod) && total > 0) {
+            const { error: payErr } = await supabase.from("payments").insert({
+              ticket_id: created.ticket_id,
+              amount: total,
+              payment_method: state.paymentMethod!,
+              payment_date: format(new Date(), "yyyy-MM-dd"),
+              status: "completed",
+              created_by: user.id,
+            });
+            if (payErr) throw payErr;
+            await supabase.from("tickets").update({ paid_amount: total }).eq("id", created.ticket_id);
+            await logTicketEvent(created.ticket_id, "PAYMENT_RECORDED", { amount: total, payment_method: state.paymentMethod, settlement: "paid_now" });
+          }
+          await createInitialComments(created.ticket_id, state.internalNotes, state.instructorNotes, user.id, user.email?.split("@")[0] || "System");
+          if (state.conversationId) {
+            await supabase.from("conversations").update({ related_ticket_id: created.ticket_id, status: "processed" }).eq("id", state.conversationId);
+          }
+        }
+        sessionStorage.removeItem(fp);
+        return { ticketId: created.ticket_id, ticketNumber: created.ticket_number };
+      }
 
       // ============ #15 GROUP PREFLIGHT (before ANY write) ============
       // Covers shared group bookings and every group participant of the
@@ -1109,6 +1155,7 @@ export function useCreateBooking() {
       queryClient.invalidateQueries({ queryKey: ["action-tasks"] });
       queryClient.invalidateQueries({ queryKey: ["group-course-instances"] });
       queryClient.invalidateQueries({ queryKey: ["group-courses-for-booking"] });
+      queryClient.invalidateQueries({ queryKey: ["bookable-group-courses"] });
     },
   });
 }

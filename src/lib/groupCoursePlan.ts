@@ -95,3 +95,81 @@ export function groupCourseEmptyMessage(selectedDates: string[], sport: "ski" | 
   }
   return "Für Sportart und alle gewählten Tage ist kein freigegebener Kurs verfügbar.";
 }
+// ---------- 26/27 staff server path (bc_2627_staff_group_* SQL via `staff-group-booking`) ----------
+
+/** One bookable option as returned by the server (exact instances + exact source quote). */
+export interface ServerGroupOption {
+  course_id: string;
+  course_name: string;
+  discipline: string;
+  skill_level_id: string | null;
+  meeting_point: string | null;
+  max_participants: number | null;
+  sort_order: number | null;
+  product_id: string;
+  product_name: string;
+  duration_minutes: number;
+  block: "am" | "pm" | null;
+  blocks: Array<{ date: string; time_start: string; time_end: string }>;
+  unit_price: number;
+}
+
+/** Server booking reference carried in the plan; the server re-checks everything. */
+export interface ServerGroupRef {
+  courseId: string;
+  productId: string;
+  block: "am" | "pm" | null;
+  unitPrice: number;
+}
+
+export type BookableGroupOption = BookableGroupCourse & { server?: ServerGroupRef };
+
+export const SERVER_OPTION_PREFIX = "bc2627:";
+
+export function serverOptionKey(o: Pick<ServerGroupOption, "course_id" | "product_id" | "block">): string {
+  return `${SERVER_OPTION_PREFIX}${o.course_id}:${o.product_id}:${o.block ?? "all"}`;
+}
+
+export function serverOptionToBookable(o: ServerGroupOption): BookableGroupOption {
+  const blockLabel = o.block === "am" ? " (Vormittag)" : o.block === "pm" ? " (Nachmittag)" : "";
+  return {
+    id: serverOptionKey(o),
+    name: o.course_name,
+    discipline: o.discipline,
+    is_active: true,
+    is_internal: false,
+    course_type: "weekly",
+    period_start_date: null,
+    period_end_date: null,
+    meeting_point: o.meeting_point,
+    max_participants: o.max_participants ?? 0,
+    sort_order: o.sort_order,
+    product: { id: o.product_id, name: `${o.product_name}${blockLabel}`, type: "group", is_active: true, season_id: "", season: null },
+    schedules: [],
+    course_dates: [],
+    blocks: o.blocks.map((b) => ({ date: b.date, startTime: b.time_start.slice(0, 5), endTime: b.time_end.slice(0, 5) })),
+    persistenceBlocker: null,
+    server: { courseId: o.course_id, productId: o.product_id, block: o.block, unitPrice: Number(o.unit_price) },
+  };
+}
+
+/** Full-content equality of a selected plan (course, product, meeting point, server ref, every block). */
+export function sameGroupPlan(
+  a: { courseId: string; productName: string | null; meetingPoint: string | null; blocks: GroupCourseBlock[]; persistenceBlocker: string | null; server?: ServerGroupRef | null } | null,
+  b: { courseId: string; productName: string | null; meetingPoint: string | null; blocks: GroupCourseBlock[]; persistenceBlocker: string | null; server?: ServerGroupRef | null } | null,
+): boolean {
+  if (!a || !b) return a === b;
+  const key = (blocks: GroupCourseBlock[]) => blocks.map((x) => `${x.date} ${x.startTime}-${x.endTime}`).sort().join("|");
+  return a.courseId === b.courseId && a.productName === b.productName && a.meetingPoint === b.meetingPoint
+    && a.persistenceBlocker === b.persistenceBlocker && key(a.blocks) === key(b.blocks)
+    && JSON.stringify(a.server ?? null) === JSON.stringify(b.server ?? null);
+}
+
+export type ServerCapability = "installed" | "not_installed" | "error";
+
+export function groupCourseEmptyMessageFor(selectedDates: string[], sport: "ski" | "snowboard" | null, server: ServerCapability | undefined): string {
+  if (!sport || selectedDates.length === 0 || !selectedDates.some((d) => d >= "2026-12-01")) return groupCourseEmptyMessage(selectedDates, sport);
+  if (server === "installed") return "Für Sportart und alle gewählten Tage ist kein Winter-26/27-Kurs zur Buchung freigegeben (Kurs oder Produkt nicht aktiv, oder kein exakter Tarif).";
+  if (server === "error") return "Winter-26/27-Kurse konnten nicht geprüft werden. Bitte erneut versuchen.";
+  return groupCourseEmptyMessage(selectedDates, sport);
+}
