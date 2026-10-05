@@ -202,23 +202,32 @@ try {
     });
   }
   if (process.env.GROUP_PAYLOAD && existsSync(process.env.GROUP_PAYLOAD)) {
-    await t('ACTUAL browser group+lunch payload persists (all blocks, meeting points, lunch days, total = summary)', async () => {
+    await t('ACTUAL browser group+lunch payload persists (per-guest blocks, lunch days/vegetarian, meeting point, discount, total = summary)', async () => {
       const body = remap(readFileSync(process.env.GROUP_PAYLOAD, 'utf8'), mapFile?.group ?? {});
       const p = body.booking;
       if (p.finalization) p.finalization.actor_name = 'office';
       const r = await gbook(p); assert.ok(r.ok, JSON.stringify(r));
-      const expected = p.lines.reduce((s, l) => s + l.expected_unit_price + (l.lunch_dates?.length ?? 0) * (l.expected_lunch_unit_price ?? 0), 0);
+      const gross = p.lines.reduce((s, l) => s + l.expected_unit_price + (l.lunch_dates?.length ?? 0) * (l.expected_lunch_unit_price ?? 0), 0);
+      const expected = Math.round(gross * (100 - (p.discount_percent ?? 0))) / 100;
       assert.equal(Number(r.total), expected);
+      assert.equal(Number((await sql`SELECT total_amount FROM tickets WHERE id=${r.ticket_id}`)[0].total_amount), expected, 'ticket total');
+      const ppl = await sql`SELECT id, first_name FROM customer_participants WHERE customer_id=${p.customer_id} AND first_name = ANY(${p.lines.map((l) => l.guest?.first_name).filter(Boolean)})`;
       for (const l of p.lines) {
-        const pid = l.participant_id ?? r.participant_ids.find(Boolean);
-        const enr = await sql`SELECT count(*)::int n FROM group_course_enrollments e JOIN ticket_items ti ON ti.id=e.ticket_item_id WHERE ti.ticket_id=${r.ticket_id} AND ti.item_type='group' AND (${l.participant_id ?? null}::uuid IS NULL OR e.participant_id=${l.participant_id ?? null}::uuid)`;
-        assert.ok(enr[0].n >= l.dates.length * 2, `blocks for ${pid}`);
+        const pid = l.participant_id ?? ppl.find((x) => x.first_name === l.guest.first_name)?.id; assert.ok(pid, 'guest created');
+        const blocks = await sql`SELECT i.id, i.date::text d, i.start_time::text s FROM group_course_enrollments e JOIN group_course_instances i ON i.id=e.instance_id
+          JOIN ticket_items ti ON ti.id=e.ticket_item_id WHERE ti.ticket_id=${r.ticket_id} AND e.participant_id=${pid} ORDER BY 2,3`;
+        assert.equal(new Set(blocks.map((b) => b.id)).size, l.dates.length * 2, `distinct AM+PM instances for ${l.guest?.first_name}`);
+        assert.deepEqual([...new Set(blocks.map((b) => b.d))], l.dates);
+        const lunch = await sql`SELECT date::text d, is_vegetarian v, discount_percent dp FROM ticket_items WHERE ticket_id=${r.ticket_id} AND item_type='lunch' AND participant_id=${pid} ORDER BY 1`;
+        assert.deepEqual(lunch.map((x) => x.d), l.lunch_dates ?? []);
+        assert.ok(lunch.every((x) => x.v === !!l.vegetarian));
+        const g = await sql`SELECT meeting_point, course_id, discount_percent, discount_reason FROM ticket_items WHERE ticket_id=${r.ticket_id} AND item_type='group' AND participant_id=${pid}`;
+        assert.equal(g.length, 1); assert.equal(g[0].meeting_point, l.meeting_point);
+        if (p.discount_percent) { assert.equal(Number(g[0].discount_percent), p.discount_percent); assert.equal(g[0].discount_reason, p.discount_reason); }
+        results.push(`     ${l.guest?.first_name}: ${blocks.length} blocks, lunch ${lunch.map((x) => x.d.slice(5)).join(',') || '-'}${l.vegetarian ? ' vegi' : ''}, point ${g[0].meeting_point}`);
       }
-      const items = await sql`SELECT item_type, meeting_point, date::text d FROM ticket_items WHERE ticket_id=${r.ticket_id} ORDER BY item_type, d`;
-      const lunch = items.filter((i) => i.item_type === 'lunch').length;
-      assert.equal(lunch, p.lines.reduce((s, l) => s + (l.lunch_dates?.length ?? 0), 0));
-      for (const i of items.filter((x) => x.item_type === 'group')) assert.ok(i.meeting_point, 'meeting point stored');
-      results.push(`     group payload: ${p.lines.length} lines, ${lunch} lunch days, total ${r.total}`);
+      assert.equal((await sql`SELECT count(*)::int n FROM payments WHERE ticket_id=${r.ticket_id}`)[0].n, 0, 'pay_later: no payment');
+      results.push(`     group payload: ${p.lines.length} lines, gross ${gross}, discount ${p.discount_percent ?? 0}%, total ${r.total}`);
     });
   }
 } finally {
