@@ -223,7 +223,14 @@ export function Step4Summary({ onEditStep }: Step4SummaryProps) {
       }
     } catch (error) {
       console.error("Failed to save booking:", error);
-      toast.error(state.isEditMode ? "Fehler beim Speichern" : "Fehler beim Erstellen der Buchung");
+      // Show the service's own safe domain message (incl. "Ergebnis unbekannt"); entered data stays.
+      const message = error instanceof Error && error.message && !/^(Failed to fetch|NetworkError|TypeError)/i.test(error.message)
+        ? error.message
+        : null;
+      const unknown = !!(error && typeof error === "object" && "unknown" in error && (error as { unknown?: boolean }).unknown);
+      const fallback = state.isEditMode ? "Fehler beim Speichern" : "Fehler beim Erstellen der Buchung";
+      setSubmitError({ message: message ?? `${fallback}. Ihre Eingaben bleiben erhalten.`, unknown });
+      toast.error(message ?? fallback, { duration: 10000 });
     }
   };
 

@@ -11,9 +11,12 @@ export class PrivateAppointmentError extends Error {
     public code: string,
     public conflicts: PaConflict[] = [],
     public excluded: PaExcluded[] = [],
+    public field: string | null = null,
   ) {
-    super(describe(code, conflicts, excluded));
+    super(describe(code, conflicts, excluded, field));
   }
+  /** Network/5xx: the server may or may not have saved; retry with the same key is safe. */
+  get unknown() { return this.status >= 500 || this.status === 0; }
 }
 
 const REASONS: Record<string, string> = {
@@ -22,7 +25,19 @@ const REASONS: Record<string, string> = {
   invoiced: "ist bereits verrechnet",
 };
 
-function describe(code: string, conflicts: PaConflict[], excluded: PaExcluded[]): string {
+const FIELDS: Record<string, string> = {
+  participants: "Ein Teilnehmer gehört nicht zum gewählten Kunden oder es fehlen Angaben (Vorname, Geburtsdatum). Bitte Teilnehmer prüfen.",
+  customer_id: "Kunde nicht gefunden.",
+  appointments: "Ein Termin ist ungültig (Datum/Zeit/Lehrperson).",
+  discount_reason: "Bitte einen Grund für den Rabatt angeben.",
+  discount_percent: "Rabatt muss zwischen 0 und 100 % liegen.",
+  payment_method: "Ungültige Zahlungsart.",
+  billing_partner_id: "Bitte das Hotel wählen, das die Rechnung übernimmt.",
+  settlement: "Ungültige Zahlungsangabe.",
+  finalization: "Ungültige Zahlungs- oder Notizangaben.",
+};
+
+function describe(code: string, conflicts: PaConflict[], excluded: PaExcluded[], field: string | null = null): string {
   switch (code) {
     case "conflict": {
       const days = [...new Set(conflicts.map((c) => c.date).filter(Boolean))].join(", ");
@@ -34,8 +49,8 @@ function describe(code: string, conflicts: PaConflict[], excluded: PaExcluded[])
     }
     case "forbidden": return "Keine Berechtigung für diese Änderung.";
     case "not_found": return "Termin nicht gefunden.";
-    case "invalid": return "Ungültige Angaben.";
-    default: return "Serverfehler – bitte erneut versuchen.";
+    case "invalid": return `${(field && FIELDS[field]) || "Ungültige Angaben."} Es wurde nichts gespeichert.`;
+    default: return "Ergebnis unbekannt: Bitte Buchungsliste prüfen oder erneut senden – eine Wiederholung erzeugt keine doppelte Buchung.";
   }
 }
 
@@ -55,6 +70,7 @@ async function call<T>(body: Record<string, unknown>): Promise<T> {
     String(payload.error ?? "internal_error"),
     (payload.conflicts as PaConflict[]) ?? [],
     (payload.excluded as PaExcluded[]) ?? [],
+    typeof payload.field === "string" ? payload.field : null,
   );
 }
 
