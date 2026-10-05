@@ -164,7 +164,7 @@ try {
     ['instructor notification history (SET NULL FK)', 'notification_refs', async (c, ins) => { await sql`INSERT INTO instructor_notification_queue(instructor_id,notification_type,group_instance_id) VALUES (${ins},'group_assigned',${await firstInstance(c)})`; }],
     ['event category', 'event_refs', async (c) => {
       const ev = (await sql`INSERT INTO events(event_date) VALUES ('2027-01-08') RETURNING id`)[0].id;
-      await sql`INSERT INTO event_categories(event_id,name,category_type,training_id) VALUES (${ev},'x','training',${c})`; }],
+      await sql`INSERT INTO event_categories(event_id,name,category_type,training_id) VALUES (${ev},'x','course',${c})`; }],
   ];
   let ins;
   for (const [label, key, setup] of blockerCases) {
