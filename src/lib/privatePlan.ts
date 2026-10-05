@@ -114,3 +114,19 @@ export function showSchedulerPrefillBanner(
 ): boolean {
   return !!provenance && !!appointments && appointments.length > 0;
 }
+
+/**
+ * Blocks to append to when adding an extra block to a day. A day without explicit
+ * blocks keeps its effective lesson (per-day selection, else shared window) as the
+ * first block, so the original lesson is never silently replaced. No default time.
+ */
+export function dayBlocksBeforeAdd(
+  existing: TimeBlock[] | undefined,
+  daySelection: { startTime: string; endTime: string } | undefined,
+  timeSlot: string | null,
+  makeId: () => string,
+): TimeBlock[] {
+  if (existing && existing.length > 0) return existing;
+  const base = daySelection ?? parseWizardTimeSlot(timeSlot);
+  return base ? [{ id: makeId(), startTime: base.startTime, endTime: base.endTime }] : [];
+}

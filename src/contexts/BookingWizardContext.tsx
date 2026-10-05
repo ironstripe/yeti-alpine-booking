@@ -2,7 +2,7 @@ import { createContext, useContext, useState, useCallback, ReactNode } from "rea
 import type { Tables } from "@/integrations/supabase/types";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchInstructor } from "@/lib/instructorsApi";
-import { dateSetChanged, deriveFromPlan, parseWizardTimeSlot, sortPlan, toMin, validatePlan } from "@/lib/privatePlan";
+import { dateSetChanged, dayBlocksBeforeAdd, deriveFromPlan, sortPlan, toMin, validatePlan } from "@/lib/privatePlan";
 import { cartReadinessIssues, type ReadinessIssue } from "@/lib/wizardReadiness";
 import { applyAssignLater } from "@/lib/assignLaterState";
 
@@ -907,12 +907,12 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
     setState((prev) => {
       // First extra block on a day without blocks: keep the day's effective lesson
       // (per-day selection, else shared window) instead of silently replacing it.
-      let existing = prev.dayTimeOverrides[date] || [];
-      if (existing.length === 0) {
-        const ts = prev.timeSelections?.find((t) => t.date === date);
-        const base = ts ? { startTime: ts.startTime, endTime: ts.endTime } : parseWizardTimeSlot(prev.timeSlot);
-        if (base) existing = [{ id: generateTimeBlockId(), startTime: base.startTime, endTime: base.endTime }];
-      }
+      const existing = dayBlocksBeforeAdd(
+        prev.dayTimeOverrides[date],
+        prev.timeSelections?.find((t) => t.date === date),
+        prev.timeSlot,
+        generateTimeBlockId,
+      );
       return {
         ...prev,
         dayTimeOverrides: {
