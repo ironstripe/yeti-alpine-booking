@@ -8,6 +8,9 @@
 -- * bc_2627_staff_group_book: calls it before returning (replay returns the already finalized ticket).
 -- * public.pa_create_booking_finalized(p, actor): runs pa_create_booking and the finalization in one
 --   subtransaction; any error result or invalid finalization rolls back every write of the attempt.
+-- * bc_2627_staff_group_book: optional office discretionary discount (discount_percent 0-100 +
+--   discount_reason required when > 0) applied to every booked line, exactly like the existing
+--   private/legacy office path (ticket_items.discount_percent/discount_reason). No automatic rule.
 -- No invoice, e-mail, online charge or new pricing/discount rule.
 CREATE OR REPLACE FUNCTION public.staff_booking_finalize(p_ticket uuid, f jsonb, p_actor uuid)
 RETURNS void LANGUAGE plpgsql SET search_path = public AS $$
@@ -80,6 +83,7 @@ DECLARE
   v_course_ids uuid[] := ARRAY[]::uuid[]; v_inst_ids uuid[] := ARRAY[]::uuid[]; v_snap jsonb := '[]'::jsonb;
   v_cid uuid; v_dur int; v_mp text; v_lunch date[]; v_veg boolean;
   v_lunch_product uuid; v_lunch_price numeric; v_lunch_n int; v_any_lunch boolean := false;
+  v_disc numeric := 0; v_disc_reason text;
   c_points constant text[] := ARRAY['sammelplatz_gorfion', 'malbipark', 'kasse_taeli', 'schneeflucht'];
 BEGIN
   IF v_key IS NULL OR length(v_key) NOT BETWEEN 8 AND 100 THEN
@@ -99,6 +103,12 @@ BEGIN
        AND NOT is_archived AND merged_into_id IS NULL) THEN
     RETURN jsonb_build_object('error', 'not_found', 'field', 'customer_id');
   END IF;
+  BEGIN v_disc := coalesce(nullif(p->>'discount_percent', '')::numeric, 0);
+  EXCEPTION WHEN others THEN RETURN jsonb_build_object('error', 'invalid', 'field', 'discount_percent'); END;
+  v_disc_reason := nullif(left(trim(coalesce(p->>'discount_reason', '')), 500), '');
+  IF v_disc < 0 OR v_disc > 100 THEN RETURN jsonb_build_object('error', 'invalid', 'field', 'discount_percent'); END IF;
+  IF v_disc > 0 AND v_disc_reason IS NULL THEN RETURN jsonb_build_object('error', 'invalid', 'field', 'discount_reason'); END IF;
+  IF v_disc = 0 THEN v_disc_reason := NULL; END IF;
   IF jsonb_typeof(v_lines) <> 'array' OR jsonb_array_length(v_lines) NOT BETWEEN 1 AND 30 THEN
     RETURN jsonb_build_object('error', 'invalid', 'field', 'lines');
   END IF;
@@ -257,11 +267,11 @@ BEGIN
 
     v_first := v_dates[1]; v_last := v_dates[cardinality(v_dates)];
     INSERT INTO public.ticket_items (ticket_id, product_id, participant_id, date, end_date, time_start, time_end,
-      meeting_point, unit_price, quantity, discount_percent, status, item_type, group_name, skill_level, is_vegetarian)
+      meeting_point, unit_price, quantity, discount_percent, discount_reason, status, item_type, group_name, skill_level, is_vegetarian)
     VALUES (v_ticket, v_course.product_id, v_pid, v_first, CASE WHEN v_last <> v_first THEN v_last END,
       (SELECT min((x->>'time_start')::time) FROM jsonb_array_elements(v_blocks) x),
       (SELECT max((x->>'time_end')::time) FROM jsonb_array_elements(v_blocks) x),
-      v_mp, v_price, 1, 0, 'booked', 'group', v_course.name, v_course.skill_level_id, v_veg)
+      v_mp, v_price, 1, v_disc, v_disc_reason, 'booked', 'group', v_course.name, v_course.skill_level_id, v_veg)
     RETURNING id INTO v_item;
 
     FOR blk IN SELECT value FROM jsonb_array_elements(v_blocks) LOOP
@@ -276,8 +286,8 @@ BEGIN
 
     FOREACH d IN ARRAY v_lunch LOOP
       INSERT INTO public.ticket_items (ticket_id, product_id, participant_id, date, unit_price, quantity,
-        discount_percent, status, item_type, is_vegetarian, meeting_point)
-      VALUES (v_ticket, v_lunch_product, v_pid, d, v_lunch_price, 1, 0, 'booked', 'lunch', v_veg, NULL);
+        discount_percent, discount_reason, status, item_type, is_vegetarian, meeting_point)
+      VALUES (v_ticket, v_lunch_product, v_pid, d, v_lunch_price, 1, v_disc, v_disc_reason, 'booked', 'lunch', v_veg, NULL);
     END LOOP;
     IF NOT v_pid = ANY (v_parts) THEN v_parts := v_parts || v_pid; END IF;
   END LOOP;
