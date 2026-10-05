@@ -60,3 +60,27 @@ This used live read-only data plus one made-up test child, not prepared test dat
 ## Technical notes
 - Live `quote_bc_2627_product` refuses more participants than the source group capacity. That is why each person is priced separately with 1 participant. The total stays the same because the price is per person.
 - Required gates: installing the migration and deploying the function go through the normal migration and deploy tools. Switching on the 26/27 courses and products needs Ivo's explicit OK.
+
+## 6. Acceptance reconciliation by Codex (2026-10-05; read before implementation)
+
+This section closes omissions in the plan above; it does not approve deployment, activate courses, or answer the outstanding plan approval gate.
+
+### UI requirements already approved by Ivo
+- Keep the visible Ski/Snowboard choice for groups. Verify switching BOTH ways with discipline-specific course and skill-level fixtures, not only that the two labels are present.
+- Put the actual chosen course times and course-owned meeting point to the RIGHT of the calendar on desktop, stacking on mobile. The current Step2ProductAllocation still renders group times in GroupSelector below the participant section, so this is a required code change, not merely an unverified test. No private time/meeting-point controls for a group course. For different courses per person, identify which participant/course each schedule belongs to.
+- Use the existing canonical skill-level catalog and stable IDs. Separate skill levels from course names and preserve adult/child semantics. First verify which levels/IDs exist for each discipline; do not invent a new adult Swiss Snowsports hierarchy or remap historical data based on the browser report.
+- Participant entry must support add, explicit select, remove, reopen and cancel for the ACTIVE cart line, including local participants before selecting a payer. Choosing/changing a payer offers related people but must not enroll the whole family. Test both shortcuts and normal flow with actual synthetic read fixtures.
+- Fix groupPlan synchronization by full semantic identity (dates, times, course/product, meeting point and blocker), including same-count date changes. Readiness, cart summary and save payload must agree after sport/date/cart changes and back navigation.
+- Footer guidance must reach the actual missing field or its unavailable explanation. Keep Empfohlen/arbitrary course selection removed. Exclude office, deleted, archived, inactive, wrong-season and non-covering courses without changing catalog records.
+- Preserve all later private-lesson, payer/customer and course-deletion behaviour. Do not copy old files/branches or retry/work around the rejected git command. Use only permitted targeted edit tools for newly reviewed changes.
+
+### Staff save preparation: local implementation and tests only
+- The existing price quote is authoritative, but verify the proposed per-person invocation with real SQL fixtures against the live function definition. Pricing each person is not proof that all capacity restrictions disappear (e.g. zero capacity). Preserve unlimited group SALES without inventing tariff fallbacks or changing private limits.
+- Quote, summary, saved amounts, enrollments and existing invoice/report consumers must all agree. Preserve existing lunch/add-on handling and booking metadata explicitly; do not silently drop an offered option. Keep individually agreed discounts in the existing invoice workflow; introduce no automatic extra discount or private 4h rule into group packages.
+- One billable package must not be multiplied by AM/PM blocks. Verify the chosen ticket-item/enrollment representation with current consumers rather than assuming one row with the first date is enough.
+- Keep the existing mixed private/group cart limitation explicit until its existing server contract supports it. Do not split a customer's request into multiple invoices to conceal this limitation.
+- Build the minimal server adapter, pending SQL, rollback and local tests; install/deploy/activate NOTHING in this stage. No public website hold/finalize/email pipeline, payment, automatic invoice, import replay or recreation of deleted courses.
+- No production customers, bookings or invoices as test data. All browser business writes blocked; full successful booking proof in the disposable local SQL environment and controlled fixtures only.
+
+### Required evidence before reporting completion
+Record each requirement as implemented / runtime-tested / published / still blocked in the existing roadmap. Test 14–18 and 21–25 Dec fixture plans, Ski/Snowboard, same-count date changes, per-person courses, payer-first and participant-first paths, add/remove/cancel/reentry and summary/save consistency at 1440px and 390px. Do not replace missing fixtures with an untested claim. A passing isolated test does not make the failing combined test suite pass. Report actual main commit and retain the scheduler course/date/instance navigation as a separate unfinished authorised task.
