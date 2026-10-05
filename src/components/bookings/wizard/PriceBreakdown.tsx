@@ -397,7 +397,7 @@ export function PriceBreakdown({
           {hasPrice ? (
             <div className="flex items-center justify-between gap-3">
               <span className="text-sm text-muted-foreground">Aktueller Stand</span>
-              <span className="font-semibold">{formatCurrency(total)}</span>
+              <span className="font-semibold" data-testid="price-total">{formatCurrency(total)}</span>
             </div>
           ) : (
             <p className="text-sm text-muted-foreground">
@@ -638,7 +638,7 @@ export function PriceBreakdown({
         {/* Total */}
         <div className="flex justify-between text-lg font-bold">
           <span>TOTAL</span>
-          <span>{formatCurrency(total)}</span>
+          <span data-testid="price-total">{formatCurrency(total)}</span>
         </div>
         <p className="text-xs text-muted-foreground">(inkl. MwSt.)</p>
         {canonicalBlocks && (
