@@ -162,8 +162,9 @@ try {
     ['progression next_training_id (SET NULL FK)', 'next_course_refs', async (c) => {
       const p = id(0x9002); if (!(await exists(p))) await seedCourse(p, 'Synth progression'); await sql`UPDATE group_courses SET next_training_id=${c} WHERE id=${p}`; }],
     ['instructor notification history (SET NULL FK)', 'notification_refs', async (c, ins) => { await sql`INSERT INTO instructor_notification_queue(instructor_id,notification_type,group_instance_id) VALUES (${ins},'group_assigned',${await firstInstance(c)})`; }],
-    ['event category', 'event_refs', async (c) => { await sql.unsafe(`INSERT INTO event_categories(event_id,name,training_id) SELECT (SELECT id FROM events LIMIT 1),'x',$1 WHERE EXISTS (SELECT 1 FROM events)`, [c]);
-      if (!(await sql`SELECT 1 FROM event_categories WHERE training_id=${c}`).length) throw new Error('skip-no-event'); }],
+    ['event category', 'event_refs', async (c) => {
+      const ev = (await sql`INSERT INTO events(event_date) VALUES ('2027-01-08') RETURNING id`)[0].id;
+      await sql`INSERT INTO event_categories(event_id,name,category_type,training_id) VALUES (${ev},'x','training',${c})`; }],
   ];
   let ins;
   for (const [label, key, setup] of blockerCases) {
@@ -171,7 +172,7 @@ try {
       ins ??= (await sql`INSERT INTO instructors(first_name,last_name,status,roles) VALUES ('A','B','active','{ski}') RETURNING id`)[0].id;
       const c = id(0x7000 + blockerCases.findIndex((b) => b[0] === label));
       await seedCourse(c, `Synth ${label}`, { weeks: 2, days: 5, blocks: 2, variants: [[PROD, '{10}']], saturdayDates: 10 });
-      try { await setup(c, ins); } catch (e) { if (e.message === 'skip-no-event') return; throw e; }
+      await setup(c, ins);
       const before = await snapshot(c);
       const r = await del(c);
       assert.equal(r.error, 'referenced'); assert.ok(r.dependencies[key] > 0, `${key}=${r.dependencies[key]}`);
