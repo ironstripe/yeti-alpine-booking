@@ -5,7 +5,7 @@
 import { MEETING_POINTS } from "@/lib/meeting-point-utils";
 import { minutesBetween, sessionKey } from "@/lib/finance";
 
-export interface EnrollmentBlock { date: string; start_time: string | null; end_time: string | null }
+export interface EnrollmentBlock { id?: string | null; date: string; start_time: string | null; end_time: string | null }
 export interface ScheduledItem {
   item_type?: string | null;
   date: string;
@@ -61,7 +61,9 @@ export function itemSessions(item: ScheduledItem, start: string, end: string): A
     return blocks
       .filter((b) => b.date >= start && b.date <= end)
       .map((b) => ({
-        key: sessionKey({ instructorId: item.instructor_id ?? null, date: b.date, timeStart: b.start_time, timeEnd: b.end_time }),
+        // Real group instance identity: same instance across participants = one session; distinct
+        // instances at identical times stay distinct (package lines carry no instructor_id).
+        key: b.id ? `instance|${b.id}` : sessionKey({ instructorId: item.instructor_id ?? null, date: b.date, timeStart: b.start_time, timeEnd: b.end_time }),
         minutes: minutesBetween(b.start_time, b.end_time) || 0,
       }));
   }
@@ -77,4 +79,4 @@ export const meetingPointLabel = (value: string | null | undefined) =>
   value ? MEETING_POINTS.find((p) => p.id === value)?.name ?? value : null;
 
 /** PostgREST embed for the real blocks of a line. */
-export const ENROLLMENT_BLOCKS_SELECT = "enrollments:group_course_enrollments(instance:group_course_instances(date,start_time,end_time))";
+export const ENROLLMENT_BLOCKS_SELECT = "enrollments:group_course_enrollments(instance:group_course_instances(id,date,start_time,end_time))";
