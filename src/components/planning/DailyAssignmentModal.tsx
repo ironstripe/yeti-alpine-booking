@@ -32,6 +32,8 @@ interface DailyAssignmentModalProps {
   course: GroupPlanningCourse | null;
   weekStart: Date;
   instructors: Instructor[];
+  /** Session opened from a scheduler deep link; highlighted and scrolled into view. */
+  focusInstanceId?: string | null;
 }
 
 export function DailyAssignmentModal({
@@ -40,6 +42,7 @@ export function DailyAssignmentModal({
   course,
   weekStart,
   instructors,
+  focusInstanceId = null,
 }: DailyAssignmentModalProps) {
   const assignInstructor = useAssignInstructor();
   const queryClient = useQueryClient();
@@ -161,7 +164,11 @@ export function DailyAssignmentModal({
               return (
                 <div
                   key={instance.id}
-                  className="flex flex-col sm:flex-row sm:items-center gap-3 p-3 border rounded-lg bg-muted/30"
+                  data-instance-id={instance.id}
+                  data-focused={instance.id === focusInstanceId ? 'true' : undefined}
+                  aria-current={instance.id === focusInstanceId ? 'true' : undefined}
+                  ref={instance.id === focusInstanceId ? (el) => el?.scrollIntoView({ block: 'nearest' }) : undefined}
+                  className={`flex flex-col sm:flex-row sm:items-center gap-3 p-3 border rounded-lg ${instance.id === focusInstanceId ? 'border-primary ring-2 ring-primary bg-primary/5' : 'bg-muted/30'}`}
                 >
                   {/* Date and time */}
                   <div className="w-full sm:w-32 flex sm:flex-col items-center sm:items-start gap-2 sm:gap-0">
@@ -171,6 +178,9 @@ export function DailyAssignmentModal({
                     <div className="text-sm text-muted-foreground">
                       {instance.startTime?.slice(0, 5)} - {instance.endTime?.slice(0, 5)}
                     </div>
+                    {instance.id === focusInstanceId && (
+                      <Badge className="text-xs">Ausgewählter Termin</Badge>
+                    )}
                     {isOverride && (
                       <Badge variant="outline" className="text-xs bg-amber-50 text-amber-700 border-amber-200">
                         Abweichend

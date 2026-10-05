@@ -22,6 +22,20 @@
       "when": 1791221096501,
       "tag": "0002_course_archive_delete",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1791227939557,
+      "tag": "0003_bc_2627_staff_group_booking",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1791228053680,
+      "tag": "0004_bc_2627_group_pricing_release_gate",
+      "breakpoints": true
     }
   ]
 }
