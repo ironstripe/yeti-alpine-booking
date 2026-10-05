@@ -1,8 +1,17 @@
 import { describe, expect, test } from "bun:test";
-import { createEmptyCartItem } from "../src/contexts/BookingWizardContext";
+import type { CartItem } from "../src/contexts/BookingWizardContext";
 import { itemReadinessIssues } from "../src/lib/wizardReadiness";
 
-const readyBase = () => ({ ...createEmptyCartItem(), productType: "group" as const, sport: "ski" as const, selectedDates: ["2026-03-02"], meetingPoint: "Gorfion", assignedParticipantIds: ["p1"] });
+const readyBase = (): CartItem => ({
+  id: "item", productType: "group", productId: null, sport: "ski", dateRange: null,
+  selectedDates: ["2026-03-02"], timeSlot: null, duration: null, numberOfPersons: 1,
+  includeLunch: false, selectedGroupId: null, groupPlan: null, groupCourseType: null,
+  lunchSelections: {}, vegetarianSelections: {}, appointments: null, schedulerPrefill: null,
+  useParticipantSpecificBooking: false, participantBookings: {}, dayInstructorOverrides: {},
+  dayTimeOverrides: {}, timeSelections: [], miniSchedulerSelections: [], privateGroupProposal: null,
+  instructorId: null, instructor: null, assignLater: false, meetingPoint: "Gorfion",
+  preferredInstructorId: null, language: "de", assignedParticipantIds: ["p1"],
+});
 
 describe("group wizard readiness", () => {
   test("requires an explicit shared course and checked plan", () => {

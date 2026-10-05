@@ -53,6 +53,7 @@ export function buildBookableGroupCourses(
   courses: GroupCourseFact[],
   selectedDates: string[],
   sport: "ski" | "snowboard" | null,
+  sourceBoundProductIds: Set<string> = new Set(),
 ): BookableGroupCourse[] {
   if (!sport || selectedDates.length === 0) return [];
   return courses.flatMap((course) => {
@@ -62,6 +63,7 @@ export function buildBookableGroupCourses(
     if (!product || product.is_active !== true || !["group", "group_toddler"].includes(product.type)) return [];
     const season = product.season;
     if (!season || selectedDates.some((date) => date < season.start_date || date > season.end_date)) return [];
+    if (sourceBoundProductIds.has(product.id) || season.name === "Winter 26/27") return [];
     if (course.period_start_date && selectedDates.some((date) => date < course.period_start_date)) return [];
     if (course.period_end_date && selectedDates.some((date) => date > course.period_end_date)) return [];
 

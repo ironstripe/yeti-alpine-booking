@@ -396,12 +396,6 @@ export function Step2ProductAllocation() {
           p.name.includes(sportName)
       );
     }
-    if (state.productType === "group" && state.selectedDates.length > 0) {
-      const daysCount = state.selectedDates.length;
-      return products.find(
-        (p) => p.type === "group" && p.name.includes(`${daysCount} Tag`)
-      );
-    }
     return null;
   }, [products, state.productType, state.duration, state.sport, state.selectedDates.length]);
 
