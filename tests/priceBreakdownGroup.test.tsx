@@ -33,7 +33,7 @@ const render = () => {
   const qc = new QueryClient();
   qc.setQueryData(["group-courses-for-pricing"], [{ id: "c-kid", name: "Kids 4h", product_id: "decoy", price_per_day: 999 }]);
   const html = renderToStaticMarkup(<QueryClientProvider client={qc}><PriceBreakdown discountPercent={0} /></QueryClientProvider>);
-  return html.match(/data-testid="price-total">([^<]+)</)?.[1] ?? null;
+  return html.match(/data-testid="price-total">([^<]+)</)?.[1] ?? html.slice(0, 300);
 };
 const base = (o: Record<string, unknown>) => ({ productType: "group", sport: "ski", selectedParticipants: people, localParticipants: [],
   activeCartItemId: "i", lunchSelections: {}, vegetarianSelections: {}, participantBookings: {}, useParticipantSpecificBooking: false,
