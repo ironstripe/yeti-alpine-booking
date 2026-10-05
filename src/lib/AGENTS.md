@@ -1,0 +1,2 @@
+- Booking-Corner booking migration is evaluated only by the pure `src/lib/bcMigration/` evaluator over the versioned normalized package; the staff UI is dry-run only and any future apply must be a server-side, idempotent, journaled per-sale transaction. Why: no browser-loop writes, unavailable checks block instead of passing.
+- Scheduler collapse of billing rows per private appointment lives in `src/lib/schedulerCollapse.ts`, shared by `useSchedulerData` and migration acceptance tests. Why: tests exercise the same one-block-per-session rule as the UI.
