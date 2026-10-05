@@ -85,6 +85,19 @@ async function runGroupPreflight(lines: GroupLineRequest[]): Promise<Map<string,
 }
 
 
+/** Office settlement/notes sent with the booking; the server applies them in the same transaction. */
+function buildFinalization(state: BookingWizardState) {
+  return {
+    payment_method: state.paymentMethod ?? null,
+    settlement: state.settlement === "paid_now" ? ("paid_now" as const) : ("pay_later" as const),
+    billing_partner_id: state.paymentMethod === "hotel" ? state.billingPartnerId ?? null : null,
+    payment_due_date: state.paymentDueDate ?? null,
+    ...(state.internalNotes?.trim() ? { internal_notes: state.internalNotes.trim() } : {}),
+    ...(state.instructorNotes?.trim() ? { instructor_notes: state.instructorNotes.trim() } : {}),
+    ...(state.conversationId ? { conversation_id: state.conversationId } : {}),
+  };
+}
+
 export function useCreateBooking() {
   const queryClient = useQueryClient();
 
@@ -123,37 +136,14 @@ export function useCreateBooking() {
           customer_id: state.customerId,
           ...(state.customerNotes ? { notes: state.customerNotes } : {}),
           lines: staffGroup.lines,
+          finalization: buildFinalization(state),
         };
         // Same payload in this browser session => same key => server replays, never duplicates.
+        // Booking, settlement (payment) and notes are ONE server transaction: a replay is complete.
         const fp = "yeti.staffgroup.submit." + JSON.stringify(payload);
         let submissionKey = sessionStorage.getItem(fp);
         if (!submissionKey) { submissionKey = crypto.randomUUID(); sessionStorage.setItem(fp, submissionKey); }
         const created = await createStaffGroupBooking({ submission_key: submissionKey, ...payload });
-        const total = Number(created.total) || 0;
-        if (!created.replayed) {
-          await supabase.from("tickets").update({
-            payment_method: state.paymentMethod,
-            billing_partner_id: state.paymentMethod === "hotel" ? state.billingPartnerId : null,
-            payment_due_date: state.paymentDueDate,
-          }).eq("id", created.ticket_id);
-          if (state.settlement === "paid_now" && isImmediateMethod(state.paymentMethod) && total > 0) {
-            const { error: payErr } = await supabase.from("payments").insert({
-              ticket_id: created.ticket_id,
-              amount: total,
-              payment_method: state.paymentMethod!,
-              payment_date: format(new Date(), "yyyy-MM-dd"),
-              status: "completed",
-              created_by: user.id,
-            });
-            if (payErr) throw payErr;
-            await supabase.from("tickets").update({ paid_amount: total }).eq("id", created.ticket_id);
-            await logTicketEvent(created.ticket_id, "PAYMENT_RECORDED", { amount: total, payment_method: state.paymentMethod, settlement: "paid_now" });
-          }
-          await createInitialComments(created.ticket_id, state.internalNotes, state.instructorNotes, user.id, user.email?.split("@")[0] || "System");
-          if (state.conversationId) {
-            await supabase.from("conversations").update({ related_ticket_id: created.ticket_id, status: "processed" }).eq("id", state.conversationId);
-          }
-        }
         sessionStorage.removeItem(fp);
         return { ticketId: created.ticket_id, ticketNumber: created.ticket_number };
       }
@@ -338,7 +328,7 @@ export function useCreateBooking() {
           }
         }
         const participants: PaParticipant[] = state.selectedParticipants.map((pt) =>
-          pt.id.startsWith("guest-")
+          pt.id.startsWith("guest-") || pt.isGuest
             ? {
                 guest_key: pt.id,
                 first_name: pt.first_name,
@@ -355,6 +345,7 @@ export function useCreateBooking() {
           appointments,
           participants,
           ...(discountPercent > 0 ? { discount_percent: discountPercent, discount_reason: discountReason } : {}),
+          finalization: buildFinalization(state),
         };
         // Same payload in this browser session => same key => server replays, never duplicates.
         const fp = "yeti.pa.submit." + JSON.stringify(payload);
@@ -362,33 +353,6 @@ export function useCreateBooking() {
         if (!submissionKey) { submissionKey = crypto.randomUUID(); sessionStorage.setItem(fp, submissionKey); }
 
         const created = await paCreate({ submission_key: submissionKey, ...payload });
-        const total = Number(created.total) || 0;
-
-        if (!created.replayed) {
-          await supabase.from("tickets").update({
-            payment_method: state.paymentMethod,
-            billing_partner_id: state.paymentMethod === "hotel" ? state.billingPartnerId : null,
-            payment_due_date: state.paymentDueDate,
-          }).eq("id", created.ticket_id);
-
-          if (state.settlement === "paid_now" && isImmediateMethod(state.paymentMethod) && total > 0) {
-            const { error: payErr } = await supabase.from("payments").insert({
-              ticket_id: created.ticket_id,
-              amount: total,
-              payment_method: state.paymentMethod!,
-              payment_date: format(new Date(), "yyyy-MM-dd"),
-              status: "completed",
-              created_by: user.id,
-            });
-            if (payErr) throw payErr;
-            await supabase.from("tickets").update({ paid_amount: total }).eq("id", created.ticket_id);
-            await logTicketEvent(created.ticket_id, "PAYMENT_RECORDED", { amount: total, payment_method: state.paymentMethod, settlement: "paid_now" });
-          }
-          await createInitialComments(created.ticket_id, state.internalNotes, state.instructorNotes, user.id, user.email?.split("@")[0] || "System");
-          if (state.conversationId) {
-            await supabase.from("conversations").update({ related_ticket_id: created.ticket_id, status: "processed" }).eq("id", state.conversationId);
-          }
-        }
         sessionStorage.removeItem(fp);
         try { sessionStorage.removeItem("yeti.scheduler.planningDraft.v1"); } catch { /* ignore */ }
         return { ticketId: created.ticket_id, ticketNumber: created.ticket_number };
