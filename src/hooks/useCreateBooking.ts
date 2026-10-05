@@ -8,6 +8,7 @@ import { buildEffectivePrivatePlan } from "@/lib/effectivePrivatePlan";
 import { paCreate, type PaParticipant, type PaSlot } from "@/lib/privateAppointmentsApi";
 import { endOf, sortPlan, validatePlan } from "@/lib/privatePlan";
 import { buildStaffGroupLines, staffGroupHasLunch } from "@/lib/staffGroupPayload";
+import { fetchLunchProduct } from "@/hooks/useLunchProduct";
 import { createStaffGroupBooking } from "@/lib/staffGroupBookingApi";
 import {
   preflightGroupLines,
@@ -125,8 +126,7 @@ export function useCreateBooking() {
       let staffLunchPrice: number | null = null;
       if (state.productType === "group" && staffGroupHasLunch(state)) {
         // Same authoritative row the server uses: exactly one active lunch product.
-        const { data: lunchRows } = await supabase.from("products").select("price").eq("type", "lunch").eq("is_active", true);
-        staffLunchPrice = lunchRows && lunchRows.length === 1 ? Number(lunchRows[0].price) : null;
+        staffLunchPrice = (await fetchLunchProduct())?.price ?? null;
       }
       const staffGroup = buildStaffGroupLines(state, staffLunchPrice);
       if (staffGroup.kind === "error") throw new Error(staffGroup.message);

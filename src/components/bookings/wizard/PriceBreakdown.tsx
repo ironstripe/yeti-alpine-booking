@@ -13,6 +13,7 @@ import { de } from "date-fns/locale";
 import { endOf, sortPlan } from "@/lib/privatePlan";
 import { usePrivateLessonRates, useHighSeasonPeriods } from "@/hooks/usePrivateLessonRates";
 import { useProducts, ProductWithTiers } from "@/hooks/useProducts";
+import { useLunchProduct } from "@/hooks/useLunchProduct";
 import { calculatePrice, formatPriceCHF } from "@/lib/pricing-utils";
 import {
   calculatePrivateLessonPrice,
@@ -258,8 +259,9 @@ export function PriceBreakdown({
   }
 
   // Calculate lunch from lunchSelections (for group courses) or includeLunch (for private)
-  const lunchProduct = products.find((p) => p.type === "lunch");
-  const lunchPricePerDay = lunchProduct?.price || 25;
+  const { data: lunchProduct = null } = useLunchProduct();
+  // No fallback: without the unique authoritative lunch product, lunch is not priced (save is refused).
+  const lunchPricePerDay = lunchProduct?.price ?? 0;
   
   // Build per-participant lunch data
   const participantLunchItems = useMemo((): ParticipantLunchItem[] => {

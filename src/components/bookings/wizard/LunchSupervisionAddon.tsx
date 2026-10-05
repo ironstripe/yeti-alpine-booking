@@ -18,7 +18,7 @@ interface LunchSupervisionAddonProps {
   vegetarianSelections: Record<string, boolean>;
   onLunchDaysChange: (participantId: string, days: string[]) => void;
   onVegetarianChange: (participantId: string, isVegetarian: boolean) => void;
-  lunchPricePerDay?: number;
+  lunchPricePerDay: number;
 }
 
 export function LunchSupervisionAddon({
@@ -28,7 +28,7 @@ export function LunchSupervisionAddon({
   vegetarianSelections,
   onLunchDaysChange,
   onVegetarianChange,
-  lunchPricePerDay = 25,
+  lunchPricePerDay,
 }: LunchSupervisionAddonProps) {
   const [isEnabled, setIsEnabled] = useState(false);
 
