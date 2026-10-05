@@ -41,7 +41,7 @@ let keyN = 0; const key = () => `test-key-${++keyN}-${Date.now()}`;
 
 async function seedCourse(cid, name, { discipline = 'ski', active = true, dates = [...WEEK, ...XMAS], pmOnly = false, product = P4, variants = [[P4, [1, 2, 3, 4, 5]], [P2, [1]]] } = {}) {
   await sql`INSERT INTO group_courses(id,name,discipline,min_age,max_age,price_per_day,is_active,product_id,course_type,meeting_point,skill_level_id,max_participants)
-    VALUES (${cid},${name},${discipline},4,16,0,${active},${product},'weekly','Täli','blue_king',2)`;
+    VALUES (${cid},${name},${discipline},4,16,0,${active},${product},'weekly','Täli',NULL,2)`;
   for (const d of dates) {
     const slots = pmOnly ? [['14:00', '16:00']] : [['10:00', '12:00'], ['14:00', '16:00']];
     for (const [a, b] of slots) await sql`INSERT INTO group_course_instances(course_id,date,start_time,end_time,status,current_participants) VALUES (${cid},${d},${a},${b},'scheduled',0)`;
