@@ -150,6 +150,8 @@ export function Step2ProductAllocation() {
     endTime: string;
     /** Set when opened from the teacher list: exact intervals, read-only in the dialog */
     plannedIntervals?: IntendedInterval[];
+    initialParticipantIds?: string[];
+    title?: string;
   } | null>(null);
 
   // Analyze participants for group course recommendations
@@ -498,6 +500,33 @@ export function Step2ProductAllocation() {
     [state.selectedDates, state.timeSlot, state.appointments, state.timeSelections, state.dayTimeOverrides, state.dayInstructorOverrides],
   );
 
+  const activeAssignedIds = useMemo(
+    () => state.cartItems.find((item) => item.id === state.activeCartItemId)?.assignedParticipantIds ?? [],
+    [state.cartItems, state.activeCartItemId],
+  );
+
+  // Explicit participant (re-)entry for the active item: exact canonical plan, current teacher
+  // state and linked participants; result only links participants/meeting point (no time/teacher writes).
+  const teacherDecided = state.assignLater || !!state.instructorId;
+  const openParticipantEntry = () => {
+    if (intervalPlan.status !== "ready" || intervalPlan.intervals.length === 0) {
+      focusMissingTime();
+      return;
+    }
+    if (!teacherDecided) return;
+    const first = intervalPlan.intervals[0];
+    setPopoverSlot({
+      instructorId: state.assignLater ? null : state.instructorId,
+      instructorName: state.assignLater || !state.instructor ? null : `${state.instructor.first_name} ${state.instructor.last_name}`,
+      date: first.date,
+      startTime: first.startTime,
+      endTime: first.endTime,
+      plannedIntervals: intervalPlan.intervals,
+      initialParticipantIds: activeAssignedIds,
+      title: "Teilnehmer zuweisen",
+    });
+  };
+
   // Teacher list selection: same teacher setter + participant dialog, for ALL planned intervals.
   const handleListSelect = (instructor: Tables<"instructors">, intervals: IntendedInterval[]) => {
     if (intervals.length === 0) return;
@@ -509,6 +538,8 @@ export function Step2ProductAllocation() {
       startTime: intervals[0].startTime,
       endTime: intervals[0].endTime,
       plannedIntervals: intervals,
+      initialParticipantIds: activeAssignedIds,
+      title: "Teilnehmer zuweisen",
     });
   };
 
@@ -884,8 +915,30 @@ export function Step2ProductAllocation() {
             </p>
           );
         })()}
-        {state.productType === "private" && state.assignLater && (
-          <Button type="button" variant="outline" size="sm" className="control-target" disabled={!startTime || !endTime || state.selectedDates.length === 0} onClick={() => { if (!startTime || !endTime) { focusMissingTime(); return; } const dates = [...state.selectedDates].sort(); setPopoverSlot({ instructorId: null, instructorName: null, date: dates[0], startTime, endTime }); }}><Users className="mr-1 h-4 w-4" />Teilnehmer hinzufügen</Button>
+        {state.productType === "private" && (
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="control-target"
+              disabled={intervalPlan.status === "ready" && !teacherDecided}
+              onClick={openParticipantEntry}
+            >
+              <Users className="mr-1 h-4 w-4" />
+              {activeAssignedIds.length > 0 ? "Teilnehmer bearbeiten" : "Teilnehmer hinzufügen"}
+            </Button>
+            {intervalPlan.status !== "ready" && (
+              <span className="text-xs text-muted-foreground">
+                {intervalPlan.status === "missing_dates" ? "Zuerst Datum wählen." : "Zuerst Zeitfenster wählen."}
+              </span>
+            )}
+            {intervalPlan.status === "ready" && !teacherDecided && (
+              <span className="text-xs text-muted-foreground">
+                Zuerst oben eine Lehrperson auswählen oder „Später zuweisen“ wählen.
+              </span>
+            )}
+          </div>
         )}
       </section>
 
@@ -918,6 +971,8 @@ export function Step2ProductAllocation() {
           sport={state.sport}
           defaultMeetingPoint={state.meetingPoint || "sammelplatz_gorfion"}
           onAddToCart={popoverSlot.plannedIntervals ? handleListAddToCart : handleSlotAddToCart}
+          initialParticipantIds={popoverSlot.initialParticipantIds}
+          title={popoverSlot.title}
         />
       )}
     </div>

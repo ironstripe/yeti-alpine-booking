@@ -63,6 +63,10 @@ interface SlotBookingPopoverProps {
   sport: "ski" | "snowboard" | null;
   defaultMeetingPoint: string;
   onAddToCart: (data: SlotBookingData) => void;
+  /** Participants already linked to the active item (pre-checked on reopen). */
+  initialParticipantIds?: string[];
+  /** Scoped title override; other usages keep "Slot konfigurieren". */
+  title?: string;
 }
 
 interface NewParticipantForm {
@@ -86,10 +90,12 @@ export function SlotBookingPopover({
   sport,
   defaultMeetingPoint,
   onAddToCart,
+  initialParticipantIds,
+  title,
 }: SlotBookingPopoverProps) {
   const queryClient = useQueryClient();
   const { state, addLocalParticipant, setSelectedParticipants } = useBookingWizard();
-  const [selectedParticipantIds, setSelectedParticipantIds] = useState<string[]>([]);
+  const [selectedParticipantIds, setSelectedParticipantIds] = useState<string[]>(() => initialParticipantIds ?? []);
   const [duration, setDuration] = useState<number>(() => {
     const s = parseInt(startTime.split(":")[0]);
     const e = parseInt(endTime.split(":")[0]);
@@ -243,7 +249,7 @@ export function SlotBookingPopover({
     <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
       <SheetContent side="right" className="w-[400px] sm:w-[440px] overflow-y-auto">
         <SheetHeader>
-          <SheetTitle className="text-base">Slot konfigurieren</SheetTitle>
+          <SheetTitle className="text-base">{title ?? "Slot konfigurieren"}</SheetTitle>
         </SheetHeader>
 
         <div className="space-y-4 mt-4">
