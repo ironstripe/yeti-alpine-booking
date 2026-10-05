@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { itemSessions, ENROLLMENT_BLOCKS_SELECT } from "@/lib/ticketItemSchedule";
 
 const line = (instanceIds: string[]) => ({
