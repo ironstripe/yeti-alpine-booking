@@ -154,7 +154,7 @@ try {
   await rejects('unknown participant rejected', { lines: [line({ participant_id: id(0xdead) })] }, 'participant');
   await rejects('already enrolled participant rejected', { lines: [line({ participant_id: PA })] }, 'already_enrolled');
   await rejects('duplicate participant+course in one request rejected', { lines: [line({ participant_id: PB, dates: XMAS }), line({ participant_id: PB, dates: XMAS })] }, 'duplicate');
-  await rejects('dates outside eligible day counts / not one week rejected', { lines: [line({ participant_id: PB, dates: ['2026-12-18', '2026-12-21'] })] }, 'tariff');
+  await rejects('dates outside eligible day counts / not one week rejected', { lines: [line({ participant_id: PC, dates: ['2026-12-18', '2026-12-21'] })] }, 'tariff');
   await rejects('missing block for 2h product rejected', { lines: [line({ participant_id: PB, product_id: P2, dates: ['2026-12-21'] })] }, 'blocks');
   await rejects('summary price drift rejected (expected_unit_price)', { lines: [line({ participant_id: PB, dates: XMAS, expected_unit_price: 300 })] }, 'price_changed');
   await t('source drift: tier no longer matches source tariff -> rejected, nothing written', async () => {
