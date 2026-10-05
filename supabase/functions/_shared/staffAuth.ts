@@ -15,13 +15,13 @@ function deny(message: string, status: number, cors: Record<string, string>) {
 
 /**
  * Validates the caller's JWT and requires one of the given roles.
- * Returns { userId } on success, or a Response to return immediately.
+ * Returns { userId, email } on success, or a Response to return immediately.
  */
 export async function requireRole(
   req: Request,
   allowed: Array<"admin" | "office" | "teacher" | "super_admin">,
   cors: Record<string, string> = baseCors,
-): Promise<{ userId: string } | Response> {
+): Promise<{ userId: string; email: string | null } | Response> {
   const authHeader = req.headers.get("Authorization") ?? "";
   const token = authHeader.replace(/^Bearer\s*/i, "").trim();
   if (!token) return deny("Unauthorized", 401, cors);
@@ -40,7 +40,7 @@ export async function requireRole(
     .in("role", allowed);
   if (!roles || roles.length === 0) return deny("Forbidden", 403, cors);
 
-  return { userId: userData.user.id };
+  return { userId: userData.user.id, email: userData.user.email ?? null };
 }
 
 /**

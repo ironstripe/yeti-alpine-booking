@@ -1,7 +1,7 @@
 // Staff-only (office/admin) 26/27 group-course booking.
 // All checks, pricing and writes happen in service_role-only SQL
-// (supabase/pending/bc_2627_staff_group_booking.sql): options (read-only) and one atomic,
-// idempotent booking transaction. No invoice, e-mail or payment side effects here.
+// (migrations 0003-0006): options (read-only) and one atomic, idempotent booking transaction that
+// also records the office settlement/notes. No invoice, e-mail or online charge here.
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { requireRole } from "../_shared/staffAuth.ts";
@@ -41,7 +41,14 @@ Deno.serve(async (req) => {
 
   if (body.action === "create") {
     if (!body.booking || typeof body.booking !== "object") return json({ error: "invalid", field: "booking" }, 400);
-    const rpc = await db.rpc("bc_2627_staff_group_book", { p: body.booking, p_actor: auth.userId });
+    const booking = { ...(body.booking as Record<string, unknown>) };
+    const f = booking.finalization;
+    if (f !== undefined) {
+      if (!f || typeof f !== "object" || Array.isArray(f)) return json({ error: "invalid", field: "finalization" }, 400);
+      // Actor identity comes only from the verified caller, never from the browser.
+      booking.finalization = { ...(f as Record<string, unknown>), actor_name: auth.email?.split("@")[0] || "System", actor_email: auth.email };
+    }
+    const rpc = await db.rpc("bc_2627_staff_group_book", { p: booking, p_actor: auth.userId });
     if (rpc.error || rpc.data == null) {
       if (MISSING.has(rpc.error?.code ?? "")) return json({ error: "not_installed" }, 503);
       console.error("staff-group-booking create failed", rpc.error?.code);

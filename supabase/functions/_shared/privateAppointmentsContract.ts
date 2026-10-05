@@ -22,6 +22,18 @@ const participant = z.union([
   }).strict(),
 ]);
 
+// Office settlement/notes, applied in the same DB transaction as the booking (migration 0006).
+// actor_name/actor_email are always set by the server from the verified caller.
+export const Finalization = z.object({
+  payment_method: z.enum(["cash", "card", "twint", "voucher", "invoice", "hotel"]).nullable().optional(),
+  settlement: z.enum(["paid_now", "pay_later"]).optional(),
+  billing_partner_id: uuid.nullable().optional(),
+  payment_due_date: date.nullable().optional(),
+  internal_notes: z.string().max(5000).optional(),
+  instructor_notes: z.string().max(5000).optional(),
+  conversation_id: uuid.nullable().optional(),
+}).strict();
+
 export const RequestSchema = z.discriminatedUnion("action", [
   z.object({
     action: z.literal("create"),
@@ -33,6 +45,7 @@ export const RequestSchema = z.discriminatedUnion("action", [
     participants: z.array(participant).min(1).max(4),
     discount_percent: z.number().finite().min(0).max(100).optional(),
     discount_reason: z.string().trim().max(500).optional(),
+    finalization: Finalization.optional(),
   }),
   z.object({
     action: z.literal("move"),

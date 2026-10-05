@@ -24,8 +24,12 @@ Deno.serve(async (req) => {
   const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
   let rpc;
   if (p.action === "create") {
-    const { action: _a, ...payload } = p;
-    rpc = await db.rpc("pa_create_booking", { p: payload, p_actor: auth.userId });
+    const { action: _a, finalization, ...payload } = p;
+    // Booking + settlement/notes in one transaction (pa_create_booking_finalized, migration 0006).
+    const body = finalization
+      ? { ...payload, finalization: { ...finalization, actor_name: auth.email?.split("@")[0] || "System", actor_email: auth.email } }
+      : payload;
+    rpc = await db.rpc("pa_create_booking_finalized", { p: body, p_actor: auth.userId });
   } else if (p.action === "move") {
     rpc = await db.rpc("pa_move_appointment", {
       p_id: p.appointment_id, p_date: p.date, p_start: p.time_start, p_end: p.time_end,
