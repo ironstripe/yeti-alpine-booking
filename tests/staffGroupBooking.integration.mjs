@@ -54,7 +54,7 @@ async function seedCourse(cid, name, { mp = 'Täli', discipline = 'ski', active 
 }
 
 try {
-  for (const f of ['tests/sql/baseline_prelude.sql', 'tests/sql/production_schema_baseline.sql', 'supabase/pending/course_archive_delete.sql', 'supabase/pending/bc_2627_staff_group_booking.sql', 'supabase/pending/bc_2627_staff_group_booking_v2.sql']) {
+  for (const f of ['tests/sql/baseline_prelude.sql', 'tests/sql/production_schema_baseline.sql', 'supabase/pending/course_archive_delete.sql', 'supabase/pending/bc_2627_staff_group_booking.sql', 'supabase/pending/bc_2627_staff_group_booking_v2.sql', 'supabase/pending/staff_booking_finalize.sql']) {
     const r = psqlFile(f); if (r.status !== 0) throw new Error(`psql ${f}: ${r.stderr}`);
   }
   await sql.unsafe(`
