@@ -30,14 +30,20 @@ export function itemReadinessIssues(item: CartItem, itemIndex: number): Readines
     if (item.useParticipantSpecificBooking) {
       const missing = item.assignedParticipantIds.filter((id) => !item.participantBookings[id]?.groupCourseId);
       if (missing.length > 0) add("course", "Für jeden Teilnehmer einen Kurs wählen");
+      const noPoint = item.assignedParticipantIds.filter((id) => {
+        const b = item.participantBookings[id];
+        return b?.groupCourseId && !(b.groupMeetingPoint ?? b.groupMeetingPointChoice);
+      });
+      if (noPoint.length > 0) add("meetingPoint", "Treffpunkt für jeden Teilnehmer wählen (im Kurs nicht hinterlegt)");
       const blocker = item.assignedParticipantIds.map((id) => item.participantBookings[id]?.groupPersistenceBlocker).find(Boolean);
       if (blocker) add("course", blocker);
     } else {
       if (!item.selectedGroupId || !item.groupPlan) add("course", "Kurs wählen");
       else if (item.groupPlan.persistenceBlocker) add("course", item.groupPlan.persistenceBlocker);
+      else if (!item.groupPlan.meetingPoint && !item.meetingPoint) add("meetingPoint", "Treffpunkt wählen (im Kurs nicht hinterlegt)");
     }
   }
-  // Group meeting point comes from the selected course (read-only), never a manual default.
+  // Group meeting point: course value when set, else an explicit office choice (checked above).
   if (item.productType !== "group" && item.meetingPoint === null) add("meetingPoint", "Treffpunkt fehlt");
   if (item.assignedParticipantIds.length === 0) add("participants", "Teilnehmer fehlen");
   return issues;

@@ -1,5 +1,6 @@
 import { useEffect, useMemo } from "react";
-import { AlertTriangle, CalendarDays, Clock, Copy, Users } from "lucide-react";
+import { AlertTriangle, CalendarDays, Clock, Copy, MapPin, Users } from "lucide-react";
+import { MEETING_POINTS } from "@/lib/meeting-point-utils";
 import { format, parseISO } from "date-fns";
 import { de } from "date-fns/locale";
 
@@ -49,6 +50,8 @@ export function ParticipantBookingCard({ participant, booking, sport, onBookingC
       groupCourseName: course?.name ?? null,
       groupProductName: course?.product?.name ?? null,
       groupMeetingPoint: course?.meeting_point ?? null,
+      // Explicit choice survives a content refresh of the same course, cleared on course change.
+      groupMeetingPointChoice: course && !course.meeting_point && course.id === booking.groupCourseId ? booking.groupMeetingPointChoice ?? null : null,
       groupBlocks: course?.blocks ?? [],
       groupPersistenceBlocker: course?.persistenceBlocker ?? null,
       groupServer: course?.server ?? null,
@@ -80,6 +83,18 @@ export function ParticipantBookingCard({ participant, booking, sport, onBookingC
         </div>
         {selected && <div className="space-y-1 rounded-md border bg-muted/40 p-3 text-sm">
           {booking.dates.slice().sort().map((date) => <div key={date} className="flex flex-wrap gap-x-2"><span className="flex min-w-28 items-center gap-1 font-medium"><CalendarDays className="h-3.5 w-3.5" />{format(parseISO(date), "EEE, dd.MM.", { locale: de })}</span>{selected.blocks.filter((block) => block.date === date).map((block) => <span key={`${date}-${block.startTime}`} className="flex items-center gap-1 text-muted-foreground"><Clock className="h-3.5 w-3.5" />{block.startTime}–{block.endTime}</span>)}</div>)}
+          {!selected.meeting_point ? (
+            <div className="mt-2 space-y-1">
+              <Label className="flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground"><MapPin className="h-3 w-3" />Treffpunkt (im Kurs nicht hinterlegt)</Label>
+              <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label={`Treffpunkt für ${participant.first_name}`}>
+                {MEETING_POINTS.map((point) => (
+                  <Button key={point.id} type="button" role="radio" aria-checked={booking.groupMeetingPointChoice === point.id} variant={booking.groupMeetingPointChoice === point.id ? "secondary" : "outline"} size="sm" className="control-target h-9 text-xs" onClick={() => onBookingChange({ ...booking, groupMeetingPointChoice: point.id })}>
+                    {point.name.replace("Sammelplatz ", "").replace("Kasse ", "")}
+                  </Button>
+                ))}
+              </div>
+            </div>
+          ) : <div className="flex items-center gap-1 text-muted-foreground"><MapPin className="h-3.5 w-3.5" />{selected.meeting_point}</div>}
           {selected.persistenceBlocker && <Alert variant="destructive" className="mt-2 py-2"><AlertTriangle className="h-4 w-4" /><AlertDescription>{selected.persistenceBlocker}</AlertDescription></Alert>}
         </div>}
         {!isFirst && <Button variant="ghost" size="sm" onClick={onCopyToAll}><Copy className="mr-1 h-3.5 w-3.5" />Kurs des ersten Teilnehmers übernehmen</Button>}

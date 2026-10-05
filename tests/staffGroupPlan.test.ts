@@ -75,7 +75,28 @@ describe("staff group payload", () => {
     expect(buildStaffGroupLines(mixed).kind).toBe("error");
     const s = groupState(); s.cartItems = [...s.cartItems, { ...createEmptyCartItem(), id: "i2" }];
     expect(buildStaffGroupLines(s).kind).toBe("error");
+    // Lunch without an authoritative price is refused, never dropped or priced by guess.
     expect(buildStaffGroupLines(groupState({ lunchSelections: { pa: ["2026-12-14"] } })).kind).toBe("error");
+  });
+  test("lunch days + vegetarian go to the matching participant line with the authoritative price", () => {
+    const r = buildStaffGroupLines(groupState({ lunchSelections: { pa: ["2026-12-16", "2026-12-14"] }, vegetarianSelections: { pa: true } } as never), 30);
+    expect(r.kind).toBe("server"); if (r.kind !== "server") return;
+    expect(r.lines[0]).toMatchObject({ lunch_dates: ["2026-12-14", "2026-12-16"], vegetarian: true, expected_lunch_unit_price: 30 });
+    expect(r.lines[1].lunch_dates).toBeUndefined();
+    expect(staffGroupTotal(r.lines)).toBe(640 + 60);
+  });
+  test("meeting point: course value wins; missing course value needs explicit choice", () => {
+    const r = buildStaffGroupLines(groupState({ meetingPoint: "malbipark" } as never));
+    expect(r.kind === "server" && r.lines[0].meeting_point).toBe("Täli");
+    const noCourse = (mp: string | null) => groupState({ meetingPoint: mp, groupPlan: { ...groupState().groupPlan!, meetingPoint: null } } as never);
+    expect(buildStaffGroupLines(noCourse(null)).kind).toBe("error");
+    const ok = buildStaffGroupLines(noCourse("kasse_taeli"));
+    expect(ok.kind === "server" && ok.lines.map((l) => l.meeting_point)).toEqual(["kasse_taeli", "kasse_taeli"]);
+    const per = buildStaffGroupLines(groupState({ useParticipantSpecificBooking: true, participantBookings: {
+      pa: { groupServer: { courseId: "c1", productId: "p4", block: null, unitPrice: 320 }, dates: WEEK, groupMeetingPoint: null, groupMeetingPointChoice: "malbipark", lunchDays: [] },
+      "guest-1": { groupServer: { courseId: "c2", productId: "p4", block: null, unitPrice: 320 }, dates: WEEK, groupMeetingPoint: "Täli", lunchDays: [] },
+    } } as never));
+    expect(per.kind === "server" && per.lines.map((l) => l.meeting_point)).toEqual(["malbipark", "Täli"]);
   });
   test("per-participant different courses map to their own course and dates", () => {
     const r = buildStaffGroupLines(groupState({ useParticipantSpecificBooking: true, participantBookings: {
@@ -90,8 +111,10 @@ describe("staff group payload", () => {
 });
 
 describe("group readiness", () => {
-  test("group does not require a manual meeting point; course + participants suffice", () => {
+  test("group: course without meeting point requires an explicit choice; course value or choice suffices", () => {
     const item = { ...createEmptyCartItem(), id: "i1", productType: "group" as const, sport: "ski" as const, selectedDates: WEEK, assignedParticipantIds: ["pa"], selectedGroupId: "k", groupPlan: { courseId: "k", courseName: "x", productName: null, meetingPoint: null, blocks: [], persistenceBlocker: null }, meetingPoint: null };
-    expect(itemReadinessIssues(item as never, 0)).toEqual([]);
+    expect(itemReadinessIssues(item as never, 0).map((i) => i.field)).toEqual(["meetingPoint"]);
+    expect(itemReadinessIssues({ ...item, meetingPoint: "malbipark" } as never, 0)).toEqual([]);
+    expect(itemReadinessIssues({ ...item, groupPlan: { ...item.groupPlan, meetingPoint: "Täli" } } as never, 0)).toEqual([]);
   });
 });

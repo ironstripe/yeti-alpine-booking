@@ -26,6 +26,11 @@ export interface StaffGroupLine {
   block: "am" | "pm" | null;
   sport: "ski" | "snowboard";
   expected_unit_price: number;
+  /** Course value when set, else the explicit office choice (server re-validates). */
+  meeting_point: string;
+  lunch_dates?: string[];
+  vegetarian?: boolean;
+  expected_lunch_unit_price?: number;
   participant_id?: string;
   guest?: { guest_key: string; first_name: string; last_name?: string; birth_date: string; sport?: string };
 }
@@ -42,6 +47,11 @@ const FIELD_MESSAGES: Record<string, string> = {
   price_changed: "Der Tarif hat sich geändert – bitte Kurs neu wählen und Preis prüfen.",
   tariff: "Für diese Auswahl gibt es keinen exakten Winter-26/27-Tarif.",
   customer_id: "Kunde nicht gefunden.",
+  meeting_point: "Treffpunkt fehlt oder ist ungültig – bitte Treffpunkt wählen.",
+  lunch: "Mittagsbetreuung nur an gebuchten Kurstagen möglich.",
+  lunch_price_changed: "Der Preis der Mittagsbetreuung hat sich geändert – bitte prüfen.",
+  lunch_product: "Für die Mittagsbetreuung ist kein eindeutiger Preis hinterlegt.",
+  line_shape: "Ungültige Buchungsdaten – bitte Kurs neu wählen.",
 };
 
 /**
