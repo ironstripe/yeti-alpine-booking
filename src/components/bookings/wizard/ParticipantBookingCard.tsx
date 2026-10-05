@@ -38,6 +38,7 @@ export function ParticipantBookingCard({ participant, booking, sport, onBookingC
     onBookingChange({
       ...booking,
       groupCourseId: course?.id ?? null,
+      productId: course?.product?.id ?? null,
       groupCourseName: course?.name ?? null,
       groupProductName: course?.product?.name ?? null,
       groupMeetingPoint: course?.meeting_point ?? null,

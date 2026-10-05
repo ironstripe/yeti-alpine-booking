@@ -511,6 +511,8 @@ export function Step2ProductAllocation() {
       if (state.groupPlan) setGroupPlan(null);
       return;
     }
+    if (state.productId !== selectedGroupCourse.product?.id) setProductId(selectedGroupCourse.product?.id ?? null);
+    if (selectedGroupCourse.meeting_point && state.meetingPoint !== selectedGroupCourse.meeting_point) setMeetingPoint(selectedGroupCourse.meeting_point);
     if (state.groupPlan?.courseId === selectedGroupCourse.id && state.groupPlan.blocks.length === selectedGroupCourse.blocks.length) return;
     setGroupPlan({
       courseId: selectedGroupCourse.id,
@@ -520,7 +522,7 @@ export function Step2ProductAllocation() {
       blocks: selectedGroupCourse.blocks,
       persistenceBlocker: selectedGroupCourse.persistenceBlocker,
     });
-  }, [selectedGroupCourse, setGroupPlan, state.groupPlan]);
+  }, [selectedGroupCourse, setGroupPlan, setMeetingPoint, setProductId, state.groupPlan, state.meetingPoint, state.productId]);
 
   // Explicit participant (re-)entry for the active item: exact canonical plan, current teacher
   // state and linked participants; result only links participants/meeting point (no time/teacher writes).

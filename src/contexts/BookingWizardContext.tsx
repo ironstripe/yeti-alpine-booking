@@ -373,6 +373,7 @@ interface BookingWizardContextType {
   addGuestParticipant: (participant: Omit<SelectedParticipant, "id" | "isGuest">) => void;
   // Local participants
   addLocalParticipant: (participant: LocalParticipant) => void;
+  updateLocalParticipant: (participant: LocalParticipant) => void;
   removeLocalParticipant: (id: string) => void;
   replaceLocalParticipantIds: (idMap: Record<string, string>) => void;
   // Step 2 setters
@@ -630,6 +631,13 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
     setState((prev) => ({
       ...prev,
       localParticipants: [...prev.localParticipants, participant],
+    }));
+  };
+
+  const updateLocalParticipant = (participant: LocalParticipant) => {
+    setState((prev) => ({
+      ...prev,
+      localParticipants: prev.localParticipants.map((item) => item.id === participant.id ? participant : item),
     }));
   };
 
@@ -906,17 +914,18 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
   const initializeParticipantBookings = () => {
     setState((prev) => {
       const bookings: Record<string, ParticipantBookingDetails> = {};
-      for (const p of prev.selectedParticipants) {
-        bookings[p.id] = {
-          participantId: p.id,
+      const assignedIds = prev.cartItems.find((item) => item.id === prev.activeCartItemId)?.assignedParticipantIds ?? [];
+      for (const participantId of assignedIds) {
+        bookings[participantId] = {
+          participantId,
           productType: prev.productType || "group",
           productId: prev.productId,
           groupCourseId: prev.selectedGroupId,
           dates: [...prev.selectedDates],
           startTime: prev.timeSlot?.split(" - ")[0] || null,
           endTime: prev.timeSlot?.split(" - ")[1] || null,
-          lunchDays: prev.lunchSelections[p.id] || [],
-          isVegetarian: prev.vegetarianSelections[p.id] || false,
+          lunchDays: prev.lunchSelections[participantId] || [],
+          isVegetarian: prev.vegetarianSelections[participantId] || false,
           groupCourseName: prev.groupPlan?.courseName ?? null,
           groupProductName: prev.groupPlan?.productName ?? null,
           groupMeetingPoint: prev.groupPlan?.meetingPoint ?? null,
@@ -1793,6 +1802,7 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
         toggleParticipant,
         addGuestParticipant,
         addLocalParticipant,
+        updateLocalParticipant,
         removeLocalParticipant,
         replaceLocalParticipantIds,
         setProductType,

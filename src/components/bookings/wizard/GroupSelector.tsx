@@ -29,17 +29,16 @@ export function GroupSelector({ selectedDates, sport, participants = [], selecte
     if (!courses.some((course) => course.id === selectedGroupId)) onGroupSelect(null);
   }, [courses, isError, isLoading, onGroupSelect, selectedGroupId]);
 
-  useEffect(() => {
-    if (!selectedCourse || !onMeetingPointChange) return;
-    onMeetingPointChange(selectedCourse.meeting_point);
-  }, [onMeetingPointChange, selectedCourse]);
-
   return (
     <div className="space-y-3">
       <Label className="flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
         <Users className="h-3 w-3" />Kurs
       </Label>
-      <Select value={selectedGroupId || ""} onValueChange={(value) => onGroupSelect(value || null)} disabled={isLoading || isError || courses.length === 0}>
+      <Select value={selectedGroupId || ""} onValueChange={(value) => {
+        const course = courses.find((item) => item.id === value);
+        onGroupSelect(value || null);
+        if (course && onMeetingPointChange) onMeetingPointChange(course.meeting_point);
+      }} disabled={isLoading || isError || courses.length === 0}>
         <SelectTrigger className="control-target" aria-label="Kurs auswählen">
           <SelectValue placeholder={isLoading ? "Kurse laden…" : "Kurs wählen"} />
         </SelectTrigger>
