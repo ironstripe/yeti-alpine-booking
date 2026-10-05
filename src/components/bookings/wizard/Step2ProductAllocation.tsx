@@ -64,6 +64,7 @@ import { type IntendedInterval, type IntervalPlan } from "@/lib/teacherShortlist
 import { buildEffectivePrivatePlan } from "@/lib/effectivePrivatePlan";
 import type { ReadinessField } from "@/lib/wizardReadiness";
 import { useBookableGroupCourses } from "@/hooks/useBookableGroupCourses";
+import { sameGroupPlan } from "@/lib/groupCoursePlan";
 import type { SelectedParticipant } from "@/contexts/BookingWizardContext";
 
 // Available start and end times (lift hours: 09:00 - 16:00)
@@ -506,16 +507,20 @@ export function Step2ProductAllocation() {
       return;
     }
     if (state.productId !== selectedGroupCourse.product?.id) setProductId(selectedGroupCourse.product?.id ?? null);
-    if (selectedGroupCourse.meeting_point && state.meetingPoint !== selectedGroupCourse.meeting_point) setMeetingPoint(selectedGroupCourse.meeting_point);
-    if (state.groupPlan?.courseId === selectedGroupCourse.id && state.groupPlan.blocks.length === selectedGroupCourse.blocks.length) return;
-    setGroupPlan({
+    // Group meeting point comes only from the course (never a private default).
+    if (state.meetingPoint !== (selectedGroupCourse.meeting_point ?? null)) setMeetingPoint(selectedGroupCourse.meeting_point ?? null);
+    const next = {
       courseId: selectedGroupCourse.id,
       courseName: selectedGroupCourse.name,
       productName: selectedGroupCourse.product?.name ?? null,
       meetingPoint: selectedGroupCourse.meeting_point,
       blocks: selectedGroupCourse.blocks,
       persistenceBlocker: selectedGroupCourse.persistenceBlocker,
-    });
+      server: selectedGroupCourse.server ?? null,
+    };
+    // Full-content comparison: any changed date/time/product/price replaces the snapshot.
+    if (sameGroupPlan(state.groupPlan, next)) return;
+    setGroupPlan(next);
   }, [selectedGroupCourse, setGroupPlan, setMeetingPoint, setProductId, state.groupPlan, state.meetingPoint, state.productId]);
 
   // Explicit participant (re-)entry for the active item: exact canonical plan, current teacher
@@ -599,7 +604,9 @@ export function Step2ProductAllocation() {
       section.scrollIntoView({ behavior: "smooth", block: "start" });
       const target = field === "participants"
         ? section.querySelector<HTMLElement>("[data-participant-entry]")
-        : section.querySelector<HTMLElement>("button:not([disabled]), [role=radio], input");
+        : field === "course"
+          ? section.querySelector<HTMLElement>("[data-course-select]:not([disabled])") ?? section.querySelector<HTMLElement>("[data-course-status]")
+          : section.querySelector<HTMLElement>("button:not([disabled]), [role=radio], input");
       target?.focus({ preventScroll: true });
     };
     window.addEventListener("wizard-focus-field", onFocusField);
@@ -751,6 +758,12 @@ export function Step2ProductAllocation() {
               </div>
             ) : <p className="text-sm text-muted-foreground">Datum auswählen</p>}
 
+            {isGroupCourse ? (
+              <div className="space-y-1.5">
+                <Label className="flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground"><MapPin className="h-3 w-3" />Treffpunkt</Label>
+                <p className="text-sm text-muted-foreground">{state.groupPlan?.meetingPoint ?? (state.groupPlan ? "Im Kurs nicht hinterlegt" : "Ergibt sich aus dem gewählten Kurs")}</p>
+              </div>
+            ) : (
             <div className="space-y-1.5">
               <Label className="flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground"><MapPin className="h-3 w-3" />Treffpunkt</Label>
               <div className="flex flex-wrap gap-1.5">
