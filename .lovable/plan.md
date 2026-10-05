@@ -31,11 +31,22 @@ Make the existing group-booking path truthful and consistent from sport and date
    - Remove stale private times from group state and payload mapping.
    - Block progression/save before writes whenever the current legacy path would drop a split block or duplicate its daily price; retain the existing final `groupBookingPreflight` unchanged as defense.
 
+6. **Fix scheduler course navigation (additional explicit user request, 5 Oct 2026)**
+   - Confirmed source defect: both `BookingBar.tsx` and `MobileSchedulerAgenda.tsx` navigate to `/trainings/capacity?course=${booking.ticketId}` without a date. That opens capacity for the current week, not the clicked course/session. Screenshots show a 21 Dec 2026 Windel-Wedel block opening empty KW41 (5–11 Oct).
+   - Reuse the existing operational course details: `GroupCoursePlanning` at `/trainings/planning` and its `DailyAssignmentModal`. This is a specific course/session navigation fix, not a redesign or course-generation task.
+   - Carry the actual course ID, selected session date/week and exact instance ID from the scheduler. `useSchedulerData` maps group `ticketId` to `g.course_id`, group `id` to `group-instance-${g.id}`, and `date` to `g.date`; never mix up ticket, course and instance IDs.
+   - After target data loads, open only the requested course's daily details and visibly identify/focus the clicked instance (especially when a day has two blocks). Initialise the correct local-calendar Monday/week; handle subsequent URL changes and invalid/missing/unauthorised targets explicitly. Do not fall back to an unrelated course or today.
+   - Apply one consistent navigation contract to the desktop grid and mobile agenda. Preserve private/office interactions and drag/swipe guards. Closing the details must not reopen it on refetch; browser Back and return to the scheduler must retain the originating date/view where supported, rather than resetting to today.
+   - Preserve existing internal visibility rules, including inactive 26/27 courses that have real enrollments. Do not activate a course, generate instances/groups, change enrollment/assignment/price, or make any live write merely by opening details.
+   - Keep this patch identifiable from the group wizard changes; no publication.
+
 ## Verification
 - Add focused pure tests for eligibility, all-date schedule matching, inactive/internal/stale-season exclusion, sport invalidation, no capacity lock, and split-block persistence blocking.
 - Exercise the actual wizard with synthetic catalog/participant/customer fixtures and all external writes blocked at 1440px and 390px.
 - Verify group add/edit/reopen/cancel, valid single-block progression and captured payload, sport switching, empty 26/27 state, summary agreement, private teacher now/later, customer switching, and duplicate-customer choice.
 - Run targeted tests, TypeScript, project build, diff checks, and inspect the final preview/build diagnostics. No publish, deployment, migration, live data, invoices, or notifications.
+
+- Scheduler regression: click/tap a synthetic group instance on 21 Dec 2026 from desktop and mobile; land in KW52 and open the matching course/session, not capacity/KW41. Cover a Sunday/week boundary and separate same-day blocks, inactive-but-internally-visible enrolled course, missing/inaccessible target, close/refetch/reopen and Back. Block external writes and verify opening/closing does not generate groups or mutate assignments.
 
 ## Technical boundaries
 - Keep the legacy group save and 26/27 source-tariff preflight; do not activate catalog rows or introduce a new server booking path.
