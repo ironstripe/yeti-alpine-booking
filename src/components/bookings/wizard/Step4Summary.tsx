@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { toast } from "sonner";
 import { useParticipantOwnership } from "@/hooks/useParticipantOwnership";
+import { resolveLinkedParticipants } from "@/lib/linkedParticipants";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Loader2 } from "lucide-react";
 
@@ -116,20 +117,7 @@ export function Step4Summary({ onEditStep }: Step4SummaryProps) {
   const linkedIds = activeItem?.assignedParticipantIds ?? [];
   // New (local) people are sent as explicit new participants; the server creates them for the
   // payer inside the booking transaction (no early writes, no duplicates on retry).
-  const localAsGuests = state.localParticipants.map((lp) => ({
-    id: lp.id,
-    first_name: lp.first_name,
-    last_name: lp.last_name ?? null,
-    birth_date: lp.birth_date ?? "",
-    level_last_season: null,
-    level_current_season: lp.skill_level ?? null,
-    sport: lp.sport,
-    isGuest: true,
-  }));
-  const participantPool = [...state.selectedParticipants, ...localAsGuests];
-  const linkedParticipants = linkedIds
-    .map((id) => participantPool.find((p) => p.id === id))
-    .filter((p): p is NonNullable<typeof p> => !!p);
+  const { linked: linkedParticipants } = resolveLinkedParticipants(state);
   const savesParticipants = state.productType === "private" || state.productType === "group";
   const { foreign, isLoading: ownershipLoading } = useParticipantOwnership(savesParticipants ? linkedIds : [], state.customerId);
   const missingBirth = linkedParticipants.filter((p) => (p.isGuest || p.id.startsWith("guest-")) && !p.birth_date);

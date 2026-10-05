@@ -118,3 +118,43 @@ describe("group readiness", () => {
     expect(itemReadinessIssues({ ...item, groupPlan: { ...item.groupPlan, meetingPoint: "Täli" } } as never, 0)).toEqual([]);
   });
 });
+
+describe("draft (local) participants reach the server as new people with their own data", () => {
+  test("per-person: local id keeps its course, dates, lunch + vegetarian; active cart ids retained", async () => {
+    const { resolveLinkedParticipants } = await import("../src/lib/linkedParticipants");
+    const XMAS = ["2026-12-21", "2026-12-22", "2026-12-23", "2026-12-24", "2026-12-25"];
+    const base = groupState();
+    const draft = {
+      ...base,
+      cartItems: [{ ...base.cartItems[0], assignedParticipantIds: ["pa", "local-9"] }],
+      localParticipants: [{ id: "local-9", first_name: "Lia", last_name: null, birth_date: "2019-05-05", skill_level: null, sport: "snowboard" }],
+      selectedParticipants: [base.selectedParticipants[0]],
+      useParticipantSpecificBooking: true,
+      participantBookings: {
+        pa: { groupServer: { courseId: "c1", productId: "p4", block: null, unitPrice: 320 }, dates: WEEK, groupMeetingPoint: "Täli", lunchDays: [] },
+        "local-9": { groupServer: { courseId: "c2", productId: "p2", block: "pm", unitPrice: 230 }, dates: XMAS, groupMeetingPoint: null, groupMeetingPointChoice: "malbipark", lunchDays: ["2026-12-22", "2026-12-14"], isVegetarian: true },
+      },
+    } as unknown as BookingWizardState;
+    const { linked, unresolved } = resolveLinkedParticipants(draft);
+    expect(unresolved).toBe(false);
+    expect(linked.map((p) => p.id)).toEqual(["pa", "local-9"]);
+    const r = buildStaffGroupLines({ ...draft, selectedParticipants: linked }, 30);
+    expect(r.kind).toBe("server"); if (r.kind !== "server") return;
+    expect(r.lines[1]).toMatchObject({
+      course_id: "c2", product_id: "p2", block: "pm", dates: XMAS, expected_unit_price: 230, meeting_point: "malbipark",
+      lunch_dates: ["2026-12-22"], vegetarian: true, expected_lunch_unit_price: 30,
+      guest: { guest_key: "local-9", first_name: "Lia", birth_date: "2019-05-05", sport: "snowboard" },
+    });
+    expect(r.lines[1].participant_id).toBeUndefined();
+    expect(staffGroupTotal(r.lines)).toBe(320 + 230 + 30);
+    // Draft data untouched (nothing rewritten on resolve).
+    expect(draft.cartItems[0].assignedParticipantIds).toEqual(["pa", "local-9"]);
+    expect(draft.localParticipants).toHaveLength(1);
+  });
+  test("removed local person -> unresolved, no line built for a ghost", async () => {
+    const { resolveLinkedParticipants } = await import("../src/lib/linkedParticipants");
+    const base = groupState();
+    const s = { ...base, cartItems: [{ ...base.cartItems[0], assignedParticipantIds: ["pa", "local-gone"] }], localParticipants: [] } as unknown as BookingWizardState;
+    expect(resolveLinkedParticipants(s).unresolved).toBe(true);
+  });
+});

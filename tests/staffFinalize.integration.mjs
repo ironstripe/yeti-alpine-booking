@@ -99,6 +99,32 @@ try {
     const bad = await gbook({ submission_key: key(), customer_id: CUST, lines: [gline({ guest: { guest_key: 'h1', first_name: 'H', birth_date: '2018-01-01' } })], finalization: fin({ payment_method: 'hotel', billing_partner_id: null }) });
     assert.equal(bad.field, 'billing_partner_id', JSON.stringify(bad)); assert.deepEqual(await counts(), before);
   });
+  await t('group guests: two new people, different courses, lunch+vegetarian, office discount on every line, one atomic save', async () => {
+    const before = await counts();
+    const r = await gbook({ submission_key: key(), customer_id: CUST2, discount_percent: 10, discount_reason: 'Stammkunde',
+      lines: [
+        gline({ guest: { guest_key: 'g1', first_name: 'Gina', birth_date: '2017-02-02', sport: 'ski' }, lunch_dates: ['2026-12-14', '2026-12-15'], vegetarian: true, expected_lunch_unit_price: 30 }),
+        gline({ course_id: C_SB, sport: 'snowboard', meeting_point: undefined, guest: { guest_key: 'g2', first_name: 'Gus', birth_date: '2016-03-03', sport: 'snowboard' } }),
+      ], finalization: fin({ settlement: 'pay_later', payment_method: 'invoice' }) });
+    assert.ok(r.ok, JSON.stringify(r));
+    // (320 + 2*30 + 320) * 0.9 = 630
+    assert.equal(Number(r.total), 630);
+    const after = await counts();
+    assert.equal(after.parts - before.parts, 2); assert.equal(after.items - before.items, 4); assert.equal(after.enr - before.enr, 20);
+    const items = await sql`SELECT item_type, discount_percent, discount_reason, is_vegetarian, meeting_point FROM ticket_items WHERE ticket_id=${r.ticket_id} ORDER BY item_type, date`;
+    assert.ok(items.every((i) => Number(i.discount_percent) === 10 && i.discount_reason === 'Stammkunde'));
+    assert.equal(items.filter((i) => i.item_type === 'lunch' && i.is_vegetarian).length, 2);
+    assert.deepEqual(items.filter((i) => i.item_type === 'group').map((i) => i.meeting_point).sort(), ['Täli', 'malbipark']);
+    assert.equal((await sql`SELECT count(*)::int n FROM payments WHERE ticket_id=${r.ticket_id}`)[0].n, 0);
+  });
+  await t('group discount validation: >100, negative, missing reason rejected before any write', async () => {
+    const before = await counts();
+    for (const [d, why, field] of [[101, 'x', 'discount_percent'], [-1, 'x', 'discount_percent'], [5, '  ', 'discount_reason'], ['abc', 'x', 'discount_percent']]) {
+      const r = await gbook({ submission_key: key(), customer_id: CUST, discount_percent: d, discount_reason: why, lines: [gline({ participant_id: PA, dates: XMAS })] });
+      assert.equal(r.field, field, JSON.stringify(r));
+    }
+    assert.deepEqual(await counts(), before);
+  });
   await t('group fault injection: payment insert fails -> whole booking rolled back; retry same key creates it once WITH payment; further retry replays', async () => {
     await sql.unsafe(`CREATE FUNCTION public.t_fault() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'injected payment failure' USING ERRCODE = 'XX000'; END $$;
       CREATE TRIGGER t_fault BEFORE INSERT ON public.payments FOR EACH ROW EXECUTE FUNCTION public.t_fault();`);

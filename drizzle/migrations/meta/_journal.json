@@ -43,6 +43,13 @@
       "when": 1791229542934,
       "tag": "0005_bc_2627_staff_group_book_v2",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1791230932012,
+      "tag": "0006_staff_booking_finalize",
+      "breakpoints": true
     }
   ]
 }

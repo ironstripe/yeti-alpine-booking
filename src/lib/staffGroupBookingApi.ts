@@ -57,13 +57,15 @@ const FIELD_MESSAGES: Record<string, string> = {
   billing_partner_id: "Bitte das Hotel wählen, das die Rechnung übernimmt.",
   settlement: "Ungültige Zahlungsangabe.",
   finalization: "Ungültige Zahlungs- oder Notizangaben.",
+  discount_percent: "Rabatt muss zwischen 0 und 100 % liegen.",
+  discount_reason: "Bitte einen Grund für den Rabatt angeben.",
 };
 
 /**
  * Throws with an honest message. `unknown: true` means the outcome is unknown (network/5xx):
  * the caller must not claim that nothing was saved; a retry with the same key is safe.
  */
-export async function createStaffGroupBooking(payload: { submission_key: string; customer_id: string; notes?: string; lines: StaffGroupLine[]; finalization?: StaffFinalization }): Promise<StaffGroupBookingResult> {
+export async function createStaffGroupBooking(payload: { submission_key: string; customer_id: string; notes?: string; lines: StaffGroupLine[]; discount_percent?: number; discount_reason?: string; finalization?: StaffFinalization }): Promise<StaffGroupBookingResult> {
   const { data, error } = await supabase.functions.invoke("staff-group-booking", { body: { action: "create", booking: payload } });
   if (error) {
     const ctx = (error as { context?: Response }).context;

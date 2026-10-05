@@ -54,9 +54,12 @@ export function PriceBreakdown({
   participantIds,
 }: PriceBreakdownProps) {
   const { state } = useBookingWizard();
-  const pricingParticipants = participantIds === undefined
+  // Price exactly the people linked to the active cart item (existing + still-local new people).
+  const activeLinkedIds = state.cartItems.find((item) => item.id === state.activeCartItemId)?.assignedParticipantIds;
+  const effectiveIds = participantIds ?? activeLinkedIds;
+  const pricingParticipants = effectiveIds === undefined
     ? state.selectedParticipants
-    : participantIds
+    : effectiveIds
         .map((id) =>
           state.localParticipants.find((participant) => participant.id === id)
           ?? state.selectedParticipants.find((participant) => participant.id === id)
@@ -129,6 +132,19 @@ export function PriceBreakdown({
         const booking = state.participantBookings[participant.id];
         if (!booking) continue;
 
+        // 26/27: the chosen quoted variant is authoritative (per person, server unit price).
+        if (booking.groupServer) {
+          const price = Number(booking.groupServer.unitPrice) || 0;
+          lineItems.push({
+            participantName: `${participant.first_name} ${participant.last_name || ""}`.trim(),
+            courseName: groupCourses.find(c => c.id === booking.groupCourseId)?.name || booking.groupProductName || "Gruppenkurs",
+            days: booking.dates.length,
+            price,
+          });
+          totalCoursePrice += price;
+          continue;
+        }
+
         // Get the linked group course
         const groupCourse = groupCourses.find(c => c.id === booking.groupCourseId);
         if (!groupCourse) continue;
@@ -163,11 +179,15 @@ export function PriceBreakdown({
     } else {
       // Shared mode - all participants in same course
       // Find the group product
-      const groupProduct = products.find(p => p.type === "group") as ProductWithTiers | undefined;
+      const serverRef = state.groupPlan?.server ?? null;
+      const groupProduct = serverRef ? undefined : products.find(p => p.type === "group") as ProductWithTiers | undefined;
       
       let pricePerParticipant = 0;
       
-      if (groupProduct && groupProduct.pricing_type === "tiered" && groupProduct.price_tiers?.length) {
+      if (serverRef) {
+        // 26/27: exact quoted five-day/package price per person of the chosen variant (AM+PM included once).
+        pricePerParticipant = Number(serverRef.unitPrice) || 0;
+      } else if (groupProduct && groupProduct.pricing_type === "tiered" && groupProduct.price_tiers?.length) {
         // Use tiered pricing
         pricePerParticipant = calculatePrice(groupProduct, daysCount);
       } else if (groupProduct) {
@@ -182,7 +202,7 @@ export function PriceBreakdown({
       if (participantCount > 1) {
         lineItems.push({
           participantName: `${participantCount} Teilnehmer`,
-          courseName: groupProduct?.name || "Gruppenkurs",
+          courseName: (serverRef ? state.groupPlan?.courseName : groupProduct?.name) || "Gruppenkurs",
           days: daysCount,
           price: totalCoursePrice,
         });
@@ -194,7 +214,7 @@ export function PriceBreakdown({
       totalCoursePrice,
       productName: lineItems.length === 1 ? lineItems[0].courseName : "Gruppenkurs"
     };
-  }, [productType, state.useParticipantSpecificBooking, state.participantBookings, pricingParticipants, groupCourses, products, daysCount]);
+  }, [productType, state.useParticipantSpecificBooking, state.participantBookings, state.groupPlan, pricingParticipants, groupCourses, products, daysCount]);
 
   // Multi-group pricing calculation
   const isMultiGroup = state.privateGroupProposal && state.privateGroupProposal.groups.length > 1;
@@ -270,22 +290,23 @@ export function PriceBreakdown({
     if (productType === "group") {
       // Check individual booking mode first
       if (state.useParticipantSpecificBooking && Object.keys(state.participantBookings).length > 0) {
-        for (const participant of state.selectedParticipants) {
+        for (const participant of pricingParticipants) {
           const booking = state.participantBookings[participant.id];
-          if (booking && booking.lunchDays.length > 0) {
+          const lunchDays = booking ? booking.lunchDays.filter((d) => booking.dates.includes(d)) : [];
+          if (booking && lunchDays.length > 0) {
             items.push({
               participantId: participant.id,
               participantName: `${participant.first_name} ${participant.last_name || ""}`.trim(),
-              days: booking.lunchDays.length,
+              days: lunchDays.length,
               isVegetarian: booking.isVegetarian,
-              price: booking.lunchDays.length * lunchPricePerDay,
+              price: lunchDays.length * lunchPricePerDay,
             });
           }
         }
       } else {
         // Shared mode - use lunchSelections and vegetarianSelections
-        for (const participant of state.selectedParticipants) {
-          const days = state.lunchSelections[participant.id] || [];
+        for (const participant of pricingParticipants) {
+          const days = (state.lunchSelections[participant.id] || []).filter((d) => state.selectedDates.includes(d));
           if (days.length > 0) {
             items.push({
               participantId: participant.id,
@@ -300,7 +321,7 @@ export function PriceBreakdown({
     }
     
     return items;
-  }, [productType, state.useParticipantSpecificBooking, state.participantBookings, state.selectedParticipants, state.lunchSelections, state.vegetarianSelections, lunchPricePerDay]);
+  }, [productType, state.useParticipantSpecificBooking, state.participantBookings, pricingParticipants, state.selectedDates, state.lunchSelections, state.vegetarianSelections, lunchPricePerDay]);
   
   let lunchTotal = 0;
   let lunchDaysCount = 0;
@@ -336,8 +357,9 @@ export function PriceBreakdown({
         || (privateLessonPrice && privateLessonPrice.totalPrice > 0)
       )
     : Boolean(
-        daysCount > 0
-        && state.selectedGroupId
+        (state.useParticipantSpecificBooking && Object.keys(state.participantBookings).length > 0
+          ? true
+          : daysCount > 0 && !!state.selectedGroupId)
         && pricingParticipants.length > 0
         && groupCourseCalculation.totalCoursePrice > 0
       );
@@ -375,7 +397,7 @@ export function PriceBreakdown({
           {hasPrice ? (
             <div className="flex items-center justify-between gap-3">
               <span className="text-sm text-muted-foreground">Aktueller Stand</span>
-              <span className="font-semibold">{formatCurrency(total)}</span>
+              <span className="font-semibold" data-testid="price-total">{formatCurrency(total)}</span>
             </div>
           ) : (
             <p className="text-sm text-muted-foreground">
@@ -616,7 +638,7 @@ export function PriceBreakdown({
         {/* Total */}
         <div className="flex justify-between text-lg font-bold">
           <span>TOTAL</span>
-          <span>{formatCurrency(total)}</span>
+          <span data-testid="price-total">{formatCurrency(total)}</span>
         </div>
         <p className="text-xs text-muted-foreground">(inkl. MwSt.)</p>
         {canonicalBlocks && (
