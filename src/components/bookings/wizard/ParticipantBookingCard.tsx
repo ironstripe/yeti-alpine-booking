@@ -5,7 +5,7 @@ import { de } from "date-fns/locale";
 
 import type { ParticipantBookingDetails, SelectedParticipant } from "@/contexts/BookingWizardContext";
 import { useBookableGroupCourses } from "@/hooks/useBookableGroupCourses";
-import { groupCourseEmptyMessage } from "@/lib/groupCoursePlan";
+import { groupCourseEmptyMessageFor } from "@/lib/groupCoursePlan";
 import { getLevelLabel } from "@/lib/level-utils";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -25,12 +25,12 @@ interface ParticipantBookingCardProps {
 }
 
 export function ParticipantBookingCard({ participant, booking, sport, onBookingChange, onCopyToAll, isFirst, showDifferenceWarning }: ParticipantBookingCardProps) {
-  const { data: courses = [], isLoading, isError } = useBookableGroupCourses(booking.dates, sport);
+  const { data: courses = [], isLoading, isError, server } = useBookableGroupCourses(booking.dates, sport);
   const selected = useMemo(() => courses.find((course) => course.id === booking.groupCourseId) ?? null, [booking.groupCourseId, courses]);
 
   useEffect(() => {
     if (isLoading || isError || !booking.groupCourseId) return;
-    if (!selected) onBookingChange({ ...booking, groupCourseId: null, groupCourseName: null, groupProductName: null, groupMeetingPoint: null, groupBlocks: [], groupPersistenceBlocker: null });
+    if (!selected) onBookingChange({ ...booking, groupCourseId: null, groupCourseName: null, groupProductName: null, groupMeetingPoint: null, groupBlocks: [], groupPersistenceBlocker: null, groupServer: null });
   }, [booking, isError, isLoading, onBookingChange, selected]);
 
   const selectCourse = (courseId: string) => {
@@ -44,6 +44,7 @@ export function ParticipantBookingCard({ participant, booking, sport, onBookingC
       groupMeetingPoint: course?.meeting_point ?? null,
       groupBlocks: course?.blocks ?? [],
       groupPersistenceBlocker: course?.persistenceBlocker ?? null,
+      groupServer: course?.server ?? null,
       startTime: null,
       endTime: null,
     });
@@ -64,11 +65,11 @@ export function ParticipantBookingCard({ participant, booking, sport, onBookingC
         <div className="space-y-1.5">
           <Label className="flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground"><Users className="h-3 w-3" />Kurs</Label>
           <Select value={booking.groupCourseId || ""} onValueChange={selectCourse} disabled={isLoading || isError || courses.length === 0}>
-            <SelectTrigger className="control-target"><SelectValue placeholder={isLoading ? "Kurse laden…" : "Kurs wählen"} /></SelectTrigger>
+            <SelectTrigger className="control-target" data-course-select aria-label={`Kurs für ${participant.first_name}`}><SelectValue placeholder={isLoading ? "Kurse laden…" : "Kurs wählen"} /></SelectTrigger>
             <SelectContent>{courses.map((course) => <SelectItem key={course.id} value={course.id}>{course.name} · {course.product?.name}</SelectItem>)}</SelectContent>
           </Select>
           {isError && <p role="alert" className="text-sm text-destructive">Kurse konnten nicht geladen werden.</p>}
-          {!isLoading && !isError && courses.length === 0 && <p className="text-sm text-muted-foreground">{groupCourseEmptyMessage(booking.dates, sport)}</p>}
+          {!isLoading && !isError && courses.length === 0 && <p className="text-sm text-muted-foreground">{groupCourseEmptyMessageFor(booking.dates, sport, server)}</p>}
         </div>
         {selected && <div className="space-y-1 rounded-md border bg-muted/40 p-3 text-sm">
           {booking.dates.slice().sort().map((date) => <div key={date} className="flex flex-wrap gap-x-2"><span className="flex min-w-28 items-center gap-1 font-medium"><CalendarDays className="h-3.5 w-3.5" />{format(parseISO(date), "EEE, dd.MM.", { locale: de })}</span>{selected.blocks.filter((block) => block.date === date).map((block) => <span key={`${date}-${block.startTime}`} className="flex items-center gap-1 text-muted-foreground"><Clock className="h-3.5 w-3.5" />{block.startTime}–{block.endTime}</span>)}</div>)}
