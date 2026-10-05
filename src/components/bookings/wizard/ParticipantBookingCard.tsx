@@ -1,638 +1,80 @@
-import { useMemo, useState, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { differenceInYears, format, parseISO } from "date-fns";
+import { useEffect, useMemo } from "react";
+import { AlertTriangle, CalendarDays, Clock, Copy, Users } from "lucide-react";
+import { format, parseISO } from "date-fns";
 import { de } from "date-fns/locale";
-import {
-  ChevronDown,
-  ChevronUp,
-  Calendar,
-  Clock,
-  Users,
-  Sparkles,
-  Copy,
-  UtensilsCrossed,
-  AlertTriangle,
-} from "lucide-react";
 
-import { supabase } from "@/integrations/supabase/client";
-import { cn } from "@/lib/utils";
+import type { ParticipantBookingDetails, SelectedParticipant } from "@/contexts/BookingWizardContext";
+import { useBookableGroupCourses } from "@/hooks/useBookableGroupCourses";
+import { groupCourseEmptyMessage } from "@/lib/groupCoursePlan";
+import { getLevelLabel } from "@/lib/level-utils";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Checkbox } from "@/components/ui/checkbox";
-import { RangeDatePicker } from "@/components/ui/range-date-picker";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
-import { mapLevelToCourseSkill, getLevelLabel } from "@/lib/level-utils";
-import type { SelectedParticipant, ParticipantBookingDetails } from "@/contexts/BookingWizardContext";
-import { checkAgeRange } from "@/lib/participant-utils";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface ParticipantBookingCardProps {
   participant: SelectedParticipant;
   booking: ParticipantBookingDetails;
+  sport: "ski" | "snowboard" | null;
   onBookingChange: (booking: ParticipantBookingDetails) => void;
   onCopyToAll: () => void;
   isFirst: boolean;
   showDifferenceWarning: boolean;
 }
 
-const START_TIMES = ["09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00"];
-const END_TIMES = ["10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00"];
+export function ParticipantBookingCard({ participant, booking, sport, onBookingChange, onCopyToAll, isFirst, showDifferenceWarning }: ParticipantBookingCardProps) {
+  const { data: courses = [], isLoading, isError } = useBookableGroupCourses(booking.dates, sport);
+  const selected = useMemo(() => courses.find((course) => course.id === booking.groupCourseId) ?? null, [booking.groupCourseId, courses]);
 
-const skillLevelLabels: Record<string, string> = {
-  beginner: "Anfänger",
-  intermediate: "Fortgeschritten",
-  advanced: "Experte",
-  unknown: "Unbekannt",
-};
-
-interface GroupCourseOption {
-  id: string;
-  name: string;
-  skill_level_id: string; // FK to skill_levels for direct matching
-  max_participants: number;
-  currentCount: number;
-  color: string | null;
-  meeting_point: string | null;
-  min_age: number | null;
-  max_age: number | null;
-}
-
-export function ParticipantBookingCard({
-  participant,
-  booking,
-  onBookingChange,
-  onCopyToAll,
-  isFirst,
-  showDifferenceWarning,
-}: ParticipantBookingCardProps) {
-  const [isOpen, setIsOpen] = useState(true);
-  const [selectedMonth, setSelectedMonth] = useState<Date>(new Date());
-
-  // Calculate participant age
-  const age = useMemo(() => {
-    if (!participant.birth_date) return null;
-    return differenceInYears(new Date(), new Date(participant.birth_date));
-  }, [participant.birth_date]);
-
-  // Check if toddler (3-4 years) - restricted to windel-wedel
-  const isToddler = age !== null && age >= 3 && age <= 4;
-
-  // Check if adult (16+) - private only recommended
-  const isAdult = age !== null && age >= 16;
-
-  // Auto-navigate calendar to month of prefilled dates
-  // Use the actual first date string as dependency (not just length) to detect month changes
-  const firstDateStr = booking.dates.length > 0 ? booking.dates.sort()[0] : null;
-  
   useEffect(() => {
-    if (firstDateStr) {
-      const firstDate = parseISO(firstDateStr);
-      const currentMonthStart = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth(), 1);
-      const dateMonthStart = new Date(firstDate.getFullYear(), firstDate.getMonth(), 1);
-      
-      if (currentMonthStart.getTime() !== dateMonthStart.getTime()) {
-        setSelectedMonth(firstDate);
-      }
-    }
-  }, [firstDateStr]); // Now reacts to actual date value changes, not just length
+    if (isLoading || isError || !booking.groupCourseId) return;
+    if (!selected) onBookingChange({ ...booking, groupCourseId: null, groupCourseName: null, groupProductName: null, groupMeetingPoint: null, groupBlocks: [], groupPersistenceBlocker: null });
+  }, [booking, isError, isLoading, onBookingChange, selected]);
 
-  // Fetch group courses with age in cache key
-  const { data: groupCourses = [], isLoading: coursesLoading } = useQuery({
-    queryKey: ["group-courses-for-booking-card", booking.dates, age],
-    queryFn: async () => {
-      if (booking.dates.length === 0) return [];
-
-      // Get participant's discipline for filtering
-      const participantDiscipline = participant.sport || 'ski';
-
-      const { data: coursesData, error } = await supabase
-        .from("group_courses")
-        .select(`
-          id,
-          name,
-          skill_level_id,
-          max_participants,
-          color,
-          meeting_point,
-          course_type,
-          min_age,
-          max_age,
-          discipline
-        `)
-        .eq("is_active", true)
-        .or(`discipline.eq.${participantDiscipline},discipline.eq.both`);
-
-      if (error) {
-        console.error("Error fetching group courses:", error);
-        throw error;
-      }
-      if (!coursesData || coursesData.length === 0) {
-        return [];
-      }
-
-      // Get enrollment counts
-      const courseIds = coursesData.map((c) => c.id);
-      const { data: instances } = await supabase
-        .from("group_course_instances")
-        .select("course_id, current_participants")
-        .in("course_id", courseIds)
-        .in("date", booking.dates);
-
-      const enrollmentMap: Record<string, number> = {};
-      instances?.forEach((inst) => {
-        enrollmentMap[inst.course_id] = Math.max(
-          enrollmentMap[inst.course_id] || 0,
-          inst.current_participants || 0
-        );
-      });
-
-      // Map all courses - no age filtering (age is a soft warning only)
-      return coursesData.map((course) => ({
-        ...course,
-        currentCount: enrollmentMap[course.id] || 0,
-      })) as GroupCourseOption[];
-    },
-    enabled: booking.dates.length > 0 && booking.productType === "group",
-  });
-
-  // Get participant's skill level ID based on their sport
-  const participantSkillId = participant.sport === 'snowboard' 
-    ? participant.current_snowboard_level_id 
-    : participant.current_ski_level_id;
-
-  // Fetch participant's NEXT level for progression-based course matching
-  // Business logic: If a participant ACHIEVED level X, they should be placed in NEXT level course
-  const { data: skillLevelData } = useQuery({
-    queryKey: ["skill-level-next", participantSkillId],
-    queryFn: async () => {
-      if (!participantSkillId) return null;
-      const { data, error } = await supabase
-        .from("skill_levels")
-        .select("id, name, next_level_id")
-        .eq("id", participantSkillId)
-        .maybeSingle();
-      if (error) console.error("Error fetching skill level:", error);
-      return data;
-    },
-    enabled: !!participantSkillId,
-  });
-
-  // Get recommended course based on participant's NEXT level (progression)
-  const recommendedCourseId = useMemo(() => {
-    if (groupCourses.length === 0) return null;
-    
-    // Use next_level_id for matching (participant should progress to next course)
-    // If at max level (no next), use current level
-    const targetSkillLevelId = skillLevelData?.next_level_id || participantSkillId;
-    
-    // First try: DIRECT match on skill_level_id (1:1 relationship via next level)
-    let match = targetSkillLevelId 
-      ? groupCourses.find(
-          (c) => c.skill_level_id === targetSkillLevelId && c.currentCount < c.max_participants
-        )
-      : null;
-    
-    // Fallback: if no direct match, use legacy level mapping
-    if (!match) {
-      const targetSkillCategory = mapLevelToCourseSkill(participant.level_current_season);
-      match = groupCourses.find(
-        (c) => mapLevelToCourseSkill(c.skill_level_id) === targetSkillCategory && c.currentCount < c.max_participants
-      );
-    }
-    
-    // Last fallback: pick first course with capacity
-    if (!match) {
-      match = groupCourses.find((c) => c.currentCount < c.max_participants);
-    }
-    
-    return match?.id || null;
-  }, [skillLevelData, participantSkillId, participant.level_current_season, groupCourses]);
-
-  // Auto-select group if none selected and we have a recommendation
-  useEffect(() => {
-    if (
-      booking.productType === "group" &&
-      !booking.groupCourseId &&
-      recommendedCourseId
-    ) {
-      onBookingChange({ ...booking, groupCourseId: recommendedCourseId });
-    }
-  }, [booking.productType, booking.groupCourseId, recommendedCourseId]);
-
-  // Calculate available end times based on start time
-  const availableEndTimes = useMemo(() => {
-    if (!booking.startTime) return END_TIMES;
-    const startHour = parseInt(booking.startTime.split(":")[0]);
-    return END_TIMES.filter((time) => parseInt(time.split(":")[0]) > startHour);
-  }, [booking.startTime]);
-
-  // Calculate duration
-  const duration = useMemo(() => {
-    if (!booking.startTime || !booking.endTime) return null;
-    const startHour = parseInt(booking.startTime.split(":")[0]);
-    const endHour = parseInt(booking.endTime.split(":")[0]);
-    return endHour - startHour;
-  }, [booking.startTime, booking.endTime]);
-
-  const handleDateSelect = (dates: Date[] | undefined) => {
-    if (dates) {
-      const dateStrings = dates.map((d) => format(d, "yyyy-MM-dd"));
-      // Filter lunch days to only include still-selected dates
-      const validLunchDays = booking.lunchDays.filter(d => dateStrings.includes(d));
-      onBookingChange({ 
-        ...booking, 
-        dates: dateStrings,
-        lunchDays: validLunchDays,
-        isVegetarian: validLunchDays.length > 0 ? booking.isVegetarian : false
-      });
-    }
-  };
-
-  const handleProductTypeChange = (type: "private" | "group") => {
+  const selectCourse = (courseId: string) => {
+    const course = courses.find((item) => item.id === courseId);
     onBookingChange({
       ...booking,
-      productType: type,
-      groupCourseId: null,
-      startTime: type === "group" ? "10:00" : booking.startTime,
-      endTime: type === "group" ? "12:00" : booking.endTime,
+      groupCourseId: course?.id ?? null,
+      groupCourseName: course?.name ?? null,
+      groupProductName: course?.product?.name ?? null,
+      groupMeetingPoint: course?.meeting_point ?? null,
+      groupBlocks: course?.blocks ?? [],
+      groupPersistenceBlocker: course?.persistenceBlocker ?? null,
+      startTime: null,
+      endTime: null,
     });
   };
 
-  const handleLunchDayToggle = (dateStr: string) => {
-    const newLunchDays = booking.lunchDays.includes(dateStr)
-      ? booking.lunchDays.filter((d) => d !== dateStr)
-      : [...booking.lunchDays, dateStr];
-    onBookingChange({ ...booking, lunchDays: newLunchDays });
-  };
-
   return (
-    <Card className={cn(showDifferenceWarning && "border-amber-300 bg-amber-50/30")}>
-      <Collapsible open={isOpen} onOpenChange={setIsOpen}>
-        <CardHeader className="p-3">
-          <CollapsibleTrigger asChild>
-            <div className="flex items-center justify-between cursor-pointer">
-              <div className="flex items-center gap-3">
-                {/* Avatar */}
-                <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-sm font-medium text-primary">
-                  {participant.first_name?.[0]?.toUpperCase()}
-                </div>
-
-                {/* Name & badges */}
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium">
-                      {participant.first_name} {participant.last_name}
-                    </span>
-                    <Badge variant="outline" className="text-xs">
-                      {age !== null ? `${age} J.` : "Alter unbekannt"}
-                    </Badge>
-                  </div>
-                  <div className="flex gap-1 mt-0.5">
-                    {participant.level_current_season && (
-                      <Badge variant="secondary" className="text-xs">
-                        {getLevelLabel(participant.level_current_season)}
-                      </Badge>
-                    )}
-                    {participant.sport && (
-                      <Badge variant="secondary" className="text-xs">
-                        {participant.sport === "ski" ? "⛷️ Ski" : "🏂 Snowboard"}
-                      </Badge>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2">
-                {showDifferenceWarning && (
-                  <Badge variant="outline" className="text-amber-600 border-amber-400 bg-amber-50">
-                    <AlertTriangle className="h-3 w-3 mr-1" />
-                    Abweichend
-                  </Badge>
-                )}
-                {/* Summary when collapsed */}
-                {!isOpen && booking.dates.length > 0 && (
-                  <div className="text-sm text-muted-foreground hidden sm:block">
-                    {booking.productType === "group" ? "Gruppenkurs" : "Privat"} • {booking.dates.length} Tag(e)
-                  </div>
-                )}
-                {isOpen ? (
-                  <ChevronUp className="h-4 w-4 text-muted-foreground" />
-                ) : (
-                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                )}
-              </div>
-            </div>
-          </CollapsibleTrigger>
-        </CardHeader>
-
-        <CollapsibleContent>
-          <CardContent className="p-3 pt-0 space-y-4">
-            {/* Product Type */}
-            <div className="space-y-2">
-              <Label className="text-xs font-semibold text-muted-foreground uppercase">
-                Buchungstyp
-              </Label>
-              <RadioGroup
-                value={booking.productType}
-                onValueChange={(v) => handleProductTypeChange(v as "private" | "group")}
-                className="grid grid-cols-2 gap-2"
-              >
-                <Label
-                  htmlFor={`private-${participant.id}`}
-                  className={cn(
-                    "flex cursor-pointer items-center gap-2 rounded-md border-2 p-3 text-sm",
-                    booking.productType === "private"
-                      ? "border-primary bg-primary/5"
-                      : "border-muted"
-                  )}
-                >
-                  <RadioGroupItem
-                    value="private"
-                    id={`private-${participant.id}`}
-                    className="sr-only"
-                  />
-                  <span>👤 Privatstunde</span>
-                  {isAdult && (
-                    <Badge variant="outline" className="text-xs text-green-600 border-green-400">
-                      Empfohlen
-                    </Badge>
-                  )}
-                </Label>
-                <Label
-                  htmlFor={`group-${participant.id}`}
-                  className={cn(
-                    "flex cursor-pointer items-center gap-2 rounded-md border-2 p-3 text-sm",
-                    booking.productType === "group"
-                      ? "border-primary bg-primary/5"
-                      : "border-muted",
-                    isAdult && "opacity-60"
-                  )}
-                >
-                  <RadioGroupItem
-                    value="group"
-                    id={`group-${participant.id}`}
-                    className="sr-only"
-                    disabled={isAdult}
-                  />
-                  <span>👥 Gruppenkurs</span>
-                </Label>
-              </RadioGroup>
-              {isAdult && booking.productType !== "private" && (
-                <p className="text-xs text-amber-600">
-                  Erwachsene buchen normalerweise Privatstunden
-                </p>
-              )}
-            </div>
-
-            {/* Group Course Selector */}
-            {booking.productType === "group" && (
-              <div className="space-y-2">
-                <Label className="text-xs font-semibold text-muted-foreground uppercase flex items-center gap-1">
-                  <Users className="h-3 w-3" />
-                  Gruppe
-                </Label>
-                
-                {coursesLoading ? (
-                  <div className="text-xs text-muted-foreground py-2">Gruppen laden...</div>
-                ) : groupCourses.length === 0 ? (
-                  <div className="text-xs text-amber-600 py-2 bg-amber-50 rounded-md px-2">
-                    <AlertTriangle className="h-3 w-3 inline mr-1" />
-                    Keine Gruppen verfügbar. Bitte wählen Sie zuerst Kurstage.
-                  </div>
-                ) : (
-                  <Select
-                    value={booking.groupCourseId || ""}
-                    onValueChange={(v) =>
-                      onBookingChange({ ...booking, groupCourseId: v || null })
-                    }
-                  >
-                    <SelectTrigger className="h-9">
-                      <SelectValue placeholder="Gruppe wählen" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {groupCourses.map((course) => {
-                        const isFull = course.currentCount >= course.max_participants;
-                        const isRecommended = course.id === recommendedCourseId;
-                        const ageState = checkAgeRange(age, null, course.max_age);
-                        const isAgeWarning = ageState === "too_old";
-                        const isAgeUnknown = ageState === "unknown" && (course.min_age != null || course.max_age != null);
-                        return (
-                          <SelectItem
-                            key={course.id}
-                            value={course.id}
-                            disabled={isFull}
-                            className={cn(isFull && "opacity-50")}
-                          >
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <div
-                                className="w-2 h-2 rounded-full"
-                                style={{ backgroundColor: course.color || "#6b7280" }}
-                              />
-                              <span>{course.name}</span>
-                              {isRecommended && !isFull && (
-                                <Badge
-                                  variant="outline"
-                                  className="text-[10px] h-4 px-1 border-green-400 text-green-600"
-                                >
-                                  <Sparkles className="h-2 w-2 mr-0.5" />
-                                  Empfohlen
-                                </Badge>
-                              )}
-                              {isAgeWarning && (
-                                <Badge
-                                  variant="outline"
-                                  className="text-[10px] h-4 px-1 border-amber-400 text-amber-600"
-                                >
-                                  <AlertTriangle className="h-2 w-2 mr-0.5" />
-                                  &gt;{course.max_age}J
-                                </Badge>
-                              )}
-                              {isAgeUnknown && (
-                                <Badge variant="outline" className="text-[10px] h-4 px-1">
-                                  Alter unbekannt – manuell prüfen
-                                </Badge>
-                              )}
-                              <Badge
-                                variant={isFull ? "destructive" : "outline"}
-                                className="text-[10px] h-4 px-1"
-                              >
-                                {course.currentCount}/{course.max_participants}
-                              </Badge>
-                            </div>
-                          </SelectItem>
-                        );
-                      })}
-                    </SelectContent>
-                  </Select>
-                )}
-
-                {/* Show auto-matched info */}
-                {booking.groupCourseId === recommendedCourseId && recommendedCourseId && (
-                  <div className="flex items-center gap-1 text-xs text-green-600 mt-1">
-                    <Sparkles className="h-3 w-3" />
-                    <span>Automatisch passend zum Niveau "{getLevelLabel(participant.level_current_season)}" zugewiesen</span>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Time Selection (Private only) */}
-            {booking.productType === "private" && (
-              <div className="space-y-2">
-                <Label className="text-xs font-semibold text-muted-foreground uppercase flex items-center gap-1">
-                  <Clock className="h-3 w-3" />
-                  Zeitfenster
-                </Label>
-                <div className="flex items-center gap-2">
-                  <Select
-                    value={booking.startTime || ""}
-                    onValueChange={(v) =>
-                      onBookingChange({
-                        ...booking,
-                        startTime: v,
-                        endTime:
-                          booking.endTime &&
-                          parseInt(v.split(":")[0]) >= parseInt(booking.endTime.split(":")[0])
-                            ? null
-                            : booking.endTime,
-                      })
-                    }
-                  >
-                    <SelectTrigger className="h-8 flex-1">
-                      <SelectValue placeholder="Start" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {START_TIMES.map((time) => (
-                        <SelectItem key={time} value={time}>
-                          {time}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <span className="text-muted-foreground">–</span>
-                  <Select
-                    value={booking.endTime || ""}
-                    onValueChange={(v) => onBookingChange({ ...booking, endTime: v })}
-                    disabled={!booking.startTime}
-                  >
-                    <SelectTrigger className="h-8 flex-1">
-                      <SelectValue placeholder="Ende" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {availableEndTimes.map((time) => (
-                        <SelectItem key={time} value={time}>
-                          {time}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {duration && (
-                    <Badge variant="secondary" className="text-xs">
-                      {duration}h
-                    </Badge>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Date Selection */}
-            <div className="space-y-2">
-              <Label className="text-xs font-semibold text-muted-foreground uppercase flex items-center gap-1">
-                <Calendar className="h-3 w-3" />
-                Kurstage
-              </Label>
-              <RangeDatePicker
-                selected={booking.dates.map((d) => parseISO(d))}
-                onSelect={handleDateSelect}
-                month={selectedMonth}
-                onMonthChange={setSelectedMonth}
-                minDate={new Date()}
-                showQuickActions={true}
-                className="rounded-md border"
-              />
-              {booking.dates.length > 0 && (
-                <div className="flex flex-wrap gap-1 mt-1">
-                  {booking.dates.sort().map((date) => (
-                    <Badge key={date} variant="secondary" className="text-xs">
-                      {format(parseISO(date), "EEE, d. MMM", { locale: de })}
-                    </Badge>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Lunch Options (Group only) */}
-            {booking.productType === "group" && booking.dates.length > 0 && (
-              <div className="space-y-2">
-                <Label className="text-xs font-semibold text-muted-foreground uppercase flex items-center gap-1">
-                  <UtensilsCrossed className="h-3 w-3" />
-                  Mittagsbetreuung
-                </Label>
-                <div className="space-y-2">
-                  <div className="flex flex-wrap gap-2">
-                    {booking.dates.sort().map((dateStr) => (
-                      <label
-                        key={dateStr}
-                        className={cn(
-                          "flex items-center gap-2 px-2 py-1 rounded border cursor-pointer text-xs",
-                          booking.lunchDays.includes(dateStr)
-                            ? "border-primary bg-primary/10"
-                            : "border-muted"
-                        )}
-                      >
-                        <Checkbox
-                          checked={booking.lunchDays.includes(dateStr)}
-                          onCheckedChange={() => handleLunchDayToggle(dateStr)}
-                        />
-                        {format(parseISO(dateStr), "EEE", { locale: de })}
-                      </label>
-                    ))}
-                  </div>
-                  {booking.lunchDays.length > 0 && (
-                    <label className="flex items-center gap-2 text-xs cursor-pointer">
-                      <Checkbox
-                        checked={booking.isVegetarian}
-                        onCheckedChange={(c) =>
-                          onBookingChange({ ...booking, isVegetarian: c === true })
-                        }
-                      />
-                      <span>🥬 Vegetarisch</span>
-                    </label>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Copy to all button */}
-            {!isFirst && (
-              <div className="pt-2 border-t">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={onCopyToAll}
-                  className="text-xs"
-                >
-                  <Copy className="h-3 w-3 mr-1" />
-                  Wie erster Teilnehmer
-                </Button>
-              </div>
-            )}
-          </CardContent>
-        </CollapsibleContent>
-      </Collapsible>
+    <Card className={showDifferenceWarning ? "border-warning/40" : undefined}>
+      <CardHeader className="pb-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <CardTitle className="text-base">{participant.first_name} {participant.last_name || ""}</CardTitle>
+          <div className="flex flex-wrap gap-1">
+            {participant.level_current_season && <Badge variant="secondary">Niveau: {getLevelLabel(participant.level_current_season)}</Badge>}
+            <Badge variant="outline">{sport === "snowboard" ? "🏂 Snowboard" : "⛷️ Ski"}</Badge>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="space-y-1.5">
+          <Label className="flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground"><Users className="h-3 w-3" />Kurs</Label>
+          <Select value={booking.groupCourseId || ""} onValueChange={selectCourse} disabled={isLoading || isError || courses.length === 0}>
+            <SelectTrigger className="control-target"><SelectValue placeholder={isLoading ? "Kurse laden…" : "Kurs wählen"} /></SelectTrigger>
+            <SelectContent>{courses.map((course) => <SelectItem key={course.id} value={course.id}>{course.name} · {course.product?.name}</SelectItem>)}</SelectContent>
+          </Select>
+          {isError && <p role="alert" className="text-sm text-destructive">Kurse konnten nicht geladen werden.</p>}
+          {!isLoading && !isError && courses.length === 0 && <p className="text-sm text-muted-foreground">{groupCourseEmptyMessage(booking.dates, sport)}</p>}
+        </div>
+        {selected && <div className="space-y-1 rounded-md border bg-muted/40 p-3 text-sm">
+          {booking.dates.slice().sort().map((date) => <div key={date} className="flex flex-wrap gap-x-2"><span className="flex min-w-28 items-center gap-1 font-medium"><CalendarDays className="h-3.5 w-3.5" />{format(parseISO(date), "EEE, dd.MM.", { locale: de })}</span>{selected.blocks.filter((block) => block.date === date).map((block) => <span key={`${date}-${block.startTime}`} className="flex items-center gap-1 text-muted-foreground"><Clock className="h-3.5 w-3.5" />{block.startTime}–{block.endTime}</span>)}</div>)}
+          {selected.persistenceBlocker && <Alert variant="destructive" className="mt-2 py-2"><AlertTriangle className="h-4 w-4" /><AlertDescription>{selected.persistenceBlocker}</AlertDescription></Alert>}
+        </div>}
+        {!isFirst && <Button variant="ghost" size="sm" onClick={onCopyToAll}><Copy className="mr-1 h-3.5 w-3.5" />Kurs des ersten Teilnehmers übernehmen</Button>}
+      </CardContent>
     </Card>
   );
 }
