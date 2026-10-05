@@ -357,8 +357,9 @@ export function PriceBreakdown({
         || (privateLessonPrice && privateLessonPrice.totalPrice > 0)
       )
     : Boolean(
-        daysCount > 0
-        && state.selectedGroupId
+        (state.useParticipantSpecificBooking && Object.keys(state.participantBookings).length > 0
+          ? true
+          : daysCount > 0 && !!state.selectedGroupId)
         && pricingParticipants.length > 0
         && groupCourseCalculation.totalCoursePrice > 0
       );
