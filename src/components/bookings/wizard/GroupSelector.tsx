@@ -4,7 +4,7 @@ import { format, parseISO } from "date-fns";
 import { de } from "date-fns/locale";
 
 import { useBookableGroupCourses } from "@/hooks/useBookableGroupCourses";
-import { groupCourseEmptyMessage } from "@/lib/groupCoursePlan";
+import { groupCourseEmptyMessageFor } from "@/lib/groupCoursePlan";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
@@ -21,7 +21,7 @@ interface GroupSelectorProps {
 }
 
 export function GroupSelector({ selectedDates, sport, participants = [], selectedGroupId, onGroupSelect, onMeetingPointChange }: GroupSelectorProps) {
-  const { data: courses = [], isLoading, isError } = useBookableGroupCourses(selectedDates, sport);
+  const { data: courses = [], isLoading, isError, server } = useBookableGroupCourses(selectedDates, sport);
   const selectedCourse = useMemo(() => courses.find((course) => course.id === selectedGroupId) ?? null, [courses, selectedGroupId]);
 
   useEffect(() => {
@@ -39,7 +39,7 @@ export function GroupSelector({ selectedDates, sport, participants = [], selecte
         onGroupSelect(value || null);
         if (course && onMeetingPointChange) onMeetingPointChange(course.meeting_point);
       }} disabled={isLoading || isError || courses.length === 0}>
-        <SelectTrigger className="control-target" aria-label="Kurs auswählen">
+        <SelectTrigger className="control-target" aria-label="Kurs auswählen" data-course-select>
           <SelectValue placeholder={isLoading ? "Kurse laden…" : "Kurs wählen"} />
         </SelectTrigger>
         <SelectContent>
@@ -55,7 +55,7 @@ export function GroupSelector({ selectedDates, sport, participants = [], selecte
       </Select>
 
       {isError && <p role="alert" className="text-sm text-destructive">Kurse konnten nicht geladen werden. Bitte erneut versuchen.</p>}
-      {!isLoading && !isError && courses.length === 0 && <p role="status" className="rounded-md border border-dashed p-3 text-sm text-muted-foreground">{groupCourseEmptyMessage(selectedDates, sport)}</p>}
+      {!isLoading && !isError && courses.length === 0 && <p role="status" tabIndex={-1} data-course-status className="rounded-md border border-dashed p-3 text-sm text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring">{groupCourseEmptyMessageFor(selectedDates, sport, server)}</p>}
 
       {selectedCourse && (
         <div className="space-y-2 rounded-md border bg-muted/40 p-3">

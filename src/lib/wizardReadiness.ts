@@ -37,7 +37,8 @@ export function itemReadinessIssues(item: CartItem, itemIndex: number): Readines
       else if (item.groupPlan.persistenceBlocker) add("course", item.groupPlan.persistenceBlocker);
     }
   }
-  if (item.meetingPoint === null) add("meetingPoint", "Treffpunkt fehlt");
+  // Group meeting point comes from the selected course (read-only), never a manual default.
+  if (item.productType !== "group" && item.meetingPoint === null) add("meetingPoint", "Treffpunkt fehlt");
   if (item.assignedParticipantIds.length === 0) add("participants", "Teilnehmer fehlen");
   return issues;
 }

@@ -1,3 +1,4 @@
+import { buildCoursePlanningLink } from "@/lib/schedulerCourseLink";
 import { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useDraggable } from "@dnd-kit/core";
@@ -98,8 +99,8 @@ export function BookingBar({ booking, slotWidth, instructorSpecialization, isPla
       e.stopPropagation();
       
       if (isGroup) {
-        // Navigate to Training Capacity page with course filter
-        navigate(`/trainings/capacity?course=${booking.ticketId}`);
+        // Open Wochenplanung at the exact course, day and session
+        navigate(buildCoursePlanningLink(booking));
       } else if (isPrivate) {
         // Open detail dialog for private bookings
         setIsDetailOpen(true);

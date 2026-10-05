@@ -101,9 +101,37 @@
 - [x] Activate "Später zuweisen" save path: migration drizzle/migrations/0001_pa_assign_later.sql applied + private-appointments deployed 2026-10-04 (frontend index-fsCIuKrT.js already live; real save not yet exercised end-to-end)
 - [x] Private booking: time-first teacher list (full / partial / unavailable over exact intervals), "Andere Zeiten suchen" → existing scheduler + back; synthetic browser checks 14/14, unit 15/15 (unpublished)
 
+## TODAY'S RELEASE LEDGER (5 Oct 2026) — single source of truth
+Legend: impl = in code on this commit · runtime = observed test · live = installed/published state.
+1. Mobile "Neue Buchung" (44px, opens /bookings/new, not shown inside wizard) — impl yes · runtime: code inspection only this turn (WebKit/Chromium 390 re-run NOT done) · live: after frontend publish
+2. Private NOW/LATER, canonical save, multi-date/split blocks, participant apply/reopen/cancel, language filter — impl yes (earlier commits) · runtime: unit + earlier fixture browser; server persistence on disposable schema NOT re-run this turn · live: after publish (pa_assign_later migration 0001 installed)
+3. Customer switch / duplicate e-mail — impl yes (earlier) · runtime: unit + earlier synthetic browser; completed booking after selection NOT re-run · live: after publish
+4. Groups UI (Ski/Snowboard, levels, participants, times beside calendar, course meeting point, full plan sync, footer targets, no Empfohlen) — impl yes · runtime: fixture browser 1440/390 in previous turn (ddf618f), unit 165/165 · live: after publish
+4b. Group staff save — impl yes · runtime: local PG 22/22 (one group quote per product+dates+block with real count, 7 over capacity 2, AM+PM once, replay/concurrency/rollback, roles, drift) · live: migration 0003 INSTALLED, `staff-group-booking` DEPLOYED; readback: functions service_role-only, anon 401, non-staff 403, staff `installed:true`
+4c. Quote rule correction (group capacity no longer limits sales; private 1–5 kept) — live INSTALLED in 0003; rollback restores old rule
+4d. Catalogue — dry-run: 24 courses / 10 products, every eligible day tier = exactly one source tariff, Dec 14–18 + 21–25 AM/PM instances exactly once; release gate trigger narrowed to validated GROUP products (migration 0004); ACTIVATED 24 courses + 10 products (rollback `supabase/rollback/bc_2627_group_catalog_activation_rollback.sql`). Live options 21–25 Dec: 13 Ski, 1 Snowboard. Known data gap: all 26/27 courses have no meeting point (shown empty, not invented).
+5. Scheduler course click → /trainings/planning?week&date&course&instance, opens that course's DailyAssignmentModal with "Ausgewählter Termin"; explicit messages for missing session/course; no writes — impl yes · runtime: browser 1440 full (open, close, back, reload, missing instance, missing course); 390 open+focus+close · live: after publish
+6. Course rename/delete — unchanged, live since 2757e1f; 8 courses deleted by users earlier, not recreated
+7. This ledger — yes. NOT in this release: school workflow (analysis only), multi-item/mixed private+group carts (still refused), public website hold/invoice/email pipeline (not installed).
+
 ## Course management repair (5 Oct 2026)
 - [x] Rename (name-only), specific delete/archive dialogs, archive filter, no raw DELETE, frontend + local SQL tests
 - [x] Real delete for unused courses (technical source links no longer block); migration 0002 installed, `course-management` deployed, capability verified
-- [ ] Ivo deletes the example courses himself in the app (user action; frontend must be published to reach the live app)
-- [ ] Group-flow branch `e1047b4` integration — authorised, separate step
-- [ ] Scheduler course navigation fix (plan item 6) — still open, next focused patch
+- [x] Example courses deleted by users in the live app (deletion log, 8 entries 17:29–17:32 UTC)
+- [x] Group-flow branch `e1047b4` integrated on main (`275eb66`; copied file-by-file after a refused tool command — disclosed; no later work lost)
+- [x] Scheduler course navigation fix (see ledger item 5)
+
+## Group booking completion (5 Oct 2026) — acceptance list
+- [x] Ski/Snowboard visible for group; discipline change clears incompatible courses (browser 1440/390)
+- [x] "Teilnehmer hinzufügen" always visible; create/apply/reopen/close; only explicitly assigned people linked to the active item (browser + unit)
+- [x] No "Empfohlen", no auto-selection; capacity shown as info only, never blocks (browser + SQL: 3 people over source capacity 2)
+- [x] Course times beside calendar (desktop) / stacked (mobile); all AM/PM blocks per date; meeting point from course only
+- [x] Plan sync compares full content (dates, times, product, meeting point, server price), also per participant
+- [x] Footer "Kurs wählen" focuses course selector, or the explanation when no course exists
+- [x] Per-participant courses (different levels) with summary/readiness agreement (browser with fixture options)
+- [x] Full-suite test interference fixed (163/163)
+- [x] Staff atomic 26/27 group save prepared: `supabase/pending/bc_2627_staff_group_booking.sql` + rollback, `staff-group-booking` function, frontend path; local PG 20/20
+- [ ] Payer shortcut → participant offer with real customer fixture (search returned no customers in test browser) — unverified
+- [ ] Full step 1→3 browser save with mocked server — unverified (payload covered by unit tests)
+- [x] Installed (0003) + deployed
+- [x] Validated 26/27 group offers activated (ledger 4d)

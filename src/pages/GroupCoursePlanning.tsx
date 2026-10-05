@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { startOfWeek, parseISO } from 'date-fns';
+import { startOfWeek, format } from 'date-fns';
+import { resolvePlanningWeek } from '@/lib/schedulerCourseLink';
 import { Calendar } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -79,22 +80,54 @@ function NoCourses() {
 }
 
 export default function GroupCoursePlanning() {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const weekParam = searchParams.get('week');
-  
-  const [currentWeek, setCurrentWeek] = useState(() => {
-    if (weekParam) {
-      try {
-        return parseISO(weekParam);
-      } catch {
-        return startOfWeek(new Date(), { weekStartsOn: 1 });
-      }
-    }
-    return startOfWeek(new Date(), { weekStartsOn: 1 });
-  });
-  const [selectedCourse, setSelectedCourse] = useState<GroupPlanningCourse | null>(null);
+  const courseParam = searchParams.get('course');
+  const dateParam = searchParams.get('date');
+  const instanceParam = searchParams.get('instance');
+  const linkWeek = resolvePlanningWeek(weekParam, dateParam);
+  const invalidLink = !!courseParam && (weekParam || dateParam) !== null && !linkWeek;
+
+  const [currentWeek, setCurrentWeek] = useState(
+    () => linkWeek ?? startOfWeek(new Date(), { weekStartsOn: 1 })
+  );
+  const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null);
+
+  // Follow browser back/forward between deep links: the URL week wins.
+  const linkWeekKey = linkWeek ? format(linkWeek, 'yyyy-MM-dd') : null;
+  useEffect(() => {
+    if (linkWeek && format(currentWeek, 'yyyy-MM-dd') !== linkWeekKey) setCurrentWeek(linkWeek);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [linkWeekKey]);
 
   const { courses, isLoading, hasInstances, stats } = useGroupPlanningData(currentWeek);
+  const weekMatchesLink = !!linkWeekKey && format(currentWeek, 'yyyy-MM-dd') === linkWeekKey;
+  const linkedCourse = courseParam && weekMatchesLink ? courses.find((c) => c.id === courseParam) ?? null : null;
+  const linkedInstance = linkedCourse && instanceParam
+    ? linkedCourse.instances.find((i) => i.id === instanceParam) ?? null
+    : null;
+  const linkProblem = !courseParam || isLoading || !weekMatchesLink
+    ? (invalidLink ? 'Der Link enthält kein gültiges Datum.' : null)
+    : !linkedCourse
+      ? 'Dieser Kurs ist in der verlinkten Woche nicht (mehr) vorhanden.'
+      : instanceParam && !linkedInstance
+        ? 'Der verlinkte Termin existiert nicht mehr. Die übrigen Termine des Kurses dieser Woche werden angezeigt.'
+        : null;
+
+  // Open the exact linked course once its week has loaded; never another course or week.
+  useEffect(() => {
+    if (linkedCourse) setSelectedCourseId(linkedCourse.id);
+  }, [linkedCourse?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const selectedCourse = selectedCourseId ? courses.find((c) => c.id === selectedCourseId) ?? null : null;
+  const closeCourse = () => {
+    setSelectedCourseId(null);
+    if (courseParam) {
+      const next = new URLSearchParams(searchParams);
+      next.delete('course'); next.delete('instance'); next.delete('date');
+      setSearchParams(next, { replace: true });
+    }
+  };
   const { data: instructors = [] } = useInstructors();
 
   const generateMutation = useGenerateInstances();
@@ -124,6 +157,12 @@ export default function GroupCoursePlanning() {
         hasInstances={hasInstances}
       />
 
+      {linkProblem && (
+        <div role="alert" data-testid="planning-link-problem" className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
+          {linkProblem}
+        </div>
+      )}
+
       {!isLoading && hasInstances && <GroupPlanningStats stats={stats} />}
 
       {isLoading ? (
@@ -140,7 +179,7 @@ export default function GroupCoursePlanning() {
               course={course}
               weekStart={currentWeek}
               instructors={instructors}
-              onDetailsClick={() => setSelectedCourse(course)}
+              onDetailsClick={() => setSelectedCourseId(course.id)}
             />
           ))}
         </div>
@@ -149,9 +188,10 @@ export default function GroupCoursePlanning() {
       <DailyAssignmentModal
         open={!!selectedCourse}
         onOpenChange={(open) => {
-          if (!open) setSelectedCourse(null);
+          if (!open) closeCourse();
         }}
         course={selectedCourse}
+        focusInstanceId={selectedCourse && selectedCourse.id === courseParam ? linkedInstance?.id ?? null : null}
         weekStart={currentWeek}
         instructors={instructors}
       />

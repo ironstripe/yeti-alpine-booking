@@ -213,6 +213,42 @@ export type Database = {
           },
         ]
       }
+      bc_2627_staff_group_submissions: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          submission_key: string
+          ticket_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          submission_key: string
+          ticket_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          submission_key?: string
+          ticket_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bc_2627_staff_group_submissions_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "pending_booking_confirmations"
+            referencedColumns: ["ticket_id"]
+          },
+          {
+            foreignKeyName: "bc_2627_staff_group_submissions_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "tickets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bc_product_tariff_sources: {
         Row: {
           created_at: string
@@ -5732,6 +5768,23 @@ export type Database = {
           p_instructor_id: string
           p_week_start_date: string
         }
+        Returns: Json
+      }
+      bc_2627_staff_group_blocks: {
+        Args: {
+          p_block: string
+          p_course: string
+          p_dates: string[]
+          p_duration: number
+        }
+        Returns: Json
+      }
+      bc_2627_staff_group_book: {
+        Args: { p: Json; p_actor: string }
+        Returns: Json
+      }
+      bc_2627_staff_group_options: {
+        Args: { p_dates: string[]; p_sport: string }
         Returns: Json
       }
       bc_apply_batch: {

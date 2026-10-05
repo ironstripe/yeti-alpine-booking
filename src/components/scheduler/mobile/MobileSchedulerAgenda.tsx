@@ -1,3 +1,4 @@
+import { buildCoursePlanningLink } from "@/lib/schedulerCourseLink";
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
@@ -68,7 +69,7 @@ export function MobileSchedulerAgenda({
 
   const handleBookingTap = (booking: SchedulerBooking) => {
     if (booking.type === "group") {
-      navigate(`/trainings/capacity?course=${booking.ticketId}`);
+      navigate(buildCoursePlanningLink(booking));
       return;
     }
     setDetailItemId(booking.id);
