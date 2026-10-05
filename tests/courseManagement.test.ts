@@ -1,16 +1,35 @@
 import { describe, expect, test } from "bun:test";
-import { classifyInvoke, describeBlockingDependencies, isDeletable, outcomeMessage, validateCourseName } from "../src/lib/courseManagement";
+import { classifyInvoke, describeBlockingDependencies, isCourseRelatedQueryKey, isDeletable, needsReadback, outcomeMessage, resolveReadback, validateCourseName } from "../src/lib/courseManagement";
 
 const httpErr = (status: number, body: unknown) => ({ name: "FunctionsHttpError", context: { status, json: async () => body } });
-const reported = { enrollments: 0, original_course_refs: 0, event_refs: 0, source_period_links: 2, source_product_links: 2, instances: 20, dates: 10 };
+const reported: Record<string, number> = { enrollments: 0, original_course_refs: 0, event_refs: 0, source_period_links: 2, source_product_links: 2, instances: 20, dates: 10 };
 
 describe("course dependencies", () => {
-  test("reported Saturday adult course: source links block, instances/dates alone do not", () => {
-    expect(isDeletable(reported)).toBe(false);
-    expect(describeBlockingDependencies(reported)).toEqual([
-      "2 Import-Periodenverknüpfungen (26/27)", "2 Import-Produktverknüpfungen (26/27)",
-    ]);
-    expect(isDeletable({ instances: 20, dates: 10 })).toBe(true);
+  test("technical source links and generated structure never block", () => {
+    expect(isDeletable(reported)).toBe(true);
+    expect(isDeletable({ instances: 98, groups: 20, source_period_links: 20, source_product_links: 1 })).toBe(true);
+  });
+  test("genuine usage blocks with counts", () => {
+    expect(isDeletable({ participant_course_refs: 1 })).toBe(false);
+    expect(describeBlockingDependencies({ enrollments: 2, assigned_groups: 1 })[0]).toContain("2 Kursanmeldungen");
+  });
+});
+
+describe("uncertain outcomes", () => {
+  test("network/server never claim unchanged without read-back", () => {
+    expect(needsReadback({ kind: "network" })).toBe(true);
+    expect(outcomeMessage({ kind: "network" })).not.toContain("unverändert");
+    expect(outcomeMessage({ kind: "unknown" })).toContain("unbekannt");
+  });
+  test("read-back resolves", () => {
+    expect(resolveReadback("delete", { kind: "network" }, null, false).kind).toBe("ok");
+    expect(resolveReadback("delete", { kind: "network" }, { archived_at: null }, false)).toEqual({ kind: "network", verified: true });
+    expect(resolveReadback("delete", { kind: "server" }, undefined, true).kind).toBe("unknown");
+    expect(resolveReadback("archive", { kind: "server" }, { archived_at: "x" }, false).kind).toBe("ok");
+  });
+  test("cache invalidation covers scheduler/planning", () => {
+    for (const k of ["scheduler-group-instances", "group-planning", "group-courses", "live-planning-my-groups"]) expect(isCourseRelatedQueryKey([k])).toBe(true);
+    expect(isCourseRelatedQueryKey(["invoices"])).toBe(false);
   });
 });
 
@@ -23,7 +42,7 @@ describe("classifyInvoke", () => {
   test("specific errors", async () => {
     const r = await classifyInvoke(null, httpErr(409, { error: "referenced", dependencies: reported }));
     expect(r.kind).toBe("referenced");
-    expect(outcomeMessage(r)).toContain("Import-Periodenverknüpfungen");
+    expect(outcomeMessage(r)).toContain("Nichts wurde geändert");
     expect((await classifyInvoke(null, httpErr(404, { error: "not_found" }))).kind).toBe("not_found");
     expect((await classifyInvoke(null, httpErr(404, "Function not found"))).kind).toBe("not_installed");
     expect((await classifyInvoke(null, httpErr(503, { error: "not_installed" }))).kind).toBe("not_installed");
