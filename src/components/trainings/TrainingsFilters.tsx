@@ -67,6 +67,7 @@ export function TrainingsFilters({
           <SelectItem value="all">Alle</SelectItem>
           <SelectItem value="active">Aktiv</SelectItem>
           <SelectItem value="inactive">Inaktiv</SelectItem>
+          <SelectItem value="archived">Archiviert</SelectItem>
         </SelectContent>
       </Select>
     </div>

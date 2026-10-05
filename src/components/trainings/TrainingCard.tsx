@@ -13,8 +13,10 @@ import {
   AlertTriangle,
   Copy,
   Trash2,
-  ArrowRight,
-  BarChart3
+  BarChart3,
+  PencilLine,
+  Archive,
+  ArchiveRestore,
 } from 'lucide-react';
 import type { GroupCourseWithSchedules } from '@/types/group-courses';
 import { DISCIPLINES, DAYS_OF_WEEK } from '@/types/group-courses';
@@ -25,13 +27,17 @@ interface TrainingCardProps {
   onCopy: (course: GroupCourseWithSchedules) => void;
   onViewCapacity: (course: GroupCourseWithSchedules) => void;
   onDelete: (course: GroupCourseWithSchedules) => void;
+  onRename: (course: GroupCourseWithSchedules) => void;
+  onArchive: (course: GroupCourseWithSchedules) => void;
+  onRestore: (course: GroupCourseWithSchedules) => void;
 }
 
-export function TrainingCard({ course, onEdit, onCopy, onViewCapacity, onDelete }: TrainingCardProps) {
+export function TrainingCard({ course, onEdit, onCopy, onViewCapacity, onDelete, onRename, onArchive, onRestore }: TrainingCardProps) {
   const disciplineLabel = DISCIPLINES.find(d => d.value === course.discipline)?.label || course.discipline;
 
   const isSaturdayCourse = course.course_type === 'saturday_course';
   const isOfficeCourse = course.course_type === 'office' || course.is_internal;
+  const isArchived = !!course.archived_at;
 
   // Get unique days from schedules (for weekly courses)
   const scheduleDays = [...new Set(course.schedules.map(s => s.day_of_week))].sort();
@@ -78,6 +84,9 @@ export function TrainingCard({ course, onEdit, onCopy, onViewCapacity, onDelete 
             )}
             {isSaturdayCourse && (
               <Badge variant="secondary">Samstagskurs</Badge>
+            )}
+            {isArchived && (
+              <Badge variant="outline">Archiviert</Badge>
             )}
             {!course.is_active && (
               <Badge variant="secondary">Inaktiv</Badge>
@@ -198,38 +207,45 @@ export function TrainingCard({ course, onEdit, onCopy, onViewCapacity, onDelete 
 
         {/* Actions */}
         <div className="flex flex-wrap gap-2 pt-2">
-          <Button 
-            variant="outline" 
-            size="sm" 
-            className="flex-1"
-            onClick={() => onEdit(course)}
-          >
-            <Edit className="h-4 w-4 mr-1" />
-            Bearbeiten
+          {!isArchived && (
+            <Button variant="outline" size="sm" className="flex-1 min-h-9" onClick={() => onEdit(course)}>
+              <Edit className="h-4 w-4 mr-1" />
+              Bearbeiten
+            </Button>
+          )}
+          <Button variant="outline" size="sm" className="min-h-9" onClick={() => onRename(course)}
+            aria-label={`${course.name} umbenennen`} title="Umbenennen">
+            <PencilLine className="h-4 w-4" />
           </Button>
-          <Button 
-            variant="outline" 
-            size="sm"
-            onClick={() => onCopy(course)}
-            title="Duplizieren"
-          >
-            <Copy className="h-4 w-4" />
-          </Button>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            className="flex-1"
-            onClick={() => onViewCapacity(course)}
-          >
-            <BarChart3 className="h-4 w-4 mr-1" />
-            Kapazität
-          </Button>
-          <Button 
-            variant="outline" 
+          {!isArchived && (
+            <>
+              <Button variant="outline" size="sm" className="min-h-9" onClick={() => onCopy(course)}
+                aria-label={`${course.name} duplizieren`} title="Duplizieren">
+                <Copy className="h-4 w-4" />
+              </Button>
+              <Button variant="outline" size="sm" className="flex-1 min-h-9" onClick={() => onViewCapacity(course)}>
+                <BarChart3 className="h-4 w-4 mr-1" />
+                Kapazität
+              </Button>
+              <Button variant="outline" size="sm" className="min-h-9" onClick={() => onArchive(course)}
+                aria-label={`${course.name} archivieren`} title="Archivieren">
+                <Archive className="h-4 w-4" />
+              </Button>
+            </>
+          )}
+          {isArchived && (
+            <Button variant="outline" size="sm" className="flex-1 min-h-9" onClick={() => onRestore(course)}>
+              <ArchiveRestore className="h-4 w-4 mr-1" />
+              Wiederherstellen
+            </Button>
+          )}
+          <Button
+            variant="outline"
             size="sm"
             onClick={() => onDelete(course)}
+            aria-label={`${course.name} löschen`}
             title="Löschen"
-            className="text-destructive hover:text-destructive hover:bg-destructive/10"
+            className="min-h-9 text-destructive hover:text-destructive hover:bg-destructive/10"
           >
             <Trash2 className="h-4 w-4" />
           </Button>
