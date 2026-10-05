@@ -60,7 +60,9 @@ import {
 } from "@/lib/group-course-utils";
 import type { Tables } from "@/integrations/supabase/types";
 import { buildWizardTimeSlot, parseWizardTimeSlot } from "@/lib/privatePlan";
-import { buildIntendedIntervals, type IntendedInterval } from "@/lib/teacherShortlist";
+import { type IntendedInterval, type IntervalPlan } from "@/lib/teacherShortlist";
+import { buildEffectivePrivatePlan } from "@/lib/effectivePrivatePlan";
+import type { ReadinessField } from "@/lib/wizardReadiness";
 
 // Available start and end times (lift hours: 09:00 - 16:00)
 const START_TIMES = ["09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00"];
@@ -486,10 +488,10 @@ export function Step2ProductAllocation() {
     }
   };
 
-  // Exact intervals this item will book (same derivation as the save path, no default times)
-  const intervalPlan = useMemo(
+  // One effective, validated plan (same as readiness + save mapping, no default times).
+  const effectivePlan = useMemo(
     () =>
-      buildIntendedIntervals({
+      buildEffectivePrivatePlan({
         selectedDates: state.selectedDates,
         timeSlot: state.timeSlot,
         appointments: state.appointments,
@@ -499,6 +501,13 @@ export function Step2ProductAllocation() {
       }),
     [state.selectedDates, state.timeSlot, state.appointments, state.timeSelections, state.dayTimeOverrides, state.dayInstructorOverrides],
   );
+  // Shape for the teacher list: an invalid plan is never offered as bookable.
+  const intervalPlan: IntervalPlan = effectivePlan.status === "ready"
+    ? { status: "ready", intervals: effectivePlan.intervals }
+    : effectivePlan.status === "missing_dates"
+      ? { status: "missing_dates" }
+      : { status: "missing_time", datesWithoutTime: effectivePlan.status === "missing_time" ? effectivePlan.datesWithoutTime : [] };
+  const planError = effectivePlan.status === "invalid" ? effectivePlan.message : null;
 
   const activeAssignedIds = useMemo(
     () => state.cartItems.find((item) => item.id === state.activeCartItemId)?.assignedParticipantIds ?? [],
@@ -551,6 +560,33 @@ export function Step2ProductAllocation() {
       focusMissingTime();
     }
   }, [startTime, endTime, focusMissingTime]);
+
+  // Readiness panel near "Weiter" asks this item to reveal a missing field.
+  useEffect(() => {
+    const onFocusField = (event: Event) => {
+      const field = (event as CustomEvent<ReadinessField>).detail;
+      if (field === "time") {
+        focusMissingTime();
+        return;
+      }
+      const sectionId = {
+        product: "booking-section-title",
+        dates: "date-section-title",
+        meetingPoint: "date-section-title",
+        teacher: "assignment-section-title",
+        participants: "participants-section-title",
+      }[field];
+      const section = document.getElementById(sectionId)?.closest("section");
+      if (!section) return;
+      section.scrollIntoView({ behavior: "smooth", block: "start" });
+      const target = field === "participants"
+        ? section.querySelector<HTMLElement>("[data-participant-entry]")
+        : section.querySelector<HTMLElement>("button:not([disabled]), [role=radio], input");
+      target?.focus({ preventScroll: true });
+    };
+    window.addEventListener("wizard-focus-field", onFocusField);
+    return () => window.removeEventListener("wizard-focus-field", onFocusField);
+  }, [focusMissingTime]);
 
   // Fullscreen ESC handler
   useEffect(() => {
@@ -915,13 +951,14 @@ export function Step2ProductAllocation() {
               className="control-target"
               disabled={intervalPlan.status === "ready" && !teacherDecided}
               onClick={openParticipantEntry}
+              data-participant-entry
             >
               <Users className="mr-1 h-4 w-4" />
               {activeAssignedIds.length > 0 ? "Teilnehmer bearbeiten" : "Teilnehmer hinzufügen"}
             </Button>
             {intervalPlan.status !== "ready" && (
               <span className="text-xs text-muted-foreground">
-                {intervalPlan.status === "missing_dates" ? "Zuerst Datum wählen." : "Zuerst Zeitfenster wählen."}
+                {planError ?? (intervalPlan.status === "missing_dates" ? "Zuerst Datum wählen." : "Zuerst Zeitfenster wählen.")}
               </span>
             )}
             {intervalPlan.status === "ready" && !teacherDecided && (
@@ -964,6 +1001,7 @@ export function Step2ProductAllocation() {
           onAddToCart={popoverSlot.plannedIntervals ? handleListAddToCart : handleSlotAddToCart}
           initialParticipantIds={popoverSlot.initialParticipantIds}
           title={popoverSlot.title}
+          participantEntry={!!popoverSlot.plannedIntervals && popoverSlot.title === "Teilnehmer zuweisen"}
         />
       )}
     </div>

@@ -2,7 +2,8 @@ import { createContext, useContext, useState, useCallback, ReactNode } from "rea
 import type { Tables } from "@/integrations/supabase/types";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchInstructor } from "@/lib/instructorsApi";
-import { dateSetChanged, deriveFromPlan, hasValidPrivateTiming, sortPlan, toMin, validatePlan } from "@/lib/privatePlan";
+import { dateSetChanged, dayBlocksBeforeAdd, deriveFromPlan, sortPlan, toMin, validatePlan } from "@/lib/privatePlan";
+import { cartReadinessIssues, type ReadinessIssue } from "@/lib/wizardReadiness";
 import { applyAssignLater } from "@/lib/assignLaterState";
 
 export type WizardStep = 1 | 2 | 3;
@@ -413,6 +414,8 @@ interface BookingWizardContextType {
   goToNextStep: () => void;
   goToPreviousStep: () => void;
   canProceed: () => boolean;
+  /** Step-1 blockers per cart item (same rules as canProceed). */
+  getStepOneIssues: () => ReadinessIssue[];
   resetWizard: () => void;
   // Cart management
   addCartItem: () => void;
@@ -565,7 +568,10 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
       ...prev,
       customer,
       customerId: customer?.id ?? null,
-      selectedParticipants: [],
+      // Keep participants already linked to a lesson in step 1 (payer comes later).
+      selectedParticipants: prev.selectedParticipants.filter((p) =>
+        prev.cartItems.some((item) => item.assignedParticipantIds.includes(p.id)),
+      ),
       // Pre-fill language from customer if available
       language: customer?.language ?? "de",
     }));
@@ -617,6 +623,22 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
     setState((prev) => ({
       ...prev,
       localParticipants: [],
+      // Persisted locals become regular selected participants (new DB id, same data),
+      // so the submit can resolve every linked participant.
+      selectedParticipants: [
+        ...prev.selectedParticipants.filter((p) => !Object.values(idMap).includes(p.id)),
+        ...prev.localParticipants
+          .filter((lp) => idMap[lp.id])
+          .map((lp) => ({
+            id: idMap[lp.id],
+            first_name: lp.first_name,
+            last_name: lp.last_name ?? null,
+            birth_date: lp.birth_date ?? "",
+            level_last_season: null,
+            level_current_season: lp.skill_level ?? null,
+            sport: lp.sport,
+          }) as SelectedParticipant),
+      ],
       cartItems: prev.cartItems.map((item) => ({
         ...item,
         assignedParticipantIds: item.assignedParticipantIds.map(
@@ -883,7 +905,14 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
   // Adds an additional time block to a day
   const addTimeBlock = (date: string, startTime: string, endTime: string, instructorId?: string | null) => {
     setState((prev) => {
-      const existing = prev.dayTimeOverrides[date] || [];
+      // First extra block on a day without blocks: keep the day's effective lesson
+      // (per-day selection, else shared window) instead of silently replacing it.
+      const existing = dayBlocksBeforeAdd(
+        prev.dayTimeOverrides[date],
+        prev.timeSelections?.find((t) => t.date === date),
+        prev.timeSlot,
+        generateTimeBlockId,
+      );
       return {
         ...prev,
         dayTimeOverrides: {
@@ -1502,31 +1531,18 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
     }));
   };
 
+  const getStepOneIssues = (): ReadinessIssue[] =>
+    cartReadinessIssues(
+      state.cartItems.map((item) =>
+        item.id === state.activeCartItemId ? extractCartItemFromState(state, item.id) : item,
+      ),
+    );
+
   const canProceed = (): boolean => {
     switch (state.currentStep) {
-      case 1: {
-        // Step 1: Product + Participants - all cart items must have valid config + participants
-        const allItems = state.cartItems.map(item =>
-          item.id === state.activeCartItemId
-            ? extractCartItemFromState(state, item.id)
-            : item
-        );
-        
-        // Must have at least one valid cart item
-        if (allItems.length === 0) return false;
-        
-        // Every cart item must have product, dates, meeting point, and participants
-        return allItems.every(item => {
-          const hasProduct = item.productType !== null && item.selectedDates.length > 0;
-          const hasMeetingPoint = item.meetingPoint !== null;
-          const hasParticipants = item.assignedParticipantIds.length > 0;
-          
-          if (item.productType === "private") {
-            return hasProduct && hasValidPrivateTiming(item.timeSlot, item.appointments) && hasMeetingPoint && hasParticipants && (item.instructorId !== null || item.assignLater);
-          }
-          return hasProduct && hasMeetingPoint && hasParticipants;
-        });
-      }
+      case 1:
+        // Every cart item must be complete; reasons are exposed via getStepOneIssues.
+        return getStepOneIssues().length === 0;
       case 2:
         // Step 2: Customer (payer) required; if local participants exist, customer must be set to persist them
         return state.customer !== null;
@@ -1766,6 +1782,7 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
         goToNextStep,
         goToPreviousStep,
         canProceed,
+        getStepOneIssues,
         resetWizard,
         // Cart management
         addCartItem,
