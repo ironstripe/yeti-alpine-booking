@@ -17,7 +17,7 @@ mock.module("@/hooks/useProducts", () => ({ ...realProducts, useProducts: () => 
 mock.module("@/hooks/useLunchProduct", () => ({ ...realLunch, useLunchProduct: () => ({ data: { id: "l", price: 30 }, isLoading: false }) }));
 mock.module("@/hooks/usePrivateLessonRates", () => ({ ...realRates, usePrivateLessonRates: () => ({ data: [] }), useHighSeasonPeriods: () => ({ data: [] }) }));
 
-const { PriceBreakdown } = await import("../src/components/bookings/wizard/PriceBreakdown");
+const { PriceBreakdown } = await import("../src/components/bookings/wizard/PriceBreakdown.tsx?real-under-test");
 
 const WEEK = ["2026-12-14", "2026-12-15", "2026-12-16", "2026-12-17", "2026-12-18"];
 const XMAS = ["2026-12-21", "2026-12-22", "2026-12-23", "2026-12-24", "2026-12-25"];
