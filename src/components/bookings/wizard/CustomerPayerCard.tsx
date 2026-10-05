@@ -20,6 +20,16 @@ export function CustomerPayerCard({
   const [isCreating, setIsCreating] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
 
+  const openCustomerSearch = () => {
+    setIsCreating(false);
+    setIsSearching(true);
+  };
+
+  const cancelCustomerSearch = () => {
+    setIsCreating(false);
+    setIsSearching(false);
+  };
+
   // Show search when no customer selected
   if (!customer || isSearching) {
     return (
@@ -34,8 +44,9 @@ export function CustomerPayerCard({
             <Button
               variant="ghost"
               size="sm"
+              type="button"
               className="control-target text-xs"
-              onClick={() => setIsSearching(false)}
+              onClick={cancelCustomerSearch}
             >
               Abbrechen
             </Button>
@@ -53,8 +64,10 @@ export function CustomerPayerCard({
         ) : (
           <CustomerSearch
             selectedCustomer={null}
+            autoFocus
             onSelect={(selected) => {
               onCustomerChange(selected);
+              setIsCreating(false);
               setIsSearching(false);
             }}
             onClear={() => {}}
@@ -78,6 +91,7 @@ export function CustomerPayerCard({
           <Button
             variant="ghost"
             size="sm"
+            type="button"
             className="control-target gap-1 px-2 text-xs"
             onClick={() => setIsEditing(true)}
           >
@@ -87,11 +101,12 @@ export function CustomerPayerCard({
           <Button
             variant="ghost"
             size="sm"
+            type="button"
             className="control-target gap-1 px-2 text-xs"
-            onClick={() => setIsSearching(true)}
+            onClick={openCustomerSearch}
           >
             <Search className="h-3 w-3" />
-            Wechseln
+            Kunde wechseln
           </Button>
         </div>
       </div>

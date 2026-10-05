@@ -18,6 +18,7 @@ interface CustomerSearchProps {
   onSelect: (customer: Tables<"customers">) => void;
   onClear: () => void;
   onCreateNew?: () => void;
+  autoFocus?: boolean;
 }
 
 export function CustomerSearch({
@@ -25,6 +26,7 @@ export function CustomerSearch({
   onSelect,
   onClear,
   onCreateNew,
+  autoFocus = false,
 }: CustomerSearchProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [isOpen, setIsOpen] = useState(false);
@@ -107,6 +109,7 @@ export function CustomerSearch({
       <div className="relative">
         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <Input
+          autoFocus={autoFocus}
           placeholder="Name, Kundennummer, E-Mail, Telefon oder Teilnehmer..."
           value={searchQuery}
           onChange={(e) => {
