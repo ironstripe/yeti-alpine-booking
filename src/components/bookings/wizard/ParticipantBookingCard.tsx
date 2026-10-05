@@ -5,7 +5,7 @@ import { de } from "date-fns/locale";
 
 import type { ParticipantBookingDetails, SelectedParticipant } from "@/contexts/BookingWizardContext";
 import { useBookableGroupCourses } from "@/hooks/useBookableGroupCourses";
-import { groupCourseEmptyMessageFor } from "@/lib/groupCoursePlan";
+import { groupCourseEmptyMessageFor, sameGroupPlan } from "@/lib/groupCoursePlan";
 import { getLevelLabel } from "@/lib/level-utils";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -30,7 +30,14 @@ export function ParticipantBookingCard({ participant, booking, sport, onBookingC
 
   useEffect(() => {
     if (isLoading || isError || !booking.groupCourseId) return;
-    if (!selected) onBookingChange({ ...booking, groupCourseId: null, groupCourseName: null, groupProductName: null, groupMeetingPoint: null, groupBlocks: [], groupPersistenceBlocker: null, groupServer: null });
+    if (!selected) {
+      onBookingChange({ ...booking, groupCourseId: null, groupCourseName: null, groupProductName: null, groupMeetingPoint: null, groupBlocks: [], groupPersistenceBlocker: null, groupServer: null });
+      return;
+    }
+    // Same option id but changed content (blocks/price/meeting point): refresh, never keep a stale snapshot.
+    const current = { courseId: booking.groupCourseId, productName: booking.groupProductName ?? null, meetingPoint: booking.groupMeetingPoint ?? null, blocks: booking.groupBlocks ?? [], persistenceBlocker: booking.groupPersistenceBlocker ?? null, server: booking.groupServer ?? null };
+    const fresh = { courseId: selected.id, productName: selected.product?.name ?? null, meetingPoint: selected.meeting_point, blocks: selected.blocks, persistenceBlocker: selected.persistenceBlocker, server: selected.server ?? null };
+    if (!sameGroupPlan(current, fresh)) selectCourse(selected.id);
   }, [booking, isError, isLoading, onBookingChange, selected]);
 
   const selectCourse = (courseId: string) => {
