@@ -3,9 +3,11 @@
 import { describe, expect, mock, test } from "bun:test";
 import { renderToStaticMarkup } from "react-dom/server";
 import { buildEffectivePrivatePlan } from "../src/lib/effectivePrivatePlan";
+import * as realWizardContext from "../src/contexts/BookingWizardContext";
 
 let state: Record<string, unknown> = {};
-mock.module("@/contexts/BookingWizardContext", () => ({ useBookingWizard: () => ({ state }) }));
+// Keep every real export (e.g. createEmptyCartItem) so other test files sharing the module registry are unaffected.
+mock.module("@/contexts/BookingWizardContext", () => ({ ...realWizardContext, useBookingWizard: () => ({ state }) }));
 mock.module("@/hooks/useInstructors", () => ({
   useInstructors: () => ({ data: [{ id: "t1", first_name: "Tina", last_name: "Synth" }] }),
 }));
