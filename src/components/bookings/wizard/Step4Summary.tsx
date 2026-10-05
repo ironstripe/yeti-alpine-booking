@@ -110,7 +110,27 @@ export function Step4Summary({ onEditStep }: Step4SummaryProps) {
     setDiscountReason(reason);
   };
 
+  // Private submit links exactly the participants applied to the active lesson in step 1.
+  const activeItem = state.cartItems.find((item) => item.id === state.activeCartItemId);
+  const linkedIds = activeItem?.assignedParticipantIds ?? [];
+  const linkedParticipants = linkedIds
+    .map((id) => state.selectedParticipants.find((p) => p.id === id))
+    .filter((p): p is NonNullable<typeof p> => !!p);
+  const participantsUnresolved =
+    state.productType === "private" && linkedParticipants.length !== linkedIds.length;
+  // The create path saves the active lesson only; never drop further cart items silently.
+  const multiItemBlocked = !state.isEditMode && state.cartItems.length > 1;
+
   const handleCreateBooking = async () => {
+    if (!state.isEditMode && multiItemBlocked) {
+      toast.error("Mehrere Unterrichte können noch nicht gemeinsam gespeichert werden.");
+      return;
+    }
+    if (!state.isEditMode && participantsUnresolved) {
+      toast.error("Teilnehmer sind noch nicht dem Kunden zugeordnet. Bitte im Kunden-Schritt prüfen.");
+      return;
+    }
+
     if (!state.isEditMode && !paymentMethod) {
       toast.error("Bitte wähle eine Zahlungsart");
       return;
@@ -185,6 +205,7 @@ export function Step4Summary({ onEditStep }: Step4SummaryProps) {
         // CREATE MODE: Use createBooking hook
         const result = await createBooking.mutateAsync({
           ...state,
+          ...(state.productType === "private" ? { selectedParticipants: linkedParticipants } : {}),
           paymentMethod,
           settlement,
           billingPartnerId,
@@ -293,6 +314,14 @@ export function Step4Summary({ onEditStep }: Step4SummaryProps) {
         </div>
       </div>
 
+      {!state.isEditMode && (multiItemBlocked || participantsUnresolved) && (
+        <p role="alert" className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-foreground">
+          {multiItemBlocked
+            ? "Im Warenkorb sind mehrere Unterrichte. Sie können noch nicht gemeinsam gespeichert werden – bitte je Unterricht eine Buchung erstellen."
+            : "Teilnehmer sind noch nicht dem Kunden zugeordnet. Bitte im Kunden-Schritt prüfen."}
+        </p>
+      )}
+
       {/* Sticky Footer with action buttons */}
       <div className="sticky bottom-0 -mx-4 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 p-4">
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-4">
@@ -306,7 +335,7 @@ export function Step4Summary({ onEditStep }: Step4SummaryProps) {
 
           <Button 
             onClick={handleCreateBooking} 
-            disabled={createBooking.isPending || updateBooking.isPending}
+            disabled={createBooking.isPending || updateBooking.isPending || (!state.isEditMode && (multiItemBlocked || participantsUnresolved))}
             className="min-w-[180px]"
           >
             {(createBooking.isPending || updateBooking.isPending) ? (
