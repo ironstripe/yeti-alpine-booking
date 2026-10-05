@@ -148,6 +148,11 @@ export function useCreateBooking() {
         return { ticketId: created.ticket_id, ticketNumber: created.ticket_number };
       }
 
+      // New (not yet saved) people are only created by the atomic server paths (private / 26/27 group).
+      if (state.productType !== "private" && state.selectedParticipants.some((p) => p.isGuest || p.id.startsWith("local-") || p.id.startsWith("guest-"))) {
+        throw new Error("Neue Teilnehmer können bei diesem Kurs nicht direkt mitgespeichert werden. Bitte den Teilnehmer zuerst beim Kunden anlegen und dann zuweisen.");
+      }
+
       // ============ #15 GROUP PREFLIGHT (before ANY write) ============
       // Covers shared group bookings and every group participant of the
       // participant-specific / mixed family path.
