@@ -1,6 +1,7 @@
 // Client for the staff-only `staff-group-booking` Edge Function (26/27 group courses).
 import { supabase } from "@/integrations/supabase/client";
 import type { ServerGroupOption } from "@/lib/groupCoursePlan";
+import type { StaffFinalization } from "@/lib/privateAppointmentsApi";
 
 export type StaffGroupOptionsResult =
   | { status: "installed"; options: ServerGroupOption[] }
@@ -52,13 +53,17 @@ const FIELD_MESSAGES: Record<string, string> = {
   lunch_price_changed: "Der Preis der Mittagsbetreuung hat sich geändert – bitte prüfen.",
   lunch_product: "Für die Mittagsbetreuung ist kein eindeutiger Preis hinterlegt.",
   line_shape: "Ungültige Buchungsdaten – bitte Kurs neu wählen.",
+  payment_method: "Ungültige Zahlungsart.",
+  billing_partner_id: "Bitte das Hotel wählen, das die Rechnung übernimmt.",
+  settlement: "Ungültige Zahlungsangabe.",
+  finalization: "Ungültige Zahlungs- oder Notizangaben.",
 };
 
 /**
  * Throws with an honest message. `unknown: true` means the outcome is unknown (network/5xx):
  * the caller must not claim that nothing was saved; a retry with the same key is safe.
  */
-export async function createStaffGroupBooking(payload: { submission_key: string; customer_id: string; notes?: string; lines: StaffGroupLine[] }): Promise<StaffGroupBookingResult> {
+export async function createStaffGroupBooking(payload: { submission_key: string; customer_id: string; notes?: string; lines: StaffGroupLine[]; finalization?: StaffFinalization }): Promise<StaffGroupBookingResult> {
   const { data, error } = await supabase.functions.invoke("staff-group-booking", { body: { action: "create", booking: payload } });
   if (error) {
     const ctx = (error as { context?: Response }).context;

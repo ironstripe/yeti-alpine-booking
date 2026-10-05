@@ -58,6 +58,17 @@ async function call<T>(body: Record<string, unknown>): Promise<T> {
   );
 }
 
+/** Office settlement/notes applied in the same server transaction as the booking. */
+export interface StaffFinalization {
+  payment_method: string | null;
+  settlement: "paid_now" | "pay_later";
+  billing_partner_id: string | null;
+  payment_due_date: string | null;
+  internal_notes?: string;
+  instructor_notes?: string;
+  conversation_id?: string;
+}
+
 export type PaParticipant =
   | { participant_id: string }
   | { guest_key: string; first_name: string; last_name?: string; birth_date: string; sport?: "ski" | "snowboard" };
@@ -71,6 +82,7 @@ export const paCreate = (p: {
   submission_key: string; customer_id: string; product_id: string; notes?: string;
   appointments: PaSlot[]; participants: PaParticipant[];
   discount_percent?: number; discount_reason?: string;
+  finalization?: StaffFinalization;
 }) => call<{ ticket_id: string; ticket_number: string; appointment_ids: string[]; total: number; replayed?: boolean }>(
   { action: "create", ...p },
 );
