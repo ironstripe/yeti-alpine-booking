@@ -81,6 +81,7 @@ interface SlotBookingPopoverProps {
    * Übernehmen / Verwerfen / Weiter bearbeiten. Other callers keep their behaviour.
    */
   participantEntry?: boolean;
+  participantsOnly?: boolean;
 }
 
 interface NewParticipantForm {
@@ -107,6 +108,7 @@ export function SlotBookingPopover({
   initialParticipantIds,
   title,
   participantEntry = false,
+  participantsOnly = false,
 }: SlotBookingPopoverProps) {
   const queryClient = useQueryClient();
   const { state, addLocalParticipant, removeLocalParticipant, setSelectedParticipants } = useBookingWizard();
@@ -301,7 +303,7 @@ export function SlotBookingPopover({
 
         <div className="space-y-4 mt-4">
           {/* Slot Info */}
-          {plannedIntervals ? (
+          {!participantsOnly && (plannedIntervals ? (
             <div className="space-y-2" data-testid="planned-intervals">
               <Badge variant="outline">{instructorId ? instructorName : "Lehrperson später zuweisen"}</Badge>
               <ul className="divide-y rounded-md border text-sm">
@@ -327,13 +329,13 @@ export function SlotBookingPopover({
               </Badge>
             ))}
           </div>
-          )}
+          ))}
 
-          <Separator />
+          {!participantsOnly && <Separator />}
 
           {/* Duration (hidden in planned mode: times come from the plan) */}
-          {!plannedIntervals && (
-          <div className="space-y-1.5">
+          {!plannedIntervals && !participantsOnly && (
+          {!participantsOnly && <div className="space-y-1.5">
             <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
               Dauer
             </Label>
@@ -353,7 +355,7 @@ export function SlotBookingPopover({
                 })}
               </SelectContent>
             </Select>
-          </div>
+          </div>}
           )}
 
           {/* Meeting Point */}
