@@ -263,12 +263,15 @@ export function useCreateBooking() {
 
       // Calculate lunch cost from lunchSelections (for groups) or includeLunch (for private)
       let lunchTotal = 0;
-      const lunchProduct = products?.find((p) => p.type === "lunch");
-      const lunchPricePerDay = lunchProduct ? Number(lunchProduct.price) : 25;
+      // Same unique-active lunch product as the server path; never a guessed price.
+      const lunchProducts = (products ?? []).filter((p) => p.type === "lunch");
+      const lunchProduct = lunchProducts.length === 1 && Number(lunchProducts[0].price) > 0 ? lunchProducts[0] : undefined;
+      const lunchPricePerDay = lunchProduct ? Number(lunchProduct.price) : 0;
       
       if (state.productType === "group" && Object.keys(state.lunchSelections).length > 0) {
         const totalLunchDays = Object.values(state.lunchSelections)
           .reduce((sum, days) => sum + days.length, 0);
+        if (totalLunchDays > 0 && !lunchProduct) throw new Error("Für die Mittagsbetreuung ist kein eindeutiger Preis hinterlegt. Bitte im Produktkatalog prüfen.");
         lunchTotal = totalLunchDays * lunchPricePerDay;
       } else if (state.includeLunch && lunchProduct) {
         lunchTotal = Number(lunchProduct.price) * daysCount;
