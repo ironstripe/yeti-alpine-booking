@@ -40,6 +40,20 @@ Make the existing group-booking path truthful and consistent from sport and date
    - Preserve existing internal visibility rules, including inactive 26/27 courses that have real enrollments. Do not activate a course, generate instances/groups, change enrollment/assignment/price, or make any live write merely by opening details.
    - Keep this patch identifiable from the group wizard changes; no publication.
 
+7. **Make course renaming explicit and side-effect-free (user request, 5 Oct 2026)**
+   - Existing source: TrainingCard already offers Bearbeiten; TrainingFormModal exposes the name as “Name (= Niveau)” and says the name defines the level. Correct this misleading distinction: “Kursname” is a display name, not the course's skill-level identity.
+   - Provide a clearly labelled, discoverable “Umbenennen” action using the existing Yeti input/confirmation patterns (also usable on touch), prefilled current name, explicit Save and Cancel/ESC. Reuse the existing update mechanism with a name-only partial payload where safe; do not create/copy a course or submit the full course schedule form for renaming.
+   - Confirmed existing hazard: TrainingFormModal submits all schedule days/time slots even when only name changes; useUpdateGroupCourse deletes/recreates weekly schedule rows when schedules + weekly type are supplied. A rename must never trigger this branch, change schedule/date IDs, rebuild a day/time Cartesian product, or alter times, instructors, course/skill/product IDs, prices, source mappings, activity state or enrollments.
+   - Preserve existing validation, report rejected updates truthfully and do not show success for zero affected rows. Refresh relevant existing course, scheduler and planning reads so the new display name appears consistently. Keep historical issued invoice documents/text snapshots unchanged.
+   - Check existing name-based consumers before changing display labels; do not make sport, level or tariff depend on the newly editable display name. Preserve source/import identity.
+
+8. **Make course deletion discoverable and safe (user request, 5 Oct 2026)**
+   - Existing source: TrainingCard has an icon-only trash action; Trainings already confirms and useDeleteGroupCourse directly deletes group_courses by ID. Improve discoverability with a clearly labelled action and one named-course confirmation, using existing UI conventions.
+   - VERIFIED live schema risk: group_courses cascades deletion into course instances, schedules, course dates and training_groups; instances cascade to enrollments and transfer requests. Other source/history references restrict deletion, and some participant/course references are SET NULL. No course-delete guard trigger is present. Do not merely expose the current raw delete more prominently.
+   - Safe default to implement: truly unused courses can be deleted after confirmation; courses with bookings, enrollments, assignment/history/source/event/participant references must retain identity and receive a clear reason plus an explicit optional “Deaktivieren” alternative. Never silently deactivate when the user chose Delete, or silently cascade real booking history. Do not loosen foreign keys or erase source mappings to force deletion.
+   - Reuse existing facilities. A client-only count-then-delete is not a complete safety guard: protect the consequential hard-delete server-side against concurrent enrollment. Prepare and test the smallest required guard locally if none exists; do not apply/deploy any new SQL/RPC under this task. Until the protection is available, the UI must not offer an unsafe hard delete or claim the deletion feature is fully ready. Rename/discoverability work can proceed independently.
+   - No live course deletions, deactivations, renames or other test data writes. Preserve current roles/permissions, booking/pricing rules, group availability and internal visibility. Report server deployment dependency explicitly if required.
+
 ## Verification
 - Add focused pure tests for eligibility, all-date schedule matching, inactive/internal/stale-season exclusion, sport invalidation, no capacity lock, and split-block persistence blocking.
 - Exercise the actual wizard with synthetic catalog/participant/customer fixtures and all external writes blocked at 1440px and 390px.
@@ -47,6 +61,9 @@ Make the existing group-booking path truthful and consistent from sport and date
 - Run targeted tests, TypeScript, project build, diff checks, and inspect the final preview/build diagnostics. No publish, deployment, migration, live data, invoices, or notifications.
 
 - Scheduler regression: click/tap a synthetic group instance on 21 Dec 2026 from desktop and mobile; land in KW52 and open the matching course/session, not capacity/KW41. Cover a Sunday/week boundary and separate same-day blocks, inactive-but-internally-visible enrolled course, missing/inaccessible target, close/refetch/reopen and Back. Block external writes and verify opening/closing does not generate groups or mutate assignments.
+
+- Course management: synthetic desktop/mobile rename, Cancel/ESC, empty/invalid input, backend error/zero-row result; captured payload contains only the intended name update and existing update timestamp. Verify course/level/product/schedule/date IDs, bookings and historical invoice data are unchanged, including unequal schedules on different weekdays.
+- Deletion: synthetic unused course success, cancellation, in-use/source-linked course refusal with clear reason, explicit deactivation choice, permission/network failures and double-click safety. Any new server guard requires isolated database concurrency/regression tests; do not use production writes. State clearly if only UI and unapplied guard are prepared.
 
 ## Technical boundaries
 - Keep the legacy group save and 26/27 source-tariff preflight; do not activate catalog rows or introduce a new server booking path.
