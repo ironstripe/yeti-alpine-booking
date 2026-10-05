@@ -100,14 +100,15 @@ try {
     assert.equal(bad.field, 'billing_partner_id', JSON.stringify(bad)); assert.deepEqual(await counts(), before);
   });
   await t('group fault injection: payment insert fails -> whole booking rolled back; retry same key creates it once WITH payment; further retry replays', async () => {
-    await sql.unsafe(`CREATE FUNCTION public.t_fault() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'injected payment failure'; END $$;
+    await sql.unsafe(`CREATE FUNCTION public.t_fault() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'injected payment failure' USING ERRCODE = 'XX000'; END $$;
       CREATE TRIGGER t_fault BEFORE INSERT ON public.payments FOR EACH ROW EXECUTE FUNCTION public.t_fault();`);
     const sk = key();
     const p = { submission_key: sk, customer_id: CUST2, lines: [gline({ course_id: C_SB, sport: 'snowboard', meeting_point: undefined, dates: XMAS, guest: { guest_key: 'f1', first_name: 'Fa', birth_date: '2018-01-01' } })], finalization: fin({ payment_method: 'twint' }) };
     const before = await counts();
-    await assert.rejects(gbook(p), /injected payment failure/);
-    assert.deepEqual(await counts(), before, 'nothing persisted, no participant created');
-    await sql.unsafe('DROP TRIGGER t_fault ON public.payments; DROP FUNCTION public.t_fault();');
+    try {
+      await assert.rejects(gbook(p), /injected payment failure/);
+      assert.deepEqual(await counts(), before, 'nothing persisted, no participant created');
+    } finally { await sql.unsafe('DROP TRIGGER t_fault ON public.payments; DROP FUNCTION public.t_fault();'); }
     const r = await gbook(p); assert.ok(r.ok && !r.replayed, JSON.stringify(r));
     const r2 = await gbook(p); assert.equal(r2.replayed, true); assert.equal(r2.ticket_id, r.ticket_id);
     assert.equal((await sql`SELECT count(*)::int n FROM payments WHERE ticket_id=${r.ticket_id}`)[0].n, 1);
@@ -135,13 +136,14 @@ try {
     assert.deepEqual(await counts(), before);
   });
   await t('private fault injection: payment fails -> nothing persisted; retry same key -> once with payment; replay keeps one payment', async () => {
-    await sql.unsafe(`CREATE FUNCTION public.t_fault() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'injected payment failure'; END $$;
+    await sql.unsafe(`CREATE FUNCTION public.t_fault() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'injected payment failure' USING ERRCODE = 'XX000'; END $$;
       CREATE TRIGGER t_fault BEFORE INSERT ON public.payments FOR EACH ROW EXECUTE FUNCTION public.t_fault();`);
     const p = { ...plater({ participants: [{ guest_key: 'guest-new-2', first_name: 'Retry', birth_date: '2017-05-05' }] }), finalization: fin() };
     const before = await counts();
-    await assert.rejects(pbook(p), /injected payment failure/);
-    assert.deepEqual(await counts(), before);
-    await sql.unsafe('DROP TRIGGER t_fault ON public.payments; DROP FUNCTION public.t_fault();');
+    try {
+      await assert.rejects(pbook(p), /injected payment failure/);
+      assert.deepEqual(await counts(), before);
+    } finally { await sql.unsafe('DROP TRIGGER t_fault ON public.payments; DROP FUNCTION public.t_fault();'); }
     const r = await pbook(p); assert.ok(r.ok && !r.replayed, JSON.stringify(r));
     const r2 = await pbook(p); assert.equal(r2.replayed, true);
     assert.equal((await sql`SELECT count(*)::int n FROM payments WHERE ticket_id=${r.ticket_id}`)[0].n, 1);
