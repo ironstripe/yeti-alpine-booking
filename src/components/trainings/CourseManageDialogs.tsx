@@ -16,6 +16,7 @@ import { describeBlockingDependencies, outcomeMessage, validateCourseName } from
 
 export const ARCHIVE_COPY = 'Aus der Kursliste entfernen. Bestehende Buchungen und Importverknüpfungen bleiben erhalten.';
 const NOT_INSTALLED = 'Archivieren und sicheres Löschen sind auf dem Server noch nicht installiert. Bis dahin bleibt der Kurs unverändert; es wird nichts gelöscht.';
+const CAPABILITY_ERROR = 'Die Serverfunktion konnte nicht geprüft werden (Verbindung, Anmeldung oder Serverfehler). Es wird nichts geändert; bitte erneut versuchen.';
 
 export function RenameCourseDialog({ course, onClose }: { course: GroupCourseWithSchedules | null; onClose: () => void }) {
   const rename = useRenameGroupCourse();
@@ -30,8 +31,11 @@ export function RenameCourseDialog({ course, onClose }: { course: GroupCourseWit
     if (invalid) { setError(invalid); return; }
     setError(null);
     rename.mutate({ id: course.id, name }, {
-      onSuccess: () => { toast({ title: 'Kurs umbenannt', description: `Neuer Name: „${name.trim()}“` }); onClose(); },
-      onError: (err) => setError(`Umbenennen fehlgeschlagen: ${err instanceof Error ? err.message : 'Serverfehler'}. Es wurde nichts geändert.`),
+      onSuccess: (outcome) => {
+        if (outcome === 'ok') { toast({ title: 'Kurs umbenannt', description: `Neuer Name: „${name.trim()}“` }); onClose(); }
+        else setError('Ergebnis unbekannt: Die Verbindung brach ab und der Name konnte nicht neu geladen werden. Bitte Liste neu laden und prüfen.');
+      },
+      onError: (err) => setError(`Umbenennen fehlgeschlagen: ${err instanceof Error ? err.message : 'Serverfehler'}. Neu geladen: Der Name ist unverändert.`),
     });
   };
 
@@ -76,7 +80,7 @@ export function CourseRemovalDialog({
 }) {
   const open = !!course;
   const capability = useCourseManagementCapability();
-  const installed = capability.data === true;
+  const installed = capability.data === 'installed';
   const deps = useCourseDependencies(course?.id, open && mode === 'delete' && installed);
   const action = useCourseAction();
   const [error, setError] = useState<string | null>(null);
@@ -103,16 +107,19 @@ export function CourseRemovalDialog({
           setError(outcomeMessage(outcome));
         }
       },
-      onError: () => { busy.current = false; setError(outcomeMessage({ kind: 'server' })); },
+      onError: () => { busy.current = false; setError(outcomeMessage({ kind: 'unknown' })); },
     });
   };
 
-  const title = mode === 'delete' ? `„${course.name}“ löschen?` : mode === 'archive' ? `„${course.name}“ archivieren?` : `„${course.name}“ wiederherstellen?`;
+  const title = mode === 'delete' ? `Kurs löschen: „${course.name}“` : mode === 'archive' ? `„${course.name}“ archivieren?` : `„${course.name}“ wiederherstellen?`;
 
   let body: React.ReactNode;
   let primary: React.ReactNode = null;
   if (capability.isLoading) {
     body = <p className="text-sm text-muted-foreground flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" />Prüfe Serverfunktion…</p>;
+  } else if (capability.isError) {
+    body = <Alert variant="destructive"><AlertDescription>{CAPABILITY_ERROR}</AlertDescription></Alert>;
+    primary = <Button variant="secondary" onClick={() => capability.refetch()}>Erneut prüfen</Button>;
   } else if (!installed) {
     body = <Alert><AlertDescription>{NOT_INSTALLED}</AlertDescription></Alert>;
   } else if (mode === 'restore') {
@@ -128,19 +135,26 @@ export function CourseRemovalDialog({
   } else if (blocking.length > 0) {
     body = (
       <div className="space-y-2 text-sm">
-        <p>Dieser Kurs kann nicht gelöscht werden, weil noch Daten darauf verweisen:</p>
+        <p>Dieser Kurs wird noch verwendet und kann deshalb nicht gelöscht werden:</p>
         <ul className="list-disc pl-5">{blocking.map((b) => <li key={b}>{b}</li>)}</ul>
-        <p className="text-muted-foreground">Archivieren: {ARCHIVE_COPY}</p>
+        <p className="text-muted-foreground">Nach dem Bereinigen erneut löschen. Alternativ archivieren: {ARCHIVE_COPY}</p>
       </div>
     );
     primary = <Button variant="secondary" onClick={onSwitchToArchive} disabled={pending}>Stattdessen archivieren…</Button>;
   } else {
-    const inst = deps.data?.instances ?? 0, dates = deps.data?.dates ?? 0;
+    const d = deps.data ?? {};
+    const inst = d.instances ?? 0, dates = d.dates ?? 0, groups = d.groups ?? 0;
+    const links = (d.source_period_links ?? 0) + (d.source_product_links ?? 0);
     body = (
-      <p className="text-sm text-muted-foreground">
-        Keine Buchungen, Importverknüpfungen oder Zuweisungen. Endgültig gelöscht werden der Kurs
-        {inst || dates ? ` sowie ${inst} leere generierte Einheiten und ${dates} Kurstage` : ''}. Dies kann nicht rückgängig gemacht werden.
-      </p>
+      <div className="space-y-2 text-sm">
+        <p>Keine Buchungen, Teilnehmenden oder Lehrerzuweisungen. Endgültig entfernt werden:</p>
+        <ul className="list-disc pl-5">
+          <li>der Kurs „{course.name}“</li>
+          <li>{inst} generierte leere Termine{dates ? `, ${dates} Kurstage` : ''}{groups ? `, ${groups} leere Gruppen` : ''}</li>
+          {links > 0 && <li>{links} technische Importverknüpfung{links === 1 ? '' : 'en'} (werden im Löschprotokoll festgehalten)</li>}
+        </ul>
+        <p className="text-muted-foreground">Produkte und Tarife bleiben erhalten. Dies kann nicht rückgängig gemacht werden.</p>
+      </div>
     );
     primary = <Button variant="destructive" onClick={() => run('delete')} disabled={pending}>{pending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}Endgültig löschen</Button>;
   }
