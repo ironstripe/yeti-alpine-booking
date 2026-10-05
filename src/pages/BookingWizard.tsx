@@ -53,6 +53,9 @@ function BookingWizardContent() {
     setSport,
     setAssignLater,
     canProceed, 
+    getStepOneIssues,
+    setActiveCartItem,
+    removeCartItem,
     goToNextStep, 
     resetWizard,
     loadTicketForEditing,
@@ -601,6 +604,45 @@ function BookingWizardContent() {
       {/* Sticky Footer - Only show for steps 1 and 2 */}
       {state.currentStep < 3 && (
         <footer className="sticky bottom-0 z-40 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 p-3">
+          {state.currentStep === 1 && (() => {
+            const issues = getStepOneIssues();
+            if (issues.length === 0) return null;
+            const multi = state.cartItems.length > 1;
+            const shown = issues.slice(0, 3);
+            return (
+              <div role="status" aria-live="polite" className="mx-auto mb-2 flex max-w-7xl flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                <span className="font-medium text-foreground">Noch offen:</span>
+                {shown.map((issue) => (
+                  <button
+                    key={`${issue.itemId}-${issue.field}`}
+                    type="button"
+                    className="rounded underline underline-offset-2 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    onClick={() => {
+                      if (issue.itemId && issue.itemId !== state.activeCartItemId) setActiveCartItem(issue.itemId);
+                      // Let the selected item render before asking it to reveal the field.
+                      setTimeout(() => window.dispatchEvent(new CustomEvent("wizard-focus-field", { detail: issue.field })), 50);
+                    }}
+                  >
+                    {multi ? `Unterricht ${issue.itemIndex + 1}: ` : ""}{issue.message}
+                  </button>
+                ))}
+                {issues.length > shown.length && <span>+{issues.length - shown.length} weitere</span>}
+                {multi && [...new Set(issues.map((i) => i.itemId))].filter(Boolean).map((itemId) => {
+                  const index = state.cartItems.findIndex((item) => item.id === itemId);
+                  return (
+                    <button
+                      key={`remove-${itemId}`}
+                      type="button"
+                      className="rounded underline underline-offset-2 hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      onClick={() => removeCartItem(itemId)}
+                    >
+                      Unterricht {index + 1} entfernen
+                    </button>
+                  );
+                })}
+              </div>
+            );
+          })()}
           <div className="mx-auto flex max-w-7xl items-center justify-between gap-4">
             {state.currentStep > 1 ? (
               <Button
