@@ -63,11 +63,7 @@ export function InlineTimeBlockEditor({
   };
 
   const handleAddBlock = () => {
-    // If this is the first override, we need to first add the base block
-    if (!hasOverrides) {
-      // Add the base as the first block, then add the new one
-      addTimeBlock(dateStr, baseStartTime, baseEndTime, state.instructorId);
-    }
+    // The context keeps the day's effective lesson when the first extra block is added.
     addTimeBlock(dateStr, newStartTime, newEndTime, state.instructorId);
     setIsAdding(false);
     setNewStartTime("14:00");

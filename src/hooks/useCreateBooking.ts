@@ -4,6 +4,7 @@ import type { BookingWizardState } from "@/contexts/BookingWizardContext";
 import { createInitialComments } from "./useTicketComments";
 import { isImmediateMethod } from "@/lib/finance";
 import { logTicketEvent } from "@/lib/ticket-audit";
+import { buildEffectivePrivatePlan } from "@/lib/effectivePrivatePlan";
 import { paCreate, type PaParticipant, type PaSlot } from "@/lib/privateAppointmentsApi";
 import { endOf, sortPlan, validatePlan } from "@/lib/privatePlan";
 import {
@@ -257,26 +258,20 @@ export function useCreateBooking() {
             });
           }
         } else {
-        const baseStart = state.timeSlot?.split(" - ")[0] || "10:00";
-        const baseEnd = state.timeSlot?.split(" - ")[1] || "12:00";
-        for (const dateStr of [...state.selectedDates].sort()) {
-          const ts = state.timeSelections?.find((t) => t.date === dateStr);
-          const dayInstr = state.dayInstructorOverrides?.[dateStr];
-          const blocks = state.dayTimeOverrides?.[dateStr]?.length
-            ? state.dayTimeOverrides[dateStr]
-            : [{ startTime: ts?.startTime || baseStart, endTime: ts?.endTime || baseEnd, instructorId: undefined as string | null | undefined }];
-          for (const b of blocks) {
-            const instr = b.instructorId !== undefined ? b.instructorId : dayInstr !== undefined ? dayInstr : state.instructorId;
-            if (!instr && !state.assignLater) throw new Error(`Bitte für ${dateStr} eine Lehrperson wählen.`);
+          // Same effective plan the wizard showed and validated; no default times.
+          const effective = buildEffectivePrivatePlan(state);
+          if (effective.status !== "ready") throw new Error(effective.message);
+          for (const iv of effective.intervals) {
+            const instr = iv.fixedInstructorId !== undefined ? iv.fixedInstructorId : state.instructorId;
+            if (!instr && !state.assignLater) throw new Error(`Bitte für ${iv.date} eine Lehrperson wählen.`);
             appointments.push({
-              date: dateStr,
-              time_start: b.startTime.slice(0, 5),
-              time_end: b.endTime.slice(0, 5),
+              date: iv.date,
+              time_start: iv.startTime,
+              time_end: iv.endTime,
               ...(instr ? { instructor_id: instr } : { assign_later: true as const }),
               ...(state.meetingPoint ? { meeting_point: state.meetingPoint } : {}),
             });
           }
-        }
         }
         const participants: PaParticipant[] = state.selectedParticipants.map((pt) =>
           pt.id.startsWith("guest-")

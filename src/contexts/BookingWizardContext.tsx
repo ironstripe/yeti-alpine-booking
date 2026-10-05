@@ -632,8 +632,9 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
           .map((lp) => ({
             id: idMap[lp.id],
             first_name: lp.first_name,
-            last_name: lp.last_name ?? "",
+            last_name: lp.last_name ?? null,
             birth_date: lp.birth_date ?? "",
+            level_last_season: null,
             level_current_season: lp.skill_level ?? null,
             sport: lp.sport,
           }) as SelectedParticipant),
