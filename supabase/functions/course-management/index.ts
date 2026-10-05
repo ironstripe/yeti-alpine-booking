@@ -26,11 +26,22 @@ Deno.serve(async (req) => {
   const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
   if (action === "capabilities") {
-    // Verifies the schema is installed (column + function) before the UI enables actions.
+    // installed:false ONLY for a genuinely missing column/function; any other failure is a 500,
+    // so the UI never mistakes an outage for "not installed" (or vice versa).
+    const MISSING = new Set(["42703", "PGRST204", "PGRST202", "42883"]);
     const probe = await db.from("group_courses").select("archived_at").limit(1);
-    if (probe.error) return json({ installed: false }, 200);
+    if (probe.error) {
+      if (MISSING.has(probe.error.code ?? "")) return json({ installed: false }, 200);
+      console.error("capabilities probe failed", probe.error.code);
+      return json({ error: "internal_error" }, 500);
+    }
     const fn = await db.rpc("course_dependencies", { p_course: "00000000-0000-0000-0000-000000000000" });
-    return json({ installed: !fn.error }, 200);
+    if (fn.error) {
+      if (MISSING.has(fn.error.code ?? "")) return json({ installed: false }, 200);
+      console.error("capabilities rpc failed", fn.error.code);
+      return json({ error: "internal_error" }, 500);
+    }
+    return json({ installed: true }, 200);
   }
 
   if (!body.course_id || !UUID.test(body.course_id)) return json({ error: "invalid", field: "course_id" }, 400);

@@ -10,7 +10,10 @@ import type {
   TrainingCourseDate 
 } from '@/types/group-courses';
 import { generateSaturdays } from '@/lib/dates/saturday-generator';
-import { classifyInvoke, type CourseActionOutcome, type CourseDependencies } from '@/lib/courseManagement';
+import {
+  classifyInvoke, isCourseRelatedQueryKey, needsReadback, resolveReadback,
+  type CourseActionOutcome, type CourseDependencies,
+} from '@/lib/courseManagement';
 
 // Fetch all group courses with their schedules and linked products
 export function useGroupCourses(options?: { activeOnly?: boolean }) {
@@ -433,15 +436,25 @@ export function useUpdateGroupCourse() {
 // Course archive / restore / guarded delete — ONLY via the office/admin Edge Function
 // `course-management` (server-side dependency check in one transaction). There is
 // deliberately no raw `group_courses.delete()` fallback.
+export type CourseCapability = 'installed' | 'not_installed';
+
+/** installed / not_installed only from an explicit server answer; auth, network and server errors throw. */
 export function useCourseManagementCapability() {
   return useQuery({
     queryKey: ['course-management-capability'],
     staleTime: 60_000,
     retry: false,
-    queryFn: async (): Promise<boolean> => {
+    queryFn: async (): Promise<CourseCapability> => {
       const { data, error } = await supabase.functions.invoke('course-management', { body: { action: 'capabilities' } });
-      if (error) return false;
-      return (data as { installed?: boolean })?.installed === true;
+      if (error) {
+        const status = (error as { context?: { status?: number } }).context?.status;
+        if (status === 404) return 'not_installed'; // function itself not deployed
+        throw error;
+      }
+      const installed = (data as { installed?: boolean })?.installed;
+      if (installed === true) return 'installed';
+      if (installed === false) return 'not_installed';
+      throw new Error('invalid capability response');
     },
   });
 }
@@ -464,39 +477,42 @@ export function useCourseDependencies(courseId: string | undefined, enabled: boo
   });
 }
 
+const invalidateCourseViews = (queryClient: ReturnType<typeof useQueryClient>) =>
+  queryClient.invalidateQueries({ predicate: (q) => isCourseRelatedQueryKey(q.queryKey) });
+
 export function useCourseAction() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, action }: { id: string; action: 'archive' | 'restore' | 'delete' }): Promise<CourseActionOutcome> => {
       const { data, error } = await supabase.functions.invoke('course-management', { body: { action, course_id: id } });
-      return classifyInvoke(data, error as never);
+      const outcome = await classifyInvoke(data, error as never);
+      if (!needsReadback(outcome)) return outcome;
+      // The request may have committed: read the course back before reporting anything.
+      const read = await supabase.from('group_courses').select('id, archived_at').eq('id', id).maybeSingle();
+      return resolveReadback(action, outcome, read.error ? undefined : (read.data as { archived_at?: string | null } | null), !!read.error);
     },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ['group-courses'] });
-      queryClient.invalidateQueries({ queryKey: ['bookable-group-courses'] });
-      queryClient.invalidateQueries({ queryKey: ['course-dependencies'] });
-    },
+    onSettled: () => invalidateCourseViews(queryClient),
   });
 }
 
+export type RenameOutcome = 'ok' | 'unchanged' | 'unknown';
+
 // Rename = display name only. Partial update of `name`; never schedules, products, prices or IDs.
+// On failure the name is read back: success is reported if it was in fact saved; "unchanged" only if verified.
 export function useRenameGroupCourse() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, name }: { id: string; name: string }) => {
-      const { data, error } = await supabase
-        .from('group_courses')
-        .update({ name: name.trim() })
-        .eq('id', id)
-        .select('id');
-      if (error) throw error;
-      if (!data || data.length !== 1) throw new Error('Der Kurs wurde nicht gefunden oder du darfst ihn nicht ändern.');
+    mutationFn: async ({ id, name }: { id: string; name: string }): Promise<RenameOutcome> => {
+      const target = name.trim();
+      const { data, error } = await supabase.from('group_courses').update({ name: target }).eq('id', id).select('id');
+      if (!error && data && data.length === 1) return 'ok';
+      const read = await supabase.from('group_courses').select('name').eq('id', id).maybeSingle();
+      if (read.error) return 'unknown';
+      if (read.data?.name === target) return 'ok';
+      if (error) throw Object.assign(new Error(error.message), { verifiedUnchanged: true });
+      throw Object.assign(new Error('Der Kurs wurde nicht gefunden oder du darfst ihn nicht ändern.'), { verifiedUnchanged: true });
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['group-courses'] });
-      queryClient.invalidateQueries({ queryKey: ['group-course'] });
-      queryClient.invalidateQueries({ queryKey: ['bookable-group-courses'] });
-    },
+    onSettled: () => invalidateCourseViews(queryClient),
   });
 }
 

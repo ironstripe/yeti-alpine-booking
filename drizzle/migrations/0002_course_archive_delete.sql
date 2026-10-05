@@ -1,15 +1,4 @@
--- Course archive + protected hard delete. INSTALLED as drizzle/migrations/0002_course_archive_delete.sql (kept here as reviewed source).
--- Additive: two nullable columns on group_courses, one service_role-only audit table and three
--- service_role-only functions, called exclusively by the office/admin Edge Function `course-management`.
--- Technical 26/27 source links (bc_2627_course_period_sources / _product_variants rows owned by the
--- course) and empty generated structure (schedules, instances, dates, training groups) do NOT block
--- deletion: they are snapshotted into course_deletion_log and removed in the same transaction.
--- Shared products, bc_product_tariff_sources and all source FKs (NO ACTION) stay untouched.
--- Real usage (enrollments, participant/progression refs, teacher assignments, transfers, shifts,
--- notifications, events, cross-course merges) blocks with counts; nothing is cascaded or SET NULL.
--- Rollback: supabase/rollback/course_archive_delete_rollback.sql
--- Tests:    tests/courseArchive.integration.mjs (local PostgreSQL + production schema baseline)
-
+-- Course archive + protected hard delete (see supabase/pending/course_archive_delete.sql; tests/courseArchive.integration.mjs).
 ALTER TABLE public.group_courses
   ADD COLUMN IF NOT EXISTS archived_at timestamptz,
   ADD COLUMN IF NOT EXISTS archived_by uuid;
@@ -35,7 +24,6 @@ CREATE OR REPLACE FUNCTION public.course_dependencies(p_course uuid) RETURNS jso
   WITH inst AS (SELECT id FROM group_course_instances WHERE course_id = p_course),
        grp  AS (SELECT id FROM training_groups WHERE course_id = p_course)
   SELECT jsonb_build_object(
-    -- blocking: real usage / history
     'enrollments', (SELECT count(*) FROM group_course_enrollments e
                      WHERE e.instance_id IN (SELECT id FROM inst) OR e.training_group_id IN (SELECT id FROM grp)),
     'original_course_refs', (SELECT count(*) FROM group_course_enrollments WHERE original_course_id = p_course),
@@ -58,7 +46,6 @@ CREATE OR REPLACE FUNCTION public.course_dependencies(p_course uuid) RETURNS jso
                             AND g.merged_into_group_id NOT IN (SELECT id FROM grp))),
     'foreign_source_links', (SELECT count(*) FROM bc_2627_course_period_sources
                      WHERE training_group_id IN (SELECT id FROM grp) AND course_id <> p_course),
-    -- non-blocking: owned technical structure removed with the course
     'source_period_links', (SELECT count(*) FROM bc_2627_course_period_sources WHERE course_id = p_course),
     'source_product_links', (SELECT count(*) FROM bc_2627_course_product_variants WHERE course_id = p_course),
     'instances', (SELECT count(*) FROM inst),
@@ -89,9 +76,6 @@ CREATE OR REPLACE FUNCTION public.course_delete_if_unused(p_course uuid, p_actor
   LANGUAGE plpgsql SET search_path TO 'public' AS $$
 DECLARE deps jsonb; blocking jsonb; n int; c jsonb; log_id uuid;
 BEGIN
-  -- Lock parent, then every owned child that new references can attach to. Concurrent FK inserts
-  -- (enrollments, transfers, shifts, notifications, participant refs) take KEY SHARE on these rows
-  -- and therefore wait; uncommitted ones make us wait and are visible to the recheck below.
   SELECT to_jsonb(g) INTO c FROM group_courses g WHERE id = p_course FOR UPDATE;
   IF NOT FOUND THEN RETURN jsonb_build_object('error', 'not_found'); END IF;
   PERFORM 1 FROM group_course_instances WHERE course_id = p_course FOR UPDATE;
@@ -108,7 +92,7 @@ BEGIN
     RETURN jsonb_build_object('error', 'referenced', 'dependencies', deps);
   END IF;
 
-  BEGIN  -- subtransaction: audit + removal succeed or roll back together
+  BEGIN
     INSERT INTO course_deletion_log(course_id, course_name, deleted_by, snapshot)
     VALUES (p_course, c->>'name', p_actor, jsonb_build_object(
       'course', c,
@@ -118,7 +102,7 @@ BEGIN
     RETURNING id INTO log_id;
     DELETE FROM bc_2627_course_period_sources WHERE course_id = p_course;
     DELETE FROM bc_2627_course_product_variants WHERE course_id = p_course;
-    DELETE FROM group_courses WHERE id = p_course;  -- cascades owned schedules/instances/dates/groups
+    DELETE FROM group_courses WHERE id = p_course;
     GET DIAGNOSTICS n = ROW_COUNT;
     IF n <> 1 THEN RAISE EXCEPTION 'course_delete_row_count' USING ERRCODE = 'P0001'; END IF;
   EXCEPTION WHEN foreign_key_violation THEN
