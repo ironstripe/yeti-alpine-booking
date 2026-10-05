@@ -1,5 +1,5 @@
 -- Staff (office/admin) atomic group-course booking for Winter 26/27 source-bound courses.
--- Installed with the
+-- Installed as drizzle/migrations/0003 together with the
 -- `staff-group-booking` Edge Function. Rollback: bc_2627_staff_group_booking_rollback.sql
 --
 -- Contract:
