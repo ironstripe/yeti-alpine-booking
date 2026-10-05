@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchInstructors, fetchInstructor, fetchInstructorPay } from "@/lib/instructorsApi";
 import { isActiveItemStatus, sessionKey, minutesBetween } from "@/lib/finance";
+import { ENROLLMENT_BLOCKS_SELECT, itemSessions } from "@/lib/ticketItemSchedule";
 import { startOfWeek, endOfWeek, startOfMonth, endOfMonth, subDays, format, parseISO, differenceInMinutes } from "date-fns";
 
 export interface DateRange {
@@ -169,14 +170,20 @@ async function loadPeriodTotals(startDate: string, endDate: string): Promise<Per
       participant_id,
       instructor_id,
       actual_duration_minutes,
-      product:products(type, duration_minutes)
+      item_type,
+      end_date,
+      product:products(type, duration_minutes),
+      ${ENROLLMENT_BLOCKS_SELECT}
     `)
-    .gte("date", startDate)
-    .lte("date", endDate);
+    // Package group lines start before the range but may have days inside it.
+    .lte("date", endDate)
+    .or(`date.gte.${startDate},end_date.gte.${startDate}`);
 
   if (itemsError) throw itemsError;
 
-  const activeItems = (ticketItems || []).filter((i: any) => isActiveItemStatus(i.status));
+  const rangeItems = (ticketItems || []).filter((i: any) => isActiveItemStatus(i.status));
+  // Revenue/bookings/participants stay attributed to the line's start date (unchanged rule).
+  const activeItems = rangeItems.filter((i: any) => i.date >= startDate);
 
   const { data: payments, error: paymentsError } = await supabase
     .from("payments")
@@ -208,21 +215,12 @@ async function loadPeriodTotals(startDate: string, endDate: string): Promise<Per
 
   // Hours = unique teaching sessions (same instructor, date and time = one session),
   // never multiplied by the number of participants on that session.
+  // Package group lines contribute each real enrollment block on its own day (never one 10–16 lesson).
   const sessions = new Map<string, number>();
-  activeItems.forEach((item: any) => {
-    const key = sessionKey({
-      instructorId: item.instructor_id,
-      date: item.date,
-      timeStart: item.time_start,
-      timeEnd: item.time_end,
-    });
-    if (sessions.has(key)) return;
-    const minutes =
-      item.actual_duration_minutes ??
-      (item.time_start && item.time_end
-        ? minutesBetween(item.time_start, item.time_end)
-        : item.product?.duration_minutes ?? 0);
-    sessions.set(key, minutes || 0);
+  rangeItems.forEach((item: any) => {
+    for (const s of itemSessions(item, startDate, endDate)) {
+      if (!sessions.has(s.key)) sessions.set(s.key, s.minutes);
+    }
   });
 
   const hours = Array.from(sessions.values()).reduce((sum, m) => sum + m, 0) / 60;

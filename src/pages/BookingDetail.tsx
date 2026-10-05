@@ -53,6 +53,7 @@ import { SharedLessonWizard } from "@/components/bookings/SharedLessonWizard";
 import { useSharedLessonData } from "@/hooks/useSharedLesson";
 import { formatCurrency } from "@/lib/swiss-qr-utils";
 import { BookingEmailDeliveryCard } from "@/components/bookings/BookingEmailDeliveryCard";
+import { ENROLLMENT_BLOCKS_SELECT, isPackageGroupItem, itemLastDate, scheduleByDay } from "@/lib/ticketItemSchedule";
 
 const BookingDetail = () => {
   const { id } = useParams<{ id: string }>();
@@ -93,7 +94,8 @@ const BookingDetail = () => {
             *,
             product:products(*),
             participant:customer_participants(*),
-            instructor:instructors(id, first_name, last_name, level, specialization, status, avatar_url, roles)
+            instructor:instructors(id, first_name, last_name, level, specialization, status, avatar_url, roles),
+            ${ENROLLMENT_BLOCKS_SELECT}
           )
         `)
         .eq("id", id)
@@ -264,7 +266,13 @@ const BookingDetail = () => {
   const latestInvoice = invoices[0];
   const lineItems = ticket.items?.map((item: any) => ({
     description: `${item.participant?.first_name || 'Teilnehmer'} - ${item.product?.name || 'Produkt'}`,
-    details: item.instructor ? `Lehrer: ${item.instructor.first_name} ${item.instructor.last_name}` : undefined,
+    details: item.instructor
+      ? `Lehrer: ${item.instructor.first_name} ${item.instructor.last_name}`
+      : isPackageGroupItem(item)
+        ? `${item.group_name ? `${item.group_name} · ` : ''}${scheduleByDay(item).length} Kurstage ${format(new Date(item.date), 'dd.MM.', { locale: de })}–${format(new Date(itemLastDate(item)), 'dd.MM.yyyy', { locale: de })}`
+        : item.item_type === 'lunch'
+          ? `Mittagsbetreuung ${format(new Date(item.date), 'dd.MM.yyyy', { locale: de })}${item.is_vegetarian ? ' · vegetarisch' : ''}`
+          : undefined,
     amount: item.line_total || item.unit_price || 0,
   })) || [];
 
