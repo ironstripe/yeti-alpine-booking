@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { toast } from "sonner";
+import { useParticipantOwnership } from "@/hooks/useParticipantOwnership";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Loader2 } from "lucide-react";
 
@@ -113,11 +114,36 @@ export function Step4Summary({ onEditStep }: Step4SummaryProps) {
   // Private submit links exactly the participants applied to the active lesson in step 1.
   const activeItem = state.cartItems.find((item) => item.id === state.activeCartItemId);
   const linkedIds = activeItem?.assignedParticipantIds ?? [];
+  // New (local) people are sent as explicit new participants; the server creates them for the
+  // payer inside the booking transaction (no early writes, no duplicates on retry).
+  const localAsGuests = state.localParticipants.map((lp) => ({
+    id: lp.id,
+    first_name: lp.first_name,
+    last_name: lp.last_name ?? null,
+    birth_date: lp.birth_date ?? "",
+    level_last_season: null,
+    level_current_season: lp.skill_level ?? null,
+    sport: lp.sport,
+    isGuest: true,
+  }));
+  const participantPool = [...state.selectedParticipants, ...localAsGuests];
   const linkedParticipants = linkedIds
-    .map((id) => state.selectedParticipants.find((p) => p.id === id))
+    .map((id) => participantPool.find((p) => p.id === id))
     .filter((p): p is NonNullable<typeof p> => !!p);
-  const participantsUnresolved =
-    state.productType === "private" && linkedParticipants.length !== linkedIds.length;
+  const savesParticipants = state.productType === "private" || state.productType === "group";
+  const { foreign, isLoading: ownershipLoading } = useParticipantOwnership(savesParticipants ? linkedIds : [], state.customerId);
+  const missingBirth = linkedParticipants.filter((p) => (p.isGuest || p.id.startsWith("guest-")) && !p.birth_date);
+  const participantIssue: string | null = !savesParticipants || state.isEditMode
+    ? null
+    : linkedParticipants.length !== linkedIds.length
+      ? "Ein zugewiesener Teilnehmer ist nicht mehr vorhanden. Bitte in Schritt 1 Teilnehmer neu zuweisen."
+      : foreign.length > 0
+        ? `${foreign.map((f) => f.name).join(", ")} gehör${foreign.length === 1 ? "t" : "en"} zu einem anderen Kunden. Bitte im Kunden-Schritt den passenden Kunden wählen oder die Teilnehmer neu zuweisen.`
+        : missingBirth.length > 0
+          ? `Geburtsdatum fehlt für ${missingBirth.map((p) => p.first_name).join(", ")}. Bitte in Schritt 1 ergänzen.`
+          : null;
+  const participantsUnresolved = !!participantIssue || ownershipLoading;
+  const [submitError, setSubmitError] = useState<{ message: string; unknown: boolean } | null>(null);
   // The create path saves the active lesson only; never drop further cart items silently.
   const multiItemBlocked = !state.isEditMode && state.cartItems.length > 1;
 
@@ -127,9 +153,10 @@ export function Step4Summary({ onEditStep }: Step4SummaryProps) {
       return;
     }
     if (!state.isEditMode && participantsUnresolved) {
-      toast.error("Teilnehmer sind noch nicht dem Kunden zugeordnet. Bitte im Kunden-Schritt prüfen.");
+      toast.error(participantIssue ?? "Teilnehmer werden geprüft …");
       return;
     }
+    setSubmitError(null);
 
     if (!state.isEditMode && !paymentMethod) {
       toast.error("Bitte wähle eine Zahlungsart");
@@ -325,7 +352,13 @@ export function Step4Summary({ onEditStep }: Step4SummaryProps) {
         <p role="alert" className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-foreground">
           {multiItemBlocked
             ? "Im Warenkorb sind mehrere Unterrichte. Sie können noch nicht gemeinsam gespeichert werden – bitte je Unterricht eine Buchung erstellen."
-            : "Teilnehmer sind noch nicht dem Kunden zugeordnet. Bitte im Kunden-Schritt prüfen."}
+            : participantIssue ?? "Teilnehmer werden geprüft …"}
+        </p>
+      )}
+      {submitError && (
+        <p role="alert" data-testid="submit-error" className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-foreground">
+          {submitError.message}
+          {submitError.unknown ? "" : " Ihre Eingaben bleiben erhalten."}
         </p>
       )}
 
