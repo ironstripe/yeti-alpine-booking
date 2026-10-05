@@ -6041,6 +6041,10 @@ export type Database = {
         Returns: Json
       }
       pa_create_booking: { Args: { p: Json; p_actor: string }; Returns: Json }
+      pa_create_booking_finalized: {
+        Args: { p: Json; p_actor: string }
+        Returns: Json
+      }
       pa_emit_change: {
         Args: {
           p_actor: string
@@ -6153,6 +6157,10 @@ export type Database = {
       split_training_group: {
         Args: { p_new_groups: Json; p_source_group_id: string }
         Returns: Json
+      }
+      staff_booking_finalize: {
+        Args: { f: Json; p_actor: string; p_ticket: string }
+        Returns: undefined
       }
       update_private_appointment: {
         Args: {
