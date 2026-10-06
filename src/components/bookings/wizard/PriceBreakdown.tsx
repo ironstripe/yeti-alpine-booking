@@ -10,7 +10,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { useBookingWizard } from "@/contexts/BookingWizardContext";
 import { format, parseISO } from "date-fns";
 import { de } from "date-fns/locale";
-import { endOf, sortPlan } from "@/lib/privatePlan";
+import { endOf, sortPlan, toMin } from "@/lib/privatePlan";
+import { buildEffectivePrivatePlan } from "@/lib/effectivePrivatePlan";
+import { swissVatPercent, includedVat, formatVatPercent } from "@/lib/vat";
 import { usePrivateLessonRates, useHighSeasonPeriods } from "@/hooks/usePrivateLessonRates";
 import { useProducts, ProductWithTiers } from "@/hooks/useProducts";
 import { useLunchProduct } from "@/hooks/useLunchProduct";
@@ -44,7 +46,6 @@ interface ParticipantLunchItem {
   price: number;
 }
 
-const VAT_RATE = 0.077; // 7.7%
 
 export function PriceBreakdown({
   discountPercent,
@@ -259,13 +260,21 @@ export function PriceBreakdown({
   // Canonical plan: price every real block by its own date/time and participant count
   const canonicalParticipants = pricingParticipants.length || state.numberOfPersons;
   const canonicalBlocks = useMemo(() => {
-    if (productType !== "private" || !state.appointments) return null;
-    return sortPlan(state.appointments).map((a) => {
+    if (productType !== "private" || isMultiGroup) return null;
+    // Price exactly the lessons that are saved: canonical appointments, else the effective plan
+    // (per-day blocks such as 10–11 + 13–14 each count as their own lesson).
+    let slots = state.appointments ?? null;
+    if (!slots) {
+      const plan = buildEffectivePrivatePlan(state);
+      if (plan.status !== "ready") return null;
+      slots = plan.intervals.map((i) => ({ date: i.date, startTime: i.startTime, durationMinutes: toMin(i.endTime) - toMin(i.startTime) }));
+    }
+    return sortPlan(slots).map((a) => {
       const end = endOf(a);
       const price = calculatePrivateLessonPrice(new Date(a.date), a.startTime, end, canonicalParticipants, rates, highSeasonPeriods);
       return { key: `${a.date}-${a.startTime}`, date: a.date, start: a.startTime, end, total: price.totalPrice, isHighSeason: price.isHighSeason };
     });
-  }, [productType, state.appointments, canonicalParticipants, rates, highSeasonPeriods]);
+  }, [productType, isMultiGroup, state, canonicalParticipants, rates, highSeasonPeriods]);
   const canonicalTotal = canonicalBlocks?.reduce((sum, b) => sum + b.total, 0) ?? 0;
 
   // Private lesson pricing
@@ -348,7 +357,8 @@ export function PriceBreakdown({
   const subtotal = courseTotal + lunchTotal;
   const discountAmount = subtotal * (totalDiscountPercent / 100);
   const afterDiscount = subtotal - discountAmount;
-  const vatAmount = afterDiscount * VAT_RATE;
+  const vatPercent = swissVatPercent([...state.selectedDates].sort()[0]);
+  const vatAmount = includedVat(afterDiscount, vatPercent);
   const total = afterDiscount;
   const hasPrice = productType === "private"
     ? Boolean(
@@ -629,7 +639,7 @@ export function PriceBreakdown({
 
         {/* VAT info */}
         <div className="flex justify-between text-sm text-muted-foreground">
-          <span>MwSt. (7.7%)</span>
+          <span data-testid="vat-line">inkl. MwSt. ({formatVatPercent(vatPercent)})</span>
           <span>{formatCurrency(vatAmount)}</span>
         </div>
 

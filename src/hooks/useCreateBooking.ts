@@ -349,6 +349,7 @@ export function useCreateBooking() {
                 ...(pt.last_name ? { last_name: pt.last_name } : {}),
                 birth_date: pt.birth_date,
                 ...(pt.sport === "ski" || pt.sport === "snowboard" ? { sport: pt.sport } : {}),
+                ...(pt.level_current_season ? { level: pt.level_current_season } : {}),
               }
             : { participant_id: pt.id },
         );

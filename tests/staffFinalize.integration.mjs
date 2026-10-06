@@ -56,6 +56,12 @@ try {
     'supabase/pending/bc_2627_staff_group_booking_v2.sql', 'supabase/pending/staff_booking_finalize.sql']) {
     const r = psqlFile(f); if (r.status !== 0) throw new Error(`psql ${f}: ${r.stderr}`);
   }
+  // Pre-0007 bodies (compare with live readback before installing 0007).
+  for (const x of await sql`SELECT proname, md5(prosrc) m FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname IN ('pa_create_booking','bc_2627_staff_group_book') ORDER BY 1`)
+    results.push(`     pre-0007 md5 ${x.proname} ${x.m}`);
+  { const r = psqlFile('supabase/pending/staff_guest_level.sql'); if (r.status !== 0) throw new Error(`psql 0007: ${r.stderr}`); }
+  for (const x of await sql`SELECT proname, md5(prosrc) m FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname IN ('pa_create_booking','bc_2627_staff_group_book','staff_guest_level_ok') ORDER BY 1`)
+    results.push(`     0007 md5 ${x.proname} ${x.m}`);
   await sql.unsafe(`CREATE OR REPLACE FUNCTION public.pa_business_today() RETURNS date LANGUAGE sql STABLE AS $$ SELECT DATE '2026-10-05' $$;`);
   await sql.unsafe(`
     INSERT INTO auth.users(id,email) VALUES ('${ACTOR}','office@example.invalid');
@@ -175,8 +181,57 @@ try {
     assert.equal((await sql`SELECT count(*)::int n FROM payments WHERE ticket_id=${r.ticket_id}`)[0].n, 1);
     assert.equal((await sql`SELECT count(*)::int n FROM customer_participants WHERE first_name='Retry'`)[0].n, 1);
   });
+  await t('0007 group guests: chosen Ski + Snowboard levels stored on the NEW people only; existing person untouched', async () => {
+    const before = (await sql`SELECT level_current_season l FROM customer_participants WHERE id=${PA}`)[0].l;
+    const r = await gbook({ submission_key: key(), customer_id: CUST, lines: [
+      gline({ guest: { guest_key: 'lv1', first_name: 'LevelSki', birth_date: '2017-02-02', sport: 'ski', level: 'blue_star' } }),
+      gline({ course_id: C_SB, sport: 'snowboard', meeting_point: undefined, guest: { guest_key: 'lv2', first_name: 'LevelSb', birth_date: '2016-03-03', sport: 'snowboard', level: 'sb_red_academy' } }),
+      gline({ participant_id: PA, dates: XMAS }),
+    ] });
+    assert.ok(r.ok, JSON.stringify(r));
+    const lv = await sql`SELECT first_name, sport, level_current_season l FROM customer_participants WHERE first_name IN ('LevelSki','LevelSb') ORDER BY 1`;
+    assert.deepEqual(lv.map((x) => `${x.first_name}:${x.sport}:${x.l}`), ['LevelSb:snowboard:sb_red_academy', 'LevelSki:ski:blue_star']);
+    assert.equal((await sql`SELECT level_current_season l FROM customer_participants WHERE id=${PA}`)[0].l, before);
+  });
+  await t('0007 group: level not valid for the sport (snowboard red_king) / unknown -> whole save rejected, nothing written', async () => {
+    const before = await counts();
+    for (const [lv, sp, c] of [['red_king', 'snowboard', C_SB], ['purple', 'ski', null]]) {
+      const r = await gbook({ submission_key: key(), customer_id: CUST, lines: [
+        gline({ guest: { guest_key: 'ok1', first_name: 'Ok', birth_date: '2017-02-02', sport: 'ski', level: 'anfaenger' } }),
+        gline({ ...(c ? { course_id: c, sport: sp, meeting_point: undefined } : {}), guest: { guest_key: 'bad', first_name: 'Bad', birth_date: '2017-02-02', sport: sp, level: lv } }),
+      ] });
+      assert.equal(r.field, 'level', JSON.stringify(r));
+    }
+    assert.deepEqual(await counts(), before);
+  });
+  await t('0007 group: failed payment rolls back the leveled guest; retry same key creates it once with its level', async () => {
+    await sql.unsafe(`CREATE FUNCTION public.t_fault() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'injected payment failure' USING ERRCODE = 'XX000'; END $$;
+      CREATE TRIGGER t_fault BEFORE INSERT ON public.payments FOR EACH ROW EXECUTE FUNCTION public.t_fault();`);
+    const p = { submission_key: key(), customer_id: CUST2, lines: [gline({ dates: XMAS, guest: { guest_key: 'rl', first_name: 'RetryLevel', birth_date: '2018-01-01', sport: 'ski', level: 'red_prince' } })], finalization: fin() };
+    const before = await counts();
+    try { await assert.rejects(gbook(p), /injected payment failure/); assert.deepEqual(await counts(), before); }
+    finally { await sql.unsafe('DROP TRIGGER t_fault ON public.payments; DROP FUNCTION public.t_fault();'); }
+    const r = await gbook(p); assert.ok(r.ok && !r.replayed, JSON.stringify(r));
+    const r2 = await gbook(p); assert.ok(r2.replayed, JSON.stringify(r2));
+    const x = await sql`SELECT level_current_season l FROM customer_participants WHERE first_name='RetryLevel'`;
+    assert.deepEqual(x.map((y) => y.l), ['red_prince']);
+  });
+  await t('0007 private guests: Ski adult + Snowboard child levels stored; invalid level rejected with nothing written; no-level payload still accepted', async () => {
+    const r = await pbook(plater({ participants: [
+      { guest_key: 'guest-lv-1', first_name: 'PrivSki', birth_date: '1990-05-05', sport: 'ski', level: 'blue' },
+      { guest_key: 'guest-lv-2', first_name: 'PrivSb', birth_date: '2016-05-05', sport: 'snowboard', level: 'snow_kids_village' }] }));
+    assert.ok(r.ok, JSON.stringify(r));
+    const lv = await sql`SELECT first_name, level_current_season l FROM customer_participants WHERE first_name IN ('PrivSki','PrivSb') ORDER BY 1`;
+    assert.deepEqual(lv.map((x) => `${x.first_name}:${x.l}`), ['PrivSb:snow_kids_village', 'PrivSki:blue']);
+    const before = await counts();
+    const bad = await pbook(plater({ participants: [{ guest_key: 'guest-lv-3', first_name: 'PrivOk', birth_date: '2016-05-05', level: 'anfaenger' }, { guest_key: 'guest-lv-4', first_name: 'PrivBad', birth_date: '2016-05-05', sport: 'snowboard', level: 'red_king' }] }));
+    assert.equal(bad.field, 'level', JSON.stringify(bad)); assert.deepEqual(await counts(), before);
+    const plain = await pbook(plater({ participants: [{ guest_key: 'guest-lv-5', first_name: 'PrivPlain', birth_date: '2016-05-05' }] }));
+    assert.ok(plain.ok, JSON.stringify(plain));
+    assert.equal((await sql`SELECT level_current_season l FROM customer_participants WHERE first_name='PrivPlain'`)[0].l, null);
+  });
   await t('privileges: finalize + wrapper service_role only', async () => {
-    for (const f of ['staff_booking_finalize(uuid, jsonb, uuid)', 'pa_create_booking_finalized(jsonb, uuid)', 'bc_2627_staff_group_book(jsonb, uuid)']) {
+    for (const f of ['staff_guest_level_ok(text, text)', 'pa_create_booking(jsonb, uuid)', 'staff_booking_finalize(uuid, jsonb, uuid)', 'pa_create_booking_finalized(jsonb, uuid)', 'bc_2627_staff_group_book(jsonb, uuid)']) {
       for (const role of ['anon', 'authenticated']) assert.equal((await sql`SELECT has_function_privilege(${role}, ${'public.' + f}, 'EXECUTE') ok`)[0].ok, false, `${role} ${f}`);
       assert.equal((await sql`SELECT has_function_privilege('service_role', ${'public.' + f}, 'EXECUTE') ok`)[0].ok, true);
     }
@@ -198,6 +253,11 @@ try {
       assert.equal(persons, p.participants.length);
       const tot = (await sql`SELECT sum(price)::numeric s FROM private_appointments WHERE ticket_id=${r.ticket_id}`)[0].s;
       assert.equal(Number(r.total), Number(tot));
+      for (const g of p.participants.filter((x) => x.guest_key)) {
+        const row = (await sql`SELECT level_current_season l FROM customer_participants WHERE customer_id=${p.customer_id} AND first_name=${g.first_name} ORDER BY created_at DESC LIMIT 1`)[0];
+        assert.equal(row?.l ?? null, g.level ?? null, `level of ${g.first_name}`);
+        results.push(`     private guest ${g.first_name}: level ${row?.l ?? '-'}`);
+      }
       results.push(`     private payload: ${a.length} appointments, ${persons} people, total ${r.total}`);
     });
   }
@@ -223,8 +283,9 @@ try {
         assert.ok(lunch.every((x) => x.v === !!l.vegetarian));
         const g = await sql`SELECT meeting_point, discount_percent, discount_reason FROM ticket_items WHERE ticket_id=${r.ticket_id} AND item_type='group' AND participant_id=${pid}`;
         assert.equal(g.length, 1); assert.equal(g[0].meeting_point, l.meeting_point);
+        if (l.guest) assert.equal((await sql`SELECT level_current_season l FROM customer_participants WHERE id=${pid}`)[0].l, l.guest.level ?? null, 'guest level');
         if (p.discount_percent) { assert.equal(Number(g[0].discount_percent), p.discount_percent); assert.equal(g[0].discount_reason, p.discount_reason); }
-        results.push(`     ${l.guest?.first_name}: ${blocks.length} blocks, lunch ${lunch.map((x) => x.d.slice(5)).join(',') || '-'}${l.vegetarian ? ' vegi' : ''}, point ${g[0].meeting_point}`);
+        results.push(`     ${l.guest?.first_name} (level ${l.guest?.level ?? '-'}): ${blocks.length} blocks, lunch ${lunch.map((x) => x.d.slice(5)).join(',') || '-'}${l.vegetarian ? ' vegi' : ''}, point ${g[0].meeting_point}`);
       }
       assert.equal((await sql`SELECT count(*)::int n FROM payments WHERE ticket_id=${r.ticket_id}`)[0].n, 0, 'pay_later: no payment');
       results.push(`     group payload: ${p.lines.length} lines, gross ${gross}, discount ${p.discount_percent ?? 0}%, total ${r.total}`);

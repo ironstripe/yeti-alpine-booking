@@ -127,7 +127,7 @@ describe("draft (local) participants reach the server as new people with their o
     const draft = {
       ...base,
       cartItems: [{ ...base.cartItems[0], assignedParticipantIds: ["pa", "local-9"] }],
-      localParticipants: [{ id: "local-9", first_name: "Lia", last_name: null, birth_date: "2019-05-05", skill_level: null, sport: "snowboard" }],
+      localParticipants: [{ id: "local-9", first_name: "Lia", last_name: null, birth_date: "2019-05-05", skill_level: "sb_red_academy", sport: "snowboard" }],
       selectedParticipants: [base.selectedParticipants[0]],
       useParticipantSpecificBooking: true,
       participantBookings: {
@@ -143,7 +143,7 @@ describe("draft (local) participants reach the server as new people with their o
     expect(r.lines[1]).toMatchObject({
       course_id: "c2", product_id: "p2", block: "pm", dates: XMAS, expected_unit_price: 230, meeting_point: "malbipark",
       lunch_dates: ["2026-12-22"], vegetarian: true, expected_lunch_unit_price: 30,
-      guest: { guest_key: "local-9", first_name: "Lia", birth_date: "2019-05-05", sport: "snowboard" },
+      guest: { guest_key: "local-9", first_name: "Lia", birth_date: "2019-05-05", sport: "snowboard", level: "sb_red_academy" },
     });
     expect(r.lines[1].participant_id).toBeUndefined();
     expect(staffGroupTotal(r.lines)).toBe(320 + 230 + 30);

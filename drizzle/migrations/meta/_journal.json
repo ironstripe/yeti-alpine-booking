@@ -50,6 +50,13 @@
       "when": 1791230932012,
       "tag": "0006_staff_booking_finalize",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1791279204657,
+      "tag": "0007_staff_guest_level",
+      "breakpoints": true
     }
   ]
 }

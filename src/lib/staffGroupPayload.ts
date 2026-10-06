@@ -65,7 +65,7 @@ export function buildStaffGroupLines(state: BookingWizardState, lunchUnitPrice: 
     };
     if (id.startsWith("guest-") || person.isGuest) {
       if (!person.birth_date) return { kind: "error", message: `Geburtsdatum für ${person.first_name} fehlt.` };
-      lines.push({ ...base, guest: { guest_key: id, first_name: person.first_name, ...(person.last_name ? { last_name: person.last_name } : {}), birth_date: person.birth_date, ...(person.sport ? { sport: person.sport } : {}) } });
+      lines.push({ ...base, guest: { guest_key: id, first_name: person.first_name, ...(person.last_name ? { last_name: person.last_name } : {}), birth_date: person.birth_date, ...(person.sport ? { sport: person.sport } : {}), ...(person.level_current_season ? { level: person.level_current_season } : {}) } });
     } else {
       lines.push({ ...base, participant_id: id });
     }
