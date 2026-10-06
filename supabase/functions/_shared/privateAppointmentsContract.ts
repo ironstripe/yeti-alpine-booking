@@ -19,6 +19,8 @@ const participant = z.union([
     last_name: z.string().trim().max(100).optional(),
     birth_date: date,
     sport: z.enum(["ski", "snowboard"]).optional(),
+    // Draft participant's chosen level; validated per sport by SQL staff_guest_level_ok (migration 0007).
+    level: z.string().trim().min(1).max(40).optional(),
   }).strict(),
 ]);
 

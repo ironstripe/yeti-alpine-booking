@@ -443,23 +443,29 @@ export function SlotBookingPopover({
                     >
                       <Checkbox checked={isSelected} onCheckedChange={() => toggleParticipant(p.id)} aria-label={`${p.first_name} auswählen`} />
                       <div className="flex-1 min-w-0">
-                        <span className="font-medium">
-                          {p.first_name} {p.last_name || ""}
-                        </span>
-                        {age !== null && (
-                          <span className="text-muted-foreground ml-1">({age}J)</span>
+                        <div className="break-words">
+                          <span className="font-medium">
+                            {p.first_name} {p.last_name || ""}
+                          </span>
+                          {age !== null && (
+                            <span className="text-muted-foreground ml-1">({age}J)</span>
+                          )}
+                        </div>
+                        {(p.isLocal || p.level_current_season) && (
+                          <div className="mt-1 flex flex-wrap gap-1">
+                            {p.isLocal && (
+                              <Badge variant="outline" className="text-[10px] text-muted-foreground whitespace-nowrap">
+                                Neu erfasst
+                              </Badge>
+                            )}
+                            {p.level_current_season && (
+                              <Badge variant="outline" className="text-[10px]">
+                                {getLevelLabel(p.level_current_season)}
+                              </Badge>
+                            )}
+                          </div>
                         )}
                       </div>
-                      {p.isLocal && (
-                        <Badge variant="outline" className="text-[10px] h-5 text-muted-foreground">
-                          Neu erfasst
-                        </Badge>
-                      )}
-                      {p.level_current_season && (
-                        <Badge variant="outline" className="text-[10px] h-5">
-                          {getLevelLabel(p.level_current_season)}
-                        </Badge>
-                      )}
                       {p.isLocal && <Button type="button" variant="ghost" size="sm" className="control-target" onClick={() => editLocalParticipant(p.id)}>Bearbeiten</Button>}
                     </div>
                   );

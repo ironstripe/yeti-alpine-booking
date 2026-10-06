@@ -26,6 +26,7 @@ const REASONS: Record<string, string> = {
 };
 
 const FIELDS: Record<string, string> = {
+  level: "Das gewählte Niveau passt nicht zur Sportart eines neuen Teilnehmers. Bitte Niveau prüfen.",
   participants: "Ein Teilnehmer gehört nicht zum gewählten Kunden oder es fehlen Angaben (Vorname, Geburtsdatum). Bitte Teilnehmer prüfen.",
   customer_id: "Kunde nicht gefunden.",
   appointments: "Ein Termin ist ungültig (Datum/Zeit/Lehrperson).",
@@ -87,7 +88,7 @@ export interface StaffFinalization {
 
 export type PaParticipant =
   | { participant_id: string }
-  | { guest_key: string; first_name: string; last_name?: string; birth_date: string; sport?: "ski" | "snowboard" };
+  | { guest_key: string; first_name: string; last_name?: string; birth_date: string; sport?: "ski" | "snowboard"; level?: string };
 
 /** A real teacher, or the explicit "Später zuweisen" intent (never a missing/fake teacher). */
 export type PaSlot =

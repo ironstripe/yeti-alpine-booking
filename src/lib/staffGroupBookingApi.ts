@@ -33,7 +33,7 @@ export interface StaffGroupLine {
   vegetarian?: boolean;
   expected_lunch_unit_price?: number;
   participant_id?: string;
-  guest?: { guest_key: string; first_name: string; last_name?: string; birth_date: string; sport?: string };
+  guest?: { guest_key: string; first_name: string; last_name?: string; birth_date: string; sport?: string; level?: string };
 }
 
 export interface StaffGroupBookingResult { ticket_id: string; ticket_number: string; total: number; replayed?: boolean }
@@ -41,6 +41,7 @@ export interface StaffGroupBookingResult { ticket_id: string; ticket_number: str
 const FIELD_MESSAGES: Record<string, string> = {
   course: "Der Kurs ist nicht (mehr) buchbar – bitte Kurs neu wählen.",
   participant: "Ein Teilnehmer gehört nicht zu diesem Kunden.",
+  level: "Das gewählte Niveau passt nicht zur Sportart eines neuen Teilnehmers. Bitte Niveau prüfen. Es wurde nichts gespeichert.",
   dates: "Die Kurstage passen nicht zum Kursangebot.",
   blocks: "Die Kurszeiten haben sich geändert – bitte Kurs neu wählen.",
   duplicate: "Ein Teilnehmer ist doppelt im selben Kurs.",

@@ -6162,6 +6162,10 @@ export type Database = {
         Args: { f: Json; p_actor: string; p_ticket: string }
         Returns: undefined
       }
+      staff_guest_level_ok: {
+        Args: { p_level: string; p_sport: string }
+        Returns: boolean
+      }
       update_private_appointment: {
         Args: {
           p_appointment_id: string
