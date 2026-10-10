@@ -1,0 +1,2 @@
+- Edge function checks run with `deno check --node-modules-dir=none` (`bun run check:functions`). Why: the root package.json otherwise makes Deno resolve npm: imports from frontend node_modules.
+- `confirm-booking` refuses online payment until server-side provider verification exists. Why: a caller payment_reference is not proof of payment.
