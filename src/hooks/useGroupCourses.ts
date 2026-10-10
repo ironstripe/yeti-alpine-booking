@@ -10,6 +10,7 @@ import type {
   TrainingCourseDate 
 } from '@/types/group-courses';
 import { generateSaturdays } from '@/lib/dates/saturday-generator';
+import { normalizeCourseAges, describeCourseSaveError } from '@/lib/groupCourseCreate';
 import {
   classifyInvoke, isCourseRelatedQueryKey, needsReadback, resolveReadback,
   type CourseActionOutcome, type CourseDependencies,
@@ -205,8 +206,7 @@ export function useCreateGroupCourse() {
         name: formData.name,
         description: formData.description || null,
         discipline: formData.discipline,
-        min_age: isOffice ? 18 : formData.min_age,
-        max_age: isOffice ? 99 : formData.max_age,
+        ...(isOffice ? { min_age: 18, max_age: 99 } : normalizeCourseAges(formData.min_age, formData.max_age)),
         max_participants: formData.max_participants,
         product_id: isOffice ? null : formData.product_id,
         meeting_point: formData.meeting_point || null,
@@ -226,8 +226,9 @@ export function useCreateGroupCourse() {
         .select()
         .single();
 
-      if (courseError) throw courseError;
+      if (courseError) throw new Error(describeCourseSaveError(courseError));
 
+      try {
       // Create schedules (for weekly courses)
       if (formData.course_type === 'weekly') {
         const scheduleInserts = formData.schedules.days.flatMap(dayOfWeek =>
@@ -283,6 +284,15 @@ export function useCreateGroupCourse() {
 
         if (schedError) throw schedError;
       }
+      } catch (childError) {
+        // No hidden partial course: remove the just-created, unused course via the
+        // guarded course-management path (audited in course_deletion_log).
+        const { data: del, error: delError } = await supabase.functions.invoke('course-management', {
+          body: { action: 'delete', course_id: course.id },
+        });
+        const removed = !delError && (del as { error?: string } | null)?.error == null;
+        throw new Error(describeCourseSaveError(childError, removed ? 'removed' : 'failed'));
+      }
 
       return course;
     },
@@ -292,7 +302,8 @@ export function useCreateGroupCourse() {
     },
     onError: (error) => {
       console.error('Error creating course:', error);
-      toast.error('Fehler beim Erstellen des Trainings');
+      queryClient.invalidateQueries({ queryKey: ['group-courses'] });
+      toast.error(error instanceof Error && error.message.startsWith('Fehler') ? error.message : 'Fehler beim Erstellen des Trainings');
     },
   });
 }
