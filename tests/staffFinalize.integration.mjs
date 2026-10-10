@@ -161,6 +161,23 @@ try {
     assert.equal((await sql`SELECT count(*)::int n FROM ticket_comments WHERE ticket_id=${r.ticket_id}`)[0].n, 2);
     assert.equal((await sql`SELECT count(*)::int n FROM action_tasks WHERE related_ticket_id=${r.ticket_id}`)[0].n, 1);
   });
+  await t('#45 private Rechnung + später bezahlen: one unpaid ticket, method invoice, due date, no payment; replay no duplicate', async () => {
+    const before = await counts();
+    const p = { ...plater(), finalization: fin({ payment_method: 'invoice', settlement: 'pay_later', payment_due_date: '2026-12-14' }) };
+    const r = await pbook(p);
+    assert.ok(r.ok, JSON.stringify(r)); assert.ok(Number(r.total) > 0);
+    const tk = (await sql`SELECT payment_method, payment_due_date::text due, total_amount, paid_amount, billing_partner_id FROM tickets WHERE id=${r.ticket_id}`)[0];
+    assert.equal(tk.payment_method, 'invoice'); assert.equal(tk.due, '2026-12-14');
+    assert.equal(Number(tk.total_amount), Number(r.total)); assert.equal(Number(tk.paid_amount), 0); assert.equal(tk.billing_partner_id, null);
+    assert.equal((await sql`SELECT count(*)::int n FROM payments WHERE ticket_id=${r.ticket_id}`)[0].n, 0);
+    assert.equal((await sql`SELECT count(*)::int n FROM invoices WHERE ticket_id=${r.ticket_id}`)[0].n, 0, 'no auto invoice document');
+    const again = await pbook(p);
+    assert.equal(again.ticket_id, r.ticket_id, 'same key replays same ticket');
+    const after = await counts();
+    assert.equal((await sql`SELECT count(*)::int n FROM tickets WHERE customer_id=${CUST} AND id=${r.ticket_id}`)[0].n, 1);
+    assert.equal((await sql`SELECT count(*)::int n FROM private_appointments WHERE ticket_id=${r.ticket_id}`)[0].n, 3);
+    results.push(`     invoice/pay_later ticket total ${r.total}, due ${tk.due}, counts ${JSON.stringify(before)} -> ${JSON.stringify(after)}`);
+  });
   await t('private: error result after a guest was created (foreign participant) rolls back the guest too', async () => {
     const before = await counts();
     const r = await pbook(plater({ participants: [{ guest_key: 'guest-new-1', first_name: 'Neu', birth_date: '2017-05-05' }, { participant_id: PX }] }));
