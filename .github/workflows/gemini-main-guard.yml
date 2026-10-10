@@ -1,0 +1,93 @@
+name: Gemini Main Guard
+
+# Deckt den Weg ab, den der PR-Gatekeeper nicht sieht: Lovable schreibt direkt auf main.
+# Bewusst nur auf sicherheits- und datenrelevante Pfade begrenzt, damit der
+# Entwicklungsprozess nicht durch Modellaufrufe und Meldungen ausgebremst wird.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'supabase/**'
+      - 'drizzle/**'
+      - '.github/workflows/**'
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: gemini-main-guard
+  cancel-in-progress: false
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Diff des Push bestimmen
+        run: |
+          BEFORE='${{ github.event.before }}'
+          AFTER='${{ github.event.after }}'
+          if [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ] || ! git cat-file -e "${BEFORE}^{commit}" 2>/dev/null; then
+            BEFORE=$(git rev-parse "${AFTER}^" 2>/dev/null || echo "$AFTER")
+          fi
+          git diff "$BEFORE" "$AFTER" > main_diff.txt
+          echo "Vergleich $BEFORE..$AFTER"
+          wc -c main_diff.txt
+
+      - name: Modell-Review
+        id: review
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          python3 scripts/gemini_review.py \
+            --diff-file main_diff.txt \
+            --out-review review.md \
+            --out-verdict verdict.txt \
+            --head "Direktcommit auf main @ ${{ github.event.after }}"
+          echo "verdict=$(cat verdict.txt 2>/dev/null | tr -d '\n' || echo UNKNOWN)" >> "$GITHUB_OUTPUT"
+
+      - name: Bei BLOCK Issue oeffnen oder ergaenzen
+        if: ${{ steps.review.outputs.verdict == 'BLOCK' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OWNER: ${{ github.repository_owner }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.event.after }}
+          PUSHER: ${{ github.event.pusher.name }}
+        run: |
+          set -euo pipefail
+          gh label create gate-alert \
+            --color B60205 \
+            --description "Gatekeeper hat einen Direktcommit auf main mit BLOCK bewertet" \
+            --force >/dev/null 2>&1 || true
+          issue=$(gh issue list --repo "$REPO" --label gate-alert --state open --limit 1 --json number --jq '.[0].number // empty')
+          {
+            echo "Der Gatekeeper hat einen Direktcommit auf \`main\` mit **BLOCK** bewertet."
+            echo ""
+            echo "- Commit: https://github.com/$REPO/commit/$SHA"
+            echo "- Push von: \`$PUSHER\`"
+            echo "- Geprueft am: $(date -u '+%Y-%m-%d %H:%M UTC')"
+            echo ""
+            echo "## Befund"
+            echo ""
+            cat review.md
+            echo ""
+            echo "## Noetige Interaktion"
+            echo ""
+            echo "Entscheiden, ob korrigiert oder bewusst belassen wird. Bei BLOCK nicht stillschweigend weiterarbeiten."
+          } > issue_body.md
+          if [ -n "$issue" ]; then
+            gh issue comment "$issue" --repo "$REPO" --body-file issue_body.md
+            echo "Bestehendes Issue #$issue ergaenzt"
+          else
+            gh issue create --repo "$REPO" \
+              --title "[Gate-Alert] Direktcommit auf main: ${SHA:0:7}" \
+              --label gate-alert \
+              --assignee "$OWNER" \
+              --body-file issue_body.md
+          fi
