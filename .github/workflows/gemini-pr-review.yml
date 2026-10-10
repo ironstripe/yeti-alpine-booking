@@ -4,11 +4,12 @@ on:
   pull_request:
     types: [opened, synchronize]
 
-# Modell bewusst gepinnt: ein "latest"-Alias kann von Google jederzeit hinter dem Namen
+# Modelle bewusst gepinnt: ein "latest"-Alias kann von Google jederzeit hinter dem Namen
 # ausgetauscht werden; fuer ein Gate ist ein fester Stable-Stand reproduzierbarer.
-# Vor dem Update auf ein neues Modell die Liste pruefen: https://ai.google.dev/gemini-api/docs/models
+# Erstes Modell ist die Wahl, die weiteren sind Ausweichmodelle bei Kapazitaetsfehlern (503/429).
+# Vor dem Update die Liste pruefen: https://ai.google.dev/gemini-api/docs/models
 env:
-  GEMINI_MODEL: gemini-3.8-flash
+  GEMINI_MODELS: gemini-3.8-flash,gemini-3.5-flash-lite
 
 jobs:
   review:
@@ -36,13 +37,14 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           python3 - << 'EOF'
-          import os, json, urllib.request, urllib.error
+          import os, json, time, urllib.request, urllib.error
 
           api_key = os.environ.get('GEMINI_API_KEY')
           pr_num = os.environ.get('PR_NUMBER')
           repo = os.environ.get('REPO')
           gh_token = os.environ.get('GH_TOKEN')
-          model = os.environ.get('GEMINI_MODEL', 'gemini-3.8-flash')
+          models = [m.strip() for m in os.environ.get(
+              'GEMINI_MODELS', 'gemini-3.8-flash,gemini-3.5-flash-lite').split(',') if m.strip()]
 
           if not api_key:
               raise SystemExit("GEMINI_API_KEY secret fehlt!")
@@ -70,24 +72,44 @@ jobs:
           """
 
           # Der API-Key geht als Header mit, nicht in der URL (sonst steht er in Logs und Proxies).
-          url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
           data = json.dumps({"contents": [{"parts": [{"text": prompt}]}]}).encode('utf-8')
 
-          req = urllib.request.Request(url, data=data, headers={
-              'Content-Type': 'application/json',
-              'x-goog-api-key': api_key,
-          })
-          try:
-              resp = urllib.request.urlopen(req, timeout=120)
-          except urllib.error.HTTPError as e:
-              body = e.read().decode('utf-8', errors='ignore')[:800]
-              raise SystemExit(f"Gemini API Fehler {e.code} bei Modell '{model}': {body}")
-
-          result = json.loads(resp.read().decode('utf-8'))
-          review_comment = result['candidates'][0]['content']['parts'][0]['text']
+          # Ein Gate darf nicht an temporaerer Kapazitaet scheitern: bis zu 3 Versuche je Modell
+          # mit Pause, danach das naechste Modell. Andere Fehler brechen sofort ab.
+          RETRYABLE = (429, 500, 502, 503, 504)
+          review_comment = None
+          used_model = None
+          errors = []
+          for model in models:
+              url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+              for attempt in range(1, 4):
+                  req = urllib.request.Request(url, data=data, headers={
+                      'Content-Type': 'application/json',
+                      'x-goog-api-key': api_key,
+                  })
+                  try:
+                      resp = urllib.request.urlopen(req, timeout=120)
+                      result = json.loads(resp.read().decode('utf-8'))
+                      review_comment = result['candidates'][0]['content']['parts'][0]['text']
+                      used_model = model
+                      break
+                  except urllib.error.HTTPError as e:
+                      body = e.read().decode('utf-8', errors='ignore')[:300]
+                      errors.append(f"{model} Versuch {attempt}: HTTP {e.code} {body}")
+                      if e.code in RETRYABLE and attempt < 3:
+                          time.sleep(5 * attempt)
+                          continue
+                      break
+                  except Exception as e:
+                      errors.append(f"{model} Versuch {attempt}: {type(e).__name__} {e}")
+                      break
+              if review_comment:
+                  break
+          if not review_comment:
+              raise SystemExit("Gemini-Review fehlgeschlagen:\n" + "\n".join(errors))
 
           comment_url = f"https://api.github.com/repos/{repo}/issues/{pr_num}/comments"
-          comment_data = json.dumps({"body": f"### 🤖 Gemini Pragmatism Review\n\n_Modell: `{model}`_\n\n{review_comment}"}).encode('utf-8')
+          comment_data = json.dumps({"body": f"### 🤖 Gemini Pragmatism Review\n\n_Modell: `{used_model}`_\n\n{review_comment}"}).encode('utf-8')
           req_gh = urllib.request.Request(comment_url, data=comment_data, headers={
               'Authorization': f'Bearer {gh_token}',
               'Accept': 'application/vnd.github.v3+json',
