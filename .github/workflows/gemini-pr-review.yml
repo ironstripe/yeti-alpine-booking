@@ -4,6 +4,12 @@ on:
   pull_request:
     types: [opened, synchronize]
 
+# Modell bewusst gepinnt: ein "latest"-Alias kann von Google jederzeit hinter dem Namen
+# ausgetauscht werden; fuer ein Gate ist ein fester Stable-Stand reproduzierbarer.
+# Vor dem Update auf ein neues Modell die Liste pruefen: https://ai.google.dev/gemini-api/docs/models
+env:
+  GEMINI_MODEL: gemini-3.8-flash
+
 jobs:
   review:
     runs-on: ubuntu-latest
@@ -30,12 +36,13 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           python3 - << 'EOF'
-          import os, json, urllib.request
+          import os, json, urllib.request, urllib.error
 
           api_key = os.environ.get('GEMINI_API_KEY')
           pr_num = os.environ.get('PR_NUMBER')
           repo = os.environ.get('REPO')
           gh_token = os.environ.get('GH_TOKEN')
+          model = os.environ.get('GEMINI_MODEL', 'gemini-3.8-flash')
 
           if not api_key:
               raise SystemExit("GEMINI_API_KEY secret fehlt!")
@@ -62,20 +69,29 @@ jobs:
           Halte dich kurz, direkt und lösungsorientiert.
           """
 
-          url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
+          # Der API-Key geht als Header mit, nicht in der URL (sonst steht er in Logs und Proxies).
+          url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
           data = json.dumps({"contents": [{"parts": [{"text": prompt}]}]}).encode('utf-8')
-          
-          req = urllib.request.Request(url, data=data, headers={'Content-Type': 'application/json'})
-          resp = urllib.request.urlopen(req)
+
+          req = urllib.request.Request(url, data=data, headers={
+              'Content-Type': 'application/json',
+              'x-goog-api-key': api_key,
+          })
+          try:
+              resp = urllib.request.urlopen(req, timeout=120)
+          except urllib.error.HTTPError as e:
+              body = e.read().decode('utf-8', errors='ignore')[:800]
+              raise SystemExit(f"Gemini API Fehler {e.code} bei Modell '{model}': {body}")
+
           result = json.loads(resp.read().decode('utf-8'))
           review_comment = result['candidates'][0]['content']['parts'][0]['text']
 
           comment_url = f"https://api.github.com/repos/{repo}/issues/{pr_num}/comments"
-          comment_data = json.dumps({"body": f"### 🤖 Gemini Pragmatism Review\n\n{review_comment}"}).encode('utf-8')
+          comment_data = json.dumps({"body": f"### 🤖 Gemini Pragmatism Review\n\n_Modell: `{model}`_\n\n{review_comment}"}).encode('utf-8')
           req_gh = urllib.request.Request(comment_url, data=comment_data, headers={
               'Authorization': f'Bearer {gh_token}',
               'Accept': 'application/vnd.github.v3+json',
               'Content-Type': 'application/json'
           })
-          urllib.request.urlopen(req_gh)
+          urllib.request.urlopen(req_gh, timeout=60)
           EOF
