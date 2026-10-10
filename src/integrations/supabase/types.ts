@@ -1198,7 +1198,7 @@ export type Database = {
           created_at: string
           customer_number: string | null
           customer_type: string | null
-          email: string
+          email: string | null
           first_name: string | null
           holiday_address: string
           house_number: string | null
@@ -1227,7 +1227,7 @@ export type Database = {
           created_at?: string
           customer_number?: string | null
           customer_type?: string | null
-          email: string
+          email?: string | null
           first_name?: string | null
           holiday_address?: string
           house_number?: string | null
@@ -1256,7 +1256,7 @@ export type Database = {
           created_at?: string
           customer_number?: string | null
           customer_type?: string | null
-          email?: string
+          email?: string | null
           first_name?: string | null
           holiday_address?: string
           house_number?: string | null

@@ -34,7 +34,7 @@ import type { Tables } from "@/integrations/supabase/types";
 const customerEditSchema = z.object({
   first_name: z.string().max(100).optional(),
   last_name: z.string().min(1, "Nachname ist erforderlich").max(100),
-  email: z.string().email("Ungültige E-Mail-Adresse").max(255),
+  email: z.union([z.literal(""), z.string().trim().email("Ungültige E-Mail-Adresse").max(255)]).optional(),
   phone: z.string().max(50).optional(),
   street: z.string().max(200).optional(),
   zip: z.string().max(20).optional(),
@@ -130,7 +130,7 @@ export function CustomerEditDialog({
       await updateCustomer.mutateAsync({
         first_name: data.first_name || null,
         last_name: data.last_name,
-        email: data.email,
+        email: data.email?.trim() || null,
         phone: data.phone ? normalizePhoneNumber(data.phone) : null,
         street: data.street || null,
         zip: data.zip || null,
@@ -145,7 +145,7 @@ export function CustomerEditDialog({
         ...customer,
         first_name: data.first_name || null,
         last_name: data.last_name,
-        email: data.email,
+        email: data.email?.trim() || null,
         phone: data.phone ? normalizePhoneNumber(data.phone) : null,
         street: data.street || null,
         zip: data.zip || null,
@@ -219,7 +219,7 @@ export function CustomerEditDialog({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>
-                    E-Mail <span className="text-destructive">*</span>
+                    E-Mail
                   </FormLabel>
                   <FormControl>
                     <Input

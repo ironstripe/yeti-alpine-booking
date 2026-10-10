@@ -38,13 +38,19 @@ export function ConfirmationOptions({
           <div className="flex items-start gap-3">
             <Checkbox
               id="send-email"
-              checked={sendCustomerEmail}
+              checked={sendCustomerEmail && !!state.customer?.email}
+              disabled={!state.customer?.email}
               onCheckedChange={(checked) => onSendCustomerEmailChange(checked === true)}
             />
             <div className="flex-1">
               <label htmlFor="send-email" className="cursor-pointer text-sm font-medium">
                 Buchungsbestätigung an Kunde senden
               </label>
+              {!state.customer?.email && (
+                <p className="text-sm text-muted-foreground">
+                  Keine E-Mail hinterlegt – Bestätigung wird nicht gesendet.
+                </p>
+              )}
               {state.customer?.email && (
                 <p className="flex items-center gap-1 text-sm text-muted-foreground">
                   <Mail className="h-3 w-3" />

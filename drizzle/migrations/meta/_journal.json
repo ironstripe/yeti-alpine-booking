@@ -64,6 +64,13 @@
       "when": 1791639099504,
       "tag": "0008_group_course_optional_ages",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1791662428172,
+      "tag": "0009_customers_email_optional",
+      "breakpoints": true
     }
   ]
 }
