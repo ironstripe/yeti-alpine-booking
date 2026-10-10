@@ -10,7 +10,7 @@ import type {
   TrainingCourseDate 
 } from '@/types/group-courses';
 import { generateSaturdays } from '@/lib/dates/saturday-generator';
-import { normalizeCourseAges, describeCourseSaveError } from '@/lib/groupCourseCreate';
+import { createGroupCourse, CourseChildSaveError, type CourseClient } from '@/lib/groupCourseCreate';
 import {
   classifyInvoke, isCourseRelatedQueryKey, needsReadback, resolveReadback,
   type CourseActionOutcome, type CourseDependencies,
@@ -199,103 +199,7 @@ export function useCreateGroupCourse() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (formData: GroupCourseFormData) => {
-      // Create course - no longer includes skill_level_id
-      const isOffice = formData.course_type === 'office';
-      const insertData: Record<string, unknown> = {
-        name: formData.name,
-        description: formData.description || null,
-        discipline: formData.discipline,
-        ...(isOffice ? { min_age: 18, max_age: 99 } : normalizeCourseAges(formData.min_age, formData.max_age)),
-        max_participants: formData.max_participants,
-        product_id: isOffice ? null : formData.product_id,
-        meeting_point: formData.meeting_point || null,
-        color: isOffice ? '#6B7280' : formData.color,
-        is_active: formData.is_active,
-        is_internal: isOffice,
-        price_per_day: 0, // Legacy field, price now comes from product
-        course_type: formData.course_type,
-        period_start_date: formData.period_start_date,
-        period_end_date: formData.period_end_date,
-        sort_order: formData.sort_order ?? 0,
-      };
-
-      const { data: course, error: courseError } = await supabase
-        .from('group_courses')
-        .insert(insertData as any)
-        .select()
-        .single();
-
-      if (courseError) throw new Error(describeCourseSaveError(courseError));
-
-      try {
-      // Create schedules (for weekly courses)
-      if (formData.course_type === 'weekly') {
-        const scheduleInserts = formData.schedules.days.flatMap(dayOfWeek =>
-          formData.schedules.time_slots.map(slot => ({
-            course_id: course.id,
-            day_of_week: dayOfWeek,
-            start_time: slot.start_time,
-            end_time: slot.end_time,
-            is_active: true,
-          }))
-        );
-
-        if (scheduleInserts.length > 0) {
-          const { error: schedError } = await supabase
-            .from('group_course_schedules')
-            .insert(scheduleInserts);
-
-          if (schedError) throw schedError;
-        }
-      }
-
-      // Generate course dates for Saturday courses
-      if (formData.course_type === 'saturday_course' && formData.period_start_date && formData.period_end_date) {
-        const saturdays = generateSaturdays(
-          new Date(formData.period_start_date),
-          new Date(formData.period_end_date)
-        );
-
-        const courseDatesInserts = saturdays.map(date => ({
-          training_id: course.id,
-          date: format(date, 'yyyy-MM-dd'),
-          is_cancelled: false,
-        }));
-
-        if (courseDatesInserts.length > 0) {
-          const { error: datesError } = await supabase
-            .from('training_course_dates')
-            .insert(courseDatesInserts);
-
-          if (datesError) throw datesError;
-        }
-
-        // Persist each authored Saturday teaching block, not an invented 10–14 slot.
-        const { error: schedError } = await supabase
-          .from('group_course_schedules')
-          .insert(formData.schedules.time_slots.map(slot => ({
-            course_id: course.id,
-            day_of_week: 6, // Saturday
-            start_time: slot.start_time,
-            end_time: slot.end_time,
-            is_active: true,
-          })));
-
-        if (schedError) throw schedError;
-      }
-      } catch (childError) {
-        // No hidden partial course: remove the just-created, unused course via the
-        // guarded course-management path (audited in course_deletion_log).
-        const { data: del, error: delError } = await supabase.functions.invoke('course-management', {
-          body: { action: 'delete', course_id: course.id },
-        });
-        const removed = !delError && (del as { error?: string } | null)?.error == null;
-        throw new Error(describeCourseSaveError(childError, removed ? 'removed' : 'failed'));
-      }
-
-      return course;
-    },
+    mutationFn: (formData: GroupCourseFormData) => createGroupCourse(supabase as unknown as CourseClient, formData),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['group-courses'] });
       toast.success('Training erfolgreich erstellt');
@@ -303,7 +207,7 @@ export function useCreateGroupCourse() {
     onError: (error) => {
       console.error('Error creating course:', error);
       queryClient.invalidateQueries({ queryKey: ['group-courses'] });
-      toast.error(error instanceof Error && error.message.startsWith('Fehler') ? error.message : 'Fehler beim Erstellen des Trainings');
+      toast.error(error instanceof CourseChildSaveError ? error.message : 'Fehler beim Erstellen des Trainings', error instanceof CourseChildSaveError ? { duration: 20000 } : undefined);
     },
   });
 }
