@@ -57,6 +57,13 @@
       "when": 1791279204657,
       "tag": "0007_staff_guest_level",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1791639099504,
+      "tag": "0008_group_course_optional_ages",
+      "breakpoints": true
     }
   ]
 }

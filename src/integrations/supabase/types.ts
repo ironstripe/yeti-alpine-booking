@@ -2033,10 +2033,10 @@ export type Database = {
           id: string
           is_active: boolean | null
           is_internal: boolean | null
-          max_age: number
+          max_age: number | null
           max_participants: number
           meeting_point: string | null
-          min_age: number
+          min_age: number | null
           min_participants: number | null
           name: string
           next_training_id: string | null
@@ -2060,10 +2060,10 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           is_internal?: boolean | null
-          max_age: number
+          max_age?: number | null
           max_participants?: number
           meeting_point?: string | null
-          min_age: number
+          min_age?: number | null
           min_participants?: number | null
           name: string
           next_training_id?: string | null
@@ -2087,10 +2087,10 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           is_internal?: boolean | null
-          max_age?: number
+          max_age?: number | null
           max_participants?: number
           meeting_point?: string | null
-          min_age?: number
+          min_age?: number | null
           min_participants?: number | null
           name?: string
           next_training_id?: string | null
