@@ -3,6 +3,8 @@ name: Gemini Main Guard
 # Deckt den Weg ab, den der PR-Gatekeeper nicht sieht: Lovable schreibt direkt auf main.
 # Bewusst nur auf sicherheits- und datenrelevante Pfade begrenzt, damit der
 # Entwicklungsprozess nicht durch Modellaufrufe und Meldungen ausgebremst wird.
+# Bei BLOCK entsteht kein Schreibstopp, sondern ein Hinweis plus ein Rueckbau-PR,
+# den der Eigentuemer mit einem Klick merged oder bewusst schliesst.
 on:
   push:
     branches: [main]
@@ -22,6 +24,11 @@ concurrency:
 jobs:
   guard:
     runs-on: ubuntu-latest
+    # Schreibrechte nur fuer diesen Job: Rueckbau-Branch pushen und PR anlegen.
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -29,6 +36,7 @@ jobs:
           fetch-depth: 0
 
       - name: Diff des Push bestimmen
+        id: diff
         run: |
           BEFORE='${{ github.event.before }}'
           AFTER='${{ github.event.after }}'
@@ -38,6 +46,9 @@ jobs:
           git diff "$BEFORE" "$AFTER" > main_diff.txt
           echo "Vergleich $BEFORE..$AFTER"
           wc -c main_diff.txt
+          echo "before=$BEFORE" >> "$GITHUB_OUTPUT"
+          echo "after=$AFTER" >> "$GITHUB_OUTPUT"
+          echo "count=$(git rev-list --count "$BEFORE..$AFTER")" >> "$GITHUB_OUTPUT"
 
       - name: Modell-Review
         id: review
@@ -79,7 +90,7 @@ jobs:
             echo ""
             echo "## Noetige Interaktion"
             echo ""
-            echo "Entscheiden, ob korrigiert oder bewusst belassen wird. Bei BLOCK nicht stillschweigend weiterarbeiten."
+            echo "Entscheiden, ob korrigiert oder bewusst belassen wird. Als Vorschlag entsteht zusaetzlich ein Rueckbau-PR (Label \`gate-revert\`): mergen = zuruecknehmen, schliessen = belassen."
           } > issue_body.md
           if [ -n "$issue" ]; then
             gh issue comment "$issue" --repo "$REPO" --body-file issue_body.md
@@ -91,3 +102,78 @@ jobs:
               --assignee "$OWNER" \
               --body-file issue_body.md
           fi
+
+      - name: Bei BLOCK Rueckbau-PR vorschlagen
+        if: ${{ steps.review.outputs.verdict == 'BLOCK' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          BEFORE: ${{ steps.diff.outputs.before }}
+          AFTER: ${{ steps.diff.outputs.after }}
+          COUNT: ${{ steps.diff.outputs.count }}
+        run: |
+          set -uo pipefail
+          branch="gate-revert/${AFTER:0:7}"
+          if [ "${COUNT:-0}" -gt 50 ]; then
+            echo "::warning::${COUNT} Commits im Push - automatischer Rueckbau wird nicht vorgeschlagen."
+            exit 0
+          fi
+          open_revert=$(gh pr list --repo "$REPO" --label gate-revert --state open --limit 1 --json number --jq '.[0].number // empty')
+          if [ -n "$open_revert" ]; then
+            echo "Rueckbau-PR #$open_revert ist bereits offen - kein zweiter Vorschlag."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$branch"
+
+          conflict=0
+          for c in $(git rev-list "${BEFORE}..${AFTER}"); do
+            parents=$(git rev-list --parents -n 1 "$c" | wc -w)
+            if [ "$parents" -gt 2 ]; then
+              git revert --no-commit -m 1 "$c" || { git revert --abort; conflict=1; break; }
+            else
+              git revert --no-commit "$c" || { git revert --abort; conflict=1; break; }
+            fi
+          done
+
+          if [ "$conflict" = 1 ]; then
+            git checkout -q --detach "$AFTER"
+            git branch -D "$branch" >/dev/null 2>&1 || true
+            issue=$(gh issue list --repo "$REPO" --label gate-alert --state open --limit 1 --json number --jq '.[0].number // empty')
+            if [ -n "$issue" ]; then
+              gh issue comment "$issue" --repo "$REPO" \
+                --body "Automatischer Rueckbau nicht moeglich (Konflikt beim Revert). Manuelle Entscheidung notwendig."
+            fi
+            echo "::warning::Rueckbau nicht moeglich (Konflikt) - Entscheidung liegt beim Eigentuemer."
+            exit 0
+          fi
+
+          git commit -q -m "revert: Gatekeeper-BLOCK auf main rueckgaengig machen (${AFTER:0:7})"
+          git push -q origin "$branch"
+
+          gh label create gate-revert \
+            --color FBCA04 \
+            --description "Automatisch vorgeschlagener Rueckbau eines Gate-BLOCK" \
+            --force >/dev/null 2>&1 || true
+
+          {
+            echo "Dieser PR macht den Direktcommit rueckgaengig, den der Gatekeeper mit **BLOCK** bewertet hat."
+            echo ""
+            echo "- Betroffener Stand: https://github.com/$REPO/commit/$AFTER"
+            echo "- Rueckgaengig gemachter Bereich: \`$BEFORE..$AFTER\` (${COUNT} Commits)"
+            echo ""
+            echo "Mergen = zuruecknehmen. Schliessen = bewusst belassen. Kein Automatismus ohne diese Entscheidung."
+            echo ""
+            echo "## Befund des Gatekeepers"
+            echo ""
+            cat review.md
+          } > revert_body.md
+
+          gh pr create --repo "$REPO" \
+            --base main \
+            --head "$branch" \
+            --title "revert: Gate-BLOCK auf main zuruecknehmen (${AFTER:0:7})" \
+            --label gate-revert \
+            --body-file revert_body.md
