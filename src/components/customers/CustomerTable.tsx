@@ -60,13 +60,17 @@ export function CustomerTable({ customers, returnTo }: CustomerTableProps) {
               </TableCell>
 
               <TableCell>
-                <a
-                  href={`mailto:${customer.email}`}
-                  className="text-primary hover:underline"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  {customer.email}
-                </a>
+                {customer.email ? (
+                  <a
+                    href={`mailto:${customer.email}`}
+                    className="text-primary hover:underline"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {customer.email}
+                  </a>
+                ) : (
+                  <span className="text-muted-foreground">–</span>
+                )}
               </TableCell>
               <TableCell>
                 {customer.phone ? (

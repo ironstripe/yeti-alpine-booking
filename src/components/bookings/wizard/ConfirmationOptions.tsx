@@ -38,7 +38,8 @@ export function ConfirmationOptions({
           <div className="flex items-start gap-3">
             <Checkbox
               id="send-email"
-              checked={sendCustomerEmail}
+              checked={sendCustomerEmail && !!state.customer?.email}
+              disabled={!state.customer?.email}
               onCheckedChange={(checked) => onSendCustomerEmailChange(checked === true)}
             />
             <div className="flex-1">
