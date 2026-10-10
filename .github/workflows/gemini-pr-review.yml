@@ -2,15 +2,26 @@ name: Gemini Pragmatism Gatekeeper
 
 on:
   pull_request:
-    types: [opened, synchronize]
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+
+# Modelle bewusst gepinnt: ein "latest"-Alias kann von Google jederzeit hinter dem Namen
+# ausgetauscht werden; fuer ein Gate ist ein fester Stable-Stand reproduzierbarer.
+# Erstes Modell ist die Wahl, weitere sind Ausweichmodelle bei Kapazitaetsfehlern (503/429).
+# Vor dem Update die Liste pruefen: https://ai.google.dev/gemini-api/docs/models
+env:
+  GEMINI_MODELS: gemini-3.8-flash,gemini-3.5-flash-lite
 
 jobs:
   review:
+    # Ein reines Override-Label loest keine neue Bewertung aus (spart einen Modellaufruf).
+    # Das Gate selbst laeuft trotzdem und laesst mit gesetztem Label durch.
+    if: ${{ !(github.event.action == 'labeled' && github.event.label.name == 'gate-override') }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
       pull-requests: write
-
+    outputs:
+      verdict: ${{ steps.review.outputs.verdict }}
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -18,64 +29,96 @@ jobs:
           fetch-depth: 0
 
       - name: Hole PR Diff
-        id: diff
         run: |
           git diff origin/${{ github.base_ref }}...HEAD > pr_diff.txt
+          wc -c pr_diff.txt
 
-      - name: Gemini Review durchführen
+      - name: Modell-Review
+        id: review
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          python3 scripts/gemini_review.py \
+            --diff-file pr_diff.txt \
+            --out-review review.md \
+            --out-verdict verdict.txt \
+            --head "PR #${{ github.event.pull_request.number }} @ ${{ github.event.pull_request.head.sha }}"
+          echo "verdict=$(cat verdict.txt 2>/dev/null | tr -d '\n' || echo UNKNOWN)" >> "$GITHUB_OUTPUT"
+
+      - name: Kommentar schreiben oder aktualisieren
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           REPO: ${{ github.repository }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           python3 - << 'EOF'
-          import os, json, urllib.request
+          import json, os, urllib.request
 
-          api_key = os.environ.get('GEMINI_API_KEY')
-          pr_num = os.environ.get('PR_NUMBER')
-          repo = os.environ.get('REPO')
-          gh_token = os.environ.get('GH_TOKEN')
+          repo, pr, token = os.environ['REPO'], os.environ['PR_NUMBER'], os.environ['GH_TOKEN']
+          marker = '<!-- gemini-pragmatism-review -->'
+          try:
+              with open('review.md', encoding='utf-8') as handle:
+                  body = handle.read()
+          except OSError:
+              raise SystemExit('review.md fehlt - nichts zu kommentieren')
 
-          if not api_key:
-              raise SystemExit("GEMINI_API_KEY secret fehlt!")
+          headers = {
+              'Authorization': f'Bearer {token}',
+              'Accept': 'application/vnd.github+json',
+              'Content-Type': 'application/json',
+          }
 
-          with open('pr_diff.txt', 'r', encoding='utf-8', errors='ignore') as f:
-              diff = f.read()
+          def call(url, method='GET', payload=None):
+              data = json.dumps(payload).encode('utf-8') if payload is not None else None
+              req = urllib.request.Request(url, data=data, headers=headers, method=method)
+              with urllib.request.urlopen(req, timeout=60) as resp:
+                  raw = resp.read().decode('utf-8')
+              return json.loads(raw) if raw.strip() else {}
 
-          # Begrenzung für sehr große PRs
-          diff_sample = diff[:50000]
-
-          prompt = f"""
-          Du bist der pragmatische Tech-Lead und Gatekeeper. Dein Ziel: Schnelles Shipping (MVP), saubere Architektur, null Overengineering.
-          Verhindere das 'Agent Rabbit Hole' (endlose Loops aus Refactoring, Mini-Tests, unnötigen Abstraktionen).
-
-          Analysiere den folgenden Git-Diff dieses Pull Requests:
-          ```
-          {diff_sample}
-          ```
-
-          Antworte nach exakt diesem Schema:
-          1. **Verdict**: [SHIP IT 🚀] oder [BLOCK 🛑] (Nur blocken bei echten Showstoppern/Bugs oder extremem Scope Creep!)
-          2. **Pragmatismus-Check**: Wurde hier unnötiges Zeug gebaut, das niemand bestellt hat?
-          3. **Maximal 2-3 konkrete Bulletpoints**: Was muss zwingend gefixt werden (falls BLOCK), oder was ist die Essenz des PRs (falls SHIP IT).
-          Halte dich kurz, direkt und lösungsorientiert.
-          """
-
-          url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
-          data = json.dumps({"contents": [{"parts": [{"text": prompt}]}]}).encode('utf-8')
-          
-          req = urllib.request.Request(url, data=data, headers={'Content-Type': 'application/json'})
-          resp = urllib.request.urlopen(req)
-          result = json.loads(resp.read().decode('utf-8'))
-          review_comment = result['candidates'][0]['content']['parts'][0]['text']
-
-          comment_url = f"https://api.github.com/repos/{repo}/issues/{pr_num}/comments"
-          comment_data = json.dumps({"body": f"### 🤖 Gemini Pragmatism Review\n\n{review_comment}"}).encode('utf-8')
-          req_gh = urllib.request.Request(comment_url, data=comment_data, headers={
-              'Authorization': f'Bearer {gh_token}',
-              'Accept': 'application/vnd.github.v3+json',
-              'Content-Type': 'application/json'
-          })
-          urllib.request.urlopen(req_gh)
+          comments = call(f'https://api.github.com/repos/{repo}/issues/{pr}/comments?per_page=100')
+          own = [c for c in comments
+                 if marker in c.get('body', '') and c['user']['login'] == 'github-actions[bot]']
+          if own:
+              call(f"https://api.github.com/repos/{repo}/issues/comments/{own[0]['id']}",
+                   'PATCH', {'body': body})
+              print('bestehender Review-Kommentar aktualisiert')
+          else:
+              call(f'https://api.github.com/repos/{repo}/issues/{pr}/comments',
+                   'POST', {'body': body})
+              print('neuer Review-Kommentar geschrieben')
           EOF
+
+  verdict-gate:
+    # Laeuft auch, wenn das Review uebersprungen wurde (Override-Label) oder fehlschlug.
+    needs: review
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Gate-Entscheid
+        env:
+          VERDICT: ${{ needs.review.outputs.verdict }}
+          OVERRIDE: ${{ contains(github.event.pull_request.labels.*.name, 'gate-override') }}
+        run: |
+          echo "Verdict='${VERDICT}' Override='${OVERRIDE}'"
+          {
+            echo "## Gatekeeper"
+            echo ""
+            echo "- Verdict: \`${VERDICT:-UNKNOWN}\`"
+            echo "- Override-Label \`gate-override\`: ${OVERRIDE}"
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$OVERRIDE" = "true" ]; then
+            echo "Override-Label gesetzt: Gate wird durchgelassen. Der Vorgang bleibt in der PR-Timeline dokumentiert."
+            exit 0
+          fi
+          case "$VERDICT" in
+            BLOCK)
+              echo "::error::Gatekeeper-Verdict BLOCK. Siehe Review-Kommentar. Freigabe nur ueber Korrektur oder Label gate-override."
+              exit 1
+              ;;
+            SHIP)
+              echo "Gatekeeper: SHIP IT."
+              ;;
+            *)
+              echo "::warning::Kein belastbares Verdict (Modell- oder API-Ausfall). Ein Ausfall darf den Entwicklungsprozess nicht blockieren."
+              ;;
+          esac
