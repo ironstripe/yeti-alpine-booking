@@ -276,6 +276,16 @@ try {
         results.push(`     private guest ${g.first_name}: level ${row?.l ?? '-'}`);
       }
       results.push(`     private payload: ${a.length} appointments, ${persons} people, total ${r.total}`);
+      if (p.finalization?.payment_method === 'invoice') {
+        const tk = (await sql`SELECT payment_method m, payment_due_date::text d, paid_amount pa, total_amount ta FROM tickets WHERE id=${r.ticket_id}`)[0];
+        assert.equal(tk.m, 'invoice'); assert.equal(tk.d, p.finalization.payment_due_date); assert.equal(Number(tk.pa), 0);
+        assert.equal((await sql`SELECT count(*)::int n FROM payments WHERE ticket_id=${r.ticket_id}`)[0].n, 0);
+        assert.equal((await sql`SELECT count(*)::int n FROM invoices WHERE ticket_id=${r.ticket_id}`)[0].n, 0);
+        const again = await pbook(p); assert.equal(again.ticket_id, r.ticket_id, 'same key replays');
+        assert.equal((await sql`SELECT count(*)::int n FROM tickets WHERE customer_id=${p.customer_id}`)[0].n >= 1, true);
+        assert.equal((await sql`SELECT count(*)::int n FROM private_appointments WHERE ticket_id=${r.ticket_id}`)[0].n, p.appointments.length);
+        results.push(`     invoice payload: method ${tk.m}, due ${tk.d}, total ${tk.ta}, paid ${tk.pa}, replay same ticket`);
+      }
     });
   }
   if (process.env.GROUP_PAYLOAD && existsSync(process.env.GROUP_PAYLOAD)) {
