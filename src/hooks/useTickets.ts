@@ -249,7 +249,7 @@ export function useTickets(filters: TicketFilters) {
           if (customerName.includes(searchLower)) return true;
           
           // Search customer email
-          if (ticket.customer.email.toLowerCase().includes(searchLower)) return true;
+          if ((ticket.customer.email ?? "").toLowerCase().includes(searchLower)) return true;
           
           // Search customer phone
           if (ticket.customer.phone?.includes(filters.search)) return true;

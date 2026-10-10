@@ -15,7 +15,7 @@ export interface CustomerSearchHit {
   last_name: string;
   organization_name: string | null;
   customer_type: string | null;
-  email: string;
+  email: string | null;
   phone: string | null;
   city: string | null;
   country: string | null;

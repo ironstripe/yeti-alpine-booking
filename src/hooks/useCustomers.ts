@@ -7,7 +7,7 @@ export interface CustomerWithCount {
   customer_number: string | null;
   first_name: string | null;
   last_name: string;
-  email: string;
+  email: string | null;
   phone: string | null;
   street: string | null;
   zip: string | null;
