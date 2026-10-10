@@ -64,6 +64,10 @@ jobs:
           {diff_sample}
           ```
 
+          Wichtig: Beurteile keine Versions-, Modell- oder API-Aktualitaet aus deinem Trainingswissen.
+          Wenn du etwas fuer veraltet haeltst, belege es mit einer Datei oder Zeile im Diff oder formuliere
+          es als Frage - ein BLOCK wegen angeblicher Versionsaktualitaet ohne Beleg ist unzulaessig.
+
           Antworte nach exakt diesem Schema:
           1. **Verdict**: [SHIP IT 🚀] oder [BLOCK 🛑] (Nur blocken bei echten Showstoppern/Bugs oder extremem Scope Creep!)
           2. **Pragmatismus-Check**: Wurde hier unnötiges Zeug gebaut, das niemand bestellt hat?
