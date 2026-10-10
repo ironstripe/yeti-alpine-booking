@@ -1,3 +1,4 @@
+import { customerEmailRecipient } from "@/lib/customerEmail";
 import { useState, useMemo } from "react";
 import { toast } from "sonner";
 import { useParticipantOwnership } from "@/hooks/useParticipantOwnership";
@@ -227,7 +228,7 @@ export function Step4Summary({ onEditStep }: Step4SummaryProps) {
           paymentDueDate,
           discountPercent: totalDiscount,
           discountReason: combinedReason,
-          sendCustomerEmail,
+          sendCustomerEmail: sendCustomerEmail && !!customerEmailRecipient(state.customer),
           sendCustomerWhatsApp,
           notifyInstructor,
         });
@@ -384,7 +385,7 @@ export function Step4Summary({ onEditStep }: Step4SummaryProps) {
           open={showSuccess}
           ticketNumber={createdTicket.number}
           ticketId={createdTicket.id}
-          customerEmail={sendCustomerEmail ? state.customer?.email || null : null}
+          customerEmail={sendCustomerEmail ? customerEmailRecipient(state.customer) : null}
           instructorName={
             notifyInstructor && state.instructor
               ? `${state.instructor.first_name} ${state.instructor.last_name}`
