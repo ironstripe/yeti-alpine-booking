@@ -22,3 +22,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Python bytecode (CI prueft mit py_compile)
+__pycache__/
+*.pyc
