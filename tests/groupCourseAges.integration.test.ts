@@ -23,9 +23,17 @@ describe.skipIf(!URL)("#46 group course ages (local schema)", () => {
       rollback;`);
     expect(r.stderr).toBe("");
     expect(r.stdout.trim().split("\n")).toEqual(["1/0/true", "5", "5-16", "null-16"]);
-    for (const [a, b] of [["0", "10"], ["10", "5"], ["5", "100"]]) {
+    for (const [a, b] of [["0", "10"], ["10", "5"], ["5", "100"], ["100", "null"], ["null", "0"], ["null", "-3"], ["0", "null"], ["null", "100"]]) {
       const bad = psql(`begin; ${MIG} ${ins(a, b)}; rollback;`);
       expect(bad.status).not.toBe(0);
     }
+    expect(psql(`begin; ${MIG} ${MIG} rollback;`).status).not.toBe(0); // single-apply
+  });
+  test("rollback restores NOT NULL only when safe", () => {
+    const RB = require("node:fs").readFileSync("supabase/rollback/group_course_optional_ages_rollback.sql", "utf8").replace(/^BEGIN;|COMMIT;$/gm, "");
+    const safe = psql(`begin; ${MIG} ${RB} select is_nullable from information_schema.columns where table_name='group_courses' and column_name='min_age'; rollback;`);
+    expect(safe.stdout.trim()).toBe("NO");
+    const unsafe = psql(`begin; ${MIG} ${ins("null","null")}; ${RB} select is_nullable from information_schema.columns where table_name='group_courses' and column_name='min_age'; select count(*) from pg_constraint where conname='group_courses_age_bounds_check'; rollback;`);
+    expect(unsafe.stdout.trim().split("\n")).toEqual(["YES", "0"]);
   });
 });
