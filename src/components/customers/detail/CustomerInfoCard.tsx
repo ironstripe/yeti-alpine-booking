@@ -41,7 +41,7 @@ import { COUNTRY_FLAGS, LANGUAGE_OPTIONS } from "@/lib/participant-utils";
 const editSchema = z.object({
   first_name: z.string().optional(),
   last_name: z.string().min(1, "Nachname ist erforderlich"),
-  email: z.string().email("Ungültige E-Mail-Adresse"),
+  email: z.union([z.literal(""), z.string().trim().email("Ungültige E-Mail-Adresse")]).optional(),
   phone: z.string().optional(),
   street: z.string().optional(),
   zip: z.string().optional(),
@@ -75,7 +75,7 @@ export function CustomerInfoCard({ customer }: CustomerInfoCardProps) {
     defaultValues: {
       first_name: customer.first_name || "",
       last_name: customer.last_name,
-      email: customer.email,
+      email: customer.email ?? "",
       phone: customer.phone || "",
       street: customer.street || "",
       zip: customer.zip || "",
@@ -100,6 +100,7 @@ export function CustomerInfoCard({ customer }: CustomerInfoCardProps) {
     await updateCustomer.mutateAsync({
       ...data,
       first_name: data.first_name || null,
+      email: data.email?.trim() || null,
       phone: data.phone || null,
       street: data.street || null,
       zip: data.zip || null,
@@ -175,7 +176,7 @@ export function CustomerInfoCard({ customer }: CustomerInfoCardProps) {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="email">E-Mail *</Label>
+              <Label htmlFor="email">E-Mail</Label>
               <Input id="email" type="email" {...register("email")} />
               {errors.email && (
                 <p className="text-sm text-destructive">{errors.email.message}</p>
@@ -345,12 +346,16 @@ export function CustomerInfoCard({ customer }: CustomerInfoCardProps) {
           <div className="flex items-start gap-3">
             <Mail className="h-4 w-4 mt-1 text-muted-foreground" />
             <div>
-              <a
-                href={`mailto:${customer.email}`}
-                className="text-primary hover:underline"
-              >
-                {customer.email}
-              </a>
+              {customer.email ? (
+                <a
+                  href={`mailto:${customer.email}`}
+                  className="text-primary hover:underline"
+                >
+                  {customer.email}
+                </a>
+              ) : (
+                <span className="text-muted-foreground">Keine E-Mail hinterlegt</span>
+              )}
             </div>
           </div>
 

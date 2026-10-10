@@ -45,6 +45,11 @@ export function ConfirmationOptions({
               <label htmlFor="send-email" className="cursor-pointer text-sm font-medium">
                 Buchungsbestätigung an Kunde senden
               </label>
+              {!state.customer?.email && (
+                <p className="text-sm text-muted-foreground">
+                  Keine E-Mail hinterlegt – Bestätigung wird nicht gesendet.
+                </p>
+              )}
               {state.customer?.email && (
                 <p className="flex items-center gap-1 text-sm text-muted-foreground">
                   <Mail className="h-3 w-3" />
