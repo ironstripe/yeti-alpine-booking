@@ -47,7 +47,8 @@ export function TrainingCard({ course, onEdit, onCopy, onViewCapacity, onDelete,
   const timeSlots = [...new Set(course.schedules.map(s => `${s.start_time.slice(0, 5)}-${s.end_time.slice(0, 5)}`))];
 
   // Age range text - ALWAYS display age range (required field) - not for office
-  const ageRangeLabel = !isOfficeCourse ? `${course.min_age}-${course.max_age} J.` : null;
+  const ageRangeLabel = isOfficeCourse || (course.min_age == null && course.max_age == null) ? null
+    : course.min_age == null ? `bis ${course.max_age} J.` : course.max_age == null ? `ab ${course.min_age} J.` : `${course.min_age}-${course.max_age} J.`;
 
   // Participation percentage
   const participationPercent = course.this_week_max_spots 
