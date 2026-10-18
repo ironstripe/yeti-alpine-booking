@@ -3,6 +3,11 @@ import { assertEquals, assert } from 'jsr:@std/assert@1';
 Deno.test('optional product offering, ordered dates, exact single tiers, old fields and gates', async () => {
   const originalFetch=globalThis.fetch;
   const originalServe=Deno.serve;
+  const originalInterval=globalThis.setInterval;
+  const intervals:number[]=[];
+  globalThis.setInterval=((...args:Parameters<typeof setInterval>)=>{
+    const id=originalInterval(...args);intervals.push(id);return id;
+  }) as typeof setInterval;
   const oldEnv=new Map(['SUPABASE_URL','SUPABASE_SERVICE_ROLE_KEY','YETI_INTAKE_API_KEY'].map(k=>[k,Deno.env.get(k)]));
   let handler: ((request:Request)=>Promise<Response>) | undefined;
   const queried:string[]=[];
@@ -28,5 +33,5 @@ Deno.test('optional product offering, ordered dates, exact single tiers, old fie
     assertEquals(body.products.find((p:{id:string})=>p.id==='legacy').public_offering,null);
     for(const key of ['id','name','title','subtitle','type','discipline','audience','icon_key','badge','requirement','meta','notes','pricing_type','availability_policy','price','price_tiers','private_rates','duration_minutes','min_age','max_age','currency','sort_order','online_bookable'])assert(key in p,key);
     assert(!('description' in p));assert(!queried.some(t=>['group_courses','group_course_instances','instructors'].includes(t)));
-  } finally {globalThis.fetch=originalFetch;Deno.serve=originalServe;for(const [k,v] of oldEnv){if(v===undefined)Deno.env.delete(k);else Deno.env.set(k,v);}}
+  } finally {for(const id of intervals)clearInterval(id);globalThis.setInterval=originalInterval;globalThis.fetch=originalFetch;Deno.serve=originalServe;for(const [k,v] of oldEnv){if(v===undefined)Deno.env.delete(k);else Deno.env.set(k,v);}}
 });

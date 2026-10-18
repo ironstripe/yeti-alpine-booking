@@ -1,10 +1,11 @@
 # Roadmap
 
 ## Product public offering metadata — implementation only
-- [ ] Add product-scoped schedule persistence, preflight and reversible SQL (prepare only).
-- [ ] Integrate Website-Informationen into existing modal, preview, dirty guard, save/reopen.
-- [ ] Extend product-only catalog without changing existing prices or booking gates (prepare only).
-- [ ] Verify focused domain/SQL/permissions/rollback and isolated desktop/mobile browser checks; document installation and gaps.
+- [x] Prepare product-scoped schedule persistence, preflight and reversible SQL; no backfill or shared-backend installation.
+- [x] Integrate Website-Informationen into existing modal, preview, dirty guard, save/reopen; metadata-only save avoids product writes, failed saves retain edits.
+- [x] Prepare optional product-only catalog projection; preserve existing fields, prices and online_bookable:false.
+- [x] Verify 31 focused offering/legacy-pricing/private-tariff tests, 13 disposable actual-schema SQL checks (permissions, unchanged history and rollback), isolated actual modal at 1100x760 and 390x700 (save/reopen, reordered Saturdays, overlap, dirty dismissal, failed save retry, scrolling; no runtime errors). Functions checked; automatic build/typecheck checked. Offline catalog handler test recorded alongside endpoint.
+- Installation after independent review only: apply exact pending SQL with migration tool, read back grants/RLS/functions, deploy only product-public-offering, then get-website-products, then separately authorised frontend publish. No installation/deploy/publish performed; real-backend save/reopen and keyed live catalog remain unverified. Booking date suitability/availability enforcement explicitly outside this step.
 
 ## Product editor repair — step 1 only
 - [x] Preserve legacy flat pricing and all stored day tiers; 10/10 targeted tests (real update hook with synthetic responses), isolated actual form open/save/reopen for flat/fixed/hourly/tiered plus 6/7-day edit, automatic build/typecheck OK. No live writes, migration, deployment or publication; live persistence not exercised.
