@@ -1,5 +1,10 @@
 # Roadmap
 
+## Product modal persistent scrolling
+- [x] Confirm current definite-height layout and actual authenticated Products → Bearbeiten wheel interaction at 851×533 without business writes; no disabled-scroll reproduction observed.
+- [x] Keep native viewport-constrained pane, expose stable styled scrollbar and keyboard-focusable product details; preserve fields, footer and dirty guard.
+- [x] Mandatory layout alarm 5/5; isolated browser checks passed at 1053×763, 851×533, 390×700 and tall desktop, including keyboard access and return from unsaved-changes dialog. Actual authenticated menu opener wheel scroll 0→600; automatic build OK. No business writes, deployment or publication.
+
 ## Public private tariff information — preparation only
 - [x] Prepare separate product/season display persistence, atomic revision-checked staff save, unverified target-only seed and rollback; preserve operational tariffs.
 - [x] Extend optional versioned catalog information for explicitly verified rows only; missing schema omits fields, private_rates and booking gates unchanged.

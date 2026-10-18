@@ -71,6 +71,14 @@ async def check(base):
             else:
                 assert geometry['parent'] < height*.9-100, 'Tall viewports should not force empty space'
             await page.get_by_label('Name *',exact=True).fill('Synthetic edited name')
+            # The native pane itself must support keyboard scrolling, without
+            # needing to focus a field far down the form first.
+            await page.get_by_role('region', name='Produktdetails').focus()
+            await page.keyboard.press('PageDown')
+            await page.wait_for_timeout(180)
+            assert await pane.evaluate('el=>el.scrollTop') > 0, 'Focused pane did not scroll'
+            await page.keyboard.press('Home')
+            await page.wait_for_timeout(180)
             bounds = await pane.bounding_box()
             assert bounds
             await page.mouse.move(bounds['x']+bounds['width']/2,bounds['y']+bounds['height']/2)
@@ -111,6 +119,17 @@ async def check(base):
             assert await page.get_by_label('Ende Zeitblock 2',exact=True).input_value() == '16:15'
             assert await active.get_attribute('aria-checked') == 'false'
             assert await dialog.get_by_role('button',name='Speichern',exact=True).is_enabled()
+            # A nested dirty-state dialog must release its lock on every return.
+            await pane.focus()
+            before = await pane.evaluate('el=>el.scrollTop')
+            await page.keyboard.press('Home')
+            await page.wait_for_timeout(180)
+            bounds = await pane.bounding_box()
+            assert bounds
+            await page.mouse.move(bounds['x']+bounds['width']/2,bounds['y']+bounds['height']/2)
+            await page.mouse.wheel(0,350)
+            await page.wait_for_timeout(180)
+            assert await pane.evaluate('el=>el.scrollTop') > 0, 'Scroll lock remained after returning to edits'
             assert not errors, errors
             print(f'PASS {width}x{height}: scroll, reachable controls, fixed footer, dirty state; external requests blocked: {len(blocked)}',flush=True)
             await context.close()

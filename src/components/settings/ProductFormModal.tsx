@@ -264,7 +264,12 @@ export function ProductFormModal({ open, onOpenChange, product, seasonId, isBook
         <DialogHeader className="shrink-0 border-b px-5 py-5 pr-16 sm:px-6 sm:pr-16">
           <DialogTitle>{isEditing ? "Produkt bearbeiten" : "Neues Produkt"}</DialogTitle>
         </DialogHeader>
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-5 sm:px-6">
+        <div
+          tabIndex={0}
+          role="region"
+          aria-label="Produktdetails"
+          className="min-h-0 flex-1 overflow-y-scroll overscroll-contain [scrollbar-gutter:stable] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border px-5 py-5 sm:px-6"
+        >
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 pb-4">
               {/* Product Type */}
