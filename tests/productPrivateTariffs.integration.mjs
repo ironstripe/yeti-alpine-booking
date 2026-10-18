@@ -9,14 +9,12 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const socketDir = process.env.PGHOST ?? '/tmp';
-const adminUrl = `postgres://postgres@localhost:55432/postgres?host=${socketDir}`;
-const opts = { onnotice: () => {}, ssl: false };
+const conn = { host: socketDir, port: 55432, username: 'postgres', onnotice: () => {}, ssl: false };
 const dbName = `private_tariffs_${Date.now()}`;
-const admin = postgres(adminUrl, { ...opts, max: 1 });
+const admin = postgres({ ...conn, database: 'postgres', max: 1 });
 await admin.unsafe(`CREATE DATABASE ${dbName}`);
 await admin.unsafe(`ALTER DATABASE ${dbName} SET search_path = public, extensions`);
-const dbUrl = `postgres://postgres@localhost:55432/${dbName}?host=${socketDir}`;
-const sql = postgres(dbUrl, { ...opts, max: 10 });
+const sql = postgres({ ...conn, database: dbName, max: 10 });
 const root = new URL('../', import.meta.url);
 const psqlFile = (f) => {
   const r = spawnSync('psql', ['-h', socketDir, '-p', '55432', '-U', 'postgres', '-d', dbName, '-q', '-v', 'ON_ERROR_STOP=1', '-1', '-f', fileURLToPath(new URL(f, root))], { encoding: 'utf8' });
