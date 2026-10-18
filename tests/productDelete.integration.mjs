@@ -39,9 +39,7 @@ try{
     const r=await del(P(3));assert.equal(r.error,'referenced');assert.equal(r.dependencies.bc_product_tariff_sources,1);assert.equal(await count('bc_product_tariff_sources',P(3)),1);
   });
   await test('pricing rule reference refused',async()=>{
-    const cols=await sql`SELECT column_name,is_nullable,column_default FROM information_schema.columns WHERE table_name='pricing_rules' AND is_nullable='NO' AND column_default IS NULL`;
-    const vals={applies_to_products:[P(4)]};for(const c of cols)if(!(c.column_name in vals))vals[c.column_name]=c.column_name==='id'?P(99):'synthetic';
-    await sql`INSERT INTO pricing_rules ${sql(vals)}`.catch(e=>{throw Error('pricing_rules fixture: '+e.message);});
+    await sql`INSERT INTO pricing_rules(name,type,discount_type,discount_value,applies_to_products) VALUES('Synthetic','promo','percent',10,${[P(4)]}::uuid[])`;
     assert.equal((await del(P(4))).dependencies.pricing_rules,1);
   });
   await test('missing product reports not_found',async()=>{assert.equal((await del(P(50))).error,'not_found');});
