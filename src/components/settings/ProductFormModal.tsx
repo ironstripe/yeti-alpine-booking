@@ -39,6 +39,7 @@ import { calculateSavingsPercent, formatPriceCHF, getDefaultPriceTiers } from "@
 import { UnsavedChangesDialog } from "@/components/ui/unsaved-changes-dialog";
 import { useGuardedFormDismiss } from "@/hooks/useGuardedFormDismiss";
 import { editorPricingTypeSchema, editorPriceTiers, productEditorPricingPatch } from "@/lib/productEditorPricing";
+import { ProductPublicOfferingEditor, type ProductOfferingHandle } from "@/components/settings/ProductPublicOfferingEditor";
 
 const priceTierSchema = z.object({
   day_count: z.number().min(1).max(7),
@@ -108,9 +109,13 @@ export function ProductFormModal({ open, onOpenChange, product, seasonId, isBook
   const tariffRef = useRef<PrivateTariffMatrixHandle>(null);
   const [tariffDirty, setTariffDirty] = useState(false);
   const [tariffSaving, setTariffSaving] = useState(false);
-  const isPending = createProduct.isPending || updateProduct.isPending || tariffSaving;
+  const offeringRef = useRef<ProductOfferingHandle>(null);
+  const [offeringDirty, setOfferingDirty] = useState(false);
+  const [offeringSaving, setOfferingSaving] = useState(false);
+  const [createdProductId, setCreatedProductId] = useState<string>();
+  const isPending = createProduct.isPending || updateProduct.isPending || tariffSaving || offeringSaving;
   const dismiss = useGuardedFormDismiss({
-    dirty: form.formState.isDirty || tariffDirty,
+    dirty: form.formState.isDirty || tariffDirty || offeringDirty,
     pending: isPending,
     onDiscard: () => form.reset(),
     onOpenChange,
@@ -124,6 +129,8 @@ export function ProductFormModal({ open, onOpenChange, product, seasonId, isBook
   useEffect(() => {
     if (!open) {
       initializedProduct.current = null;
+      setOfferingDirty(false);
+      setCreatedProductId(undefined);
       setTariffDirty(false);
       return;
     }
@@ -191,6 +198,7 @@ export function ProductFormModal({ open, onOpenChange, product, seasonId, isBook
   };
 
   const onSubmit = (data: FormData) => {
+    if (offeringRef.current && !offeringRef.current.validate()) return;
     const payload: any = {
       name: data.name,
       type: data.type,
@@ -214,7 +222,14 @@ export function ProductFormModal({ open, onOpenChange, product, seasonId, isBook
 
     // After the product itself is saved, persist changed tariff cells too.
     // If the tariff save fails, the dialog stays open and the error is shown.
-    const finish = async () => {
+    const finish = async (savedId: string) => {
+      if (offeringDirty) {
+        setOfferingSaving(true);
+        try {
+          const ok = await offeringRef.current?.saveIfDirty(savedId);
+          if (!ok) return;
+        } finally { setOfferingSaving(false); }
+      }
       if (isEditing && tariffRef.current?.isDirty()) {
         setTariffSaving(true);
         try {
@@ -227,15 +242,18 @@ export function ProductFormModal({ open, onOpenChange, product, seasonId, isBook
       dismiss.closeSaved();
     };
 
-    if (isEditing) {
+    const savedId = product?.id ?? createdProductId;
+    if (savedId && !form.formState.isDirty) {
+      void finish(savedId);
+    } else if (savedId) {
       updateProduct.mutate(
-        { id: product.id, ...payload },
-        { onSuccess: finish }
+        { id: savedId, ...payload },
+        { onSuccess: () => { form.reset(data); void finish(savedId); } }
       );
     } else {
       createProduct.mutate(
         payload,
-        { onSuccess: finish }
+        { onSuccess: (created) => { setCreatedProductId(created.id); form.reset(data); void finish(created.id); } }
       );
     }
   };
@@ -735,6 +753,15 @@ export function ProductFormModal({ open, onOpenChange, product, seasonId, isBook
                 )}
               />
 
+              {open && <ProductPublicOfferingEditor
+                key={product?.id ?? "new"} ref={offeringRef}
+                productId={product?.id ?? createdProductId} seasonId={product?.season_id ?? seasonId}
+                type={productType} durationMinutes={form.watch("duration_minutes") ?? null}
+                name={form.watch("name")} price={form.watch("price") ?? 0}
+                tiers={pricingType === "tiered" ? priceTiers : []}
+                disabled={isPending} onDirtyChange={setOfferingDirty}
+              />}
+
               {/* Active Toggle */}
               <FormField
                 control={form.control}
@@ -762,7 +789,7 @@ export function ProductFormModal({ open, onOpenChange, product, seasonId, isBook
           <Button type="button" variant="outline" onClick={() => dismiss.requestClose(false)} disabled={isPending}>
             Abbrechen
           </Button>
-          <Button onClick={form.handleSubmit(onSubmit)} disabled={isPending || (!form.formState.isDirty && !tariffDirty)}>
+          <Button onClick={form.handleSubmit(onSubmit)} disabled={isPending || (!form.formState.isDirty && !tariffDirty && !offeringDirty)}>
             {isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
             {isEditing ? "Speichern" : "Erstellen"}
           </Button>
