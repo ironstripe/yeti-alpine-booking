@@ -4238,6 +4238,7 @@ export type Database = {
           display_schedule_text: string | null
           product_id: string
           schedule_kind: string
+          series: Json
           time_blocks: Json
           updated_at: string
           updated_by: string
@@ -4248,6 +4249,7 @@ export type Database = {
           display_schedule_text?: string | null
           product_id: string
           schedule_kind: string
+          series?: Json
           time_blocks?: Json
           updated_at?: string
           updated_by: string
@@ -4258,6 +4260,7 @@ export type Database = {
           display_schedule_text?: string | null
           product_id?: string
           schedule_kind?: string
+          series?: Json
           time_blocks?: Json
           updated_at?: string
           updated_by?: string
@@ -6167,6 +6170,10 @@ export type Database = {
         Args: { b: Json; d: string[]; k: string; w: number[] }
         Returns: boolean
       }
+      product_series_dates: {
+        Args: { p_end: string; p_start: string; p_weekdays: number[] }
+        Returns: string[]
+      }
       queue_confirmation_reminders: { Args: never; Returns: number }
       quote_bc_2627_product: {
         Args: { p_items: Json; p_participants: number; p_product_id: string }
@@ -6223,6 +6230,10 @@ export type Database = {
           p_time_end: string
           p_time_start: string
         }
+        Returns: Json
+      }
+      validate_product_series_selection: {
+        Args: { p_dates: string[]; p_product_id: string; p_sequence: number }
         Returns: Json
       }
       yeti_digits: { Args: { t: string }; Returns: string }

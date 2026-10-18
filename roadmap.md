@@ -1,6 +1,7 @@
 # Roadmap
 
 ## Product series — preparation only
+- [x] Schema-only activation: reviewed SQL installed byte-identically as 0012_product_offering_series; only product-public-offering and get-website-products deployed. Readback confirms service-only RPCs, staff-read RLS, empty series default, unchanged existing offering fields and identical products/tiers/courses/instances fingerprints. Seed, private tariffs and frontend publication remain separate and unexecuted.
 - [x] Extend existing offering metadata and atomic staff save with ordered weekly series and per-series selection limit; prepare reversible incremental SQL and target-only unexecuted seed.
 - [x] Add compact editor, generated dates, existing-tier selection preview and optional catalog projection; preserve legacy schedules, text and blocks.
 - [x] Verify isolated SQL, exact Saturday/pricing rules, actual modal save/reopen and desktop/mobile scrolling. No shared business writes, migration installation, deployment or publication.
