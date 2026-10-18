@@ -1,5 +1,11 @@
 # Roadmap
 
+## Public private tariff information — preparation only
+- [x] Prepare separate product/season display persistence, atomic revision-checked staff save, unverified target-only seed and rollback; preserve operational tariffs.
+- [x] Extend optional versioned catalog information for explicitly verified rows only; missing schema omits fields, private_rates and booking gates unchanged.
+- [x] Verify 14/14 disposable actual-schema SQL checks, 8/8 offline API/schema executions, existing catalog handler/contract and 5/5 modal invariants; Deno checks and automatic build OK. Installation notes in docs/public-private-tariff-display.md.
+- Release gap: no production installation/seed/deployment/publication; UI deferred. Office must resolve user wording “4 lessons” vs operational >=4 hours and confirm both disciplines; Ski stored duration 55min and operational double prices differ. New information stays unverified until explicit staff approval. This task does not authorize older open roadmap packages.
+
 ## Carving Ladies — targeted one-off season plan
 - [x] Prepare one atomic, fail-closed data script for the corrected product UUID, one Sunday course/schedule, 19 instances and 19 Monday-based group shells; preserve offering and all unrelated data.
 - [x] Verify disposable actual-schema creation, duplicate/concurrent rejection, rollback, foreign keys and future generator idempotency: 8/8 checks passed.
