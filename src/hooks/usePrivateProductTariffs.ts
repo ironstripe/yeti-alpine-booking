@@ -9,12 +9,14 @@ export function usePrivateProductTariffs(productId: string | undefined) {
     queryKey: ["product-private-tariffs", productId],
     enabled: !!productId,
     queryFn: async (): Promise<TariffCell[]> => {
-      const { data, error } = await supabase
+      // Table is added by supabase/pending/product_private_tariffs.sql; the generated
+      // types refresh only once that migration is installed, hence the cast.
+      const { data, error } = await (supabase as any)
         .from("product_private_tariffs")
         .select("duration_minutes, persons_per_lesson, price_chf")
         .eq("product_id", productId!);
       if (error) throw error;
-      return (data ?? []).map((r) => ({
+      return (data ?? []).map((r: any) => ({
         duration_minutes: r.duration_minutes,
         persons_per_lesson: r.persons_per_lesson,
         price_chf: Number(r.price_chf),
