@@ -1,5 +1,11 @@
 # Roadmap
 
+## Product public offering metadata — implementation only
+- [ ] Add product-scoped schedule persistence, preflight and reversible SQL (prepare only).
+- [ ] Integrate Website-Informationen into existing modal, preview, dirty guard, save/reopen.
+- [ ] Extend product-only catalog without changing existing prices or booking gates (prepare only).
+- [ ] Verify focused domain/SQL/permissions/rollback and isolated desktop/mobile browser checks; document installation and gaps.
+
 ## Product editor repair — step 1 only
 - [x] Preserve legacy flat pricing and all stored day tiers; 10/10 targeted tests (real update hook with synthetic responses), isolated actual form open/save/reopen for flat/fixed/hourly/tiered plus 6/7-day edit, automatic build/typecheck OK. No live writes, migration, deployment or publication; live persistence not exercised.
 
