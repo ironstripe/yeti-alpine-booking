@@ -2,7 +2,7 @@
 -- No business data writes or backfill. RLS and table grants remain unchanged.
 DO $$ BEGIN
  IF to_regclass('public.product_public_offerings') IS NULL OR NOT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='product_public_offerings' AND column_name='display_schedule_text') THEN RAISE EXCEPTION '0011 prerequisite missing'; END IF;
- IF EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='product_public_offerings' AND column_name='series') OR to_regprocedure('public.product_series_dates(date,date,smallint[])') IS NOT NULL THEN RAISE EXCEPTION 'Series implementation already exists; inspect first'; END IF;
+ IF EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='product_public_offerings' AND column_name='series') OR to_regprocedure('public.product_series_dates(date,date,smallint[])') IS NOT NULL OR to_regprocedure('public.product_series_guard()') IS NOT NULL OR to_regprocedure('public.validate_product_series_selection(uuid,integer,date[])') IS NOT NULL THEN RAISE EXCEPTION 'Series implementation already exists; inspect first'; END IF;
 END $$;
 CREATE FUNCTION public.product_series_dates(p_start date,p_end date,p_weekdays smallint[])
 RETURNS date[] LANGUAGE sql IMMUTABLE SET search_path=public AS $$

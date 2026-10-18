@@ -1,5 +1,6 @@
 -- Feature rollback: preserves stored series, labels and existing RLS/validation.
 BEGIN;
+DROP TRIGGER product_series_guard ON public.product_public_offerings;
 CREATE OR REPLACE FUNCTION public.save_product_public_offering(p_product_id uuid, p_offering jsonb, p_actor uuid)
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
 DECLARE w smallint[]; d date[]; b jsonb; k text; r jsonb; display_text text;
