@@ -13,7 +13,7 @@ Deno.test({name:'product lifecycle API: staff-only, actor derived, CAS conflicts
       if(u.pathname==='/auth/v1/user')data={id:actor};
       else if(u.pathname==='/rest/v1/user_roles')data=role==='teacher'?[]:[{role}];
       else if(u.pathname==='/rest/v1/rpc/product_lifecycle'){
-        rpc++;const b=JSON.parse(String(init?.body));assertEquals(b.p_actor,actor);assertEquals(b.p_expected,{id:actor,is_active:false});assertEquals(b.p_patch,{is_active:true});data=result;
+        rpc++;const b=JSON.parse(String((init as RequestInit | undefined)?.body));assertEquals(b.p_actor,actor);assertEquals(b.p_expected,{id:actor,is_active:false});assertEquals(b.p_patch,{is_active:true});data=result;
       }else throw Error('Unexpected endpoint');
       return new Response(JSON.stringify(data),{headers:{'Content-Type':'application/json'}});
     };
