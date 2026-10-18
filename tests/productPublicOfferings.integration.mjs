@@ -15,7 +15,7 @@ const one={schedule_kind:'weekly',weekdays:[1,2,3,4,5],dates:[],time_blocks:[{st
 const save=(product,offering,actor=O)=>db`SELECT public.save_product_public_offering(${product}::uuid,${db.json(offering)}::jsonb,${actor}::uuid) r`.then(rows=>rows[0].r);
 const history=async()=>{const result={};for(const t of ['products','product_price_tiers','bc_product_tariff_sources','group_courses','tickets','ticket_items','private_appointments','invoices','payments'])result[t]=await db.unsafe(`SELECT coalesce(jsonb_agg(to_jsonb(t) ORDER BY to_jsonb(t)::text),'[]'::jsonb) rows FROM public.${t} t`);return result;};
 try {
-  await admin.unsafe(`CREATE DATABASE ${name}`);db=postgres({...conn,database:name});
+  await admin.unsafe(`CREATE DATABASE ${name} TEMPLATE template0 ENCODING 'UTF8' LC_COLLATE 'C' LC_CTYPE 'C'`);db=postgres({...conn,database:name});
   psql('tests/sql/baseline_prelude.sql');psql('tests/sql/production_schema_baseline.sql');
   await db`INSERT INTO auth.users(id) VALUES(${O}),(${T}),(${A}),(${SA})`;
   await db`INSERT INTO user_roles(user_id,role) VALUES(${O},'office'),(${T},'teacher'),(${A},'admin'),(${SA},'super_admin')`;
