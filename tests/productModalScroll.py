@@ -40,7 +40,7 @@ createRoot(document.getElementById('root')).render(<ProductFormModal open produc
 async def check(base):
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
-        for width, height in [(1053,763),(390,700),(1280,3000)]:
+        for width, height in [(1053,763),(851,533),(390,700),(1280,3000)]:
             context = await browser.new_context(viewport={'width':width,'height':height},has_touch=width==390,reduced_motion='reduce')
             page = await context.new_page()
             errors, blocked = [], []
