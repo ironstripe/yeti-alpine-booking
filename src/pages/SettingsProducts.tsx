@@ -33,7 +33,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { EmptyState } from "@/components/ui/empty-state";
-import { useProducts, useDeleteProduct, ProductWithTiers } from "@/hooks/useProducts";
+import { useProducts, useDeleteProduct, useUpdateProduct, ProductWithTiers } from "@/hooks/useProducts";
+import { ProductLifecycleError } from "@/lib/productLifecycle";
 import { useSeasons, useCurrentSeason } from "@/hooks/useSeasons";
 import { ProductFormModal } from "@/components/settings/ProductFormModal";
 import { BookingCornerTariffDialog } from "@/components/settings/BookingCornerTariffDialog";
@@ -41,7 +42,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { getProductPriceDisplay, formatPriceCHF } from "@/lib/pricing-utils";
 import {
   AlertDialog,
-  AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
@@ -88,13 +88,15 @@ export default function SettingsProducts() {
     enabled: !!activeSeasonId,
     queryFn: async () => {
       const { data, error } = await supabase.from("bc_product_tariff_sources")
-        .select("product_id").eq("season_id", activeSeasonId!).eq("import_status", "draft");
+        .select("product_id").eq("season_id", activeSeasonId ?? "").eq("import_status", "draft");
       if (error) throw error;
       return data ?? [];
     },
   });
   const importedDraftIds = new Set(importedSources?.map(row => row.product_id).filter(Boolean));
   const deleteProduct = useDeleteProduct();
+  const archiveProduct = useUpdateProduct();
+  const [deleteDependencies, setDeleteDependencies] = useState<Record<string, number> | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<ProductWithTiers | null>(null);
   const [productToDelete, setProductToDelete] = useState<ProductWithTiers | null>(null);
@@ -117,8 +119,9 @@ export default function SettingsProducts() {
 
   const handleDeleteConfirm = () => {
     if (productToDelete) {
-      deleteProduct.mutate(productToDelete.id, {
+      deleteProduct.mutate(productToDelete, {
         onSuccess: () => setProductToDelete(null),
+        onError: (error) => { if (error instanceof ProductLifecycleError && error.result.error === "referenced") setDeleteDependencies(error.result.dependencies ?? {}); },
       });
     }
   };
@@ -272,7 +275,7 @@ export default function SettingsProducts() {
                         </TableCell>
                         <TableCell>
                           <Badge variant={product.is_active ? "default" : "secondary"}>
-                            {draft ? "Entwurf · gesperrt" : product.is_active ? "Aktiv" : "Inaktiv"}
+                            {product.is_active ? "Aktiv" : "Inaktiv"}
                           </Badge>
                         </TableCell>
                         <TableCell>
@@ -293,9 +296,8 @@ export default function SettingsProducts() {
                                 Bearbeiten
                               </DropdownMenuItem>
                               <DropdownMenuItem 
-                                disabled={draft}
                                 className="text-destructive"
-                                onClick={() => setProductToDelete(product)}
+                                onClick={() => { setDeleteDependencies(null); setProductToDelete(product); }}
                               >
                                 <Trash2 className="h-4 w-4 mr-2" />
                                 Löschen
@@ -323,27 +325,37 @@ export default function SettingsProducts() {
 
       <BookingCornerTariffDialog product={tariffProduct} onOpenChange={(open) => { if (!open) setTariffProduct(null); }} />
 
-      <AlertDialog open={!!productToDelete} onOpenChange={() => setProductToDelete(null)}>
+      <AlertDialog open={!!productToDelete} onOpenChange={(open) => { if (!open && !deleteProduct.isPending && !archiveProduct.isPending) setProductToDelete(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Produkt löschen?</AlertDialogTitle>
+            <AlertDialogTitle>{deleteDependencies ? "Produkt wird verwendet" : "Produkt löschen?"}</AlertDialogTitle>
             <AlertDialogDescription>
-              Bist du sicher, dass du "{productToDelete?.name}" löschen möchtest? 
-              Diese Aktion kann nicht rückgängig gemacht werden.
+              {deleteDependencies
+                ? `„${productToDelete?.name}“ bleibt mit allen verknüpften Daten erhalten. Du kannst es stattdessen deaktivieren.`
+                : `„${productToDelete?.name}“ endgültig löschen? Verknüpfungen werden vorher sicher geprüft; verwendete Produkte werden nicht gelöscht.`}
             </AlertDialogDescription>
           </AlertDialogHeader>
+          {deleteDependencies && <ul className="max-h-48 overflow-y-auto text-sm text-muted-foreground">
+            {Object.entries(deleteDependencies).map(([reference, count]) => <li key={reference}>
+              {({ group_courses: "Verknüpfte Kurse", ticket_items: "Buchungspositionen / Rechnungshistorie", booking_requests: "Buchungsanfragen", product_price_tiers: "Preisstaffeln", bc_product_tariff_sources: "BC-Quelltarife", product_public_offerings: "Website-Angebot", public_private_tariff_display: "Öffentliche Tarifinformationen", product_private_tariffs: "Private Tarife", bc_2627_course_product_variants: "BC-Kursverknüpfungen", pricing_rules: "Preisregeln" } as Record<string,string>)[reference.split(".")[0]] ?? "Weitere gespeicherte Verknüpfungen"}: {count}
+            </li>)}
+          </ul>}
           <AlertDialogFooter>
-            <AlertDialogCancel>Abbrechen</AlertDialogCancel>
-            <AlertDialogAction 
-              onClick={handleDeleteConfirm}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            <AlertDialogCancel disabled={deleteProduct.isPending || archiveProduct.isPending}>Abbrechen</AlertDialogCancel>
+            <Button
+              variant={deleteDependencies ? "default" : "destructive"}
+              disabled={deleteProduct.isPending || archiveProduct.isPending}
+              onClick={() => {
+                if (deleteDependencies && productToDelete) archiveProduct.mutate({id:productToDelete.id,expected:productToDelete,is_active:false}, {onSuccess:()=>setProductToDelete(null)});
+                else handleDeleteConfirm();
+              }}
             >
-              {deleteProduct.isPending ? (
+              {deleteProduct.isPending || archiveProduct.isPending ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
-                "Löschen"
+                deleteDependencies ? "Deaktivieren" : "Löschen"
               )}
-            </AlertDialogAction>
+            </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
