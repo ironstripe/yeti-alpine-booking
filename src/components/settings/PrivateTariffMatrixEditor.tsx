@@ -50,14 +50,14 @@ export const PrivateTariffMatrixEditor = forwardRef<PrivateTariffMatrixHandle, P
       if (effective.data) setEdited(null);
     }, [effective.data]);
 
-    const dirty = useMemo(() => buildTariffSavePayload(persisted, edited) !== null, [persisted, edited]);
+    const dirty = useMemo(() => buildTariffSavePayload(persisted, current) !== null, [persisted, current]);
     useEffect(() => { onDirtyChange?.(dirty); }, [dirty, onDirtyChange]);
 
     useImperativeHandle(ref, () => ({
       isDirty: () => dirty,
       isSaving: () => save.isPending,
       saveIfDirty: async () => {
-        const payload = buildTariffSavePayload(persisted, edited);
+        const payload = buildTariffSavePayload(persisted, current);
         if (!payload) return true;
         try {
           await save.mutateAsync(payload);
@@ -66,11 +66,11 @@ export const PrivateTariffMatrixEditor = forwardRef<PrivateTariffMatrixHandle, P
           return false;
         }
       },
-    }), [dirty, persisted, edited, save]);
+    }), [dirty, persisted, current, save]);
 
     const setCell = (duration: number, persons: number, raw: string) => {
       const value = raw.trim() === "" ? null : Number(raw);
-      const next = new Map(edited);
+      const next = new Map(current);
       next.set(cellKey(duration, persons), value);
       setEdited(next);
     };
@@ -123,7 +123,7 @@ export const PrivateTariffMatrixEditor = forwardRef<PrivateTariffMatrixHandle, P
                   </TableCell>
                   {TARIFF_PERSONS.map((n) => {
                     const key = cellKey(minutes, n);
-                    const value = edited.get(key);
+                    const value = current.get(key);
                     const fallback = originalMap.get(key);
                     const errorMsg = validateTariffPrice(value ?? null);
                     return (
