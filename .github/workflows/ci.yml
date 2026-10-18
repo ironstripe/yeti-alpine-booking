@@ -47,6 +47,8 @@ jobs:
           exit 0 # diagnostic never fails the job
       - name: Install (frozen lockfile) — hard gate
         run: bun install --frozen-lockfile
+      - name: Product modal scroll layout contract — hard gate
+        run: node --test tests/productModalLayout.test.mjs
       - name: 26/27 source-tariff PostgreSQL quote contract — hard gate
         run: node tests/bcQuote.integration.mjs
       - name: 26/27 course-period manifest reproducibility — hard gate
