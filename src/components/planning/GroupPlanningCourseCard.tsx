@@ -29,7 +29,7 @@ function AssignmentStatusBadge({ course }: { course: GroupPlanningCourse }) {
   if (course.totalInstances === 0) {
     return (
       <Badge variant="outline" className="text-muted-foreground">
-        Keine Instanzen
+        Keine Termine in dieser Woche
       </Badge>
     );
   }
