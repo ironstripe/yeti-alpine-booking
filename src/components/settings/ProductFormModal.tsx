@@ -67,7 +67,10 @@ const formSchema = z.object({
   price_tiers: z.array(priceTierSchema),
 });
 
-type FormData = z.infer<typeof formSchema>;
+type FormData = z.infer<typeof formSchema> & {
+  pricing_type: z.infer<typeof editorPricingTypeSchema>;
+  price_tiers: { day_count: number; cumulative_price: number }[];
+};
 
 interface ProductFormModalProps {
   open: boolean;
