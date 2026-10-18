@@ -4353,6 +4353,75 @@ export type Database = {
           },
         ]
       }
+      public_private_tariff_display: {
+        Row: {
+          base_persons: number
+          discount_percent: number
+          discount_scope: string
+          discount_threshold: number
+          discount_unit: string
+          product_id: string
+          revision: number
+          season_id: string
+          source_date: string
+          source_note: string
+          updated_at: string
+          updated_by: string
+          verified_at: string | null
+          verified_by: string | null
+          windows: Json
+        }
+        Insert: {
+          base_persons?: number
+          discount_percent: number
+          discount_scope?: string
+          discount_threshold: number
+          discount_unit: string
+          product_id: string
+          revision?: number
+          season_id: string
+          source_date: string
+          source_note: string
+          updated_at?: string
+          updated_by: string
+          verified_at?: string | null
+          verified_by?: string | null
+          windows: Json
+        }
+        Update: {
+          base_persons?: number
+          discount_percent?: number
+          discount_scope?: string
+          discount_threshold?: number
+          discount_unit?: string
+          product_id?: string
+          revision?: number
+          season_id?: string
+          source_date?: string
+          source_note?: string
+          updated_at?: string
+          updated_by?: string
+          verified_at?: string | null
+          verified_by?: string | null
+          windows?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "public_private_tariff_display_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "public_private_tariff_display_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "seasons"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       refund_requests: {
         Row: {
           account_holder: string | null
@@ -6174,6 +6243,7 @@ export type Database = {
         Args: { p_end: string; p_start: string; p_weekdays: number[] }
         Returns: string[]
       }
+      public_private_display_shape: { Args: { w: Json }; Returns: boolean }
       queue_confirmation_reminders: { Args: never; Returns: number }
       quote_bc_2627_product: {
         Args: { p_items: Json; p_participants: number; p_product_id: string }
@@ -6186,6 +6256,17 @@ export type Database = {
       rollback_entity_merge: { Args: { p_merge_id: string }; Returns: Json }
       save_product_public_offering: {
         Args: { p_actor: string; p_offering: Json; p_product_id: string }
+        Returns: Json
+      }
+      save_public_private_tariff_display: {
+        Args: {
+          p_actor: string
+          p_expected_revision: number
+          p_information: Json
+          p_product_id: string
+          p_season_id: string
+          p_verify: boolean
+        }
         Returns: Json
       }
       search_customers: {
