@@ -1,5 +1,10 @@
 # Roadmap
 
+## Saturday selection rules — 18 Oct 2026
+- [ ] Enforce first-day/maximum-day rules in existing server booking validation using canonical product and level definitions; preserve offered dates, tiers and release gates.
+- [ ] Verify beginner/advanced/Windel date combinations and isolated persistence/pricing; no production business writes or publication.
+- Calendar clarification: Windel still offers five dates per series; only maximum three selections is authorised, not removing dates.
+
 ## Product activation and deletion — preparation only
 - [x] Prepare staff-authorized optimistic product activation and audited fail-closed deletion, with deactivation for referenced products.
 - [x] Integrate existing modal/list without import-marker locks or raw browser product deletion; preserve prices, metadata and scrolling.
