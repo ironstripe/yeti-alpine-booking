@@ -12,14 +12,16 @@ REVOKE ALL ON FUNCTION public.product_series_dates(date,date,smallint[]) FROM PU
 GRANT EXECUTE ON FUNCTION public.product_series_dates(date,date,smallint[]) TO service_role;
 ALTER TABLE public.product_public_offerings ADD COLUMN series jsonb NOT NULL DEFAULT '[]'::jsonb;
 CREATE FUNCTION public.product_series_guard() RETURNS trigger LANGUAGE plpgsql SET search_path=public AS $$
-DECLARE s jsonb; prev jsonb; pos integer:=0; p record; label_text text; dates date[];
+DECLARE s jsonb; prev jsonb; pos integer:=0; p record; label_text text; dates date[]; tier_limit integer;
 BEGIN
  IF jsonb_typeof(NEW.series) IS DISTINCT FROM 'array' OR jsonb_array_length(NEW.series)>24 THEN RAISE EXCEPTION 'Invalid series array'; END IF;
  IF jsonb_array_length(NEW.series)>0 AND NEW.schedule_kind<>'weekly' THEN RAISE EXCEPTION 'Series require weekly schedule'; END IF;
  SELECT se.start_date,se.end_date INTO p FROM public.products pr LEFT JOIN public.seasons se ON se.id=pr.season_id WHERE pr.id=NEW.product_id;
+ SELECT max(day_count) INTO tier_limit FROM public.product_price_tiers WHERE product_id=NEW.product_id AND cumulative_price>0;
  FOR s IN SELECT value FROM jsonb_array_elements(NEW.series) LOOP
   pos:=pos+1;
   IF jsonb_typeof(s)<>'object' OR jsonb_typeof(s->'sequence') IS DISTINCT FROM 'number' OR (s->>'sequence')::numeric<>pos OR jsonb_typeof(s->'max_selected_days') IS DISTINCT FROM 'number' OR (s->>'max_selected_days')::numeric NOT BETWEEN 1 AND 366 OR (s->>'max_selected_days')::numeric<>trunc((s->>'max_selected_days')::numeric) THEN RAISE EXCEPTION 'Invalid series sequence or limit'; END IF;
+  IF tier_limit IS NULL OR (s->>'max_selected_days')::integer>tier_limit THEN RAISE EXCEPTION 'Series limit exceeds existing price tiers'; END IF;
   IF s ? 'label' AND jsonb_typeof(s->'label') NOT IN ('string','null') THEN RAISE EXCEPTION 'Invalid series label'; END IF;
   label_text:=s->>'label';
   IF char_length(label_text)>160 OR label_text ~ ('[<>' || chr(1) || '-' || chr(31) || chr(127) || ']') THEN RAISE EXCEPTION 'Invalid series label'; END IF;

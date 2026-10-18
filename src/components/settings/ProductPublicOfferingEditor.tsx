@@ -27,7 +27,8 @@ export const ProductPublicOfferingEditor = forwardRef<ProductOfferingHandle,Prop
     if(!dirty) return true;
     if(query.error || (props.productId && query.isLoading)) {setError('Website-Informationen konnten nicht geladen werden');return false;}
     if(props.seasonId && (seasonsLoading || seasonError || !season)) {setError('Saison konnte nicht geprüft werden');return false;}
-    const message=draft ? validateOffering(draft,context) : null;
+    const tierLimit=Math.max(0,...props.tiers.filter(t=>t.cumulative_price>0).map(t=>t.day_count));
+    const message=draft?.series?.some(s=>s.max_selected_days>tierLimit) ? 'Maximale Tage dürfen die vorhandenen Tarife nicht überschreiten' : draft ? validateOffering(draft,context) : null;
     setError(message); return !message;
   };
   useImperativeHandle(ref,()=>({validate,saveIfDirty:async productId=> {
@@ -42,7 +43,7 @@ export const ProductPublicOfferingEditor = forwardRef<ProductOfferingHandle,Prop
     if(kind==='series') {change({schedule_kind:'weekly',weekdays:draft?.weekdays.length ? draft.weekdays : [6],dates:[],time_blocks:draft?.time_blocks.length ? draft.time_blocks : [{start:'',end:''}],display_schedule_text:draft?.display_schedule_text ?? null,series:draft?.series?.length ? draft.series : [{sequence:1,label:null,start_date:'',end_date:'',max_selected_days:3}]});return;}
     if(kind==='none') {change(null);return;}
     const schedule_kind=kind as ScheduleKind;
-    change({schedule_kind,weekdays:[],dates:[],time_blocks:schedule_kind==='flexible_private'?[]:[{start:'',end:''}],display_schedule_text:draft?.display_schedule_text ?? null});
+    change({schedule_kind,weekdays:[],dates:[],time_blocks:schedule_kind==='flexible_private'?[]:draft?.time_blocks.length ? draft.time_blocks : [{start:'',end:''}],display_schedule_text:draft?.display_schedule_text ?? null,...(draft?.series ? {series:[]} : {})});
   };
   return <section aria-labelledby="website-information-title" className="space-y-4 border-t pt-5">
     <h3 id="website-information-title" className="font-medium">Website-Informationen</h3>
@@ -66,7 +67,7 @@ export const ProductPublicOfferingEditor = forwardRef<ProductOfferingHandle,Prop
           <Button type="button" size="icon" variant="ghost" className="icon-action shrink-0" title="Serie entfernen" aria-label={`Serie ${i+1} entfernen`} onClick={()=>{change({...draft,series:draft.series?.filter((_,j)=>j!==i).map((s,j)=>({...s,sequence:j+1}))});setSelection({sequence:1,dates:[]});}}><Trash2 className="h-4 w-4"/></Button>
         </div>
         <div className="grid grid-cols-2 gap-3">{(['start_date','end_date'] as const).map(key=><div key={key} className="min-w-0 space-y-1"><Label htmlFor={`series-${key}-${i}`}>{key==='start_date'?'Beginn':'Ende'} Serie {i+1}</Label><Input className="min-w-0" id={`series-${key}-${i}`} type="date" min={season?.start_date} max={season?.end_date} value={series[key]} onChange={e=>{change({...draft,series:draft.series?.map((s,j)=>j===i?{...s,[key]:e.target.value}:s)});setSelection({sequence:1,dates:[]});}}/></div>)}</div>
-        <div className="space-y-1"><Label htmlFor={`series-limit-${i}`}>Maximal buchbare Tage – Serie {i+1}</Label><Input id={`series-limit-${i}`} type="number" min={1} max={366} value={series.max_selected_days} onChange={e=>change({...draft,series:draft.series?.map((s,j)=>j===i?{...s,max_selected_days:Number(e.target.value)}:s)})}/></div>
+        <div className="space-y-1"><Label htmlFor={`series-limit-${i}`}>Maximal buchbare Tage – Serie {i+1}</Label><Input id={`series-limit-${i}`} type="number" min={1} max={Math.max(1,...props.tiers.map(t=>t.day_count))} value={series.max_selected_days} onChange={e=>change({...draft,series:draft.series?.map((s,j)=>j===i?{...s,max_selected_days:Number(e.target.value)}:s)})}/></div>
         <p className="text-sm text-muted-foreground break-words" aria-label={`Angebotene Termine Serie ${i+1}`}>{seriesDates(series,draft.weekdays).map(d=>d.split('-').reverse().join('.')).join(' · ') || 'Keine Termine'}</p>
       </fieldset>)}
       <Button type="button" variant="outline" size="sm" disabled={disabled || draft.series.length>=24} onClick={()=>change({...draft,series:[...(draft.series ?? []),{sequence:(draft.series?.length ?? 0)+1,label:null,start_date:'',end_date:'',max_selected_days:3}]})}><Plus className="mr-2 h-4 w-4"/>Serie hinzufügen</Button>

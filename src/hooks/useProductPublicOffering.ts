@@ -7,6 +7,13 @@ export function useProductPublicOffering(productId?: string) {
     queryFn:async ():Promise<ProductOffering|null> => {
       if(!productId) return null;
       const {data,error}=await (supabase as any).from('product_public_offerings').select('schedule_kind,weekdays,dates,time_blocks,display_schedule_text,series').eq('product_id',productId).maybeSingle();
+      // Keep existing Office edits usable during the reviewed, uninstalled code step.
+      // Only a specifically missing series column permits the legacy projection.
+      if(error?.code==='42703' && error.message?.includes('series')) {
+        const legacy=await (supabase as any).from('product_public_offerings').select('schedule_kind,weekdays,dates,time_blocks,display_schedule_text').eq('product_id',productId).maybeSingle();
+        if(legacy.error) throw legacy.error;
+        return legacy.data;
+      }
       if(error) throw error;
       return data;
     },
