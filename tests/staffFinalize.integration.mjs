@@ -22,7 +22,7 @@ await admin.unsafe(`ALTER DATABASE ${dbName} SET search_path = public, extension
 u.pathname = `/${dbName}`;
 const sql = postgres(u.toString(), { ...opts, max: 10 });
 const root = new URL('../', import.meta.url);
-const psqlFile = (f) => spawnSync('psql', [u.toString(), '-q', '-v', 'ON_ERROR_STOP=1', '-1', '-f', fileURLToPath(new URL(f, root)), ...(process.env.BC_TEST_SOCKET === '/tmp' ? ['-h', '/tmp'] : [])],
+const psqlFile = (f) => spawnSync('psql', [process.env.BC_TEST_SOCKET === '/tmp' ? `postgresql://${u.pathname}?host=/tmp&port=55432&user=postgres` : u.toString(), '-q', '-v', 'ON_ERROR_STOP=1', '-1', '-f', fileURLToPath(new URL(f, root)), ...(process.env.BC_TEST_SOCKET === '/tmp' ? ['-h', '/tmp'] : [])],
   { encoding: 'utf8', env: { ...process.env, PGSSLMODE: 'disable' } });
 
 let passed = 0; const results = [];
