@@ -6,6 +6,7 @@
 - [x] Mandatory layout alarm 5/5; isolated browser checks passed at 1053×763, 851×533, 390×700 and tall desktop, including keyboard access and return from unsaved-changes dialog. Actual authenticated menu opener wheel scroll 0→600; automatic build OK. No business writes, deployment or publication.
 
 ## Public private tariff information — preparation only
+- [ ] Controlled activation authorised 18 Oct 2026 15:33 UTC: blocked before writes because prepared target-only seed requires privileged BEGIN/LOCK/DO/COMMIT plus service-only RPC; available run_sql supports DML only, shell is restricted and has no service credential. No schema installation or function deployment attempted. Fresh preflight confirms absent display table/functions, correct target seasons/admin roles, unchanged 32 products/54 tiers, BC 60=75/120=170, four operational hourly rates and no active pricing_rules. Ivo explicitly approved both time-price matrices; discount is public-copy only, not an operational change.
 - [x] Prepare separate product/season display persistence, atomic revision-checked staff save, unverified target-only seed and rollback; preserve operational tariffs.
 - [x] Extend optional versioned catalog information for explicitly verified rows only; missing schema omits fields, private_rates and booking gates unchanged.
 - [x] Verify 14/14 disposable actual-schema SQL checks, 8/8 offline API/schema executions, existing catalog handler/contract and 5/5 modal invariants; Deno checks and automatic build OK. Installation notes in docs/public-private-tariff-display.md.
