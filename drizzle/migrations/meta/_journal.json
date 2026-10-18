@@ -99,6 +99,13 @@
       "when": 1792337836466,
       "tag": "0013_public_private_tariff_display",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1792339380125,
+      "tag": "0014_product_delete",
+      "breakpoints": true
     }
   ]
 }

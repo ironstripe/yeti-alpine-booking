@@ -6235,6 +6235,10 @@ export type Database = {
         Args: { p_source_id: string; p_target_id: string }
         Returns: Json
       }
+      product_delete: {
+        Args: { p_actor: string; p_product: string }
+        Returns: Json
+      }
       product_offering_shape_ok: {
         Args: { b: Json; d: string[]; k: string; w: number[] }
         Returns: boolean
