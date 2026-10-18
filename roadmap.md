@@ -1,5 +1,10 @@
 # Roadmap
 
+## Product activation and deletion — preparation only
+- [ ] Prepare staff-authorized optimistic product activation and audited fail-closed deletion, with deactivation for referenced products.
+- [ ] Integrate existing modal/list without import-marker locks or raw browser product deletion; preserve prices, metadata and scrolling.
+- [ ] Verify isolated SQL/API/UI activation, deletion, concurrency, dependencies and scrolling; no production install/deploy/publish.
+
 ## Product modal persistent scrolling
 - [x] Confirm current definite-height layout and actual authenticated Products → Bearbeiten wheel interaction at 851×533 without business writes; no disabled-scroll reproduction observed.
 - [x] Keep native viewport-constrained pane, expose stable styled scrollbar and keyboard-focusable product details; preserve fields, footer and dirty guard.
