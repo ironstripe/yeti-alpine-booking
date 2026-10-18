@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 const adminUrl = process.env.BC_TEST_DATABASE_URL ?? 'postgres://postgres@127.0.0.1:55432/postgres';
 const u = new URL(adminUrl);
 if (!['127.0.0.1', 'localhost'].includes(u.hostname)) throw new Error('Refusing non-local database');
-const opts = { onnotice: () => {}, ssl: false };
+const opts = { onnotice: () => {}, ssl: false, ...(u.searchParams.get('host') === '/tmp' ? { host: '/tmp', port: Number(u.port) || 55432 } : {}) };
 const dbName = `staff_group_${Date.now()}`;
 const admin = postgres(adminUrl, { ...opts, max: 1 });
 await admin.unsafe(`CREATE DATABASE ${dbName}`);
