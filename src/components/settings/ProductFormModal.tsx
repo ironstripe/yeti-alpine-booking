@@ -260,11 +260,11 @@ export function ProductFormModal({ open, onOpenChange, product, seasonId, isBook
 
   return (
     <Dialog open={open} onOpenChange={dismiss.requestClose}>
-      <DialogContent hideCloseButton={isPending} className="flex max-h-[90vh] w-[calc(100%-2rem)] max-w-2xl flex-col gap-0 overflow-hidden p-0">
+      <DialogContent hideCloseButton={isPending} className="flex h-[min(90dvh,64rem)] min-h-0 max-h-[90dvh] w-[calc(100%-2rem)] max-w-2xl flex-col gap-0 overflow-hidden p-0">
         <DialogHeader className="shrink-0 border-b px-5 py-5 pr-16 sm:px-6 sm:pr-16">
           <DialogTitle>{isEditing ? "Produkt bearbeiten" : "Neues Produkt"}</DialogTitle>
         </DialogHeader>
-        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5 sm:px-6">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-5 sm:px-6">
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 pb-4">
               {/* Product Type */}
