@@ -34,6 +34,9 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { ProductWithTiers, useCreateProduct, useUpdateProduct } from "@/hooks/useProducts";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { PrivateTariffMatrixEditor, PrivateTariffMatrixHandle } from "@/components/settings/PrivateTariffMatrixEditor";
+
+// Temporary release gate: the private tariff table is not installed yet. Flip to true after its migration.
+const PRIVATE_TARIFF_EDITOR_ENABLED = false;
 import { cn } from "@/lib/utils";
 import { calculateSavingsPercent, formatPriceCHF, getDefaultPriceTiers } from "@/lib/pricing-utils";
 import { UnsavedChangesDialog } from "@/components/ui/unsaved-changes-dialog";
@@ -566,8 +569,8 @@ export function ProductFormModal({ open, onOpenChange, product, seasonId, isBook
                   ))}
                 </div>
               )}
-              {/* Editable private tariff matrix (duration x persons) for existing private products */}
-              {isEditing && product?.type === "private" && (
+              {/* Editable private tariff matrix — gated off until its backend table is installed */}
+              {PRIVATE_TARIFF_EDITOR_ENABLED && isEditing && product?.type === "private" && (
                 <div className="space-y-2">
                   <FormLabel className="text-base font-medium">Tarife</FormLabel>
                   <PrivateTariffMatrixEditor
