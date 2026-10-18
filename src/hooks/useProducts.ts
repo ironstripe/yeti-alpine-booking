@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { deleteProductGuarded, ProductDeleteError } from "@/lib/productDelete";
 import { toast } from "sonner";
 import { Tables, TablesInsert, TablesUpdate } from "@/integrations/supabase/types";
 import { PriceTier } from "@/lib/pricing-utils";
