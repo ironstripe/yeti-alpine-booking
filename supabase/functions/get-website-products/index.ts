@@ -32,10 +32,10 @@ Deno.serve(async (req) => {
         .in("product_id", ids).order("day_count")
       : { data: [], error: null };
     if (tiersError) throw tiersError;
-    // Install product_public_offerings before deploying this revision.
+    // Install the incremental display_schedule_text migration before deploying this revision.
     const { data: publicSchedules, error: offeringError } = ids.length
       ? await db.from("product_public_offerings")
-        .select("product_id,schedule_kind,weekdays,dates,time_blocks").in("product_id", ids)
+        .select("product_id,schedule_kind,weekdays,dates,time_blocks,display_schedule_text").in("product_id", ids)
       : { data: [], error: null };
     if (offeringError) throw offeringError;
 
@@ -67,7 +67,7 @@ Deno.serve(async (req) => {
       notes: [],
       public_offering: (() => {
         const o = (publicSchedules ?? []).find((row) => row.product_id === p.id);
-        return o ? { schedule_kind: o.schedule_kind, weekdays: o.weekdays, dates: o.dates, time_blocks: o.time_blocks } : null;
+        return o ? { schedule_kind: o.schedule_kind, weekdays: o.weekdays, dates: o.dates, time_blocks: o.time_blocks, display_schedule_text: o.display_schedule_text ?? null } : null;
       })(),
       pricing_type: p.pricing_type,
       // Informational only: private requires a real availability check, group

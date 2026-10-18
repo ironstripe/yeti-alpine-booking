@@ -1,5 +1,10 @@
 # Roadmap
 
+## Optional website schedule label — implementation only
+- [ ] Add nullable editorial label through incremental SQL + safe rollback and existing atomic staff save; never install 0010 again.
+- [ ] Integrate optional text, automatic weekday preview and catalog projection without changing schedules, blocks, prices or booking gates.
+- [ ] Run targeted unit/SQL/catalog, isolated save/reopen and modal scroll checks; inspect automatic typecheck/build. No production writes, installation, deployment or publication.
+
 ## Product public offering metadata — implementation only
 - [x] Prepare product-scoped schedule persistence, preflight and reversible SQL; no backfill or shared-backend installation.
 - [x] Integrate Website-Informationen into existing modal, preview, dirty guard, save/reopen; metadata-only save avoids product writes, failed saves retain edits.
