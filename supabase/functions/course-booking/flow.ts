@@ -5,6 +5,7 @@
 // held/finalized can be released (cancel/expiry); invoicing/confirmed never.
 // This layer only sequences the steps and the two durable e-mail deliveries.
 // Online payment is never accepted here (no provider; fabricated references refused).
+import { checkSaturdaySelection } from "../_shared/saturdaySelection.ts";
 import { issueInvoice as defaultIssue } from "../_shared/invoice-service.ts";
 import { attemptDelivery, ensureDelivery, type DeliveryKind, type Transport } from "../_shared/courseDelivery.ts";
 import { err, httpFor, isToken, isUuid, positiveAmount, CONTRACT_VERSION } from "../_shared/courseBookingContract.ts";
@@ -31,6 +32,16 @@ export async function reserve(sb: Client, body: Record<string, any>): Promise<Re
   const r = body?.reservation;
   if (!r || typeof r !== "object" || typeof r.idempotency_key !== "string") {
     return { status: 400, body: err("invalid_input", "reservation mit idempotency_key erforderlich") };
+  }
+  for (const selection of Array.isArray(r.selections) ? r.selections : []) {
+    if (selection?.kind !== 'group') continue;
+    if (!isUuid(selection.product_id) || typeof selection.period_key !== 'string' || !Array.isArray(selection.dates)
+      || !selection.dates.every((date: unknown) => typeof date === 'string')) return { status: 400, body: err('invalid_selection', 'Ungültige Kursauswahl') };
+    const period = await sb.from('bc_2627_course_period_sources').select('course_id').eq('source_key', selection.period_key).maybeSingle();
+    if (period.error) throw new Error('Saturday period unavailable');
+    if (!period.data) return { status: 400, body: err('invalid_selection', 'Kursserie nicht gefunden') };
+    const message = await checkSaturdaySelection(sb, period.data.course_id, selection.product_id, selection.dates, selection.period_key);
+    if (message) return { status: 400, body: err('invalid_selection', message) };
   }
   const d = await rpc(sb, "bc_2627_reserve", { p_payload: r });
   if (d?.status !== "success") return { status: httpFor(d?.code), body: err(d?.code ?? "reserve_failed", d?.message ?? "") };
