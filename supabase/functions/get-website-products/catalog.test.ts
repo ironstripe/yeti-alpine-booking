@@ -32,4 +32,4 @@ Deno.test({name:'optional product offering, ordered dates, exact single tiers, o
     for(const key of ['id','name','title','subtitle','type','discipline','audience','icon_key','badge','requirement','meta','notes','pricing_type','availability_policy','price','price_tiers','private_rates','duration_minutes','min_age','max_age','currency','sort_order','online_bookable'])assert(key in p,key);
     assert(!('description' in p));assert(!queried.some(t=>['group_courses','group_course_instances','instructors'].includes(t)));
   } finally {globalThis.fetch=originalFetch;Deno.serve=originalServe;for(const [k,v] of oldEnv){if(v===undefined)Deno.env.delete(k);else Deno.env.set(k,v);}}
-});
+}});
