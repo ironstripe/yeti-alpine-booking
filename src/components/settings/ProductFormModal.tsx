@@ -125,11 +125,13 @@ export function ProductFormModal({ open, onOpenChange, product, seasonId, isBook
   useEffect(() => {
     if (!open) {
       initializedProduct.current = null;
+      setTariffDirty(false);
       return;
     }
     const productKey = product?.id ?? "new";
     if (initializedProduct.current === productKey) return;
     initializedProduct.current = productKey;
+    setTariffDirty(false);
     if (product) {
       const fullTiers = editorPriceTiers(product.price_tiers);
 
