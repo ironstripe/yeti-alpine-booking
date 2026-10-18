@@ -1,7 +1,7 @@
 # Roadmap
 
 ## Product editor repair — step 1 only
-- [ ] Preserve legacy flat pricing and all stored day tiers; targeted synthetic editor/save tests and typecheck. No live writes, migration, deployment or publication.
+- [x] Preserve legacy flat pricing and all stored day tiers; 10/10 targeted tests (real update hook with synthetic responses), isolated actual form open/save/reopen for flat/fixed/hourly/tiered plus 6/7-day edit, automatic build/typecheck OK. No live writes, migration, deployment or publication; live persistence not exercised.
 
 ## UI optimization
 - [x] Booking step-one UX: single input column, early explicit teacher assignment, unified participant section, read-only draft-aware sticky summary, mounted scheduler toggling, responsive footer-safe layout
