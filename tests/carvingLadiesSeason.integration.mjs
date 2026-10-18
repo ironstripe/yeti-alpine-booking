@@ -57,6 +57,9 @@ try{
  });
  await run('rerun fails closed without changing any row',async()=>{const prior=await snapshot();await rejected(sql,/already exists/);assert.deepEqual(await snapshot(),prior);});
  await run('future generators insert zero duplicates for all 19 existing weeks (LOCAL ONLY)',async()=>{
+ // Baseline is_admin_or_office predates super_admin support; synthetic admin role
+ // exercises the authorized generators without changing the seed actor guard.
+ await db`INSERT INTO user_roles(user_id,role) VALUES(${A},'admin')`;
  const prior=await snapshot();await db.begin(async tx=>{await tx`SELECT set_config('request.jwt.claim.sub',${A},true)`;for(const row of await tx`SELECT week_start FROM training_groups WHERE course_id=${C} ORDER BY week_start`){const r=(await tx`SELECT generate_group_course_instances_for_week(${row.week_start}::date) result`)[0].result;assert.equal(r.instances_created,0);const g=(await tx`SELECT generate_training_groups_for_week(${row.week_start}::date) result`)[0].result;assert.equal(g.groups_created,0);}});assert.deepEqual(await snapshot(),prior);
  });
  console.log(`${passed}/${passed} passed; disposable database only`);
