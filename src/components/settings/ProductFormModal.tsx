@@ -211,15 +211,30 @@ export function ProductFormModal({ open, onOpenChange, product, seasonId, isBook
       payload.season_id = seasonId;
     }
 
+    // After the product itself is saved, persist changed tariff cells too.
+    // If the tariff save fails, the dialog stays open and the error is shown.
+    const finish = async () => {
+      if (isEditing && tariffRef.current?.isDirty()) {
+        setTariffSaving(true);
+        try {
+          const ok = await tariffRef.current.saveIfDirty();
+          if (!ok) return;
+        } finally {
+          setTariffSaving(false);
+        }
+      }
+      dismiss.closeSaved();
+    };
+
     if (isEditing) {
       updateProduct.mutate(
         { id: product.id, ...payload },
-        { onSuccess: dismiss.closeSaved }
+        { onSuccess: finish }
       );
     } else {
       createProduct.mutate(
         payload,
-        { onSuccess: dismiss.closeSaved }
+        { onSuccess: finish }
       );
     }
   };
@@ -527,6 +542,18 @@ export function ProductFormModal({ open, onOpenChange, product, seasonId, isBook
                   ))}
                 </div>
               )}
+              {/* Editable private tariff matrix (duration x persons) for existing private products */}
+              {isEditing && product?.type === "private" && (
+                <div className="space-y-2">
+                  <FormLabel className="text-base font-medium">Tarife</FormLabel>
+                  <PrivateTariffMatrixEditor
+                    ref={tariffRef}
+                    productId={product.id}
+                    onDirtyChange={setTariffDirty}
+                  />
+                </div>
+              )}
+
               {/* Tiered Pricing Editor */}
               {pricingType === "tiered" && (
                 <div className="space-y-4 p-4 border rounded-lg bg-muted/30">
@@ -734,7 +761,7 @@ export function ProductFormModal({ open, onOpenChange, product, seasonId, isBook
           <Button type="button" variant="outline" onClick={() => dismiss.requestClose(false)} disabled={isPending}>
             Abbrechen
           </Button>
-          <Button onClick={form.handleSubmit(onSubmit)} disabled={isPending || !form.formState.isDirty}>
+          <Button onClick={form.handleSubmit(onSubmit)} disabled={isPending || (!form.formState.isDirty && !tariffDirty)}>
             {isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
             {isEditing ? "Speichern" : "Erstellen"}
           </Button>
