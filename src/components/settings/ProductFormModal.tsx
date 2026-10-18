@@ -32,7 +32,8 @@ import {
 } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { ProductWithTiers, useCreateProduct, useUpdateProduct } from "@/hooks/useProducts";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { PrivateTariffMatrixEditor, PrivateTariffMatrixHandle } from "@/components/settings/PrivateTariffMatrixEditor";
 import { cn } from "@/lib/utils";
 import { calculateSavingsPercent, formatPriceCHF, getDefaultPriceTiers } from "@/lib/pricing-utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
