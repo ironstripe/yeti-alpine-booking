@@ -138,7 +138,7 @@ describe("capacity roster builder", () => {
 });
 
 import { isCourseRelevantForWeek } from "../src/lib/internalCourseVisibility";
-test("planning week relevance follows course/season period", () => {
+it("planning week relevance follows course/season period", () => {
   const s2627 = { start: "2026-12-01", end: "2027-04-15" }, s2526 = { start: "2025-12-20", end: "2026-04-06" };
   // 12–18 Oct 2026: off-season, both hidden
   expect(isCourseRelevantForWeek(s2627, "2026-10-12", "2026-10-18", false, false)).toBe(false);
