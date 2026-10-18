@@ -1,5 +1,10 @@
 # Roadmap
 
+## Lunch and supervision — preparation only
+- [ ] Limit existing optional add-on to full-day groups, unique CHF 30 lunch product, separate billing items.
+- [ ] Verify synthetic persistence, participant/day deduplication, two-block totals, half-day rejection and invoice display.
+- No production writes, installation, deployment, messages or publication; checkout unchanged.
+
 ## Saturday selection rules — 18 Oct 2026
 - [x] Enforce first-day/maximum-day rules in staff options/create and website reserve using server-read canonical course levels, source tariff family and course period mappings; existing atomic SQL pricing/save unchanged.
 - [x] Verify 46 unit/regression tests, 7 disposable PostgreSQL persistence/readback checks and authenticated mocked HTTP staff/website checks; Deno checks pass. No production business writes, migration, function deployment or publication.

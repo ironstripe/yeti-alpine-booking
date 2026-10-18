@@ -1,6 +1,7 @@
 // Pure mapping: wizard state -> staff 26/27 group booking lines (server re-validates everything).
 import type { BookingWizardState } from "@/contexts/BookingWizardContext";
 import type { StaffGroupLine } from "@/lib/staffGroupBookingApi";
+import { GROUP_LUNCH_PRICE_CHF, groupLunchEligible, uniqueLunchDates } from "@/lib/groupLunch";
 
 export type StaffGroupPlanResult =
   | { kind: "none" }
@@ -36,14 +37,15 @@ export function buildStaffGroupLines(state: BookingWizardState, lunchUnitPrice: 
   if (state.cartItems.length > 1) {
     return { kind: "error", message: "Winter-26/27-Gruppenkurse können nur als einzelnes Produkt gespeichert werden. Bitte weitere Produkte separat buchen." };
   }
-  if (staffGroupHasLunch(state) && !(lunchUnitPrice && lunchUnitPrice > 0)) {
-    return { kind: "error", message: "Für die Mittagsbetreuung ist kein eindeutiger Preis hinterlegt. Bitte im Produktkatalog prüfen." };
+  if (staffGroupHasLunch(state) && lunchUnitPrice !== GROUP_LUNCH_PRICE_CHF) {
+    return { kind: "error", message: "Für Mittagessen und Betreuung muss genau ein aktives Produkt zu CHF 30 pro Person und Tag hinterlegt sein." };
   }
   if (!state.sport) return { kind: "error", message: "Sportart wählen." };
   if (ids.length === 0) return { kind: "error", message: "Teilnehmer fehlen." };
 
   const lines: StaffGroupLine[] = [];
   for (const { id, ref, dates } of refs) {
+    if (!ref) return { kind: "error", message: "Kurs neu wählen." };
     const person = state.selectedParticipants.find((p) => p.id === id);
     if (!person) return { kind: "error", message: "Ein zugewiesener Teilnehmer ist nicht mehr vorhanden. Bitte Teilnehmer neu zuweisen." };
     const pb = participantMode ? state.participantBookings[id] : null;
@@ -51,17 +53,22 @@ export function buildStaffGroupLines(state: BookingWizardState, lunchUnitPrice: 
       ? effectiveGroupMeetingPoint(pb?.groupMeetingPoint, pb?.groupMeetingPointChoice)
       : effectiveGroupMeetingPoint(state.groupPlan?.meetingPoint, state.meetingPoint);
     if (!meetingPoint) return { kind: "error", message: `Treffpunkt für ${person.first_name} wählen.` };
-    const lunchDates = [...(participantMode ? pb?.lunchDays ?? [] : state.lunchSelections[id] ?? [])].filter((d) => dates.includes(d)).sort();
+    const selectedLunch = participantMode ? pb?.lunchDays ?? [] : state.lunchSelections[id] ?? [];
+    const lunchDates = uniqueLunchDates(selectedLunch, dates);
+    const plan = participantMode ? { server: pb?.groupServer, blocks: pb?.groupBlocks } : state.groupPlan;
+    if (selectedLunch.length > 0 && !groupLunchEligible(plan, dates)) {
+      return { kind: "error", message: `Mittagessen und Betreuung für ${person.first_name} sind nur bei einem Ganztages-Gruppenkurs möglich. Bitte Mittagsauswahl entfernen oder Ganztageskurs wählen.` };
+    }
     const vegetarian = participantMode ? !!pb?.isVegetarian : !!state.vegetarianSelections?.[id];
     const base = {
-      course_id: ref!.courseId,
-      product_id: ref!.productId,
+      course_id: ref.courseId,
+      product_id: ref.productId,
       dates: [...dates].sort(),
-      block: ref!.block,
+      block: ref.block,
       sport: state.sport,
-      expected_unit_price: ref!.unitPrice,
+      expected_unit_price: ref.unitPrice,
       meeting_point: meetingPoint,
-      ...(lunchDates.length > 0 ? { lunch_dates: lunchDates, vegetarian, expected_lunch_unit_price: lunchUnitPrice! } : {}),
+      ...(lunchDates.length > 0 ? { lunch_dates: lunchDates, vegetarian, expected_lunch_unit_price: GROUP_LUNCH_PRICE_CHF } : {}),
     };
     if (id.startsWith("guest-") || person.isGuest) {
       if (!person.birth_date) return { kind: "error", message: `Geburtsdatum für ${person.first_name} fehlt.` };
@@ -73,5 +80,16 @@ export function buildStaffGroupLines(state: BookingWizardState, lunchUnitPrice: 
   return { kind: "server", lines };
 }
 
-export const staffGroupTotal = (lines: StaffGroupLine[]) =>
-  lines.reduce((sum, line) => sum + line.expected_unit_price + (line.lunch_dates?.length ?? 0) * (line.expected_lunch_unit_price ?? 0), 0);
+export const staffGroupTotal = (lines: StaffGroupLine[]) => {
+  const charged = new Set<string>();
+  return lines.reduce((sum, line) => {
+    let lunch = 0;
+    for (const date of new Set(line.lunch_dates ?? [])) {
+      const key = `${line.participant_id ?? line.guest?.guest_key}:${date}`;
+      if (charged.has(key)) continue;
+      charged.add(key);
+      lunch += line.expected_lunch_unit_price ?? 0;
+    }
+    return sum + line.expected_unit_price + lunch;
+  }, 0);
+};
