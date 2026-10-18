@@ -14,6 +14,6 @@
 - Course delete/archive goes only through office/admin `course-management` → service_role `course_*` SQL (migration 0002): delete locks course + owned children, removes owned 26/27 source links and empty generated structure in one transaction with a `course_deletion_log` snapshot, and blocks (never cascades/SET NULL) real usage; no raw `group_courses` DELETE; rename is name-only. Why: no lost history or orphan bookings.
 - `customers.email` is optional (NULL = unknown, unique when present, never blank/placeholder; migration 0009); office UI and senders must treat a missing email as "nicht senden" via `src/lib/customerEmail.ts`. Why: customers without email remain bookable.
 
-- Pricing stays in `productEditorPricing.ts`; offerings/text/series share validation and one atomic staff JSON RPC (no overload); series validators read exact tiers service-only. Why: metadata never enables booking.
+- Pricing stays in `productEditorPricing.ts`; offerings use one atomic staff JSON RPC, exact tiers service-only. Saturday checks use `_shared/saturdaySelection.ts` with trusted level/period/tariff facts. Why: no name matching, repricing or booking release.
 
 - Public private display tariffs are separate from pricing; atomic staff saves check revision and explicit verification; catalog serves verified rows only. Why: no unchecked price claims or quote changes.
