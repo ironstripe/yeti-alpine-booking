@@ -36,7 +36,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { PrivateTariffMatrixEditor, PrivateTariffMatrixHandle } from "@/components/settings/PrivateTariffMatrixEditor";
 import { cn } from "@/lib/utils";
 import { calculateSavingsPercent, formatPriceCHF, getDefaultPriceTiers } from "@/lib/pricing-utils";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { UnsavedChangesDialog } from "@/components/ui/unsaved-changes-dialog";
 import { useGuardedFormDismiss } from "@/hooks/useGuardedFormDismiss";
 import { editorPricingTypeSchema, editorPriceTiers, productEditorPricingPatch } from "@/lib/productEditorPricing";
@@ -758,7 +757,7 @@ export function ProductFormModal({ open, onOpenChange, product, seasonId, isBook
               />
             </form>
           </Form>
-        </ScrollArea>
+        </div>
         <DialogFooter className="shrink-0 gap-2 border-t bg-background px-5 py-4 sm:px-6">
           <Button type="button" variant="outline" onClick={() => dismiss.requestClose(false)} disabled={isPending}>
             Abbrechen
