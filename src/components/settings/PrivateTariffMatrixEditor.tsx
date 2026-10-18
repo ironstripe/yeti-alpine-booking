@@ -37,14 +37,17 @@ export const PrivateTariffMatrixEditor = forwardRef<PrivateTariffMatrixHandle, P
     const originals = useBcOriginalPrivateTariffs(productId);
     const save = useSavePrivateProductTariffs(productId);
 
-    const [edited, setEdited] = useState<Map<string, number | null>>(new Map());
+    const [edited, setEdited] = useState<Map<string, number | null> | null>(null);
     const [showOriginals, setShowOriginals] = useState(false);
 
     const persisted = useMemo(() => toCellMap(effective.data ?? []), [effective.data]);
     const originalMap = useMemo(() => toCellMap(originals.data ?? []), [originals.data]);
 
+    // Until the user types, the edited map mirrors the persisted effective prices.
+    const current = edited ?? persisted;
+
     useEffect(() => {
-      if (effective.data) setEdited(new Map(effective.data.map((c) => [cellKey(c.duration_minutes, c.persons_per_lesson), c.price_chf])));
+      if (effective.data) setEdited(null);
     }, [effective.data]);
 
     const dirty = useMemo(() => buildTariffSavePayload(persisted, edited) !== null, [persisted, edited]);
