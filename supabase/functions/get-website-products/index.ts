@@ -32,6 +32,12 @@ Deno.serve(async (req) => {
         .in("product_id", ids).order("day_count")
       : { data: [], error: null };
     if (tiersError) throw tiersError;
+    // Install product_public_offerings before deploying this revision.
+    const { data: publicSchedules, error: offeringError } = ids.length
+      ? await db.from("product_public_offerings")
+        .select("product_id,schedule_kind,weekdays,dates,time_blocks").in("product_id", ids)
+      : { data: [], error: null };
+    if (offeringError) throw offeringError;
 
     // Publish only numeric prices bound to the two private products, never raw source rows.
     const privateIds = offerings.filter((p) => p.type === "private").map((p) => p.id);
@@ -59,10 +65,15 @@ Deno.serve(async (req) => {
       requirement: null,
       meta: [],
       notes: [],
+      public_offering: (() => {
+        const o = (publicSchedules ?? []).find((row) => row.product_id === p.id);
+        return o ? { schedule_kind: o.schedule_kind, weekdays: o.weekdays, dates: o.dates, time_blocks: o.time_blocks } : null;
+      })(),
       pricing_type: p.pricing_type,
       // Informational only: private requires a real availability check, group
-      // products are generally available during the configured season. This
-      // does NOT enable booking; online_bookable stays false below.
+      // compatibility label is not a date promise: group dates need a suitable
+      // internal offered course, without capacity sales limits. Neither
+      // schedule metadata nor visibility enables booking.
       availability_policy: p.type === "private" ? "private_check" : "group_season",
       price: Number(p.price),
       price_tiers: (tiers ?? []).filter((t) => t.product_id === p.id &&
