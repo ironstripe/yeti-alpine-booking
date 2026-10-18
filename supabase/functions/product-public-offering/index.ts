@@ -2,12 +2,13 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 import { z } from 'npm:zod@3';
 import { requireRole } from '../_shared/staffAuth.ts';
-import { validateOffering } from '../_shared/productOffering.ts';
+import { validateOffering, normalizeScheduleText, validateScheduleText } from '../_shared/productOffering.ts';
 const schema = z.object({ product_id: z.string().uuid(), offering: z.object({
   schedule_kind: z.enum(['weekly','explicit_dates','flexible_private']),
   weekdays: z.array(z.number().int().min(1).max(7)).max(7),
   dates: z.array(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).max(366),
   time_blocks: z.array(z.object({ start: z.string(), end: z.string() }).strict()).max(2),
+  display_schedule_text: z.string().nullable().optional().refine(text=>validateScheduleText(text) === null).transform(normalizeScheduleText),
 }).strict().nullable() }).strict();
 const reply = (data: unknown, status = 200) => new Response(JSON.stringify(data), {status, headers:{...corsHeaders,'Content-Type':'application/json'}});
 Deno.serve(async req => {

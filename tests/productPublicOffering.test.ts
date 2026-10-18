@@ -1,11 +1,15 @@
 import { test, expect } from 'bun:test';
-import { validateOffering, offeringDuration, type ProductOffering } from '../src/lib/productPublicOffering';
+import { validateOffering, offeringDuration, offeringPreview, normalizeScheduleText, type ProductOffering } from '../src/lib/productPublicOffering';
 const season={start_date:'2026-12-01',end_date:'2027-04-15'};
 const weekly:ProductOffering={schedule_kind:'weekly',weekdays:[1,2,3,4,5],dates:[],time_blocks:[{start:'10:00',end:'12:00'}]};
 const context={type:'group',duration_minutes:120,season};
 test('one 2h block, Monday–Friday',()=>{expect(validateOffering(weekly,context)).toBeNull();expect(offeringDuration(weekly.time_blocks)).toBe(120);});
 test('two 4h blocks do not modify a product day tier',()=>{const tiers=[{day_count:1,cumulative_price:100},{day_count:5,cumulative_price:320}];const before=structuredClone(tiers);const o={...weekly,time_blocks:[...weekly.time_blocks,{start:'14:00',end:'16:00'}]};expect(validateOffering(o,{...context,duration_minutes:240})).toBeNull();expect(offeringDuration(o.time_blocks)).toBe(240);expect(tiers).toEqual(before);expect(tiers.find(t=>t.day_count===5)?.cumulative_price).toBe(320);});
 test('Wednesdays',()=>expect(validateOffering({...weekly,weekdays:[3]},context)).toBeNull());
+test('custom Wednesday text changes label only; two blocks and weekdays retained',()=>{const o={...weekly,weekdays:[3],display_schedule_text:'  Immer mittwochs  ',time_blocks:[...weekly.time_blocks,{start:'14:00',end:'16:00'}]};const before=structuredClone(o);expect(validateOffering(o,{...context,duration_minutes:240})).toBeNull();expect(offeringPreview(o)).toBe('Immer mittwochs · 10:00–12:00 + 14:00–16:00 · 240 Min. pro Tag');expect(o).toEqual(before);});
+test('empty optional text normalizes to null and derives Wednesday without a date',()=>{expect(normalizeScheduleText('  ')).toBeNull();expect(offeringPreview({...weekly,weekdays:[3],display_schedule_text:null})).toBe('Jeden Mittwoch · 10:00–12:00 · 120 Min. pro Tag');});
+test('160 characters accepted, 161 rejected including flexible schedules',()=>{expect(validateOffering({...weekly,display_schedule_text:'x'.repeat(160)},context)).toBeNull();expect(validateOffering({...weekly,display_schedule_text:'x'.repeat(161)},context)).toContain('160');expect(validateOffering({schedule_kind:'flexible_private',weekdays:[],dates:[],time_blocks:[],display_schedule_text:'x'.repeat(161)},{type:'private',duration_minutes:120})).toContain('160');});
+test('HTML, multiline and non-text labels rejected',()=>{for(const text of ['<b>Mittwoch</b>','Mittwoch\nDonnerstag',42])expect(validateOffering({...weekly,display_schedule_text:text},context)).not.toBeNull();});
 test('five explicit Saturdays retain deliberate order',()=>{const dates=['2027-01-30','2027-01-02','2027-01-09','2027-01-16','2027-01-23'];const o={...weekly,schedule_kind:'explicit_dates' as const,weekdays:[],dates};expect(validateOffering(o,context)).toBeNull();expect(o.dates).toEqual(dates);});
 test('outside season rejected',()=>expect(validateOffering({...weekly,schedule_kind:'explicit_dates',weekdays:[],dates:['2027-05-01']},context)).toContain('Saison'));
 test('overlap rejected',()=>expect(validateOffering({...weekly,time_blocks:[{start:'10:00',end:'12:00'},{start:'11:00',end:'13:00'}]},{...context,duration_minutes:240})).toContain('überschneiden'));

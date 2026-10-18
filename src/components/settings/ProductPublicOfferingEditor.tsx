@@ -40,7 +40,7 @@ export const ProductPublicOfferingEditor = forwardRef<ProductOfferingHandle,Prop
   const mode=(kind:string)=> {
     if(kind==='none') {change(null);return;}
     const schedule_kind=kind as ScheduleKind;
-    change({schedule_kind,weekdays:[],dates:[],time_blocks:schedule_kind==='flexible_private'?[]:[{start:'',end:''}]});
+    change({schedule_kind,weekdays:[],dates:[],time_blocks:schedule_kind==='flexible_private'?[]:[{start:'',end:''}],display_schedule_text:draft?.display_schedule_text ?? null});
   };
   return <section aria-labelledby="website-information-title" className="space-y-4 border-t pt-5">
     <h3 id="website-information-title" className="font-medium">Website-Informationen</h3>
@@ -48,7 +48,7 @@ export const ProductPublicOfferingEditor = forwardRef<ProductOfferingHandle,Prop
     <div className="space-y-2"><Label htmlFor="offering-kind">Angebotstermine</Label>
       <Select value={draft?.schedule_kind ?? 'none'} onValueChange={mode} disabled={disabled}>
         <SelectTrigger id="offering-kind"><SelectValue /></SelectTrigger><SelectContent>
-          <SelectItem value="none">Nicht hinterlegt</SelectItem><SelectItem value="weekly">Wöchentliche Wochentage</SelectItem><SelectItem value="explicit_dates">Definierte Termine</SelectItem>
+          <SelectItem value="none">Nicht hinterlegt</SelectItem><SelectItem value="weekly">Wöchentliche Wochentage</SelectItem><SelectItem value="explicit_dates">Einzeltermine mit Datum</SelectItem>
           {props.type==='private' && <SelectItem value="flexible_private">Flexible Privatstunden</SelectItem>}
         </SelectContent></Select>
     </div>
@@ -62,6 +62,10 @@ export const ProductPublicOfferingEditor = forwardRef<ProductOfferingHandle,Prop
         <Button type="button" size="icon" variant="ghost" className="icon-action shrink-0" title="Termin entfernen" aria-label={`Termin ${i+1} entfernen`} disabled={disabled} onClick={()=>change({...draft,dates:draft.dates.filter((_,j)=>j!==i)})}><Trash2 className="h-4 w-4"/></Button>
       </div>)}
       <Button type="button" variant="outline" size="sm" disabled={disabled || draft.dates.length>=366} onClick={()=>change({...draft,dates:[...draft.dates,'']})}><Plus className="mr-2 h-4 w-4"/>Termin hinzufügen</Button>
+    </div>}
+    {draft && <div className="space-y-2">
+      <Label htmlFor="offering-display-text">Text auf Website (optional)</Label>
+      <Input id="offering-display-text" value={draft.display_schedule_text ?? ''} placeholder="Immer mittwochs" disabled={disabled} onChange={e=>change({...draft,display_schedule_text:e.target.value})}/>
     </div>}
     {draft && draft.schedule_kind!=='flexible_private' && <div className="space-y-3">
       {draft.time_blocks.map((block,i)=><fieldset key={i} disabled={disabled} className="grid grid-cols-2 gap-3"><legend className="mb-2 text-sm font-medium">Zeitblock {i+1}</legend>

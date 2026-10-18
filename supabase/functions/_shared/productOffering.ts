@@ -1,15 +1,25 @@
 /** Product-scoped informational schedule. Never a booking/price/capacity decision. */
 export type ScheduleKind = 'weekly' | 'explicit_dates' | 'flexible_private';
 export type TimeBlock = { start: string; end: string };
-export type ProductOffering = { schedule_kind: ScheduleKind; weekdays: number[]; dates: string[]; time_blocks: TimeBlock[] };
+export type ProductOffering = { schedule_kind: ScheduleKind; weekdays: number[]; dates: string[]; time_blocks: TimeBlock[]; display_schedule_text?: string | null };
 export type OfferingContext = { type: string; duration_minutes: number | null; season?: { start_date: string; end_date: string } | null };
 export const weekdayLabels = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'];
 const clock = (s: string) => /^([01]\d|2[0-3]):[0-5]\d$/.test(s);
 const minutes = (s: string) => Number(s.slice(0, 2)) * 60 + Number(s.slice(3));
 export function offeringDuration(blocks: TimeBlock[]): number { return blocks.reduce((sum, b) => sum + minutes(b.end) - minutes(b.start), 0); }
+export function normalizeScheduleText(text?: string | null): string | null { return text?.trim() || null; }
+export function validateScheduleText(text: unknown): string | null {
+  if (text == null) return null;
+  if (typeof text !== 'string') return 'Website-Text muss einfacher Text sein';
+  if (Array.from(text.trim()).length > 160) return 'Website-Text darf höchstens 160 Zeichen enthalten';
+  if (/[<>\u0000-\u001f\u007f]/.test(text)) return 'Website-Text muss einzeiliger Text ohne HTML sein';
+  return null;
+}
 export function validateOffering(input: unknown, context: OfferingContext): string | null {
   if (!input || typeof input !== 'object') return 'Ungültige Website-Informationen';
   const o = input as ProductOffering;
+  const textError = validateScheduleText(o.display_schedule_text);
+  if (textError) return textError;
   if (!['weekly', 'explicit_dates', 'flexible_private'].includes(o.schedule_kind) || !Array.isArray(o.weekdays) || !Array.isArray(o.dates) || !Array.isArray(o.time_blocks)) return 'Ungültiges Terminmodell';
   if (o.schedule_kind === 'flexible_private') {
     if (context.type !== 'private' || o.weekdays.length || o.dates.length || o.time_blocks.length) return 'Flexible Termine sind nur für Privatstunden ohne feste Zeiten möglich';
@@ -37,8 +47,9 @@ export function validateOffering(input: unknown, context: OfferingContext): stri
 }
 export function offeringPreview(o: ProductOffering | null): string {
   if (!o) return 'Keine Angebotszeiten hinterlegt';
-  if (o.schedule_kind === 'flexible_private') return 'Privatstunden nach Verfügbarkeit';
-  const days = o.schedule_kind === 'weekly' ? o.weekdays.map(d => weekdayLabels[d - 1]).join(', ') : o.dates.map(d => d.split('-').reverse().join('.')).join(', ');
+  const text = normalizeScheduleText(o.display_schedule_text);
+  if (o.schedule_kind === 'flexible_private') return text ?? 'Privatstunden nach Verfügbarkeit';
+  const days = text ?? (o.schedule_kind === 'weekly' ? o.weekdays.map(d => `Jeden ${weekdayLabels[d - 1]}`).join(', ') : o.dates.map(d => d.split('-').reverse().join('.')).join(', '));
   const duration = offeringDuration(o.time_blocks);
   return `${days} · ${o.time_blocks.map(b => `${b.start || '…'}–${b.end || '…'}`).join(' + ')}${Number.isFinite(duration) && duration > 0 ? ` · ${duration} Min. pro Tag` : ''}`;
 }

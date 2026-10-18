@@ -14,4 +14,4 @@
 - Course delete/archive goes only through office/admin `course-management` → service_role `course_*` SQL (migration 0002): delete locks course + owned children, removes owned 26/27 source links and empty generated structure in one transaction with a `course_deletion_log` snapshot, and blocks (never cascades/SET NULL) real usage; no raw `group_courses` DELETE; rename is name-only. Why: no lost history or orphan bookings.
 - `customers.email` is optional (NULL = unknown, unique when present, never blank/placeholder; migration 0009); office UI and senders must treat a missing email as "nicht senden" via `src/lib/customerEmail.ts`. Why: archive-imported customers without email must stay bookable.
 
-- Product editors retain prices/tiers via `productEditorPricing.ts`; public schedules use `product_public_offerings`, shared validation, SQL trigger and staff-only `product-public-offering` RPC. Why: metadata must not duplicate courses or bypass booking gates.
+- Product pricing stays in `productEditorPricing.ts`; offerings/text share validation and atomic staff-only JSON RPC (no overload). Why: editorial labels never change schedules or booking gates.

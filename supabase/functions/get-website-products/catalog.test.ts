@@ -18,7 +18,7 @@ Deno.test({name:'optional product offering, ordered dates, exact single tiers, o
       assertEquals(url.origin,'http://localhost:54321');
       const table=url.pathname.split('/').pop() ?? '';queried.push(table);
       const product={name:'Synthetic',type:'group',discipline:'ski',audience:'kids',price:100,pricing_type:'tiered',duration_minutes:240,min_age:5,max_age:16,currency:'CHF',sort_order:0,is_active:false};
-      const rows:Record<string,unknown>={seasons:[{id:'s',name:'Winter',start_date:'2026-12-01',end_date:'2027-04-15'}],products:[{...product,id:'p'},{...product,id:'legacy'}],product_price_tiers:[{product_id:'p',day_count:5,cumulative_price:320}],product_public_offerings:[{product_id:'p',schedule_kind:'explicit_dates',weekdays:[],dates,time_blocks:[{start:'10:00',end:'12:00'},{start:'14:00',end:'16:00'}]}]};
+      const rows:Record<string,unknown>={seasons:[{id:'s',name:'Winter',start_date:'2026-12-01',end_date:'2027-04-15'}],products:[{...product,id:'p'},{...product,id:'legacy'},{...product,id:'wednesday'}],product_price_tiers:[{product_id:'p',day_count:5,cumulative_price:320}],product_public_offerings:[{product_id:'p',schedule_kind:'explicit_dates',weekdays:[],dates,time_blocks:[{start:'10:00',end:'12:00'},{start:'14:00',end:'16:00'}]},{product_id:'wednesday',schedule_kind:'weekly',weekdays:[3],dates:[],time_blocks:[{start:'10:00',end:'12:00'},{start:'14:00',end:'16:00'}],display_schedule_text:'Immer mittwochs'}]};
       assert(table in rows,`Unexpected query ${table}`);
       return Promise.resolve(new Response(JSON.stringify(rows[table]),{headers:{'Content-Type':'application/json'}}));
     };
@@ -27,6 +27,9 @@ Deno.test({name:'optional product offering, ordered dates, exact single tiers, o
     const response=await handler(new Request('http://localhost/catalog',{headers:{'x-api-key':'synthetic-test-key'}}));assertEquals(response.status,200);
     const body=await response.json();const p=body.products.find((p:{id:string})=>p.id==='p');
     assertEquals(p.public_offering.dates,dates);assertEquals(p.public_offering.time_blocks.length,2);
+    assertEquals(p.public_offering.display_schedule_text,null);
+    const w=body.products.find((p:{id:string})=>p.id==='wednesday');
+    assertEquals(w.public_offering.display_schedule_text,'Immer mittwochs');assertEquals(w.public_offering.weekdays,[3]);assertEquals(w.public_offering.dates,[]);assertEquals(w.public_offering.time_blocks.length,2);assertEquals(w.online_bookable,false);
     assertEquals(p.price,100);assertEquals(p.price_tiers,[{day_count:5,cumulative_price:320}]);assertEquals(p.online_bookable,false);
     assertEquals(body.products.find((p:{id:string})=>p.id==='legacy').public_offering,null);
     for(const key of ['id','name','title','subtitle','type','discipline','audience','icon_key','badge','requirement','meta','notes','pricing_type','availability_policy','price','price_tiers','private_rates','duration_minutes','min_age','max_age','currency','sort_order','online_bookable'])assert(key in p,key);
