@@ -193,6 +193,11 @@ export function useCreateBooking() {
         groupPricing = await runGroupPreflight(groupLines);
       }
 
+      // Legacy single-block group path cannot safely represent full-day lunches. Fail before writes.
+      if (groupLines.length > 0 && (staffGroupHasLunch(state) || state.includeLunch)) {
+        throw new Error("Mittagessen und Betreuung sind nur über den Ganztages-Gruppenkurs mit vollständigem Tagesplan buchbar.");
+      }
+
       // Generate ticket number
       const ticketNumber = await generateTicketNumber();
 

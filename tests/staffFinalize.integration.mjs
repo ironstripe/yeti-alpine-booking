@@ -14,7 +14,7 @@ import { existsSync, readFileSync } from 'node:fs';
 const adminUrl = process.env.BC_TEST_DATABASE_URL ?? 'postgres://postgres@127.0.0.1:55432/postgres';
 const u = new URL(adminUrl);
 if (!['127.0.0.1', 'localhost'].includes(u.hostname)) throw new Error('Refusing non-local database');
-const opts = { onnotice: () => {}, ssl: false };
+const opts = { onnotice: () => {}, ssl: false, ...(process.env.BC_TEST_SOCKET === '/tmp' ? { host: '/tmp', port: Number(u.port) || 55432 } : {}) };
 const dbName = `staff_finalize_${Date.now()}`;
 const admin = postgres(adminUrl, { ...opts, max: 1 });
 await admin.unsafe(`CREATE DATABASE ${dbName}`);
@@ -22,7 +22,7 @@ await admin.unsafe(`ALTER DATABASE ${dbName} SET search_path = public, extension
 u.pathname = `/${dbName}`;
 const sql = postgres(u.toString(), { ...opts, max: 10 });
 const root = new URL('../', import.meta.url);
-const psqlFile = (f) => spawnSync('psql', [u.toString(), '-q', '-v', 'ON_ERROR_STOP=1', '-1', '-f', fileURLToPath(new URL(f, root))],
+const psqlFile = (f) => spawnSync('psql', [process.env.BC_TEST_SOCKET === '/tmp' ? `postgresql://${u.pathname}?host=/tmp&port=55432&user=postgres` : u.toString(), '-q', '-v', 'ON_ERROR_STOP=1', '-1', '-f', fileURLToPath(new URL(f, root)), ...(process.env.BC_TEST_SOCKET === '/tmp' ? ['-h', '/tmp'] : [])],
   { encoding: 'utf8', env: { ...process.env, PGSSLMODE: 'disable' } });
 
 let passed = 0; const results = [];
@@ -60,6 +60,7 @@ try {
   for (const x of await sql`SELECT proname, md5(prosrc) m FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname IN ('pa_create_booking','bc_2627_staff_group_book') ORDER BY 1`)
     results.push(`     pre-0007 md5 ${x.proname} ${x.m}`);
   { const r = psqlFile('supabase/pending/staff_guest_level.sql'); if (r.status !== 0) throw new Error(`psql 0007: ${r.stderr}`); }
+  { const r = psqlFile('supabase/pending/group_lunch_full_day.sql'); if (r.status !== 0) throw new Error(`psql lunch: ${r.stderr}`); }
   for (const x of await sql`SELECT proname, md5(prosrc) m FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname IN ('pa_create_booking','bc_2627_staff_group_book','staff_guest_level_ok') ORDER BY 1`)
     results.push(`     0007 md5 ${x.proname} ${x.m}`);
   await sql.unsafe(`CREATE OR REPLACE FUNCTION public.pa_business_today() RETURNS date LANGUAGE sql STABLE AS $$ SELECT DATE '2026-10-05' $$;`);

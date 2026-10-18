@@ -6,7 +6,7 @@
 - Instructor HR/source import data (source links, HR raw values, staging, private portraits in bucket `instructor-hr-photos`) is readable only via `is_super_admin`/staff RLS and written only by service_role Edge Functions. Why: HR PII must never reach teachers, anon or the public `instructor-avatars` bucket.
 - Instructor data access goes through `src/lib/instructorsApi.ts`: clients read only directory columns of `instructors` directly; contact/personnel fields via staff RPC `instructors_ops_list`/`instructor_ops_upsert`, pay/bank/AHV only via super_admin RPCs, own profile via `instructor_self`/`instructor_self_update`; login↔instructor via `instructor_user_links`; live status via `instructor_live_status`. Why: server-enforced column-level least privilege.
 - Booking-Corner Apply writes, in the same per-row subtransaction as each change, an immutable first-write entry in `instructor_import_ledger` (full pre-image for updated targets, provenance for real new UUIDs); recovery is dry-run only via service_role `bc_recovery_dry_run`, never a global restore. Why: selective recovery without restoring the shared Cloud database.
-- Staff group bookings pass `groupBookingPreflight`; source-bound bookings use `staff-group-booking`. Product delete: staff `product-management` → service-only `product_delete` (usage list blocks; BC tariff sources alone don't, removed after `product_deletion_log` snapshot; FKs final guard). Why: history survives, recoverable.
+- Staff group bookings pass `groupBookingPreflight`; source-bound bookings use `staff-group-booking`. Product delete: staff `product-management` → service-only `product_delete` (usage list blocks; BC tariff sources alone don't, removed after `product_deletion_log` snapshot; FKs final guard). Why: recoverable.
 - 26/27 website course bookings run only through the `bc_2627_*` SQL state machine (held→finalized→invoicing→confirmed; release only before invoicing) via the `course-booking` function; invoices come only from `issueInvoice` after `bc_2627_begin_invoice`, and e-mails only through `_shared/courseDelivery.ts` (one leased row per ticket+kind, configured sender, staff resend via `retry-course-booking-delivery`). Why: retries can never create a second invoice or e-mail, and a cancelled or expired hold is never invoiced.
 - SQL/API tests load `tests/sql/production_schema_baseline.sql` and synthetic local PostgreSQL/PostgREST fixtures via psql. Why: preserve production constraints/triggers and backslashes.
 - Follow `docs/ui-standard.md`; preserve workflows/data. Why: styling cannot alter office behavior.
@@ -16,4 +16,6 @@
 
 - Pricing stays in `productEditorPricing.ts`; offerings use one atomic staff JSON RPC, exact tiers service-only. Saturday checks use `_shared/saturdaySelection.ts` with trusted level/period/tariff facts. Why: no name matching, repricing or booking release.
 
-- Public private display tariffs are separate from pricing; atomic staff saves check revision and explicit verification; catalog serves verified rows only. Why: no unchecked price claims or quote changes.
+- Public private display tariffs use revision-checked staff saves; catalog serves verified rows only. Why: safe.
+
+- Group lunch uses canonical full-day blocks and atomic participant/day billing items. Why: no double charges.

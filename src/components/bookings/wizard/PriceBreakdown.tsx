@@ -1,3 +1,4 @@
+import { groupLunchEligible, uniqueLunchDates } from "@/lib/groupLunch";
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Check, Clock, Users, Leaf } from "lucide-react";
@@ -301,7 +302,7 @@ export function PriceBreakdown({
       if (state.useParticipantSpecificBooking && Object.keys(state.participantBookings).length > 0) {
         for (const participant of pricingParticipants) {
           const booking = state.participantBookings[participant.id];
-          const lunchDays = booking ? booking.lunchDays.filter((d) => booking.dates.includes(d)) : [];
+          const lunchDays = booking && groupLunchEligible({ server: booking.groupServer, blocks: booking.groupBlocks }, booking.dates) ? uniqueLunchDates(booking.lunchDays, booking.dates) : [];
           if (booking && lunchDays.length > 0) {
             items.push({
               participantId: participant.id,
@@ -315,7 +316,7 @@ export function PriceBreakdown({
       } else {
         // Shared mode - use lunchSelections and vegetarianSelections
         for (const participant of pricingParticipants) {
-          const days = (state.lunchSelections[participant.id] || []).filter((d) => state.selectedDates.includes(d));
+          const days = groupLunchEligible(state.groupPlan, state.selectedDates) ? uniqueLunchDates(state.lunchSelections[participant.id] || [], state.selectedDates) : [];
           if (days.length > 0) {
             items.push({
               participantId: participant.id,
@@ -330,7 +331,7 @@ export function PriceBreakdown({
     }
     
     return items;
-  }, [productType, state.useParticipantSpecificBooking, state.participantBookings, pricingParticipants, state.selectedDates, state.lunchSelections, state.vegetarianSelections, lunchPricePerDay]);
+  }, [productType, state.useParticipantSpecificBooking, state.participantBookings, pricingParticipants, state.selectedDates, state.lunchSelections, state.vegetarianSelections, state.groupPlan, lunchPricePerDay]);
   
   let lunchTotal = 0;
   let lunchDaysCount = 0;
@@ -338,7 +339,7 @@ export function PriceBreakdown({
   if (participantLunchItems.length > 0) {
     lunchTotal = participantLunchItems.reduce((sum, item) => sum + item.price, 0);
     lunchDaysCount = participantLunchItems.reduce((sum, item) => sum + item.days, 0);
-  } else if (state.includeLunch && lunchProduct) {
+  } else if (productType !== "group" && state.includeLunch && lunchProduct) {
     lunchDaysCount = daysCount;
     lunchTotal = lunchProduct.price * daysCount;
   }
