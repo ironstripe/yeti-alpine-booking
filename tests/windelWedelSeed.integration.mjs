@@ -37,7 +37,7 @@ try {
   await db`INSERT INTO user_roles(user_id,role) VALUES(${ACTOR},'super_admin')`;
   await db`INSERT INTO seasons(id,name,start_date,end_date) VALUES(${season},'Synthetic','2026-12-01','2027-04-30')`;
   await db`INSERT INTO products(id,season_id,name,type,price,pricing_type,duration_minutes) VALUES(${PRODUCT},${season},'WINDel-Wedel','group_toddler',70,'tiered',120)`;
-  await db`INSERT INTO group_courses(id,name,product_id,is_active,course_type) VALUES(${COURSE},'WINDel-Wedel',${PRODUCT},true,'saturday_course')`;
+  await db`INSERT INTO group_courses(id,name,product_id,is_active,course_type,min_age,max_age,price_per_day) VALUES(${COURSE},'WINDel-Wedel',${PRODUCT},true,'saturday_course',2,6,70)`;
   await db`INSERT INTO group_course_schedules(course_id,day_of_week,start_time,end_time,is_active) VALUES(${COURSE},6,'10:00','12:00',true)`;
   await db`INSERT INTO product_price_tiers(product_id,day_count,cumulative_price) VALUES(${PRODUCT},1,70),(${PRODUCT},2,110),(${PRODUCT},3,140)`;
   await run('precondition: offering row absent for target product',async()=>{
