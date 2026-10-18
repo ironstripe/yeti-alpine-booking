@@ -19,7 +19,7 @@ try{
   await sql`INSERT INTO user_roles(user_id,role) VALUES(${staff},'office'),(${teacher},'teacher')`;
   await sql`INSERT INTO seasons(id,name,start_date,end_date) VALUES(${season},'Synthetic','2026-12-01','2027-04-15')`;
   for(const n of [1,2,3,4])await sql`INSERT INTO products(id,season_id,name,type,price,is_active) VALUES(${P(n)},${season},${'Fixture '+n},'group',70,false)`;
-  await test('unauthorized actor cannot delete',async()=>{await assert.rejects(del(P(1),teacher),/forbidden/);assert.equal(await count('products',P(1))||Number((await sql`SELECT count(*) n FROM products WHERE id=${P(1)}`)[0].n),1);});
+  await test('unauthorized actor cannot delete',async()=>{await assert.rejects(del(P(1),teacher),/forbidden/);assert.equal(Number((await sql`SELECT count(*) n FROM products WHERE id=${P(1)}`)[0].n),1);});
   await test('client roles cannot execute RPC',async()=>{const g=await sql`SELECT has_function_privilege('authenticated','public.product_delete(uuid,uuid)','EXECUTE') a,has_function_privilege('anon','public.product_delete(uuid,uuid)','EXECUTE') b`;assert.equal(g[0].a,false);assert.equal(g[0].b,false);});
   await test('unused product deleted; only own tiers and offering cascade',async()=>{
     await sql`INSERT INTO product_price_tiers(product_id,day_count,cumulative_price) VALUES(${P(1)},1,70),(${P(1)},2,110),(${P(2)},1,70)`;
