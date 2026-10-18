@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Tables, TablesInsert, TablesUpdate } from "@/integrations/supabase/types";
 import { PriceTier } from "@/lib/pricing-utils";
+import { productTierWriteAction } from "@/lib/productEditorPricing";
 
 export type Product = Tables<"products">;
 export type ProductInsert = TablesInsert<"products">;
@@ -178,7 +179,8 @@ export function useUpdateProduct() {
       if (productError) throw productError;
 
       // Handle price tiers update
-      if (data.pricing_type === "tiered" && price_tiers) {
+      const tierAction = productTierWriteAction(data.pricing_type, price_tiers);
+      if (tierAction === "replace" && price_tiers) {
         // Delete existing tiers
         const { error: deleteError } = await supabase
           .from("product_price_tiers")
@@ -189,7 +191,6 @@ export function useUpdateProduct() {
 
         // Insert new tiers
         const tiersToInsert = price_tiers
-          .filter((t) => t.cumulative_price > 0)
           .map((t) => ({
             product_id: id,
             day_count: t.day_count,
@@ -203,7 +204,7 @@ export function useUpdateProduct() {
 
           if (tiersError) throw tiersError;
         }
-      } else if (data.pricing_type !== "tiered") {
+      } else if (tierAction === "delete") {
         // If switching away from tiered, delete existing tiers
         await supabase
           .from("product_price_tiers")
