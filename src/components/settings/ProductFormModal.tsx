@@ -81,10 +81,9 @@ interface ProductFormModalProps {
   onOpenChange: (open: boolean) => void;
   product: ProductWithTiers | null;
   seasonId?: string;
-  isBookingCornerDraft?: boolean;
 }
 
-export function ProductFormModal({ open, onOpenChange, product, seasonId, isBookingCornerDraft = false }: ProductFormModalProps) {
+export function ProductFormModal({ open, onOpenChange, product, seasonId }: ProductFormModalProps) {
   const createProduct = useCreateProduct();
   const updateProduct = useUpdateProduct();
   const isEditing = !!product;
@@ -779,13 +778,11 @@ export function ProductFormModal({ open, onOpenChange, product, seasonId, isBook
                     <div className="space-y-0.5">
                       <FormLabel className="text-base">Aktiv</FormLabel>
                       <FormDescription>
-                        {isBookingCornerDraft
-                          ? "Noch gesperrt: Tages-/Personentarife, Kurszeiten und Buchungslogik müssen separat abgenommen werden. Die Quelltarife findest du in der Produktliste."
-                          : "Produkt kann gebucht werden"}
+                        Produkt kann gebucht werden
                       </FormDescription>
                     </div>
                     <FormControl>
-                      <Switch checked={field.value} onCheckedChange={field.onChange} disabled={isBookingCornerDraft} />
+                      <Switch checked={field.value} onCheckedChange={field.onChange} />
                     </FormControl>
                   </FormItem>
                 )}

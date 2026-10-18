@@ -121,7 +121,7 @@ export default function SettingsProducts() {
     if (productToDelete) {
       deleteProduct.mutate(productToDelete.id, {
         onSuccess: () => setProductToDelete(null),
-        onError: (error) => { if (error instanceof ProductDeleteError && error.result.error === "referenced") setDeleteDependencies(error.result.dependencies ?? {}); },
+        onError: (error) => { if (error instanceof ProductDeleteError && (error.result.error === "referenced" || error.result.dependencies)) setDeleteDependencies(error.result.dependencies ?? {}); },
       });
     }
   };
@@ -275,7 +275,7 @@ export default function SettingsProducts() {
                         </TableCell>
                         <TableCell>
                           <Badge variant={product.is_active ? "default" : "secondary"}>
-                            {draft ? "Entwurf · gesperrt" : product.is_active ? "Aktiv" : "Inaktiv"}
+                            {draft && !product.is_active ? "Entwurf" : product.is_active ? "Aktiv" : "Inaktiv"}
                           </Badge>
                         </TableCell>
                         <TableCell>
@@ -319,7 +319,6 @@ export default function SettingsProducts() {
         open={isModalOpen}
         onOpenChange={handleCloseModal}
         product={selectedProduct}
-        isBookingCornerDraft={!!selectedProduct && importedDraftIds.has(selectedProduct.id)}
         seasonId={activeSeasonId}
       />
 

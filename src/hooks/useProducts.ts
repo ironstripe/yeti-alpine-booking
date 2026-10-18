@@ -235,7 +235,7 @@ export function useDeleteProduct() {
     },
     onError: (error) => {
       console.error("Error deleting product:", error);
-      if (!(error instanceof ProductDeleteError && error.result.error === "referenced")) toast.error(error.message);
+      if (!(error instanceof ProductDeleteError && (error.result.error === "referenced" || error.result.dependencies))) toast.error(error.message);
     },
   });
 }
