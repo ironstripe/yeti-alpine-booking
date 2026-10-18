@@ -24,6 +24,7 @@ async def main():
             await page.route("**/*", intercept)
             await page.goto("http://localhost:8080/lunch-fixture")
             await page.evaluate("""async () => {
+              const Refresh = await import("/@react-refresh"); Refresh.default.injectIntoGlobalHook(window); window.$RefreshReg$ = () => {}; window.$RefreshSig$ = () => type => type; window.__vite_plugin_react_preamble_installed__ = true;
               const React = await import('/node_modules/.vite/deps/react.js');
               const {createRoot} = await import('/node_modules/.vite/deps/react-dom_client.js');
               const {LunchSupervisionAddon} = await import('/src/components/bookings/wizard/LunchSupervisionAddon.tsx');
