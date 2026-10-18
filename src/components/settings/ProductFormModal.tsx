@@ -106,9 +106,12 @@ export function ProductFormModal({ open, onOpenChange, product, seasonId, isBook
       price_tiers: getDefaultPriceTiers(),
     },
   });
-  const isPending = createProduct.isPending || updateProduct.isPending;
+  const tariffRef = useRef<PrivateTariffMatrixHandle>(null);
+  const [tariffDirty, setTariffDirty] = useState(false);
+  const [tariffSaving, setTariffSaving] = useState(false);
+  const isPending = createProduct.isPending || updateProduct.isPending || tariffSaving;
   const dismiss = useGuardedFormDismiss({
-    dirty: form.formState.isDirty,
+    dirty: form.formState.isDirty || tariffDirty,
     pending: isPending,
     onDiscard: () => form.reset(),
     onOpenChange,
