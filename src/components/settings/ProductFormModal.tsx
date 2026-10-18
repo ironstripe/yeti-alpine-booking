@@ -247,7 +247,7 @@ export function ProductFormModal({ open, onOpenChange, product, seasonId, isBook
         <DialogHeader className="shrink-0 border-b px-5 py-5 pr-16 sm:px-6 sm:pr-16">
           <DialogTitle>{isEditing ? "Produkt bearbeiten" : "Neues Produkt"}</DialogTitle>
         </DialogHeader>
-        <ScrollArea className="min-h-0 flex-1 px-5 py-5 sm:px-6">
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5 sm:px-6">
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 pb-4">
               {/* Product Type */}
