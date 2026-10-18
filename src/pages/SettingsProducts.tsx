@@ -275,7 +275,7 @@ export default function SettingsProducts() {
                         </TableCell>
                         <TableCell>
                           <Badge variant={product.is_active ? "default" : "secondary"}>
-                            {draft ? "Entwurf · gesperrt" : product.is_active ? "Aktiv" : "Inaktiv"}
+                            {draft && !product.is_active ? "Entwurf" : product.is_active ? "Aktiv" : "Inaktiv"}
                           </Badge>
                         </TableCell>
                         <TableCell>
