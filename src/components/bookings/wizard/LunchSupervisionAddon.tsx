@@ -50,7 +50,7 @@ export function LunchSupervisionAddon({
     setIsEnabled(checked);
     participants.forEach(p => {
       onLunchDaysChange(p.id, checked ? [...new Set(selectedDates)] : []);
-      if (!checked) onVegetarianChange(p.id, false);
+      // Dietary preference may stay selected; empty lunch days mean no add-on.
     });
   };
 
