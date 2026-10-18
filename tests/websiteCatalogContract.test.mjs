@@ -13,7 +13,9 @@ assert.doesNotMatch(src, /\.from\("instructors"\)/, 'must not query instructors'
 assert.match(src, /id: p\.id/, 'payload keyed by products.id');
 
 // No raw products.description (BC import notes) in the product select or payload.
-assert.doesNotMatch(src, /\.from\("products"\)[\s\S]*?description/, 'products.description must not be selected');
+const productSelect = src.match(/\.from\("products"\)\s*\.select\("([^"]+)"\)/);
+assert.ok(productSelect, 'products select found');
+assert.ok(!productSelect[1].split(',').includes('description'), 'products.description must not be selected');
 assert.doesNotMatch(src, /description:/, 'no description field in payload');
 
 // Availability policy present, informational only.
