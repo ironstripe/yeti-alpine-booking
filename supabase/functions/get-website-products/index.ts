@@ -42,6 +42,10 @@ Deno.serve(async (req) => {
       : { data: [], error: null };
     if (rateError) throw rateError;
 
+    // Contract: products only, keyed by products.id. Never query or expose
+    // group_courses, group_course_instances or instructors here; those are
+    // internal scheduling data. products.description holds BC import notes
+    // ("nicht aktivieren" etc.) and must not be published until editorially verified.
     const products = offerings.map((p) => ({
       id: p.id,
       name: p.name,
@@ -56,6 +60,10 @@ Deno.serve(async (req) => {
       meta: [],
       notes: [],
       pricing_type: p.pricing_type,
+      // Informational only: private requires a real availability check, group
+      // products are generally available during the configured season. This
+      // does NOT enable booking; online_bookable stays false below.
+      availability_policy: p.type === "private" ? "private_check" : "group_season",
       price: Number(p.price),
       price_tiers: (tiers ?? []).filter((t) => t.product_id === p.id &&
         Number.isInteger(t.day_count) && t.day_count >= 1 && t.day_count <= 7 && positive(t.cumulative_price))
