@@ -1,5 +1,10 @@
 # Roadmap
 
+## Public private tariff information — preparation only
+- [ ] Prepare isolated product/season display persistence, staff save, unverified target-only seed and rollback; preserve operational tariffs.
+- [ ] Extend optional versioned catalog information only after explicit verification, without changing private_rates or booking gates.
+- [ ] Verify isolated amounts/windows, permissions, atomicity, catalog compatibility and unchanged unrelated data; document installation gaps.
+
 ## Carving Ladies — targeted one-off season plan
 - [x] Prepare one atomic, fail-closed data script for the corrected product UUID, one Sunday course/schedule, 19 instances and 19 Monday-based group shells; preserve offering and all unrelated data.
 - [x] Verify disposable actual-schema creation, duplicate/concurrent rejection, rollback, foreign keys and future generator idempotency: 8/8 checks passed.
