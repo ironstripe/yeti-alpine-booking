@@ -1,2 +1,3 @@
 - Edge function checks run with `deno check --node-modules-dir=none` (`bun run check:functions`). Why: the root package.json otherwise makes Deno resolve npm: imports from frontend node_modules.
 - `confirm-booking` refuses online payment until server-side provider verification exists. Why: a caller payment_reference is not proof of payment.
+- `product-private-tariffs` is the only write path for `product_private_tariffs` (effective editable private prices, duration x persons); BC originals in `bc_product_tariff_sources` stay immutable and `quote_bc_2627_product` still reads them. Why: edited prices must not silently change quotes or import provenance.
