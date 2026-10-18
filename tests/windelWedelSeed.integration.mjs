@@ -47,7 +47,7 @@ try {
     const before=await snapshot();
     const r=seed();assert.equal(r.status,0,r.stderr);
     const row=(await db`SELECT schedule_kind,weekdays,dates,time_blocks,display_schedule_text,series FROM product_public_offerings WHERE product_id=${PRODUCT}`)[0];
-    assert.deepEqual(row,{schedule_kind:'weekly',weekdays:[6],dates:[],time_blocks:[{start:'10:00',end:'12:00'}],display_schedule_text:null,JSON.parse(SERIES)===undefined?null:JSON.parse(SERIES)});
+    assert.deepEqual(row,{schedule_kind:'weekly',weekdays:[6],dates:[],time_blocks:[{start:'10:00',end:'12:00'}],display_schedule_text:null,series:JSON.parse(SERIES)});
     assert.deepEqual(await snapshot(),before);
   });
   await run('exactly one offering row and generated series dates are five Saturdays each',async()=>{
