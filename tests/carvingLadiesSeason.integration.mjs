@@ -29,7 +29,7 @@ try{
  const schedule=(await db`INSERT INTO group_course_schedules(course_id,day_of_week,start_time,end_time) VALUES(${D},1,'10:00','12:00') RETURNING id`)[0].id;
  await db`INSERT INTO group_course_instances(course_id,schedule_id,date,start_time,end_time) VALUES(${D},${schedule},'2026-12-07','10:00','12:00')`;
  await db`INSERT INTO training_groups(course_id,week_start) VALUES(${D},'2026-12-07')`;
- const before=await snapshot();
+ let before;
  await run('source/season/actor/offering drift rejects before writing',async()=>{
  for(const [change,restore] of [[`UPDATE products SET price=100 WHERE id='${P}'`,`UPDATE products SET price=99 WHERE id='${P}'`],[`UPDATE seasons SET end_date='2027-04-18' WHERE id='${S}'`,`UPDATE seasons SET end_date='2027-04-15' WHERE id='${S}'`],[`UPDATE product_public_offerings SET weekdays=ARRAY[7]::smallint[] WHERE product_id='${P}'`,`UPDATE product_public_offerings SET weekdays=ARRAY[3,7]::smallint[] WHERE product_id='${P}'`],[`UPDATE user_roles SET role='teacher' WHERE user_id='${A}'`,`UPDATE user_roles SET role='super_admin' WHERE user_id='${A}'`]]){await db.unsafe(change);const prior=await snapshot();await rejected(sql,/changed|required/);assert.deepEqual(await snapshot(),prior);await db.unsafe(restore);}
  });
@@ -40,6 +40,7 @@ try{
  const other=postgres({...conn,database:name});try{await other.unsafe('BEGIN; LOCK TABLE product_public_offerings IN ROW EXCLUSIVE MODE');const prior=await snapshot();await rejected(sql,/lock/);assert.deepEqual(await snapshot(),prior);}finally{await other.unsafe('ROLLBACK');await other.end();}
  });
  await run('creates exactly one course, one Sunday schedule, 19 occurrences and 19 shells',async()=>{
+ before=await snapshot();
  const result=spawnSync('psql',['-X','-h','/tmp','-p','55432','-U','postgres','-d',name,'-v','ON_ERROR_STOP=1','-f','scripts/one-off/carving_ladies_season.sql'],{encoding:'utf8'});assert.equal(result.status,0,result.stderr);
  const c=(await db`SELECT name,product_id,course_type,skill_level_id,min_age,max_age,min_participants,max_participants,price_per_day,is_internal FROM group_courses WHERE id=${C}`)[0];
  assert.deepEqual(c,{name:'Ski · Carving Ladies',product_id:P,course_type:'weekly',skill_level_id:null,min_age:16,max_age:null,min_participants:1,max_participants:8,price_per_day:'99.00',is_internal:false});
