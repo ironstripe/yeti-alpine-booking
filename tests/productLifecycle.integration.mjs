@@ -29,8 +29,8 @@ await test('BC-reference delete blocked; deactivate retains related history',asy
 await sql`DELETE FROM bc_product_tariff_sources WHERE product_id=${id}`;
 await test('price tier cascade never permitted',async()=>{await sql`INSERT INTO product_price_tiers(product_id,day_count,cumulative_price) VALUES(${id},1,70)`;assert.equal((await act('delete',await row())).dependencies['product_price_tiers.product_id'],1);assert.equal((await sql`SELECT cumulative_price FROM product_price_tiers WHERE product_id=${id}`)[0].cumulative_price,'70.00');await sql`DELETE FROM product_price_tiers WHERE product_id=${id}`;});
 await test('linked course and public offering block; deactivation preserves both',async()=>{
-  await sql`INSERT INTO group_courses(id,name,product_id,min_age,max_age) VALUES(${season},'Synthetic course',${id},16,99)`;
-  await sql`INSERT INTO product_public_offerings(product_id,schedule_kind,weekdays,dates,time_blocks) VALUES(${id},'weekly',ARRAY[7],'{}','[{"start":"14:00","end":"16:00"}]')`;
+  await sql`INSERT INTO group_courses(id,name,product_id,min_age,max_age,price_per_day) VALUES(${season},'Synthetic course',${id},16,99,99)`;
+  await sql`INSERT INTO product_public_offerings(product_id,schedule_kind,weekdays,dates,time_blocks,updated_by) VALUES(${id},'weekly',ARRAY[7]::smallint[],'{}','[{"start":"14:00","end":"16:00"}]',${actor})`;
   const deps=(await act('delete',await row())).dependencies;assert.equal(deps['group_courses.product_id'],1);assert.equal(deps['product_public_offerings.product_id'],1);
   await act('update',await row(),{is_active:false});assert.equal((await sql`SELECT count(*) n FROM group_courses WHERE product_id=${id}`)[0].n,'1');assert.equal((await sql`SELECT count(*) n FROM product_public_offerings WHERE product_id=${id}`)[0].n,'1');
   await sql`DELETE FROM group_courses WHERE product_id=${id}`;await sql`DELETE FROM product_public_offerings WHERE product_id=${id}`;
