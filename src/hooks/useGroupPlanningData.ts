@@ -1,4 +1,4 @@
-import { isCourseVisibleInternally } from "@/lib/internalCourseVisibility";
+import { isCourseVisibleInternally, isCourseRelevantForWeek } from "@/lib/internalCourseVisibility";
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { format, startOfWeek, endOfWeek } from 'date-fns';
@@ -77,6 +77,9 @@ export function useGroupPlanningData(weekStart: Date): UseGroupPlanningDataRetur
             meeting_point,
             is_active,
             course_type,
+            period_start_date,
+            period_end_date,
+            product:product_id(season:season_id(start_date, end_date)),
             linked_skill_level:skill_level_id(id, name)
           `)
           .in('course_type', ['weekly', 'saturday_course'])
@@ -117,9 +120,15 @@ export function useGroupPlanningData(weekStart: Date): UseGroupPlanningDataRetur
           .filter((i: any) => (i.enrollments || []).length > 0)
           .map(i => i.course_id)
       );
-      const courses = (coursesResult.data || []).filter((c: any) =>
-        isCourseVisibleInternally(c, enrolledCourseIds.has(c.id))
-      );
+      const instanceCourseIds = new Set((instancesResult.data || []).map(i => i.course_id));
+      const courses = (coursesResult.data || []).filter((c: any) => {
+        const season = c.product?.season;
+        const period = c.period_start_date || c.period_end_date
+          ? { start: c.period_start_date, end: c.period_end_date }
+          : { start: season?.start_date ?? null, end: season?.end_date ?? null };
+        return isCourseVisibleInternally(c, enrolledCourseIds.has(c.id)) &&
+          isCourseRelevantForWeek(period, weekStartStr, weekEndStr, instanceCourseIds.has(c.id), enrolledCourseIds.has(c.id));
+      });
       if (courses.length === 0) {
         return { courses: [], instances: [], schedules: [] };
       }

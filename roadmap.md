@@ -207,3 +207,9 @@ All real business writes intercepted (any non-GET to the backend fails with 403 
 - [x] New-child level now saved (ledger 3b); VAT summary 8.1 % (ledger 3c).
 - [ ] Known limit: on the phone "Weiter zur Prüfung" stays clickable while foreign-owned people are linked; the final save refuses them.
 - [ ] Produkt-Tarifeditor (Schritt 2): editierbare private Tarifmatrix (1-7h x 1-5 Pers.) im ProductFormModal; neue Tabelle product_private_tariffs + service_role-RPC save_product_private_tariffs + Edge Function product-private-tariffs vorbereitet (supabase/pending/product_private_tariffs.sql, Rollback vorhanden). Lokal getestet: SQL 12/12, Unit/Komponente 22/22, tsgo OK, deno check OK. NICHT installiert/deployt/veröffentlicht: Migration, Function-Deploy und Publish warten auf Freigabe. quote_bc_2627_product liest weiterhin BC-Originale — editierte Preise wirken noch nicht auf Buchung/Rechnung.
+
+## Lehrereinsatz planning visibility
+- [x] Show only courses relevant for the selected week (course period, else product season; unknown period needs an instance; enrollments always shown). Badge "Keine Termine in dieser Woche". No data changes; not published.
+
+## Product delete follow-up
+- [ ] Waiting on Ivo: which product failed to delete. Imported products blocked only by their Booking-Corner price entry would need a decision before that entry may be deleted.

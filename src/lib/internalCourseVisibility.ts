@@ -28,3 +28,20 @@ export function mergeCapacityGroups<T extends { courseId: string; participantCou
     ...courseLevelCards.filter((g) => !covered.has(g.courseId) && g.participantCount > 0),
   ];
 }
+
+/**
+ * Planning relevance for a selected week: the course's own period, else its product's season.
+ * A course with no known period is relevant only when it has an instance in the week.
+ * Enrollments in the week always keep a course visible (historic data stays reachable).
+ */
+export function isCourseRelevantForWeek(
+  period: { start: string | null; end: string | null },
+  weekStart: string,
+  weekEnd: string,
+  hasInstancesInWeek: boolean,
+  hasEnrollmentsInWeek: boolean
+): boolean {
+  if (hasEnrollmentsInWeek) return true;
+  if (!period.start && !period.end) return hasInstancesInWeek;
+  return (!period.start || period.start <= weekEnd) && (!period.end || period.end >= weekStart);
+}

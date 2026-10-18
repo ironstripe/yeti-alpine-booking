@@ -136,3 +136,19 @@ describe("capacity roster builder", () => {
     expect(out.map((g) => g.id)).toEqual(["tg1"]);
   });
 });
+
+import { isCourseRelevantForWeek } from "../src/lib/internalCourseVisibility";
+it("planning week relevance follows course/season period", () => {
+  const s2627 = { start: "2026-12-01", end: "2027-04-15" }, s2526 = { start: "2025-12-20", end: "2026-04-06" };
+  // 12–18 Oct 2026: off-season, both hidden
+  expect(isCourseRelevantForWeek(s2627, "2026-10-12", "2026-10-18", false, false)).toBe(false);
+  expect(isCourseRelevantForWeek(s2526, "2026-10-12", "2026-10-18", false, false)).toBe(false);
+  // 21 Dec 2026: new season shown, old season hidden despite duplicate instances
+  expect(isCourseRelevantForWeek(s2627, "2026-12-21", "2026-12-27", true, false)).toBe(true);
+  expect(isCourseRelevantForWeek(s2526, "2026-12-21", "2026-12-27", true, false)).toBe(false);
+  // relevant without instances still shown; enrollments always shown; unknown period needs instances
+  expect(isCourseRelevantForWeek(s2627, "2027-01-04", "2027-01-10", false, false)).toBe(true);
+  expect(isCourseRelevantForWeek(s2526, "2026-12-21", "2026-12-27", true, true)).toBe(true);
+  expect(isCourseRelevantForWeek({ start: null, end: null }, "2026-12-21", "2026-12-27", false, false)).toBe(false);
+  expect(isCourseRelevantForWeek({ start: null, end: null }, "2026-12-21", "2026-12-27", true, false)).toBe(true);
+});
