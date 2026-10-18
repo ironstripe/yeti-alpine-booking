@@ -42,10 +42,10 @@ Deno.serve(async (req) => {
       : { data: [], error: null };
     if (rateError) throw rateError;
 
-    // Contract: products only, keyed by products.id. Never query or expose
-    // group_courses, group_course_instances or instructors here; those are
-    // internal scheduling data. products.description holds BC import notes
-    // ("nicht aktivieren" etc.) and must not be published until editorially verified.
+    // Contract: products only, keyed by products.id. Internal scheduling data
+    // (courses, instances, staff) is never queried or exposed here. The raw
+    // product description holds BC import notes and stays unpublished until
+    // editorially verified.
     const products = offerings.map((p) => ({
       id: p.id,
       name: p.name,

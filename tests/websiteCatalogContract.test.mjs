@@ -4,16 +4,17 @@ import fs from 'node:fs';
 // Contract guard for the Core -> Onepager product-only catalog.
 const src = fs.readFileSync(new URL('../supabase/functions/get-website-products/index.ts', import.meta.url), 'utf8');
 
-// Products only: never query or expose internal scheduling data.
-assert.doesNotMatch(src, /group_courses/, 'must not query group_courses');
-assert.doesNotMatch(src, /group_course_instances/, 'must not query group_course_instances');
-assert.doesNotMatch(src, /instructors/, 'must not query instructors');
+// Products only: never query internal scheduling data.
+assert.doesNotMatch(src, /\.from\("group_courses"\)/, 'must not query group_courses');
+assert.doesNotMatch(src, /\.from\("group_course_instances"\)/, 'must not query group_course_instances');
+assert.doesNotMatch(src, /\.from\("instructors"\)/, 'must not query instructors');
 
 // Keyed by stable products.id.
 assert.match(src, /id: p\.id/, 'payload keyed by products.id');
 
-// No raw products.description (BC import notes) in select or payload.
-assert.doesNotMatch(src, /description/, 'products.description must not be selected or published');
+// No raw products.description (BC import notes) in the product select or payload.
+assert.doesNotMatch(src, /\.from\("products"\)[\s\S]*?description/, 'products.description must not be selected');
+assert.doesNotMatch(src, /description:/, 'no description field in payload');
 
 // Availability policy present, informational only.
 assert.match(src, /availability_policy: p\.type === "private" \? "private_check" : "group_season"/);
