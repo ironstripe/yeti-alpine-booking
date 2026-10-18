@@ -10,7 +10,7 @@ AS $$
 DECLARE
   deps jsonb;
 BEGIN
-  IF p_actor IS NULL OR NOT public.is_admin_or_office(p_actor) THEN
+  IF p_actor IS NULL OR NOT (public.is_admin_or_office(p_actor) OR public.is_super_admin(p_actor)) THEN
     RAISE EXCEPTION 'forbidden' USING ERRCODE = '42501';
   END IF;
   PERFORM 1 FROM public.products WHERE id = p_product FOR UPDATE;
