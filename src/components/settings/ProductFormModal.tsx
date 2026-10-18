@@ -113,6 +113,7 @@ export function ProductFormModal({ open, onOpenChange, product, seasonId, isBook
   const [offeringDirty, setOfferingDirty] = useState(false);
   const [offeringSaving, setOfferingSaving] = useState(false);
   const [createdProductId, setCreatedProductId] = useState<string>();
+  const savedProduct = useRef<ProductWithTiers | null>(product);
   const isPending = createProduct.isPending || updateProduct.isPending || tariffSaving || offeringSaving;
   const dismiss = useGuardedFormDismiss({
     dirty: form.formState.isDirty || tariffDirty || offeringDirty,
@@ -137,6 +138,7 @@ export function ProductFormModal({ open, onOpenChange, product, seasonId, isBook
     const productKey = product?.id ?? "new";
     if (initializedProduct.current === productKey) return;
     initializedProduct.current = productKey;
+    savedProduct.current = product;
     setTariffDirty(false);
     if (product) {
       const fullTiers = editorPriceTiers(product.price_tiers);
@@ -247,13 +249,13 @@ export function ProductFormModal({ open, onOpenChange, product, seasonId, isBook
       void finish(savedId);
     } else if (savedId) {
       updateProduct.mutate(
-        { id: savedId, ...payload },
-        { onSuccess: () => { form.reset(data); void finish(savedId); } }
+        { id: savedId, expected: savedProduct.current ?? undefined, ...payload },
+        { onSuccess: (saved) => { savedProduct.current = saved; form.reset(data); void finish(savedId); } }
       );
     } else {
       createProduct.mutate(
         payload,
-        { onSuccess: (created) => { setCreatedProductId(created.id); form.reset(data); void finish(created.id); } }
+        { onSuccess: (created) => { savedProduct.current = created; setCreatedProductId(created.id); form.reset(data); void finish(created.id); } }
       );
     }
   };
@@ -774,15 +776,15 @@ export function ProductFormModal({ open, onOpenChange, product, seasonId, isBook
                 render={({ field }) => (
                   <FormItem className="flex items-center justify-between rounded-lg border p-3">
                     <div className="space-y-0.5">
-                      <FormLabel className="text-base">Aktiv</FormLabel>
+                      <FormLabel htmlFor="product-is-active" className="text-base">Aktiv</FormLabel>
                       <FormDescription>
                         {isBookingCornerDraft
-                          ? "Noch gesperrt: Tages-/Personentarife, Kurszeiten und Buchungslogik müssen separat abgenommen werden. Die Quelltarife findest du in der Produktliste."
-                          : "Produkt kann gebucht werden"}
+                          ? "Importiertes Produkt: Bitte Tages-/Personentarife und Kurszeiten prüfen. Aktivierung ersetzt keine Preisprüfung und schaltet keine Online-Buchung frei."
+                          : "Für die interne Auswahl aktiv. Website-Anzeige und Online-Buchungsfreigabe bleiben separate Entscheidungen."}
                       </FormDescription>
                     </div>
                     <FormControl>
-                      <Switch checked={field.value} onCheckedChange={field.onChange} disabled={isBookingCornerDraft} />
+                      <Switch id="product-is-active" checked={field.value} onCheckedChange={field.onChange} disabled={isPending} />
                     </FormControl>
                   </FormItem>
                 )}
