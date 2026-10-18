@@ -32,7 +32,7 @@ BEGIN
     OR NOT EXISTS(SELECT 1 FROM public.user_roles WHERE user_id=actor AND role IN ('admin','super_admin'))
     OR NOT public.is_staff(actor) THEN RAISE EXCEPTION 'Verified Ivo admin actor required'; END IF;
  IF current_setting('yeti.seed_time_blocks')::jsonb IS DISTINCT FROM '[{"start":"10:00","end":"12:00"}]'::jsonb THEN RAISE EXCEPTION 'Reviewed time blocks changed'; END IF;
- IF NOT EXISTS(SELECT 1 FROM public.products WHERE id='e25c5f7c-939a-54d5-b355-102ad585dd54' AND type='group' AND duration_minutes=120) THEN RAISE EXCEPTION 'Reviewed product missing or changed'; END IF;
+ IF NOT EXISTS(SELECT 1 FROM public.products WHERE id='e25c5f7c-939a-54d5-b355-102ad585dd54' AND type='group_toddler' AND duration_minutes=120) THEN RAISE EXCEPTION 'Reviewed product missing or changed'; END IF;
  IF NOT EXISTS(SELECT 1 FROM public.group_courses WHERE id='45688ab3-2253-b796-bdfb-545ccb3bec4d' AND product_id='e25c5f7c-939a-54d5-b355-102ad585dd54' AND is_active IS TRUE AND course_type='saturday_course') THEN RAISE EXCEPTION 'Reviewed Saturday course missing or changed'; END IF;
  -- Internal schedules use JS weekday 6; public offerings use ISO weekday 6 (Saturday).
  IF (SELECT jsonb_agg(jsonb_build_array(day_of_week,start_time::text,end_time::text) ORDER BY id) FROM public.group_course_schedules WHERE course_id='45688ab3-2253-b796-bdfb-545ccb3bec4d' AND is_active IS TRUE)
