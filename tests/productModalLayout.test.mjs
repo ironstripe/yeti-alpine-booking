@@ -34,7 +34,8 @@ test('dialog has definite viewport-constrained height and a shrinking flex colum
 test('middle pane is the native shrinking scroll container between header and footer', () => {
   const match = source.match(/<\/DialogHeader>\s*<div\b[^>]*className="([^"]*)"[^>]*>/);
   assert.ok(match, 'native middle pane must immediately follow the fixed header');
-  requireClasses(new Set(match[1].split(/\s+/)), ['min-h-0', 'flex-1', 'overflow-y-auto', 'overscroll-contain'], 'middle pane');
+  requireClasses(new Set(match[1].split(/\s+/)), ['min-h-0', 'flex-1', 'overflow-y-scroll', 'overscroll-contain', '[scrollbar-gutter:stable]', '[&::-webkit-scrollbar]:w-2', '[&::-webkit-scrollbar-thumb]:bg-border'], 'middle pane');
+  assert.match(match[0], /tabIndex=\{0\}/, 'scroll pane must be keyboard focusable');
   assert.ok(source.indexOf('<DialogFooter') > match.index, 'footer must follow the scroll pane');
 });
 
