@@ -3,7 +3,7 @@ import { assertEquals, assert } from 'jsr:@std/assert@1';
 Deno.test({name:'optional product offering, ordered dates, exact single tiers, old fields and gates',
   // Existing handler creates an auth SDK refresh interval without exposing the client.
   // It is unrelated to catalog requests; all fetches remain restricted to localhost mocks.
-  sanitizeOps:false, fn:async () => {
+  sanitizeOps:false, sanitizeResources:false, fn:async () => {
   const originalFetch=globalThis.fetch;
   const originalServe=Deno.serve;
   const oldEnv=new Map(['SUPABASE_URL','SUPABASE_SERVICE_ROLE_KEY','YETI_INTAKE_API_KEY'].map(k=>[k,Deno.env.get(k)]));
