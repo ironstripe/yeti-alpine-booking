@@ -135,7 +135,7 @@ export const PrivateTariffMatrixEditor = forwardRef<PrivateTariffMatrixHandle, P
                           step={0.05}
                           className="h-8 w-24"
                           value={value ?? ""}
-                          placeholder={fallback !== undefined ? fallback.toFixed(0) : "–"}
+                          placeholder={value == null ? (fallback !== undefined ? fallback.toFixed(0) : "–") : undefined}
                           onChange={(e) => setCell(minutes, n, e.target.value)}
                         />
                         {errorMsg && value !== null && (
