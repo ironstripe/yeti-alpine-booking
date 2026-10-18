@@ -1,5 +1,10 @@
 # Roadmap
 
+## Carving Ladies — targeted one-off season plan
+- [ ] Prepare one atomic, fail-closed data script for the corrected product UUID, one Sunday course/schedule, 19 instances and 19 Monday-based group shells; preserve offering and all unrelated data.
+- [ ] Verify disposable actual-schema creation, duplicate/concurrent rejection, rollback, foreign keys and future generator idempotency.
+- [ ] Execute only if an available supported data tool can run the complete guarded transaction; otherwise leave production unchanged and report the execution blocker.
+
 ## Product series — preparation only
 - [x] Schema-only activation: reviewed SQL installed byte-identically as 0012_product_offering_series; only product-public-offering and get-website-products deployed. Readback confirms service-only RPCs, staff-read RLS, empty series default, unchanged existing offering fields and identical products/tiers/courses/instances fingerprints. Seed, private tariffs and frontend publication remain separate and unexecuted.
 - [x] Extend existing offering metadata and atomic staff save with ordered weekly series and per-series selection limit; prepare reversible incremental SQL and target-only unexecuted seed.
