@@ -39,5 +39,6 @@ export function offeringPreview(o: ProductOffering | null): string {
   if (!o) return 'Keine Angebotszeiten hinterlegt';
   if (o.schedule_kind === 'flexible_private') return 'Privatstunden nach Verfügbarkeit';
   const days = o.schedule_kind === 'weekly' ? o.weekdays.map(d => weekdayLabels[d - 1]).join(', ') : o.dates.map(d => d.split('-').reverse().join('.')).join(', ');
-  return `${days} · ${o.time_blocks.map(b => `${b.start}–${b.end}`).join(' + ')} · ${offeringDuration(o.time_blocks)} Min. pro Tag`;
+  const duration = offeringDuration(o.time_blocks);
+  return `${days} · ${o.time_blocks.map(b => `${b.start || '…'}–${b.end || '…'}`).join(' + ')}${Number.isFinite(duration) && duration > 0 ? ` · ${duration} Min. pro Tag` : ''}`;
 }

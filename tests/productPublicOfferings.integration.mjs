@@ -23,7 +23,7 @@ try {
   await db`INSERT INTO products(id,season_id,name,type,price,pricing_type,duration_minutes) VALUES(${P},${S},'Group synthetic','group',100,'tiered',120),(${F},${S},'Private synthetic','private',85,'hourly',60)`;
   await db`INSERT INTO product_price_tiers(product_id,day_count,cumulative_price) VALUES(${P},1,100),(${P},5,320)`;
   await db`INSERT INTO customers(id,first_name,last_name,email) VALUES(${id(8)},'Synthetic','Payer','synthetic@example.invalid')`;
-  await db`INSERT INTO tickets(id,customer_id,total_amount,status) VALUES(${id(9)},${id(8)},320,'confirmed')`;
+  await db`INSERT INTO tickets(id,ticket_number,customer_id,total_amount,status) VALUES(${id(9)},'SYNTHETIC-ONLY',${id(8)},320,'confirmed')`;
   const before=await history();
   await run('migration is additive, no backfill or history writes',async()=>{psql('supabase/pending/product_public_offerings.sql');assert.deepEqual(await history(),before);assert.equal((await db`SELECT count(*)::int n FROM product_public_offerings`)[0].n,0);});
   await run('one 2h block Monday–Friday saved and read back',async()=>{assert.deepEqual(await save(P,one),one);assert.deepEqual((await db`SELECT time_blocks FROM product_public_offerings WHERE product_id=${P}`)[0].time_blocks,one.time_blocks);});
