@@ -5,7 +5,7 @@ export interface ProductDeleteResult { ok?: boolean; error?: string; dependencie
 export class ProductDeleteError extends Error {
   constructor(public result: ProductDeleteResult) {
     super(result.error === 'referenced' ? 'Dieses Produkt wird verwendet und kann nur deaktiviert werden.'
-      : result.error === 'not_installed' ? 'Das sichere Löschen ist noch nicht freigegeben.'
+      : result.error === 'not_installed' || result.error === 'invalid' ? 'Das sichere Löschen ist noch nicht freigegeben. Es wurde nichts gelöscht.'
       : result.error === 'forbidden' ? 'Keine Berechtigung zum Löschen.'
       : 'Löschen fehlgeschlagen. Es wurde nichts gelöscht.');
   }
