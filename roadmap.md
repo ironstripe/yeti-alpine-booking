@@ -1,9 +1,10 @@
 # Roadmap
 
 ## Product activation and deletion — preparation only
-- [ ] Prepare staff-authorized optimistic product activation and audited fail-closed deletion, with deactivation for referenced products.
-- [ ] Integrate existing modal/list without import-marker locks or raw browser product deletion; preserve prices, metadata and scrolling.
-- [ ] Verify isolated SQL/API/UI activation, deletion, concurrency, dependencies and scrolling; no production install/deploy/publish.
+- [x] Prepare staff-authorized optimistic product activation and audited fail-closed deletion, with deactivation for referenced products.
+- [x] Integrate existing modal/list without import-marker locks or raw browser product deletion; preserve prices, metadata and scrolling.
+- [x] Verify isolated SQL/API/UI activation, deletion, concurrency, dependencies and scrolling; no production install/deploy/publish.
+- Release dependency: review/install prepared lifecycle SQL, deploy only product-management, then separately authorise frontend release. Live actions remain unverified/unavailable until installation; no production writes. Dependency deletion takes short-lived SHARE locks on discovered reference tables; unknown reference types block deletion.
 
 ## Product modal persistent scrolling
 - [x] Confirm current definite-height layout and actual authenticated Products → Bearbeiten wheel interaction at 851×533 without business writes; no disabled-scroll reproduction observed.

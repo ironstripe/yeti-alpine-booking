@@ -21,6 +21,9 @@ const save = async (patch: object) => {
 };
 
 describe("product editor compatibility", () => {
+  test("activation-only change never writes prices or tiers", async () => {
+    expect(await save({ is_active: true })).toEqual([{ table: "products", action: "update", data: { name: "Metadata edited", is_active: true } }]);
+  });
   for (const pricing_type of ["flat", "fixed", "hourly", "tiered"] as const) {
     test(`${pricing_type}: metadata edit keeps price/model/tiers with no child write`, async () => {
       const product = { pricing_type, price: 85, price_tiers: tiers };

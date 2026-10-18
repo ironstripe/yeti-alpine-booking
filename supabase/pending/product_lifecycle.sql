@@ -19,14 +19,14 @@ ALTER TABLE public.product_lifecycle_log ENABLE ROW LEVEL SECURITY;
 -- Invoker trigger: authenticated clients cannot change activation directly; the service-only
 -- SECURITY DEFINER lifecycle RPC runs as the trusted owner and validates its actor separately.
 CREATE OR REPLACE FUNCTION public.prevent_bc_draft_activation() RETURNS trigger
-LANGUAGE plpgsql SET search_path=public AS $$
+LANGUAGE plpgsql SECURITY INVOKER SET search_path=public AS $$
 BEGIN
   IF current_user NOT IN ('postgres','service_role') THEN
     RAISE EXCEPTION 'Use the staff product lifecycle API' USING ERRCODE='42501';
   END IF;
   RETURN NEW;
 END $$;
-REVOKE DELETE ON public.products FROM anon,authenticated;
+REVOKE DELETE ON public.products FROM PUBLIC,anon,authenticated;
 
 CREATE FUNCTION public.product_lifecycle_dependencies(p_product uuid, p_lock boolean DEFAULT false)
 RETURNS jsonb LANGUAGE plpgsql SET search_path=public AS $$
