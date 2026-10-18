@@ -14,7 +14,7 @@ ALTER TABLE public.product_public_offerings ADD CONSTRAINT product_offering_disp
   display_schedule_text IS NULL OR (
     char_length(display_schedule_text) BETWEEN 1 AND 160
     AND display_schedule_text = regexp_replace(display_schedule_text,'^[[:space:]]+|[[:space:]]+$','','g')
-    AND display_schedule_text !~ '[<>[:cntrl:]]'
+    AND display_schedule_text !~ ('[<>' || chr(1) || '-' || chr(31) || chr(127) || ']')
   )
 );
 COMMENT ON COLUMN public.product_public_offerings.display_schedule_text IS 'Editorial website label only; never booking authorization. Machine-readable schedule remains authoritative.';
@@ -32,7 +32,7 @@ BEGIN
   IF jsonb_typeof(p_offering)<>'object' OR jsonb_typeof(p_offering->'weekdays') IS DISTINCT FROM 'array' OR jsonb_typeof(p_offering->'dates') IS DISTINCT FROM 'array' THEN RAISE EXCEPTION 'Invalid offering'; END IF;
   IF p_offering ? 'display_schedule_text' AND jsonb_typeof(p_offering->'display_schedule_text') NOT IN ('string','null') THEN RAISE EXCEPTION 'Invalid display schedule text'; END IF;
   display_text:=p_offering->>'display_schedule_text';
-  IF display_text ~ '[<>[:cntrl:]]' THEN RAISE EXCEPTION 'Display schedule text must be single-line plain text without HTML'; END IF;
+  IF display_text ~ ('[<>' || chr(1) || '-' || chr(31) || chr(127) || ']') THEN RAISE EXCEPTION 'Display schedule text must be single-line plain text without HTML'; END IF;
   display_text:=nullif(regexp_replace(display_text,'^[[:space:]]+|[[:space:]]+$','','g'),'');
   IF char_length(display_text)>160 THEN RAISE EXCEPTION 'Display schedule text exceeds 160 characters'; END IF;
   k:=p_offering->>'schedule_kind'; b:=p_offering->'time_blocks';
