@@ -4,6 +4,7 @@
 // also records the office settlement/notes. No invoice, e-mail or online charge here.
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
+import { checkSaturdaySelection } from "../_shared/saturdaySelection.ts";
 import { requireRole } from "../_shared/staffAuth.ts";
 
 const json = (body: unknown, status: number) =>
@@ -36,12 +37,28 @@ Deno.serve(async (req) => {
       console.error("staff-group-booking options failed", rpc.error.code);
       return json({ error: "internal_error" }, 500);
     }
-    return body.action === "capabilities" ? json({ installed: true }, 200) : json({ installed: true, options: rpc.data ?? [] }, 200);
+    if (body.action === "capabilities") return json({ installed: true }, 200);
+    try {
+      const options = [];
+      for (const option of rpc.data ?? []) {
+        if (!await checkSaturdaySelection(db, option.course_id, option.product_id, dates as string[])) options.push(option);
+      }
+      return json({ installed: true, options }, 200);
+    } catch { return json({ error: "internal_error" }, 500); }
   }
 
   if (body.action === "create") {
     if (!body.booking || typeof body.booking !== "object") return json({ error: "invalid", field: "booking" }, 400);
     const booking = { ...(body.booking as Record<string, unknown>) };
+    if (!Array.isArray(booking.lines)) return json({ error: "invalid", field: "lines" }, 400);
+    try {
+      for (const [index, line] of booking.lines.entries()) {
+        if (!line || typeof line.course_id !== 'string' || typeof line.product_id !== 'string'
+          || !Array.isArray(line.dates) || !line.dates.every((date: unknown) => typeof date === 'string' && DATE.test(date))) return json({ error: "invalid", field: "line_shape" }, 400);
+        const message = await checkSaturdaySelection(db, line.course_id, line.product_id, line.dates);
+        if (message) return json({ error: "invalid", field: "dates", line: String(index), message }, 422);
+      }
+    } catch { return json({ error: "internal_error" }, 500); }
     const f = booking.finalization;
     if (f !== undefined) {
       if (!f || typeof f !== "object" || Array.isArray(f)) return json({ error: "invalid", field: "finalization" }, 400);
