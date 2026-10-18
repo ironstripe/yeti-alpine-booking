@@ -1,9 +1,11 @@
 # Roadmap
 
 ## Saturday selection rules — 18 Oct 2026
-- [ ] Enforce first-day/maximum-day rules in existing server booking validation using canonical product and level definitions; preserve offered dates, tiers and release gates.
-- [ ] Verify beginner/advanced/Windel date combinations and isolated persistence/pricing; no production business writes or publication.
+- [x] Enforce first-day/maximum-day rules in staff options/create and website reserve using server-read canonical course levels, source tariff family and course period mappings; existing atomic SQL pricing/save unchanged.
+- [x] Verify 46 unit/regression tests, 7 disposable PostgreSQL persistence/readback checks and authenticated mocked HTTP staff/website checks; Deno checks pass. No production business writes, migration, function deployment or publication.
 - Calendar clarification: Windel still offers five dates per series; only maximum three selections is authorised, not removing dates.
+- [ ] Separate 2h Ski Saturday product `ceea6bdc-9bc4-57f4-af87-5a5233979246` remains one-day-only: missing 2–5-day tariffs and variant eligibility require owner-supplied prices/authorisation. No prices invented.
+- Release limitation: changed functions not deployed; live UI still uses previous server rules. Authenticated live booking not tested to avoid real business writes. Preflight facts are read before existing atomic SQL save, not locked by it; concurrent metadata changes are not covered by this no-migration patch.
 
 ## Product activation and deletion — preparation only
 - [x] Prepare staff-authorized optimistic product activation and audited fail-closed deletion, with deactivation for referenced products.
