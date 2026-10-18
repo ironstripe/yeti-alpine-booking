@@ -14,7 +14,7 @@ const count=async(t,p)=>Number((await sql.unsafe(`SELECT count(*) n FROM ${t} WH
 let passed=0;const test=async(n,f)=>{await f();console.log('PASS',n);passed++;};
 try{
   file('tests/sql/baseline_prelude.sql');file('tests/sql/production_schema_baseline.sql');
-  file('supabase/pending/product_public_offerings.sql');file('supabase/pending/product_delete.sql');
+  file('supabase/pending/product_public_offerings.sql');file('supabase/pending/public_private_tariff_display.sql');file('supabase/pending/product_delete.sql');
   await sql`INSERT INTO auth.users(id,email) VALUES(${staff},'s@invalid.test'),(${teacher},'t@invalid.test')`;
   await sql`INSERT INTO user_roles(user_id,role) VALUES(${staff},'office'),(${teacher},'teacher')`;
   await sql`INSERT INTO seasons(id,name,start_date,end_date) VALUES(${season},'Synthetic','2026-12-01','2027-04-15')`;
