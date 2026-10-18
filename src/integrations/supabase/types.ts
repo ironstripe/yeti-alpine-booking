@@ -4232,6 +4232,44 @@ export type Database = {
           },
         ]
       }
+      product_public_offerings: {
+        Row: {
+          dates: string[]
+          product_id: string
+          schedule_kind: string
+          time_blocks: Json
+          updated_at: string
+          updated_by: string
+          weekdays: number[]
+        }
+        Insert: {
+          dates?: string[]
+          product_id: string
+          schedule_kind: string
+          time_blocks?: Json
+          updated_at?: string
+          updated_by: string
+          weekdays?: number[]
+        }
+        Update: {
+          dates?: string[]
+          product_id?: string
+          schedule_kind?: string
+          time_blocks?: Json
+          updated_at?: string
+          updated_by?: string
+          weekdays?: number[]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_public_offerings_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: true
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       products: {
         Row: {
           audience: string | null
@@ -6122,6 +6160,10 @@ export type Database = {
         Args: { p_source_id: string; p_target_id: string }
         Returns: Json
       }
+      product_offering_shape_ok: {
+        Args: { b: Json; d: string[]; k: string; w: number[] }
+        Returns: boolean
+      }
       queue_confirmation_reminders: { Args: never; Returns: number }
       quote_bc_2627_product: {
         Args: { p_items: Json; p_participants: number; p_product_id: string }
@@ -6132,6 +6174,10 @@ export type Database = {
         Returns: Json
       }
       rollback_entity_merge: { Args: { p_merge_id: string }; Returns: Json }
+      save_product_public_offering: {
+        Args: { p_actor: string; p_offering: Json; p_product_id: string }
+        Returns: Json
+      }
       search_customers: {
         Args: { p_limit?: number; p_query: string }
         Returns: {
