@@ -3,7 +3,7 @@
 // Selected products in the single current season may be shown, including inactive drafts;
 // web reservations must stay disabled until pricing and concrete dates are verified.
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { seriesDates } from '../_shared/productOffering.ts';
+import { seriesDates, type ProductSeries } from '../_shared/productOffering.ts';
 import { checkApiKey, corsHeaders, json } from "../_shared/intakeAuth.ts";
 
 const INTERNAL_TYPES = new Set(["office_shift"]);
@@ -70,7 +70,7 @@ Deno.serve(async (req) => {
       notes: [],
       public_offering: (() => {
         const o = (publicSchedules ?? []).find((row) => row.product_id === p.id);
-        return o ? { schedule_kind: o.schedule_kind, weekdays: o.weekdays, dates: o.dates, time_blocks: o.time_blocks, display_schedule_text: o.display_schedule_text ?? null, ...(o.series?.length ? {series:o.series.map((s)=>({...s,dates:seriesDates(s,o.weekdays)}))} : {}) } : null;
+        return o ? { schedule_kind: o.schedule_kind, weekdays: o.weekdays, dates: o.dates, time_blocks: o.time_blocks, display_schedule_text: o.display_schedule_text ?? null, ...(o.series?.length ? {series:o.series.map((s:ProductSeries)=>({sequence:s.sequence,label:s.label ?? null,start_date:s.start_date,end_date:s.end_date,max_selected_days:s.max_selected_days,dates:seriesDates(s,o.weekdays)}))} : {}) } : null;
       })(),
       pricing_type: p.pricing_type,
       // Informational only: private requires a real availability check, group
