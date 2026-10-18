@@ -82,7 +82,6 @@ export function validateOffering(input: unknown, context: OfferingContext): stri
     const [a, b] = o.time_blocks;
     if (a.start < b.end && b.start < a.end) return 'Zeitblöcke dürfen sich nicht überschneiden';
   }
-  if (context.duration_minutes && offeringDuration(o.time_blocks) !== context.duration_minutes) return `Zeitblöcke müssen zusammen ${context.duration_minutes} Minuten ergeben`;
   return null;
 }
 export function offeringPreview(o: ProductOffering | null): string {
