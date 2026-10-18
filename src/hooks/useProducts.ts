@@ -1,10 +1,10 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { deleteProductGuarded, ProductDeleteError } from "@/lib/productDelete";
 import { toast } from "sonner";
 import { Tables, TablesInsert, TablesUpdate } from "@/integrations/supabase/types";
 import { PriceTier } from "@/lib/pricing-utils";
 import { productTierWriteAction } from "@/lib/productEditorPricing";
-import { productLifecycle, productSnapshot } from "@/lib/productLifecycle";
 
 export type Product = Tables<"products">;
 export type ProductInsert = TablesInsert<"products">;
@@ -163,7 +163,6 @@ export function useCreateProduct() {
 
 interface UpdateProductPayload extends ProductUpdate {
   id: string;
-  expected?: Product;
   price_tiers?: PriceTier[];
 }
 
@@ -171,9 +170,14 @@ export function useUpdateProduct() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ id, expected, price_tiers, ...data }: UpdateProductPayload) => {
-      if (!expected) throw new Error("Bitte das Produkt neu öffnen, bevor du speicherst.");
-      const result = await productLifecycle({ action: "update", product_id: id, expected: productSnapshot(expected), patch: data });
+    mutationFn: async ({ id, price_tiers, ...data }: UpdateProductPayload) => {
+      // Update the product
+      const { error: productError } = await supabase
+        .from("products")
+        .update(data)
+        .eq("id", id);
+
+      if (productError) throw productError;
 
       // Handle price tiers update
       const tierAction = productTierWriteAction(data.pricing_type, price_tiers);
@@ -208,7 +212,6 @@ export function useUpdateProduct() {
           .delete()
           .eq("product_id", id);
       }
-      return result.product as Product;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["products"] });
@@ -216,7 +219,7 @@ export function useUpdateProduct() {
     },
     onError: (error) => {
       console.error("Error updating product:", error);
-      toast.error(error.message);
+      toast.error("Fehler beim Speichern");
     },
   });
 }
@@ -225,14 +228,14 @@ export function useDeleteProduct() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (product: Product) => productLifecycle({ action: "delete", product_id: product.id, expected: productSnapshot(product) }),
+    mutationFn: async (id: string) => deleteProductGuarded(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["products"] });
       toast.success("Produkt gelöscht");
     },
     onError: (error) => {
       console.error("Error deleting product:", error);
-      toast.error(error.message);
+      if (!(error instanceof ProductDeleteError && error.result.error === "referenced")) toast.error(error.message);
     },
   });
 }

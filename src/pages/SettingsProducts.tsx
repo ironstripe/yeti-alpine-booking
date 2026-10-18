@@ -34,7 +34,7 @@ import {
 } from "@/components/ui/select";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useProducts, useDeleteProduct, useUpdateProduct, ProductWithTiers } from "@/hooks/useProducts";
-import { ProductLifecycleError } from "@/lib/productLifecycle";
+import { ProductDeleteError } from "@/lib/productDelete";
 import { useSeasons, useCurrentSeason } from "@/hooks/useSeasons";
 import { ProductFormModal } from "@/components/settings/ProductFormModal";
 import { BookingCornerTariffDialog } from "@/components/settings/BookingCornerTariffDialog";
@@ -119,9 +119,9 @@ export default function SettingsProducts() {
 
   const handleDeleteConfirm = () => {
     if (productToDelete) {
-      deleteProduct.mutate(productToDelete, {
+      deleteProduct.mutate(productToDelete.id, {
         onSuccess: () => setProductToDelete(null),
-        onError: (error) => { if (error instanceof ProductLifecycleError && error.result.error === "referenced") setDeleteDependencies(error.result.dependencies ?? {}); },
+        onError: (error) => { if (error instanceof ProductDeleteError && error.result.error === "referenced") setDeleteDependencies(error.result.dependencies ?? {}); },
       });
     }
   };
@@ -275,7 +275,7 @@ export default function SettingsProducts() {
                         </TableCell>
                         <TableCell>
                           <Badge variant={product.is_active ? "default" : "secondary"}>
-                            {product.is_active ? "Aktiv" : "Inaktiv"}
+                            {draft ? "Entwurf · gesperrt" : product.is_active ? "Aktiv" : "Inaktiv"}
                           </Badge>
                         </TableCell>
                         <TableCell>
@@ -346,7 +346,7 @@ export default function SettingsProducts() {
               variant={deleteDependencies ? "default" : "destructive"}
               disabled={deleteProduct.isPending || archiveProduct.isPending}
               onClick={() => {
-                if (deleteDependencies && productToDelete) archiveProduct.mutate({id:productToDelete.id,expected:productToDelete,is_active:false}, {onSuccess:()=>setProductToDelete(null)});
+                if (deleteDependencies && productToDelete) archiveProduct.mutate({id:productToDelete.id,is_active:false}, {onSuccess:()=>setProductToDelete(null)});
                 else handleDeleteConfirm();
               }}
             >
