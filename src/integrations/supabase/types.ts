@@ -4235,6 +4235,7 @@ export type Database = {
       product_public_offerings: {
         Row: {
           dates: string[]
+          display_schedule_text: string | null
           product_id: string
           schedule_kind: string
           time_blocks: Json
@@ -4244,6 +4245,7 @@ export type Database = {
         }
         Insert: {
           dates?: string[]
+          display_schedule_text?: string | null
           product_id: string
           schedule_kind: string
           time_blocks?: Json
@@ -4253,6 +4255,7 @@ export type Database = {
         }
         Update: {
           dates?: string[]
+          display_schedule_text?: string | null
           product_id?: string
           schedule_kind?: string
           time_blocks?: Json
