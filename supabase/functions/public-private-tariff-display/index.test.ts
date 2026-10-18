@@ -10,7 +10,7 @@ Deno.test({name:'actual staff endpoint: unauthorized/non-staff denied; actor ser
   if(u.pathname==='/auth/v1/user')data={id:actor,email:'synthetic@invalid.test'};
   else if(u.pathname==='/rest/v1/user_roles')data=role==='teacher'?[]:[{role}];
   else if(u.pathname==='/rest/v1/rpc/save_public_private_tariff_display'){
-   rpc++;const b=JSON.parse(String(init?.body));assertEquals(b.p_actor,actor);assertEquals(b.p_expected_revision,3);assertEquals(b.p_verify,false);assertEquals(b.p_information,information);
+   rpc++;const b=JSON.parse(String((init as RequestInit | undefined)?.body));assertEquals(b.p_actor,actor);assertEquals(b.p_expected_revision,3);assertEquals(b.p_verify,false);assertEquals(b.p_information,information);
    if(conflict)return new Response(JSON.stringify({code:'40001',message:'Concurrent change'}),{status:400,headers:{'Content-Type':'application/json'}});
    data={...information,revision:4,verified_at:null};
   }else throw Error(`Unexpected ${u.pathname}`);
