@@ -21,6 +21,7 @@ const { PriceBreakdown } = await import("../src/components/bookings/wizard/Price
 
 const WEEK = ["2026-12-14", "2026-12-15", "2026-12-16", "2026-12-17", "2026-12-18"];
 const XMAS = ["2026-12-21", "2026-12-22", "2026-12-23", "2026-12-24", "2026-12-25"];
+const blocks = (dates: string[]) => dates.flatMap(date => [{ date, startTime: "10:00", endTime: "12:00" }, { date, startTime: "14:00", endTime: "16:00" }]);
 const ref = (courseId: string, unitPrice: number) => ({ courseId, productId: "p-" + courseId, block: null, unitPrice });
 const people = [
   { id: "a", first_name: "Adult", birth_date: "1990-01-01" },
@@ -42,17 +43,17 @@ const base = (o: Record<string, unknown>) => ({ productType: "group", sport: "sk
 describe("PriceBreakdown 26/27 group preview", () => {
   test("shared: kids 4h 320/person x 2 linked people + 2 lunch days at 30; unlinked person and decoy ignored", () => {
     state = base({ selectedDates: WEEK, selectedGroupId: "c-kid", cartItems: [{ id: "i", assignedParticipantIds: ["k", "w"] }],
-      groupPlan: { courseId: "c-kid", courseName: "Kids 4h", server: ref("c-kid", 320) }, lunchSelections: { k: ["2026-12-14", "2026-12-15"], x: [WEEK[0]] } });
+      groupPlan: { courseId: "c-kid", courseName: "Kids 4h", server: ref("c-kid", 320), blocks: blocks(WEEK) }, lunchSelections: { k: ["2026-12-14", "2026-12-15"], x: [WEEK[0]] } });
     expect(render()).toBe("CHF 700.00");
   });
   test("shared, changed dates same count: same exact package price, lunch outside booked dates not charged", () => {
     state = base({ selectedDates: XMAS, selectedGroupId: "c-kid", cartItems: [{ id: "i", assignedParticipantIds: ["k"] }],
-      groupPlan: { courseId: "c-kid", courseName: "Kids 4h", server: ref("c-kid", 320) }, lunchSelections: { k: ["2026-12-14"] } });
+      groupPlan: { courseId: "c-kid", courseName: "Kids 4h", server: ref("c-kid", 320), blocks: blocks(WEEK) }, lunchSelections: { k: ["2026-12-14"] } });
     expect(render()).toBe("CHF 320.00");
   });
   test("per person: Ski adult 4h 370 + kids 4h 320 + Windel 2h 170 + Snowboard 2h 230, AM+PM not doubled", () => {
     const pb = (id: string, price: number, dates = WEEK, lunch: string[] = []) => ({ participantId: id, groupCourseId: "c-" + id, groupProductName: "V" + id,
-      dates, lunchDays: lunch, isVegetarian: false, groupServer: ref("c-" + id, price) });
+      dates, lunchDays: lunch, isVegetarian: false, groupBlocks: blocks(dates), groupServer: ref("c-" + id, price) });
     state = base({ selectedDates: WEEK, selectedGroupId: null, useParticipantSpecificBooking: true,
       cartItems: [{ id: "i", assignedParticipantIds: ["a", "k", "w", "s"] }],
       participantBookings: { a: pb("a", 370), k: pb("k", 320, WEEK, [WEEK[0]]), w: pb("w", 170, XMAS), s: pb("s", 230), x: pb("x", 999) } });

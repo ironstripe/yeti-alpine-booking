@@ -46,7 +46,7 @@ function groupState(over: Partial<BookingWizardState> = {}): BookingWizardState 
       { id: "pa", first_name: "Anna", last_name: null, birth_date: "2016-01-01", level_last_season: null, level_current_season: null },
       { id: "guest-1", first_name: "Ben", last_name: "B", birth_date: "2017-01-01", level_last_season: null, level_current_season: null, isGuest: true },
     ],
-    groupPlan: { courseId: serverOptionKey(opt()), courseName: "x", productName: "y", meetingPoint: "Täli", blocks: [], persistenceBlocker: null, server },
+    groupPlan: { courseId: serverOptionKey(opt()), courseName: "x", productName: "y", meetingPoint: "Täli", blocks: serverOptionToBookable(opt()).blocks, persistenceBlocker: null, server },
     ...over,
   } as unknown as BookingWizardState;
 }
@@ -132,7 +132,7 @@ describe("draft (local) participants reach the server as new people with their o
       useParticipantSpecificBooking: true,
       participantBookings: {
         pa: { groupServer: { courseId: "c1", productId: "p4", block: null, unitPrice: 320 }, dates: WEEK, groupMeetingPoint: "Täli", lunchDays: [] },
-        "local-9": { groupServer: { courseId: "c2", productId: "p2", block: "pm", unitPrice: 230 }, dates: XMAS, groupMeetingPoint: null, groupMeetingPointChoice: "malbipark", lunchDays: ["2026-12-22", "2026-12-14"], isVegetarian: true },
+        "local-9": { groupServer: { courseId: "c2", productId: "p4", block: null, unitPrice: 320 }, groupBlocks: serverOptionToBookable(opt({ blocks: XMAS.flatMap(date => [{ date, time_start: "10:00", time_end: "12:00" }, { date, time_start: "14:00", time_end: "16:00" }]) })).blocks, dates: XMAS, groupMeetingPoint: null, groupMeetingPointChoice: "malbipark", lunchDays: ["2026-12-22", "2026-12-14"], isVegetarian: true },
       },
     } as unknown as BookingWizardState;
     const { linked, unresolved } = resolveLinkedParticipants(draft);
@@ -141,12 +141,12 @@ describe("draft (local) participants reach the server as new people with their o
     const r = buildStaffGroupLines({ ...draft, selectedParticipants: linked }, 30);
     expect(r.kind).toBe("server"); if (r.kind !== "server") return;
     expect(r.lines[1]).toMatchObject({
-      course_id: "c2", product_id: "p2", block: "pm", dates: XMAS, expected_unit_price: 230, meeting_point: "malbipark",
+      course_id: "c2", product_id: "p4", block: null, dates: XMAS, expected_unit_price: 320, meeting_point: "malbipark",
       lunch_dates: ["2026-12-22"], vegetarian: true, expected_lunch_unit_price: 30,
       guest: { guest_key: "local-9", first_name: "Lia", birth_date: "2019-05-05", sport: "snowboard", level: "sb_red_academy" },
     });
     expect(r.lines[1].participant_id).toBeUndefined();
-    expect(staffGroupTotal(r.lines)).toBe(320 + 230 + 30);
+    expect(staffGroupTotal(r.lines)).toBe(320 + 320 + 30);
     // Draft data untouched (nothing rewritten on resolve).
     expect(draft.cartItems[0].assignedParticipantIds).toEqual(["pa", "local-9"]);
     expect(draft.localParticipants).toHaveLength(1);
