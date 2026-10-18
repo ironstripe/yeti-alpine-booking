@@ -42,7 +42,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { getProductPriceDisplay, formatPriceCHF } from "@/lib/pricing-utils";
 import {
   AlertDialog,
-  AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,

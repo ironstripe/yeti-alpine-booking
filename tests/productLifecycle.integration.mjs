@@ -28,8 +28,28 @@ await test('nonstaff and client execute/delete denied',async()=>{await assert.re
 await test('BC-reference delete blocked; deactivate retains related history',async()=>{const r=await act('delete',await row());assert.equal(r.error,'referenced');assert.equal(r.dependencies['bc_product_tariff_sources.product_id'],1);const a=await act('update',await row(),{is_active:false});assert.equal(a.product.is_active,false);assert.deepEqual(await sql`SELECT to_jsonb(t) r FROM bc_product_tariff_sources t`,bcBefore);});
 await sql`DELETE FROM bc_product_tariff_sources WHERE product_id=${id}`;
 await test('price tier cascade never permitted',async()=>{await sql`INSERT INTO product_price_tiers(product_id,day_count,cumulative_price) VALUES(${id},1,70)`;assert.equal((await act('delete',await row())).dependencies['product_price_tiers.product_id'],1);assert.equal((await sql`SELECT cumulative_price FROM product_price_tiers WHERE product_id=${id}`)[0].cumulative_price,'70.00');await sql`DELETE FROM product_price_tiers WHERE product_id=${id}`;});
+await test('linked course and public offering block; deactivation preserves both',async()=>{
+  await sql`INSERT INTO group_courses(id,name,product_id,min_age,max_age) VALUES(${season},'Synthetic course',${id},16,99)`;
+  await sql`INSERT INTO product_public_offerings(product_id,schedule_kind,weekdays,dates,time_blocks) VALUES(${id},'weekly',ARRAY[7],'{}','[{"start":"14:00","end":"16:00"}]')`;
+  const deps=(await act('delete',await row())).dependencies;assert.equal(deps['group_courses.product_id'],1);assert.equal(deps['product_public_offerings.product_id'],1);
+  await act('update',await row(),{is_active:false});assert.equal((await sql`SELECT count(*) n FROM group_courses WHERE product_id=${id}`)[0].n,'1');assert.equal((await sql`SELECT count(*) n FROM product_public_offerings WHERE product_id=${id}`)[0].n,'1');
+  await sql`DELETE FROM group_courses WHERE product_id=${id}`;await sql`DELETE FROM product_public_offerings WHERE product_id=${id}`;
+});
 await test('non-FK arrays and JSON refs block deletion',async()=>{await sql`CREATE TABLE synthetic_refs(id uuid,product_ids uuid[],payload jsonb)`;await sql`INSERT INTO synthetic_refs VALUES(${season},ARRAY[${id}::uuid],${sql.json({product_id:id})})`;const deps=(await act('delete',await row())).dependencies;assert.equal(deps['synthetic_refs.product_ids'],1);assert.equal(deps['synthetic_refs.payload'],1);await sql`DROP TABLE synthetic_refs`;});
 await test('unknown product reference type aborts without changes',async()=>{await sql`CREATE TABLE synthetic_unknown(product_key text)`;await assert.rejects(act('delete',await row()),/Unclassified/);assert.ok(await row());await sql`DROP TABLE synthetic_unknown`;});
+await test('concurrent non-FK writer commits before delete scan and blocks delete',async()=>{
+  await sql`CREATE TABLE synthetic_race(payload jsonb)`;
+  let release,ready;const wait=new Promise(r=>release=r),started=new Promise(r=>ready=r);
+  const writer=sql.begin(async tx=>{await tx`INSERT INTO synthetic_race VALUES(${sql.json({product_id:id})})`;ready();await wait;});
+  await started;const before=await row();const deleting=act('delete',before);
+  await new Promise(r=>setTimeout(r,80));release();await writer;
+  assert.equal((await deleting).dependencies['synthetic_race.payload'],1);assert.ok(await row());await sql`DROP TABLE synthetic_race`;
+});
+await test('audit failure rolls activation back',async()=>{
+  const before=await row();await sql`ALTER TABLE product_lifecycle_log ADD CONSTRAINT synthetic_failure CHECK (action<>'update') NOT VALID`;
+  await assert.rejects(act('update',before,{is_active:true}),/synthetic_failure/);assert.deepEqual(await row(),before);
+  await sql`ALTER TABLE product_lifecycle_log DROP CONSTRAINT synthetic_failure`;
+});
 await test('unused deletion and audit snapshot atomic',async()=>{const before=await row(),r=await act('delete',before);assert.equal(r.deleted,true);assert.equal(await row(),undefined);const [log]=await sql`SELECT * FROM product_lifecycle_log WHERE id=${r.log_id}`;assert.deepEqual(log.before_snapshot,before);assert.equal(log.actor,actor);assert.equal(log.action,'delete');});
 await test('rollback only removes lifecycle structures',async()=>{file('supabase/rollback/product_lifecycle_rollback.sql');assert.equal((await sql`SELECT to_regclass('public.product_lifecycle_log') r`)[0].r,null);assert.equal((await sql`SELECT count(*) n FROM seasons WHERE id=${season}`)[0].n,'1');});
 console.log(`${passed}/${passed} passed`);
