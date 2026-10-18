@@ -85,6 +85,13 @@
       "when": 1792328154265,
       "tag": "0011_product_offering_display_text",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1792332859230,
+      "tag": "0012_product_offering_series",
+      "breakpoints": true
     }
   ]
 }
