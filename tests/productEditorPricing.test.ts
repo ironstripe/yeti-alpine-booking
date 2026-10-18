@@ -3,6 +3,7 @@ import { editorPriceTiers, editorPricingTypeSchema, productEditorPricingPatch } 
 
 const tiers = Array.from({ length: 7 }, (_, i) => ({ day_count: i + 1, cumulative_price: (i + 1) * 70 }));
 const calls: { table: string; action: string; data?: unknown }[] = [];
+mock.module("@/lib/productLifecycle", () => ({ productSnapshot: (p: object) => p, productLifecycle: async (body: {patch:unknown}) => {calls.push({table:"products",action:"update",data:body.patch});return {product:{id:"synthetic-product"}};} }));
 mock.module("@/integrations/supabase/client", () => ({ supabase: {
   from: (table: string) => ({
     update: (data: unknown) => ({ eq: async () => { calls.push({ table, action: "update", data }); return { error: null }; } }),
@@ -15,7 +16,7 @@ const { useUpdateProduct } = await import("../src/hooks/useProducts");
 const save = async (patch: object) => {
   calls.length = 0;
   const mutation = useUpdateProduct() as unknown as { mutationFn: (data: object) => Promise<void> };
-  await mutation.mutationFn({ id: "synthetic-product", name: "Metadata edited", ...patch });
+  await mutation.mutationFn({ id: "synthetic-product", expected:{id:"synthetic-product"}, name: "Metadata edited", ...patch });
   return [...calls];
 };
 
