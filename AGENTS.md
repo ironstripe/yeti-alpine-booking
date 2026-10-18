@@ -16,6 +16,6 @@
 
 - Pricing stays in `productEditorPricing.ts`; offerings use one atomic staff JSON RPC, exact tiers service-only. Saturday checks use `_shared/saturdaySelection.ts` with trusted level/period/tariff facts. Why: no name matching, repricing or booking release.
 
-- Public private display tariffs use revision-checked staff saves; catalog serves verified rows only. Why: no unchecked claims.
+- Public private display tariffs use revision-checked staff saves; catalog serves verified rows only. Why: verified only.
 
 - Group lunch uses canonical full-day blocks and atomic participant/day billing items. Why: no duplicate block charges.

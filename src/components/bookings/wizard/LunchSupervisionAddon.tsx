@@ -1,3 +1,4 @@
+import { uniqueLunchDates } from "@/lib/groupLunch";
 import { useState, useEffect, useMemo } from "react";
 import { format, parseISO } from "date-fns";
 import { de } from "date-fns/locale";
@@ -34,8 +35,8 @@ export function LunchSupervisionAddon({
 
   // Check if any lunch days are already selected
   const hasAnyLunchDays = useMemo(() => {
-    return Object.values(lunchSelections).some(days => days.length > 0);
-  }, [lunchSelections]);
+    return participants.some(p => uniqueLunchDates(lunchSelections[p.id] ?? [], selectedDates).length > 0);
+  }, [lunchSelections, participants, selectedDates]);
 
   // Sync enabled state with selections
   useEffect(() => {
@@ -44,24 +45,13 @@ export function LunchSupervisionAddon({
     }
   }, [hasAnyLunchDays, isEnabled]);
 
-  // When enabled, pre-select all days for all participants
-  useEffect(() => {
-    if (isEnabled && !hasAnyLunchDays && selectedDates.length > 0) {
-      participants.forEach(p => {
-        onLunchDaysChange(p.id, [...selectedDates]);
-      });
-    }
-  }, [isEnabled, hasAnyLunchDays, selectedDates, participants, onLunchDaysChange]);
-
-  // When disabled, clear all selections
+  // Opt-in happens only on the user's toggle, never in an effect ("Keine" must stay empty).
   const handleToggle = (checked: boolean) => {
     setIsEnabled(checked);
-    if (!checked) {
-      participants.forEach(p => {
-        onLunchDaysChange(p.id, []);
-        onVegetarianChange(p.id, false);
-      });
-    }
+    participants.forEach(p => {
+      onLunchDaysChange(p.id, checked ? [...new Set(selectedDates)] : []);
+      if (!checked) onVegetarianChange(p.id, false);
+    });
   };
 
   const toggleDay = (participantId: string, date: string) => {
@@ -83,12 +73,12 @@ export function LunchSupervisionAddon({
 
   // Calculate totals
   const totalLunchDays = useMemo(() => {
-    return Object.values(lunchSelections).reduce((sum, days) => sum + days.length, 0);
-  }, [lunchSelections]);
+    return participants.reduce((sum, p) => sum + uniqueLunchDates(lunchSelections[p.id] ?? [], selectedDates).length, 0);
+  }, [lunchSelections, participants, selectedDates]);
 
   const totalLunchPrice = totalLunchDays * lunchPricePerDay;
 
-  const sortedDates = [...selectedDates].sort();
+  const sortedDates = [...new Set(selectedDates)].sort();
 
   return (
     <div className="border rounded-lg overflow-hidden">
@@ -118,7 +108,7 @@ export function LunchSupervisionAddon({
         </div>
         <div className="flex items-center gap-3">
           <span className="text-sm text-muted-foreground">
-            CHF {lunchPricePerDay}.– / Tag
+            CHF {lunchPricePerDay}.– / Person / Tag
           </span>
           <Switch
             checked={isEnabled}
@@ -132,7 +122,7 @@ export function LunchSupervisionAddon({
       {isEnabled && sortedDates.length > 0 && (
         <div className="p-4 space-y-4">
           {participants.map((participant) => {
-            const participantLunchDays = lunchSelections[participant.id] || [];
+            const participantLunchDays = uniqueLunchDates(lunchSelections[participant.id] ?? [], selectedDates);
             const isVegetarian = vegetarianSelections[participant.id] || false;
 
             return (

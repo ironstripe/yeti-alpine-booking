@@ -1,3 +1,4 @@
+import { groupLunchEligible } from "@/lib/groupLunch";
 import { useState } from "react";
 import { Users, Lock, AlertTriangle } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -105,7 +106,7 @@ export function Step1CustomerParticipant() {
               selectedParticipants={state.selectedParticipants}
               onToggle={toggleParticipant}
               onAddParticipant={() => {}}
-              isGroupBooking={isGroupBooking}
+              isGroupBooking={isGroupBooking && !isEditMode && !state.useParticipantSpecificBooking && groupLunchEligible(state.groupPlan, state.selectedDates)}
               selectedDates={state.selectedDates}
               lunchSelections={state.lunchSelections}
               onLunchDaysChange={setLunchDaysForParticipant}
