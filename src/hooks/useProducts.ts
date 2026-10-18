@@ -227,21 +227,14 @@ export function useDeleteProduct() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from("products")
-        .delete()
-        .eq("id", id);
-
-      if (error) throw error;
-    },
+    mutationFn: async (id: string) => deleteProductGuarded(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["products"] });
       toast.success("Produkt gelöscht");
     },
     onError: (error) => {
       console.error("Error deleting product:", error);
-      toast.error("Fehler beim Löschen");
+      if (!(error instanceof ProductDeleteError && error.result.error === "referenced")) toast.error(error.message);
     },
   });
 }
