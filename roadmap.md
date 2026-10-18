@@ -1,5 +1,8 @@
 # Roadmap
 
+## Product editor repair — step 1 only
+- [x] Preserve legacy flat pricing and all stored day tiers; 10/10 targeted tests (real update hook with synthetic responses), isolated actual form open/save/reopen for flat/fixed/hourly/tiered plus 6/7-day edit, automatic build/typecheck OK. No live writes, migration, deployment or publication; live persistence not exercised.
+
 ## UI optimization
 - [x] Booking step-one UX: single input column, early explicit teacher assignment, unified participant section, read-only draft-aware sticky summary, mounted scheduler toggling, responsive footer-safe layout
 - [x] UI-01 foundations + bookings/payment pilot: UI standard, accessible primary action pairing, icon actions, neutral source badge, ticket links, responsive filters, payment sheet

@@ -38,6 +38,7 @@ import { calculateSavingsPercent, formatPriceCHF, getDefaultPriceTiers } from "@
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { UnsavedChangesDialog } from "@/components/ui/unsaved-changes-dialog";
 import { useGuardedFormDismiss } from "@/hooks/useGuardedFormDismiss";
+import { editorPricingTypeSchema, editorPriceTiers, productEditorPricingPatch } from "@/lib/productEditorPricing";
 
 const priceTierSchema = z.object({
   day_count: z.number().min(1).max(7),
@@ -51,7 +52,7 @@ const formSchema = z.object({
   name: z.string().min(1, "Name ist erforderlich"),
   type: z.enum(["private", "group", "group_toddler", "group_beginner", "addon", "lunch"]),
   description: z.string().optional(),
-  pricing_type: z.enum(["fixed", "tiered", "hourly"]),
+  pricing_type: editorPricingTypeSchema,
   price: z.coerce.number().min(0, "Preis muss positiv sein").optional(),
   duration_minutes: z.coerce.number().min(0).optional(),
   min_age: z.coerce.number().min(0).optional().nullable(),
@@ -66,7 +67,10 @@ const formSchema = z.object({
   price_tiers: z.array(priceTierSchema),
 });
 
-type FormData = z.infer<typeof formSchema>;
+type FormData = z.infer<typeof formSchema> & {
+  pricing_type: z.infer<typeof editorPricingTypeSchema>;
+  price_tiers: { day_count: number; cumulative_price: number }[];
+};
 
 interface ProductFormModalProps {
   open: boolean;
@@ -123,24 +127,13 @@ export function ProductFormModal({ open, onOpenChange, product, seasonId, isBook
     if (initializedProduct.current === productKey) return;
     initializedProduct.current = productKey;
     if (product) {
-      const existingTiers = product.price_tiers?.length 
-        ? product.price_tiers.map(t => ({
-            day_count: t.day_count,
-            cumulative_price: Number(t.cumulative_price),
-          }))
-        : getDefaultPriceTiers();
-      
-      // Ensure all 5 tiers exist
-      const fullTiers = getDefaultPriceTiers().map(defaultTier => {
-        const existing = existingTiers.find(t => t.day_count === defaultTier.day_count);
-        return existing || defaultTier;
-      });
+      const fullTiers = editorPriceTiers(product.price_tiers);
 
       form.reset({
         name: product.name,
         type: product.type as "private" | "group" | "group_toddler" | "group_beginner" | "addon" | "lunch",
         description: product.description || "",
-        pricing_type: (product.pricing_type as "fixed" | "tiered" | "hourly") || "fixed",
+        pricing_type: editorPricingTypeSchema.parse(product.pricing_type || "fixed"),
         price: product.price,
         duration_minutes: product.duration_minutes || 60,
         min_age: product.min_age ?? null,
@@ -197,8 +190,7 @@ export function ProductFormModal({ open, onOpenChange, product, seasonId, isBook
       name: data.name,
       type: data.type,
       description: data.description || null,
-      pricing_type: data.pricing_type,
-      price: data.pricing_type === "tiered" ? 0 : (data.price || 0),
+      ...productEditorPricingPatch(data, product),
       duration_minutes: data.duration_minutes || null,
       min_age: data.min_age || null,
       max_age: data.max_age || null,
@@ -213,10 +205,6 @@ export function ProductFormModal({ open, onOpenChange, product, seasonId, isBook
     // Include season_id for new products
     if (!isEditing && seasonId) {
       payload.season_id = seasonId;
-    }
-
-    if (data.pricing_type === "tiered") {
-      payload.price_tiers = data.price_tiers.filter(t => t.cumulative_price > 0);
     }
 
     if (isEditing) {
@@ -432,8 +420,15 @@ export function ProductFormModal({ open, onOpenChange, product, seasonId, isBook
                         <RadioGroup
                           value={field.value}
                           onValueChange={field.onChange}
+                          disabled={product?.pricing_type === "flat"}
                           className="grid gap-3 sm:grid-cols-3"
                         >
+                          {product?.pricing_type === "flat" && (
+                            <label className="flex items-center gap-2 rounded-md border border-primary p-4 sm:col-span-3">
+                              <RadioGroupItem value="flat" />
+                              <span className="font-medium text-sm">Bestehendes Preismodell (flat)</span>
+                            </label>
+                          )}
                           <label className={cn(
                             "flex flex-col items-center p-4 border rounded-lg cursor-pointer transition-colors",
                             "hover:bg-muted/50",
@@ -481,7 +476,7 @@ export function ProductFormModal({ open, onOpenChange, product, seasonId, isBook
               </div>
 
               {/* Fixed/Hourly Price Input */}
-              {(pricingType === "fixed" || pricingType === "hourly") && (
+              {(pricingType === "fixed" || pricingType === "hourly" || pricingType === "flat") && (
                 <div className="grid gap-4 sm:grid-cols-2">
                   <FormField
                     control={form.control}
@@ -517,6 +512,17 @@ export function ProductFormModal({ open, onOpenChange, product, seasonId, isBook
                 </div>
               )}
 
+              {pricingType !== "tiered" && !!product?.price_tiers?.length && (
+                <div className="space-y-2">
+                  <FormLabel>Hinterlegte Tagesstaffeln</FormLabel>
+                  {[...product.price_tiers].sort((a, b) => a.day_count - b.day_count).map(tier => (
+                    <div key={tier.day_count} className="flex justify-between gap-3 text-sm">
+                      <span>{tier.day_count} {tier.day_count === 1 ? "Tag" : "Tage"}</span>
+                      <span>{formatPriceCHF(tier.cumulative_price)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
               {/* Tiered Pricing Editor */}
               {pricingType === "tiered" && (
                 <div className="space-y-4 p-4 border rounded-lg bg-muted/30">
@@ -565,6 +571,7 @@ export function ProductFormModal({ open, onOpenChange, product, seasonId, isBook
                                 CHF
                               </span>
                               <Input
+                                aria-label={`Gesamtpreis für ${tier.day_count} Tage`}
                                 type="number"
                                 step="0.05"
                                 className="pl-12"
