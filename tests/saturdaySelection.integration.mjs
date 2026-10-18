@@ -34,7 +34,7 @@ try {
     await sql`INSERT INTO group_courses(id,name,discipline,min_age,max_age,price_per_day,product_id,course_type,skill_level_id,meeting_point) VALUES (${c},'Same label','ski',2,16,0,${p},'saturday_course',${level},'malbipark')`;
     await sql`INSERT INTO bc_2627_course_product_variants VALUES (${c},${p},${p===W?[1,2,3]:[1,2,3,4,5]}::int[])`;
     for(const [n,days] of [first,second].entries()) {
-      const tg=(await sql`INSERT INTO training_groups(course_id,week_start,status) VALUES (${c},'2027-01-04','active') RETURNING id`)[0].id;
+      const tg=(await sql`INSERT INTO training_groups(course_id,week_start,status) VALUES (${c},${n===0?'2027-01-04':'2027-02-15'},'active') RETURNING id`)[0].id;
       await sql`INSERT INTO bc_2627_course_period_sources(source_key,course_id,training_group_id,source_sha256,tariff_source_ids,teaching_dates,eligible_variants) VALUES (${c+'-'+n},${c},${tg},'sha','{}',${days}::date[],${sql.json({[p]:p===W?[1,2,3]:[1,2,3,4,5]})})`;
       for(const d of days) for(const [start,end] of p===W?[['10:00','12:00']]:[['10:00','12:00'],['14:00','16:00']]) await sql`INSERT INTO group_course_instances(course_id,date,start_time,end_time) VALUES (${c},${d},${start},${end})`;
     }
