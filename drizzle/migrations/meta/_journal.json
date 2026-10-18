@@ -71,6 +71,13 @@
       "when": 1791662428172,
       "tag": "0009_customers_email_optional",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1792327135192,
+      "tag": "0010_product_public_offerings",
+      "breakpoints": true
     }
   ]
 }
