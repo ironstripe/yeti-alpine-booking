@@ -1,0 +1,17 @@
+import {test,expect} from 'bun:test';
+import {seriesDates,seriesSelection,validateOffering,type ProductOffering} from '../src/lib/productPublicOffering';
+const first=['2027-01-09','2027-01-16','2027-01-23','2027-01-30','2027-02-06'];
+const second=['2027-02-20','2027-02-27','2027-03-06','2027-03-13','2027-03-20'];
+const offering:ProductOffering={schedule_kind:'weekly',weekdays:[6],dates:[],display_schedule_text:'Samstags',time_blocks:[{start:'10:00',end:'12:00'}],series:[{sequence:1,label:null,start_date:'2027-01-09',end_date:'2027-02-06',max_selected_days:3},{sequence:2,label:null,start_date:'2027-02-20',end_date:'2027-03-20',max_selected_days:3}]};
+const context={type:'group_toddler',duration_minutes:120,season:{start_date:'2026-12-01',end_date:'2027-04-15'}};
+const tiers=[{day_count:1,cumulative_price:70},{day_count:2,cumulative_price:110},{day_count:3,cumulative_price:140}];
+test('first range has exactly five specified Saturdays',()=>expect(seriesDates(offering.series?.[0] as NonNullable<ProductOffering['series']>[number],[6])).toEqual(first));
+test('second range has exactly five specified Saturdays',()=>expect(seriesDates(offering.series?.[1] as NonNullable<ProductOffering['series']>[number],[6])).toEqual(second));
+test('both ordered series are valid on one offering',()=>expect(validateOffering(offering,context)).toBeNull());
+test('overlapping windows are rejected',()=>expect(validateOffering({...offering,series:[...(offering.series?.slice(0,1) ?? []),{sequence:2,start_date:'2027-02-06',end_date:'2027-03-20',max_selected_days:3}]},context)).toContain('überschneiden'));
+test('at most three selected lessons, not five offered meetings',()=>expect(seriesSelection(offering,1,first.slice(0,4),tiers).price).toBeNull());
+test('selection cannot mix series',()=>expect(seriesSelection(offering,1,[first[0],second[0]],tiers).error).toContain('derselben Serie'));
+for(const [count,price] of [[1,70],[2,110],[3,140]])test(`exact ${count}-day tier is ${price} once`,()=>expect(seriesSelection(offering,1,first.slice(0,count),tiers)).toEqual({price,error:null}));
+test('missing exact tier never falls back to calculated or source price',()=>expect(seriesSelection(offering,1,first.slice(0,2),tiers.slice(0,1)).price).toBeNull());
+test('duplicate dates cannot count twice',()=>expect(seriesSelection(offering,1,[first[0],first[0]],tiers).price).toBeNull());
+test('series outside season rejected',()=>expect(validateOffering({...offering,series:[{sequence:1,start_date:'2027-04-17',end_date:'2027-04-24',max_selected_days:3}]},context)).toContain('Saison'));

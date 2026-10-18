@@ -1,7 +1,8 @@
 /** Product-scoped informational schedule. Never a booking/price/capacity decision. */
 export type ScheduleKind = 'weekly' | 'explicit_dates' | 'flexible_private';
 export type TimeBlock = { start: string; end: string };
-export type ProductOffering = { schedule_kind: ScheduleKind; weekdays: number[]; dates: string[]; time_blocks: TimeBlock[]; display_schedule_text?: string | null };
+export type ProductSeries = { sequence: number; label?: string | null; start_date: string; end_date: string; max_selected_days: number };
+export type ProductOffering = { schedule_kind: ScheduleKind; weekdays: number[]; dates: string[]; time_blocks: TimeBlock[]; display_schedule_text?: string | null; series?: ProductSeries[] };
 export type OfferingContext = { type: string; duration_minutes: number | null; season?: { start_date: string; end_date: string } | null };
 export const weekdayLabels = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'];
 const clock = (s: string) => /^([01]\d|2[0-3]):[0-5]\d$/.test(s);
@@ -15,12 +16,51 @@ export function validateScheduleText(text: unknown): string | null {
   if (/[<>\u0000-\u001f\u007f]/.test(text)) return 'Website-Text muss einzeiliger Text ohne HTML sein';
   return null;
 }
+
+const validDate = (d: unknown): d is string => typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d) && Number.isFinite(Date.parse(d)) && new Date(d).toISOString().slice(0, 10) === d;
+/** Generated from the authoritative weekday schedule; never inferred from labels. */
+export function seriesDates(series: ProductSeries, weekdays: number[]): string[] {
+  if (!validDate(series.start_date) || !validDate(series.end_date) || series.start_date > series.end_date) return [];
+  const start = Date.parse(series.start_date), end = Date.parse(series.end_date);
+  if ((end-start)/86400000 > 366) return [];
+  const dates: string[] = [];
+  for (let day=start; day<=end; day+=86400000) {
+    const date=new Date(day);
+    if (weekdays.includes(date.getUTCDay() || 7)) dates.push(date.toISOString().slice(0,10));
+  }
+  return dates;
+}
+export function validateSeries(o: ProductOffering, context: OfferingContext): string | null {
+  if (o.series === undefined) return null;
+  if (!Array.isArray(o.series) || o.series.length > 24) return 'Höchstens 24 Serien möglich';
+  if (o.series.length && o.schedule_kind !== 'weekly') return 'Serien benötigen wöchentliche Wochentage';
+  for (const [i,s] of o.series.entries()) {
+    if (!s || s.sequence !== i+1 || !Number.isInteger(s.max_selected_days) || s.max_selected_days < 1 || s.max_selected_days > 366) return 'Serienfolge und maximale Anzahl Tage prüfen';
+    const labelError=validateScheduleText(s.label); if(labelError) return labelError;
+    if (!validDate(s.start_date) || !validDate(s.end_date) || s.start_date > s.end_date) return 'Gültigen Serienzeitraum angeben';
+    if (context.season && (s.start_date < context.season.start_date || s.end_date > context.season.end_date)) return 'Serie liegt ausserhalb der Saison';
+    if (!seriesDates(s,o.weekdays).length) return 'Serie enthält keine angebotenen Wochentage';
+    if (o.series.some((other,j)=>j<i && s.start_date<=other.end_date && other.start_date<=s.end_date)) return 'Serien dürfen sich nicht überschneiden';
+  }
+  return null;
+}
+/** Preview/future quote contract only: exact existing tier, once, within one series. */
+export function seriesSelection(o: ProductOffering, sequence: number, dates: string[], tiers: {day_count:number;cumulative_price:number}[]): {price:number|null; error:string|null} {
+  const series=o.series?.find(s=>s.sequence===sequence);
+  if (!series || !dates.length || new Set(dates).size!==dates.length || dates.length>series.max_selected_days) return {price:null,error:'Anzahl Tage innerhalb einer Serie prüfen'};
+  const offered=new Set(seriesDates(series,o.weekdays));
+  if(dates.some(d=>!offered.has(d))) return {price:null,error:'Alle Tage müssen innerhalb derselben Serie liegen'};
+  const tier=tiers.find(t=>t.day_count===dates.length && Number.isFinite(t.cumulative_price) && t.cumulative_price>0);
+  return tier ? {price:tier.cumulative_price,error:null} : {price:null,error:'Für diese Anzahl Tage ist kein Tarif hinterlegt'};
+}
+
 export function validateOffering(input: unknown, context: OfferingContext): string | null {
   if (!input || typeof input !== 'object') return 'Ungültige Website-Informationen';
   const o = input as ProductOffering;
   const textError = validateScheduleText(o.display_schedule_text);
   if (textError) return textError;
   if (!['weekly', 'explicit_dates', 'flexible_private'].includes(o.schedule_kind) || !Array.isArray(o.weekdays) || !Array.isArray(o.dates) || !Array.isArray(o.time_blocks)) return 'Ungültiges Terminmodell';
+  const seriesError=validateSeries(o,context); if(seriesError) return seriesError;
   if (o.schedule_kind === 'flexible_private') {
     if (context.type !== 'private' || o.weekdays.length || o.dates.length || o.time_blocks.length) return 'Flexible Termine sind nur für Privatstunden ohne feste Zeiten möglich';
     return null;
@@ -49,7 +89,8 @@ export function offeringPreview(o: ProductOffering | null): string {
   if (!o) return 'Keine Angebotszeiten hinterlegt';
   const text = normalizeScheduleText(o.display_schedule_text);
   if (o.schedule_kind === 'flexible_private') return text ?? 'Privatstunden nach Verfügbarkeit';
-  const days = text ?? (o.schedule_kind === 'weekly' ? o.weekdays.map(d => `Jeden ${weekdayLabels[d - 1]}`).join(', ') : o.dates.map(d => d.split('-').reverse().join('.')).join(', '));
+  const seriesLabel=o.series?.length ? o.series.map(s=>`${s.label?.trim() || `Serie ${s.sequence}`}: ${s.start_date.split('-').reverse().join('.')}–${s.end_date.split('-').reverse().join('.')}`).join(' · ') : null;
+  const days = text ?? seriesLabel ?? (o.schedule_kind === 'weekly' ? o.weekdays.map(d => `Jeden ${weekdayLabels[d - 1]}`).join(', ') : o.dates.map(d => d.split('-').reverse().join('.')).join(', '));
   const duration = offeringDuration(o.time_blocks);
   return `${days} · ${o.time_blocks.map(b => `${b.start || '…'}–${b.end || '…'}`).join(' + ')}${Number.isFinite(duration) && duration > 0 ? ` · ${duration} Min. pro Tag` : ''}`;
 }

@@ -8,6 +8,7 @@ const schema = z.object({ product_id: z.string().uuid(), offering: z.object({
   weekdays: z.array(z.number().int().min(1).max(7)).max(7),
   dates: z.array(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).max(366),
   time_blocks: z.array(z.object({ start: z.string(), end: z.string() }).strict()).max(2),
+  series: z.array(z.object({sequence:z.number().int().min(1),label:z.string().nullable().optional().refine(text=>validateScheduleText(text)===null).transform(normalizeScheduleText),start_date:z.string().regex(/^\d{4}-\d{2}-\d{2}$/),end_date:z.string().regex(/^\d{4}-\d{2}-\d{2}$/),max_selected_days:z.number().int().min(1).max(366)}).strict()).max(24).optional(),
   display_schedule_text: z.string().nullable().optional().refine(text=>validateScheduleText(text) === null).transform(normalizeScheduleText),
 }).strict().nullable() }).strict();
 const reply = (data: unknown, status = 200) => new Response(JSON.stringify(data), {status, headers:{...corsHeaders,'Content-Type':'application/json'}});
@@ -18,7 +19,9 @@ Deno.serve(async req => {
   if(auth instanceof Response) return auth;
   let raw: unknown; try { raw=await req.json(); } catch { return reply({error:'Invalid JSON'},400); }
   const body=schema.safeParse(raw); if(!body.success) return reply({error:'Invalid offering input'},400);
-  const db=createClient(Deno.env.get('SUPABASE_URL')!,Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+  const url=Deno.env.get('SUPABASE_URL'), key=Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+  if(!url || !key) return reply({error:'Service unavailable'},503);
+  const db=createClient(url,key);
   const {data:p,error:pe}=await db.from('products').select('type,duration_minutes,season_id').eq('id',body.data.product_id).single();
   if(pe || !p) return reply({error:'Product not found'},400);
   let season=null;

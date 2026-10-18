@@ -1,5 +1,12 @@
 # Roadmap
 
+## Product series — preparation only
+- [x] Extend existing offering metadata and atomic staff save with ordered weekly series and per-series selection limit; prepare reversible incremental SQL and target-only unexecuted seed.
+- [x] Add compact editor, generated dates, existing-tier selection preview and optional catalog projection; preserve legacy schedules, text and blocks.
+- [x] Verify isolated SQL, exact Saturday/pricing rules, actual modal save/reopen and desktop/mobile scrolling. No shared business writes, migration installation, deployment or publication.
+
+- Evidence: 30 unit/layout tests, 27 disposable SQL checks and offline catalog passed; actual modal save/reopen, max3 and tariff preview at 1053x763/390x700 with external network blocked; existing scroll regression passed. Deno function checks and automatic build OK. Frontend standalone typecheck not separately run. Production install/deploy/seed/publish await independent review; seed requires reviewed clock times and staff actor.
+
 ## Optional website schedule label — implementation only
 - [x] Add nullable editorial label through incremental SQL + safe rollback and existing atomic staff save; never install 0010 again.
 - [x] Integrate optional text, automatic weekday preview and catalog projection without changing schedules, blocks, prices or booking gates.

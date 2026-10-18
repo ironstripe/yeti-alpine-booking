@@ -1,12 +1,19 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { normalizeScheduleText, type ProductOffering } from '@/lib/productPublicOffering';
-// Install the incremental display text migration before releasing this projection.
+// Install the incremental series migration before releasing this projection.
 export function useProductPublicOffering(productId?: string) {
   return useQuery({ queryKey:['product-public-offering',productId], enabled:!!productId, retry:false,
     queryFn:async ():Promise<ProductOffering|null> => {
       if(!productId) return null;
-      const {data,error}=await (supabase as any).from('product_public_offerings').select('schedule_kind,weekdays,dates,time_blocks,display_schedule_text').eq('product_id',productId).maybeSingle();
+      const {data,error}=await (supabase as any).from('product_public_offerings').select('schedule_kind,weekdays,dates,time_blocks,display_schedule_text,series').eq('product_id',productId).maybeSingle();
+      // Keep existing Office edits usable during the reviewed, uninstalled code step.
+      // Only a specifically missing series column permits the legacy projection.
+      if(error?.code==='42703' && error.message?.includes('series')) {
+        const legacy=await (supabase as any).from('product_public_offerings').select('schedule_kind,weekdays,dates,time_blocks,display_schedule_text').eq('product_id',productId).maybeSingle();
+        if(legacy.error) throw legacy.error;
+        return legacy.data;
+      }
       if(error) throw error;
       return data;
     },
