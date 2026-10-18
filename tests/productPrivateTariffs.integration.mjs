@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
-const socketDir = process.env.PGHOST ?? '/tmp';
+const socketDir = process.env.BC_TEST_PGSOCKET ?? '/tmp';
 const conn = { host: socketDir, port: 55432, username: 'postgres', onnotice: () => {}, ssl: false };
 const dbName = `private_tariffs_${Date.now()}`;
 const admin = postgres({ ...conn, database: 'postgres', max: 1 });
