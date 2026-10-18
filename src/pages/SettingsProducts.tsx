@@ -121,7 +121,7 @@ export default function SettingsProducts() {
     if (productToDelete) {
       deleteProduct.mutate(productToDelete.id, {
         onSuccess: () => setProductToDelete(null),
-        onError: (error) => { if (error instanceof ProductDeleteError && error.result.error === "referenced") setDeleteDependencies(error.result.dependencies ?? {}); },
+        onError: (error) => { if (error instanceof ProductDeleteError && (error.result.error === "referenced" || error.result.dependencies)) setDeleteDependencies(error.result.dependencies ?? {}); },
       });
     }
   };
