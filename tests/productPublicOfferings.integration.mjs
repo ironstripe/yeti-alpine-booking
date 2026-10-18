@@ -13,7 +13,7 @@ const psql=(file,transaction=true)=>{const r=spawnSync('psql',['-h','/tmp','-p',
 const run=async(label,fn)=>{try{await fn();console.log('PASS',label);pass++;}catch(e){console.log('FAIL',label,e.message);fail++;}};
 const one={schedule_kind:'weekly',weekdays:[1,2,3,4,5],dates:[],time_blocks:[{start:'10:00',end:'12:00'}]};
 const save=(product,offering,actor=O)=>db`SELECT public.save_product_public_offering(${product}::uuid,${db.json(offering)}::jsonb,${actor}::uuid) r`.then(rows=>rows[0].r);
-const history=async()=>{const result={};for(const t of ['products','product_price_tiers','bc_product_tariff_sources','group_courses','tickets','ticket_items','private_appointments','invoices','payments'])result[t]=await db.unsafe(`SELECT coalesce(jsonb_agg(to_jsonb(t)),'[]'::jsonb) rows FROM public.${t} t`);return result;};
+const history=async()=>{const result={};for(const t of ['products','product_price_tiers','bc_product_tariff_sources','group_courses','tickets','ticket_items','private_appointments','invoices','payments'])result[t]=await db.unsafe(`SELECT coalesce(jsonb_agg(to_jsonb(t) ORDER BY to_jsonb(t)::text),'[]'::jsonb) rows FROM public.${t} t`);return result;};
 try {
   await admin.unsafe(`CREATE DATABASE ${name}`);db=postgres({...conn,database:name});
   psql('tests/sql/baseline_prelude.sql');psql('tests/sql/production_schema_baseline.sql');
