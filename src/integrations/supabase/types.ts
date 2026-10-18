@@ -4197,6 +4197,33 @@ export type Database = {
         }
         Relationships: []
       }
+      product_deletion_log: {
+        Row: {
+          deleted_at: string
+          deleted_by: string
+          id: string
+          product_id: string
+          product_name: string
+          snapshot: Json
+        }
+        Insert: {
+          deleted_at?: string
+          deleted_by: string
+          id?: string
+          product_id: string
+          product_name: string
+          snapshot: Json
+        }
+        Update: {
+          deleted_at?: string
+          deleted_by?: string
+          id?: string
+          product_id?: string
+          product_name?: string
+          snapshot?: Json
+        }
+        Relationships: []
+      }
       product_price_tiers: {
         Row: {
           created_at: string | null
