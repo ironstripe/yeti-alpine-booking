@@ -1,9 +1,10 @@
 # Roadmap
 
 ## Lunch and supervision — preparation only
-- [ ] Limit existing optional add-on to full-day groups, unique CHF 30 lunch product, separate billing items.
-- [ ] Verify synthetic persistence, participant/day deduplication, two-block totals, half-day rejection and invoice display.
+- [x] Limit existing optional add-on to full-day groups, unique CHF 30 lunch product, separate billing items.
+- [x] Verify 51 unit/regression tests, 33 disposable SQL booking checks, 14 settlement checks, actual addon browser selection/readback at 1280x1800 and 390x700. Existing Office invoice maps every ticket item, including lunch, to a separate line (source verified; no invoice issued).
 - No production writes, installation, deployment, messages or publication; checkout unchanged.
+- Release limitation: pending/group_lunch_full_day.sql must be reviewed/installed separately for authoritative full-day/CHF30/dedup guards to go live. No new table or price update. Legacy single-block group lunch is refused; website checkout remains unchanged. Existing Office discretionary discount still applies to lunch as before. Authenticated live booking/invoice issuance intentionally not tested.
 
 ## Saturday selection rules — 18 Oct 2026
 - [x] Enforce first-day/maximum-day rules in staff options/create and website reserve using server-read canonical course levels, source tariff family and course period mappings; existing atomic SQL pricing/save unchanged.
