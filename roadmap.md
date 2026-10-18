@@ -1,9 +1,10 @@
 # Roadmap
 
 ## Optional website schedule label — implementation only
-- [ ] Add nullable editorial label through incremental SQL + safe rollback and existing atomic staff save; never install 0010 again.
-- [ ] Integrate optional text, automatic weekday preview and catalog projection without changing schedules, blocks, prices or booking gates.
-- [ ] Run targeted unit/SQL/catalog, isolated save/reopen and modal scroll checks; inspect automatic typecheck/build. No production writes, installation, deployment or publication.
+- [x] Add nullable editorial label through incremental SQL + safe rollback and existing atomic staff save; never install 0010 again.
+- [x] Integrate optional text, automatic weekday preview and catalog projection without changing schedules, blocks, prices or booking gates.
+- [x] Verify 18 unit/layout tests, 18 disposable UTF-8 PostgreSQL checks, offline catalog and function checks; actual modal/hook save/reopen at 1053x763 and 390x700 with external network blocked; existing scroll regression passed at both sizes and tall desktop. Automatic build OK. No production writes, installation, deployment or publication.
+- Installation pending owner approval: incremental display-text SQL only → product-public-offering function → get-website-products function → compatible Core frontend publication. Production save/reopen and live catalog remain untested; private tariff release remains separate.
 
 ## Product public offering metadata — implementation only
 - [x] Prepare product-scoped schedule persistence, preflight and reversible SQL; no backfill or shared-backend installation.
