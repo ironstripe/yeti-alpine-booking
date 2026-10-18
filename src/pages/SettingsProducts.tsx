@@ -319,7 +319,6 @@ export default function SettingsProducts() {
         open={isModalOpen}
         onOpenChange={handleCloseModal}
         product={selectedProduct}
-        isBookingCornerDraft={!!selectedProduct && importedDraftIds.has(selectedProduct.id)}
         seasonId={activeSeasonId}
       />
 
