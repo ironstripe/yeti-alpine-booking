@@ -17,6 +17,7 @@ try{
 file('tests/sql/baseline_prelude.sql');file('tests/sql/production_schema_baseline.sql');file('supabase/pending/product_public_offerings.sql');file('supabase/pending/product_lifecycle.sql');
 await sql`INSERT INTO auth.users(id,email) VALUES(${actor},'synthetic@invalid.test')`;
 await sql`INSERT INTO user_roles(user_id,role) VALUES(${actor},'office')`;
+await sql`GRANT SELECT,UPDATE ON products TO authenticated`;
 await sql`INSERT INTO seasons(id,name,start_date,end_date) VALUES(${season},'Synthetic','2026-12-01','2027-04-15')`;
 await sql`INSERT INTO products(id,season_id,name,type,price,is_active) VALUES(${id},${season},'Imported','private',75,false)`;
 await sql`INSERT INTO bc_product_tariff_sources(source_id,season_id,product_id,source_sha256,source_family,import_status,day_count,duration_minutes,persons_per_lesson,price_chf,source_payload) VALUES('synthetic',${season},${id},'synthetic','Private','draft',1,60,1,75,'{}')`;
