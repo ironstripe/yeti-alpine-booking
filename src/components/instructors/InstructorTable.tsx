@@ -148,7 +148,7 @@ export function InstructorTable({ instructors, photoUrls, pulsingIds, onRowClick
                           aria-label={`Auf Homepage anzeigen ${fullName}`}
                         />
                         <span className="text-xs text-muted-foreground">
-                          {live ? "Sichtbar" : shown ? "Pausiert (inaktiv)" : blocker && canEdit ? "Teaser fehlt" : "Aus"}
+                          {live ? "Sichtbar" : shown ? "Pausiert (inaktiv)" : blocker && canEdit && instructor.status === "active" ? "Teaser fehlt" : "Aus"}
                         </span>
                       </span>
                     );
