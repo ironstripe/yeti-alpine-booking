@@ -50,7 +50,11 @@ export function InstructorTable({ instructors, photoUrls, pulsingIds, onRowClick
           {instructors.map((instructor) => {
             const fullName = `${instructor.first_name} ${instructor.last_name}`;
             const status = getStatusConfig(instructor.real_time_status);
-            const photoUrl = photoUrls[instructor.id] || instructor.avatar_url;
+            const g = String((instructor as { gender?: string | null }).gender ?? "").toLowerCase();
+            const placeholder = ["f", "female", "weiblich", "w"].includes(g)
+              ? "/images/instructor-placeholder-female.jpg"
+              : "/images/instructor-placeholder-male.jpg";
+            const photoUrl = photoUrls[instructor.id] || instructor.avatar_url || placeholder;
 
             return (
               <tr
