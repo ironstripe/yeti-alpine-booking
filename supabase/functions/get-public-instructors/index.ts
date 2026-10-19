@@ -5,6 +5,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders, checkApiKey, json } from "../_shared/intakeAuth.ts";
 import { publicInstructorTitle } from "../_shared/publicInstructorTitle.ts";
 import { publicPortraitUrl } from "../_shared/publicPortraitUrl.ts";
+import { placeholderPortraitUrl } from "../_shared/placeholderPortrait.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
