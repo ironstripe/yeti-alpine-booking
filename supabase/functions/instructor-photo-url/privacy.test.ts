@@ -17,7 +17,9 @@ Deno.test("signed URL endpoint is staff-only, short-lived, never persisted", () 
 Deno.test("public team export gated on active + show_on_website, never private bucket", () => {
   assert(pub.includes('.eq("status", "active")') && pub.includes('.eq("show_on_website", true)'));
   assert(!pub.includes('.from("instructor-hr-photos")') && !pub.includes('.from("instructor_photos")'));
-  assert(pub.includes('!teaser || !portraitUrl') && pub.includes('portraitUrl.includes("/object/sign/")'));
+  assert(pub.includes("if (!teaser) return null"));
+  const guard = await Deno.readTextFile(new URL("../_shared/publicPortraitUrl.ts", import.meta.url));
+  assert(guard.includes('instructor-hr-photos') && guard.includes('/object/sign/'));
 });
 Deno.test("one-profile website release requires staff, an explicit current photo and a public-only update", () => {
   assert(release.includes('requireRole(req, ["admin", "office", "super_admin"]'));
