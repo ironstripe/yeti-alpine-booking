@@ -251,7 +251,7 @@ export default function SettingsProducts() {
                           ) : (
                             <span>{formatPriceCHF(product.price)}</span>
                           )}
-                          {pricingType !== "tiered" && !(draft && product.type === "private") && product.duration_minutes && (
+                          {pricingType !== "tiered" && pricingType !== "hourly" && !(draft && product.type === "private") && product.duration_minutes && (
                             <span className="text-muted-foreground">
                               /{formatDurationLabel(product.duration_minutes)}
                             </span>
