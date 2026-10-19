@@ -41,10 +41,4 @@ export function useInstructorListEdits() {
   return { field, website };
 }
 
-/** Why the homepage switch cannot be turned on (null = allowed). */
-export function homepageBlocker(i: Pick<InstructorWithBookings, "status" | "website_teaser" | "show_on_website">): string | null {
-  if (i.show_on_website) return null; // turning off is always allowed
-  if (i.status !== "active") return "Nur aktive Lehrpersonen können auf der Homepage erscheinen";
-  if (!i.website_teaser?.trim()) return "Kurzbeschreibung fehlt – im Websiteprofil ergänzen";
-  return null;
-}
+export { homepageBlocker } from "@/hooks/homepageBlocker";

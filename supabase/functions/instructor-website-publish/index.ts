@@ -100,7 +100,7 @@ Deno.serve(async (req) => {
   // Never write payroll, contact,
   // Booking source links, the private photo row or unrelated instructor fields.
   const { data: saved, error: saveError } = await sb.from("instructors")
-    .update({ avatar_url: publicUrl || null, website_teaser: teaser, show_on_website: true,
+    .update({ ...(publicUrl ? { avatar_url: publicUrl } : {}), website_teaser: teaser, show_on_website: true,
       ...(hasTitle ? { website_role_title: title || null } : {}) })
     .eq("id", id).eq("status", "active").select("id").maybeSingle();
   if (saveError || !saved) return json({ error: "publish_failed" }, 409);
