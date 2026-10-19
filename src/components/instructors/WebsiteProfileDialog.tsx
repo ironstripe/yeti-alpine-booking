@@ -164,7 +164,7 @@ export function WebsiteProfileDialog({ open, onOpenChange, instructor }: Website
                 ) : chosenPhotoUrl ? (
                   <Avatar className="h-20 w-20"><AvatarImage src={chosenPhotoUrl} alt="Vorgesehenes Website-Foto" /><AvatarFallback>–</AvatarFallback></Avatar>
                 ) : (
-                  <p className="text-sm text-muted-foreground">Kein Website-Foto: Die Homepage zeigt einen neutralen Platzhalter.</p>
+                  <p className="text-sm text-muted-foreground">Kein Website-Foto: Die Homepage zeigt eine Illustration passend zum Geschlecht.</p>
                 )}
               </div>
             )}
