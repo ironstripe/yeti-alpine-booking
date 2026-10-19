@@ -40,6 +40,7 @@ import { ProductFormModal } from "@/components/settings/ProductFormModal";
 import { BookingCornerTariffDialog } from "@/components/settings/BookingCornerTariffDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { getProductPriceDisplay, formatPriceCHF } from "@/lib/pricing-utils";
+import { formatDurationLabel } from "@/lib/productDurationLabel";
 import {
   AlertDialog,
   AlertDialogCancel,
