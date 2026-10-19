@@ -252,7 +252,7 @@ export default function SettingsProducts() {
                           )}
                           {pricingType !== "tiered" && !(draft && product.type === "private") && product.duration_minutes && (
                             <span className="text-muted-foreground">
-                              /{product.duration_minutes >= 60 ? `${product.duration_minutes / 60}h` : `${product.duration_minutes}min`}
+                              /{formatDurationLabel(product.duration_minutes)}
                             </span>
                           )}
                         </TableCell>
