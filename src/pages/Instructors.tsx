@@ -186,6 +186,7 @@ const Instructors = () => {
               photoUrls={staffPhotoUrls}
               pulsingIds={pulsingIds}
               onRowClick={handleInstructorClick}
+              canEdit={isAdminOrOffice || isSuperAdmin}
             />
           )}
         </>

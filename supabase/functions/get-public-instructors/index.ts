@@ -4,6 +4,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders, checkApiKey, json } from "../_shared/intakeAuth.ts";
 import { publicInstructorTitle } from "../_shared/publicInstructorTitle.ts";
+import { publicPortraitUrl } from "../_shared/publicPortraitUrl.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -33,10 +34,8 @@ Deno.serve(async (req) => {
         const displayName = `${(r.first_name ?? "").trim()} ${(r.last_name ?? "").trim()}`.trim();
         if (!displayName) return null;
         const teaser = (r.website_teaser ?? "").trim();
-        const portraitUrl = (r.avatar_url ?? "").trim();
-        // A private instructor_photos object is not a website portrait.
-        // Never expose a half-complete profile if the flag was set elsewhere.
-        if (!teaser || !portraitUrl || portraitUrl.includes("instructor-hr-photos") || portraitUrl.includes("/object/sign/")) return null;
+        if (!teaser) return null;
+        const portraitUrl = publicPortraitUrl(r.avatar_url);
         return {
           display_name: displayName,
           role_label: publicInstructorTitle({
@@ -46,7 +45,7 @@ Deno.serve(async (req) => {
             website_role_title: r.website_role_title ?? null,
           }),
           teaser,
-          portrait_url: portraitUrl,
+          portrait_url: portraitUrl, // null → Onepager shows neutral placeholder
         };
       })
       .filter(Boolean);

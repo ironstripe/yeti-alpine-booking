@@ -40,7 +40,7 @@ export function WebsiteProfileDialog({ open, onOpenChange, instructor }: Website
   const [confirmAction, setConfirmAction] = useState<"publish" | "hide" | null>(null);
   const [saving, setSaving] = useState(false);
   const isPublic = instructor.show_on_website && instructor.status === "active" &&
-    !!instructor.avatar_url && !!instructor.website_teaser?.trim();
+    !!instructor.website_teaser?.trim();
 
   useEffect(() => {
     if (!open) return;
@@ -82,7 +82,7 @@ export function WebsiteProfileDialog({ open, onOpenChange, instructor }: Website
   const effectiveTitle = trimmedTitle || automaticTitle;
   const chosenPhotoUrl = photoChoice === "private" ? privatePhoto?.url : instructor.avatar_url;
   const canPublish = instructor.status === "active" && !loadingPhoto && !loadingTitle && !titleError &&
-    trimmedTitle.length <= 80 && !!chosenPhotoUrl && trimmedTeaser.length > 0 && trimmedTeaser.length <= WEBSITE_TEASER_MAX;
+    trimmedTitle.length <= 80 && trimmedTeaser.length > 0 && trimmedTeaser.length <= WEBSITE_TEASER_MAX;
 
   const handleConfirm = async () => {
     if (!confirmAction || saving || (confirmAction === "publish" && !canPublish)) return;
@@ -164,7 +164,7 @@ export function WebsiteProfileDialog({ open, onOpenChange, instructor }: Website
                 ) : chosenPhotoUrl ? (
                   <Avatar className="h-20 w-20"><AvatarImage src={chosenPhotoUrl} alt="Vorgesehenes Website-Foto" /><AvatarFallback>–</AvatarFallback></Avatar>
                 ) : (
-                  <p className="text-sm text-muted-foreground">Bitte zuerst unter «Profil bearbeiten» ein Foto hochladen.</p>
+                  <p className="text-sm text-muted-foreground">Kein Website-Foto: Die Homepage zeigt einen neutralen Platzhalter.</p>
                 )}
               </div>
             )}

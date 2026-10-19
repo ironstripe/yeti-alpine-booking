@@ -6,24 +6,42 @@ import { formatPhoneDisplay } from "@/lib/phone-utils";
 import { getInitials, getAvatarColor } from "@/lib/participant-utils";
 import { getLevelLabel } from "@/lib/instructor-utils";
 import { getSpecializationLabel, getStatusConfig, type InstructorWithBookings } from "@/hooks/useInstructors";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { useInstructorListEdits, homepageBlocker } from "@/hooks/useInstructorListEdits";
+
+const OPERATIONAL = [
+  { value: "available", label: "Verfügbar" },
+  { value: "on_call", label: "Auf Abruf" },
+  { value: "unavailable", label: "Nicht verfügbar" },
+] as const;
+
+const stop = (e: React.SyntheticEvent) => e.stopPropagation();
 
 interface InstructorTableProps {
   instructors: InstructorWithBookings[];
   photoUrls: Record<string, string>;
   pulsingIds: Set<string>;
   onRowClick: (instructor: InstructorWithBookings) => void;
+  /** Staff (admin/office/super_admin) may edit inline; server enforces it again. */
+  canEdit?: boolean;
 }
 
-export function InstructorTable({ instructors, photoUrls, pulsingIds, onRowClick }: InstructorTableProps) {
+export function InstructorTable({ instructors, photoUrls, pulsingIds, onRowClick, canEdit = false }: InstructorTableProps) {
+  const { field, website } = useInstructorListEdits();
+  const busy = (id: string) =>
+    (field.isPending && field.variables?.id === id) || (website.isPending && website.variables?.instructor.id === id);
   return (
     <div className="overflow-x-auto rounded-lg border bg-card">
-      <table className="w-full min-w-[880px] text-left text-sm">
+      <table className="w-full min-w-[1080px] text-left text-sm">
         <thead className="border-b bg-muted/40 text-xs font-medium text-muted-foreground">
           <tr>
             <th scope="col" className="px-4 py-3">Name</th>
             <th scope="col" className="px-4 py-3">Sportart</th>
             <th scope="col" className="px-4 py-3">Qualifikation</th>
-            <th scope="col" className="px-4 py-3">Verfügbarkeit</th>
+            <th scope="col" className="px-4 py-3">Saisonstatus</th>
+            <th scope="col" className="px-4 py-3">Operativer Status</th>
+            <th scope="col" className="px-4 py-3">Homepage</th>
             <th scope="col" className="px-4 py-3 text-right">Heute</th>
             <th scope="col" className="px-4 py-3">Kontakt</th>
           </tr>
@@ -66,7 +84,6 @@ export function InstructorTable({ instructors, photoUrls, pulsingIds, onRowClick
                       >
                         {fullName}
                       </Link>
-                      {instructor.status === "inactive" && <Badge variant="secondary" className="ml-2 text-xs">Inaktiv</Badge>}
                     </div>
                   </div>
                 </th>
@@ -74,11 +91,68 @@ export function InstructorTable({ instructors, photoUrls, pulsingIds, onRowClick
                   {getSpecializationLabel(instructor.specialization, instructor.roles)}
                 </td>
                 <td className="px-4 py-3 text-muted-foreground">{getLevelLabel(instructor.level)}</td>
-                <td className="px-4 py-3">
-                  <span className="inline-flex items-center gap-2">
-                    <span className={cn("h-2 w-2 rounded-full", status.color)} aria-hidden="true" />
-                    <span>{status.label}</span>
-                  </span>
+                <td className="px-4 py-3" onClick={stop}>
+                  {canEdit ? (
+                    <Select
+                      value={instructor.status === "inactive" ? "inactive" : "active"}
+                      disabled={busy(instructor.id)}
+                      onValueChange={(v) => field.mutate({ id: instructor.id, status: v as "active" | "inactive" })}
+                    >
+                      <SelectTrigger className="h-8 w-[110px]" aria-label={`Saisonstatus ${fullName}`}><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="active">Aktiv</SelectItem>
+                        <SelectItem value="inactive">Inaktiv</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Badge variant={instructor.status === "inactive" ? "secondary" : "outline"} className="text-xs">
+                      {instructor.status === "inactive" ? "Inaktiv" : "Aktiv"}
+                    </Badge>
+                  )}
+                </td>
+                <td className="px-4 py-3" onClick={stop}>
+                  {canEdit ? (
+                    <Select
+                      value={instructor.real_time_status || "unavailable"}
+                      disabled={busy(instructor.id)}
+                      onValueChange={(v) => field.mutate({ id: instructor.id, real_time_status: v })}
+                    >
+                      <SelectTrigger className="h-8 w-[160px]" aria-label={`Operativer Status ${fullName}`}>
+                        <span className="inline-flex items-center gap-2">
+                          <span className={cn("h-2 w-2 rounded-full", status.color)} aria-hidden="true" />
+                          <SelectValue />
+                        </span>
+                      </SelectTrigger>
+                      <SelectContent>
+                        {OPERATIONAL.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <span className="inline-flex items-center gap-2">
+                      <span className={cn("h-2 w-2 rounded-full", status.color)} aria-hidden="true" />
+                      <span>{status.label}</span>
+                    </span>
+                  )}
+                </td>
+                <td className="px-4 py-3" onClick={stop}>
+                  {(() => {
+                    const shown = !!instructor.show_on_website;
+                    const blocker = homepageBlocker(instructor);
+                    const live = shown && instructor.status === "active";
+                    return (
+                      <span className="inline-flex items-center gap-2" title={blocker ?? undefined}>
+                        <Switch
+                          checked={shown}
+                          disabled={!canEdit || !!blocker || busy(instructor.id)}
+                          onCheckedChange={(v) => website.mutate({ instructor, show: v })}
+                          aria-label={`Auf Homepage anzeigen ${fullName}`}
+                        />
+                        <span className="text-xs text-muted-foreground">
+                          {live ? "Sichtbar" : shown ? "Pausiert (inaktiv)" : blocker && canEdit && instructor.status === "active" ? "Teaser fehlt" : "Aus"}
+                        </span>
+                      </span>
+                    );
+                  })()}
                 </td>
                 <td className="px-4 py-3 text-right tabular-nums text-muted-foreground">
                   {instructor.todayBookingsCount} Buchungen

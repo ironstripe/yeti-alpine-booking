@@ -92,15 +92,17 @@ Deno.serve(async (req) => {
       .eq("id", photoId).eq("instructor_id", id).eq("is_current", true).maybeSingle();
     if (!stillCurrent) return json({ error: "photo_changed" }, 409);
   }
-  if (!publicUrl) return json({ error: "public_photo_required" }, 422);
+  // No photo is allowed: the homepage shows a neutral placeholder. A private-bucket
+  // or signed URL is never kept as the public portrait.
+  if (publicUrl.includes("instructor-hr-photos") || publicUrl.includes("/object/sign/")) publicUrl = "";
 
   // Only public-profile fields change. An omitted title remains untouched for old clients.
   // Never write payroll, contact,
   // Booking source links, the private photo row or unrelated instructor fields.
   const { data: saved, error: saveError } = await sb.from("instructors")
-    .update({ avatar_url: publicUrl, website_teaser: teaser, show_on_website: true,
+    .update({ ...(publicUrl ? { avatar_url: publicUrl } : {}), website_teaser: teaser, show_on_website: true,
       ...(hasTitle ? { website_role_title: title || null } : {}) })
     .eq("id", id).eq("status", "active").select("id").maybeSingle();
   if (saveError || !saved) return json({ error: "publish_failed" }, 409);
-  return json({ ok: true, published: true, avatar_url: publicUrl });
+  return json({ ok: true, published: true, avatar_url: publicUrl || null });
 });
