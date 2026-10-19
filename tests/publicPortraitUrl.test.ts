@@ -1,11 +1,26 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { publicPortraitUrl } from "../supabase/functions/_shared/publicPortraitUrl.ts";
+import { placeholderPortraitUrl } from "../supabase/functions/_shared/placeholderPortrait.ts";
 import { homepageBlocker } from "../src/hooks/homepageBlocker.ts";
 
 test("missing photo yields null placeholder, not a hidden profile", () => {
   assert.equal(publicPortraitUrl(null), null);
   assert.equal(publicPortraitUrl("  "), null);
+});
+test("placeholder portraits map by gender, male as default", () => {
+  const female = placeholderPortraitUrl("f");
+  const male = placeholderPortraitUrl("m");
+  assert.match(female, /instructor-placeholder-female\.jpg$/);
+  assert.match(male, /instructor-placeholder-male\.jpg$/);
+  assert.equal(placeholderPortraitUrl("female"), female);
+  assert.equal(placeholderPortraitUrl("weiblich"), female);
+  assert.equal(placeholderPortraitUrl(null), male);
+  assert.equal(placeholderPortraitUrl("x"), male);
+});
+test("placeholder URLs are absolute public site URLs", () => {
+  assert.match(placeholderPortraitUrl("f"), /^https:\/\//);
+  assert.doesNotMatch(placeholderPortraitUrl("f"), /instructor-hr-photos|\/object\/sign\//);
 });
 test("private HR photos and signed URLs never become public", () => {
   assert.equal(publicPortraitUrl("https://x/storage/v1/object/public/instructor-hr-photos/a.jpg"), null);

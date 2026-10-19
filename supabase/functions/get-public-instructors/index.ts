@@ -36,7 +36,7 @@ Deno.serve(async (req) => {
         if (!displayName) return null;
         const teaser = (r.website_teaser ?? "").trim();
         if (!teaser) return null;
-        const portraitUrl = publicPortraitUrl(r.avatar_url);
+        const portraitUrl = publicPortraitUrl(r.avatar_url) ?? placeholderPortraitUrl(r.gender);
         return {
           display_name: displayName,
           role_label: publicInstructorTitle({
@@ -46,7 +46,9 @@ Deno.serve(async (req) => {
             website_role_title: r.website_role_title ?? null,
           }),
           teaser,
-          portrait_url: portraitUrl, // null → Onepager shows neutral placeholder
+          // Real photo when available; otherwise the gender-matched illustration
+          // hosted by Core, so the Onepager needs no placeholder of its own.
+          portrait_url: portraitUrl,
         };
       })
       .filter(Boolean);
