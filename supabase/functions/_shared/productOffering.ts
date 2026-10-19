@@ -8,6 +8,9 @@ export const weekdayLabels = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'F
 const clock = (s: string) => /^([01]\d|2[0-3]):[0-5]\d$/.test(s);
 const minutes = (s: string) => Number(s.slice(0, 2)) * 60 + Number(s.slice(3));
 export function offeringDuration(blocks: TimeBlock[]): number { return blocks.reduce((sum, b) => sum + minutes(b.end) - minutes(b.start), 0); }
+/** Confirmed rule: each booked clock block includes a 5-minute change-over; effective teaching = clock - 5 per block. Scheduling/payroll always use the clock length. */
+export const TEACHING_CHANGEOVER_MINUTES = 5;
+export function effectiveBlockMinutes(b: TimeBlock): number { const m = minutes(b.end) - minutes(b.start); return Number.isFinite(m) && m > TEACHING_CHANGEOVER_MINUTES ? m - TEACHING_CHANGEOVER_MINUTES : 0; }
 export function normalizeScheduleText(text?: string | null): string | null { return text?.trim() || null; }
 export function validateScheduleText(text: unknown): string | null {
   if (text == null) return null;
@@ -90,6 +93,8 @@ export function offeringPreview(o: ProductOffering | null): string {
   if (o.schedule_kind === 'flexible_private') return text ?? 'Privatstunden nach Verfügbarkeit';
   const seriesLabel=o.series?.length ? o.series.map(s=>`${s.label?.trim() || `Serie ${s.sequence}`}: ${s.start_date.split('-').reverse().join('.')}–${s.end_date.split('-').reverse().join('.')}`).join(' · ') : null;
   const days = text ?? seriesLabel ?? (o.schedule_kind === 'weekly' ? o.weekdays.map(d => `Jeden ${weekdayLabels[d - 1]}`).join(', ') : o.dates.map(d => d.split('-').reverse().join('.')).join(', '));
-  const duration = offeringDuration(o.time_blocks);
-  return `${days} · ${o.time_blocks.map(b => `${b.start || '…'}–${b.end || '…'}`).join(' + ')}${Number.isFinite(duration) && duration > 0 ? ` · ${duration} Min. pro Tag` : ''}`;
+  const effective = o.time_blocks.map(effectiveBlockMinutes);
+  const known = effective.length > 0 && effective.every(m => m > 0);
+  const label = !known ? '' : new Set(effective).size === 1 ? `${effective.length > 1 ? `${effective.length} × ` : ''}${effective[0]} Min. Unterricht` : `${effective.join(' + ')} Min. Unterricht`;
+  return `${days} · ${o.time_blocks.map(b => `${b.start || '…'}–${b.end || '…'}`).join(' + ')}${label ? ` · ${label}` : ''}`;
 }
