@@ -102,7 +102,7 @@ export const ProductPublicOfferingEditor = forwardRef<ProductOfferingHandle,Prop
     <div className="space-y-2 border-t pt-3" aria-label="Website-Vorschau">
       <h4 className="text-sm font-medium">Website-Vorschau</h4><p className="font-medium break-words">{props.name}</p>
       <p className="text-sm text-muted-foreground break-words">{offeringPreview(draft)}</p>
-      <p className="text-sm">{props.durationMinutes ? `${props.durationMinutes} Min.` : ''}</p>
+      <p className="text-sm">{props.durationMinutes ? `Produktdauer: ${props.durationMinutes} Min.` : ''}</p>
       <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">{props.tiers.length ? props.tiers.filter(t=>t.cumulative_price>0).map(t=><span key={t.day_count}>{t.day_count} {t.day_count===1?'Tag':'Tage'}: {formatPriceCHF(t.cumulative_price)}</span>) : <span>{formatPriceCHF(props.price)}</span>}</div>
     </div>
   </section>;

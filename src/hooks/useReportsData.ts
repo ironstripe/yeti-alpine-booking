@@ -512,11 +512,11 @@ export const useInstructorStats = (dateRange: DateRange) => {
         if (countedSessions.has(key)) return;
         countedSessions.add(key);
 
+        // Payroll = full booked clock block; effective teaching time never overrides it.
         const minutes =
-          item.actual_duration_minutes ??
-          (item.time_start && item.time_end
+          item.time_start && item.time_end
             ? minutesBetween(item.time_start, item.time_end)
-            : item.product?.duration_minutes ?? 0);
+            : item.product?.duration_minutes ?? 0;
         const hours = (minutes || 0) / 60;
 
         const current = instructorHoursMap.get(item.instructor_id) || { private: 0, group: 0 };

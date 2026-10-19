@@ -68,9 +68,9 @@ export function itemSessions(item: ScheduledItem, start: string, end: string): A
       }));
   }
   if (item.date < start || item.date > end) return [];
-  const minutes =
-    item.actual_duration_minutes ??
-    (item.time_start && item.time_end ? minutesBetween(item.time_start, item.time_end) : item.product?.duration_minutes ?? 0);
+  // Scheduling/payroll minutes = full booked clock block. actual_duration_minutes is the
+  // informational effective teaching time and never overrides payroll.
+  const minutes = item.time_start && item.time_end ? minutesBetween(item.time_start, item.time_end) : item.product?.duration_minutes ?? 0;
   return [{ key: sessionKey({ instructorId: item.instructor_id ?? null, date: item.date, timeStart: item.time_start, timeEnd: item.time_end }), minutes: minutes || 0 }];
 }
 
