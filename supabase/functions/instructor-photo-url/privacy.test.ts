@@ -14,7 +14,7 @@ Deno.test("signed URL endpoint is staff-only, short-lived, never persisted", () 
   assertEquals(/TTL = 300/.test(url), true);
   assert(!/\.update\(/.test(url));
 });
-Deno.test("public team export gated on active + show_on_website, never private bucket", () => {
+Deno.test("public team export gated on active + show_on_website, never private bucket", async () => {
   assert(pub.includes('.eq("status", "active")') && pub.includes('.eq("show_on_website", true)'));
   assert(!pub.includes('.from("instructor-hr-photos")') && !pub.includes('.from("instructor_photos")'));
   assert(pub.includes("if (!teaser) return null"));
