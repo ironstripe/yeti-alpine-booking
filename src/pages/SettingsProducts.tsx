@@ -40,6 +40,7 @@ import { ProductFormModal } from "@/components/settings/ProductFormModal";
 import { BookingCornerTariffDialog } from "@/components/settings/BookingCornerTariffDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { getProductPriceDisplay, formatPriceCHF } from "@/lib/pricing-utils";
+import { formatDurationLabel } from "@/lib/productDurationLabel";
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -250,9 +251,9 @@ export default function SettingsProducts() {
                           ) : (
                             <span>{formatPriceCHF(product.price)}</span>
                           )}
-                          {pricingType !== "tiered" && !(draft && product.type === "private") && product.duration_minutes && (
+                          {pricingType !== "tiered" && pricingType !== "hourly" && !(draft && product.type === "private") && product.duration_minutes && (
                             <span className="text-muted-foreground">
-                              /{product.duration_minutes >= 60 ? `${product.duration_minutes / 60}h` : `${product.duration_minutes}min`}
+                              /{formatDurationLabel(product.duration_minutes)}
                             </span>
                           )}
                         </TableCell>

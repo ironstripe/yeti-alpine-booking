@@ -62,7 +62,7 @@ export function BookingCornerTariffDialog({ product, onOpenChange }: Props) {
               <TableBody>
                 {[...new Set(tariffs.map(t => t.duration_minutes))].sort((a, b) => a - b).map(minutes => (
                   <TableRow key={minutes}>
-                    <TableCell className="whitespace-nowrap font-medium">{minutes / 60} {minutes === 60 ? "Stunde" : "Stunden"}</TableCell>
+                    <TableCell className="whitespace-nowrap font-medium">{Math.round(minutes / 60)} {minutes === 60 ? "Stunde" : "Stunden"}</TableCell>
                     {[1, 2, 3, 4, 5].map(n => {
                       const row = tariffs.find(t => t.duration_minutes === minutes && t.persons_per_lesson === n);
                       return <TableCell key={n} className="whitespace-nowrap" title={row ? `Booking-Corner Tarif ${row.source_id}` : "Kein Quelltarif"}>{row ? formatPriceCHF(Number(row.price_chf)) : "–"}</TableCell>;
@@ -77,7 +77,7 @@ export function BookingCornerTariffDialog({ product, onOpenChange }: Props) {
             <TableHeader><TableRow><TableHead>Tage</TableHead><TableHead>Pro Tag</TableHead><TableHead>Quelltarif (kumulativ)</TableHead></TableRow></TableHeader>
             <TableBody>{tariffs.map(row => (
               <TableRow key={row.source_id} title={`Booking-Corner Tarif ${row.source_id}`}>
-                <TableCell>{row.day_count}</TableCell><TableCell>{row.duration_minutes / 60} h</TableCell>
+                <TableCell>{row.day_count}</TableCell><TableCell>{Math.round(row.duration_minutes / 60)} h</TableCell>
                 <TableCell>{formatPriceCHF(Number(row.price_chf))}</TableCell>
               </TableRow>
             ))}</TableBody>
