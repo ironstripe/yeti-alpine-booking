@@ -1,0 +1,15 @@
+-- Pending (not installed): product duration (effective teaching minutes) is independent of website clock blocks.
+-- Removes only the 'Time blocks must match product duration' rejection; all other checks unchanged.
+CREATE OR REPLACE FUNCTION public.product_offering_validate()
+ RETURNS trigger LANGUAGE plpgsql SET search_path TO 'public'
+AS $function$
+DECLARE p record; s record;
+BEGIN
+  SELECT type, duration_minutes, season_id INTO p FROM public.products WHERE id=NEW.product_id FOR UPDATE;
+  IF NEW.schedule_kind='flexible_private' AND p.type<>'private' THEN RAISE EXCEPTION 'Flexible schedule requires private product'; END IF;
+  IF NEW.schedule_kind='explicit_dates' AND p.season_id IS NOT NULL THEN
+    SELECT start_date,end_date INTO s FROM public.seasons WHERE id=p.season_id;
+    IF EXISTS (SELECT 1 FROM unnest(NEW.dates) d WHERE d<s.start_date OR d>s.end_date) THEN RAISE EXCEPTION 'Date outside season'; END IF;
+  END IF;
+  RETURN NEW;
+END $function$;
