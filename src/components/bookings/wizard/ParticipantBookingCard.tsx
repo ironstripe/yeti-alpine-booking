@@ -1,6 +1,5 @@
-import { groupLunchEligible } from "@/lib/groupLunch";
 import { useLunchProduct } from "@/hooks/useLunchProduct";
-import { LunchSupervisionAddon } from "./LunchSupervisionAddon";
+import { GroupLunchSelection } from "./GroupLunchSelection";
 import { useEffect, useMemo } from "react";
 import { AlertTriangle, CalendarDays, Clock, Copy, MapPin, Users } from "lucide-react";
 import { MEETING_POINTS } from "@/lib/meeting-point-utils";
@@ -101,13 +100,12 @@ export function ParticipantBookingCard({ participant, booking, sport, onBookingC
           ) : <div className="flex items-center gap-1 text-muted-foreground"><MapPin className="h-3.5 w-3.5" />{selected.meeting_point}</div>}
           {selected.persistenceBlocker && <Alert variant="destructive" className="mt-2 py-2"><AlertTriangle className="h-4 w-4" /><AlertDescription>{selected.persistenceBlocker}</AlertDescription></Alert>}
         </div>}
-        {groupLunchEligible({ server: booking.groupServer, blocks: booking.groupBlocks }, booking.dates) && (
-          lunchProduct ? <LunchSupervisionAddon selectedDates={booking.dates} participants={[participant]}
+        <GroupLunchSelection plan={{ server: booking.groupServer, blocks: booking.groupBlocks }}
+            selectedDates={booking.dates} participants={[participant]}
             lunchSelections={{ [participant.id]: booking.lunchDays }} vegetarianSelections={{ [participant.id]: booking.isVegetarian }}
             onLunchDaysChange={(_, days) => onBookingChange({ ...booking, lunchDays: days })}
             onVegetarianChange={(_, isVegetarian) => onBookingChange({ ...booking, isVegetarian })}
-            lunchPricePerDay={lunchProduct.price} /> : <p className="text-sm text-muted-foreground">Mittagessen und Betreuung: ein aktives Produkt zu CHF 30 pro Person und Tag fehlt.</p>
-        )}
+            lunchPricePerDay={lunchProduct?.price ?? null} />
         {!isFirst && <Button variant="ghost" size="sm" onClick={onCopyToAll}><Copy className="mr-1 h-3.5 w-3.5" />Kurs des ersten Teilnehmers übernehmen</Button>}
       </CardContent>
     </Card>
