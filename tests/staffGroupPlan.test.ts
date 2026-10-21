@@ -52,6 +52,32 @@ function groupState(over: Partial<BookingWizardState> = {}): BookingWizardState 
 }
 
 describe("staff group payload", () => {
+  test("half-day switch keeps lunch rejected until explicitly removed", () => {
+    const full = groupState({ lunchSelections: { pa: [WEEK[0]] } });
+    expect(buildStaffGroupLines(full, 30).kind).toBe("server");
+    const half = serverOptionToBookable(opt({ block: "am", duration_minutes: 120 }));
+    const changed = { ...full, groupPlan: { ...full.groupPlan, server: half.server, blocks: half.blocks } } as BookingWizardState;
+    expect(buildStaffGroupLines(changed, 30).kind).toBe("error");
+    const cleared = buildStaffGroupLines({ ...changed, lunchSelections: { pa: [] } });
+    expect(cleared.kind).toBe("server");
+    if (cleared.kind !== "server") throw new Error("Expected recovered half-day payload");
+    expect(cleared.lines.every(line => line.lunch_dates === undefined)).toBe(true);
+    expect(cleared.lines[0].expected_unit_price).toBe(320);
+  });
+  test("per-person removal unblocks only that half-day course and preserves other lunch", () => {
+    const state = groupState({ useParticipantSpecificBooking: true, participantBookings: {
+      pa: { groupServer: { courseId: "c1", productId: "p4", block: "am", unitPrice: 70 }, dates: WEEK, groupMeetingPoint: "Täli", lunchDays: [WEEK[0]] },
+      "guest-1": { groupServer: { courseId: "c2", productId: "p4", block: null, unitPrice: 320 }, groupBlocks: serverOptionToBookable(opt()).blocks, dates: WEEK, groupMeetingPoint: "Täli", lunchDays: [WEEK[0]], isVegetarian: true },
+    } } as never);
+    expect(buildStaffGroupLines(state, 30).kind).toBe("error");
+    state.participantBookings.pa = { ...state.participantBookings.pa, lunchDays: [] };
+    const result = buildStaffGroupLines(state, 30);
+    expect(result.kind).toBe("server");
+    if (result.kind !== "server") throw new Error("Expected recovered participant payload");
+    expect(result.lines[0].lunch_dates).toBeUndefined();
+    expect(result.lines[1]).toMatchObject({ lunch_dates: [WEEK[0]], vegetarian: true });
+    expect(staffGroupTotal(result.lines)).toBe(420);
+  });
   test("shared plan: one line per assigned participant, existing id or explicit new person", () => {
     const r = buildStaffGroupLines(groupState());
     expect(r.kind).toBe("server");

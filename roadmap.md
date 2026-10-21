@@ -1,5 +1,9 @@
 # Roadmap
 
+## Active QA fix — lunch after course switch
+- [x] Keep prior lunch selections removable in shared and participant-specific course selection, preserving full-day-only validation; no automatic clearing.
+- [x] 48 focused tests pass, including per-person payload recovery preserving the other person's lunch; synthetic browser full-day → half-day/legacy → remove → payload recovery at 1280×1800 and 390×700, no automatic re-selection or runtime errors; build OK. No business writes, deployment or publication; actual live booking deliberately not submitted.
+
 ## Lunch and supervision — preparation only
 - [x] Limit existing optional add-on to full-day groups, unique CHF 30 lunch product, separate billing items.
 - [x] Verify 51 unit/regression tests, 33 disposable SQL booking checks, 14 settlement checks, actual addon browser selection/readback at 1280x1800 and 390x700. Existing Office invoice maps every ticket item, including lunch, to a separate line (source verified; no invoice issued).

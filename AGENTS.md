@@ -18,4 +18,4 @@
 
 - Public private display tariffs use revision-checked staff saves; catalog serves verified rows only. Why: safe.
 
-- Group lunch uses canonical full-day blocks and atomic participant/day billing items. Why: no double charges.
+- Lunch: full-day blocks, atomic person/day items; GroupLunchSelection in both modes. Why: safe removal.
