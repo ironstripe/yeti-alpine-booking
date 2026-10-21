@@ -27,8 +27,8 @@ async def main():
               const Refresh = await import("/@react-refresh"); Refresh.default.injectIntoGlobalHook(window); window.$RefreshReg$ = () => {}; window.$RefreshSig$ = () => type => type; window.__vite_plugin_react_preamble_installed__ = true;
               const {default: React} = await import('/node_modules/.vite/deps/react.js');
               const {default: {createRoot}} = await import('/node_modules/.vite/deps/react-dom_client.js');
-              const {LunchSupervisionAddon} = await import('/src/components/bookings/wizard/LunchSupervisionAddon.tsx');
-              const {groupLunchEligible} = await import('/src/lib/groupLunch.ts');
+              const {GroupLunchSelection} = await import('/src/components/bookings/wizard/GroupLunchSelection.tsx');
+              const {buildStaffGroupLines, staffGroupHasLunch} = await import('/src/lib/staffGroupPayload.ts');
               await import('/src/index.css');
               const dates = ['2026-12-14','2026-12-15'];
               const blocks = dates.flatMap(date => [{date,startTime:'10:00',endTime:'12:00'}, {date,startTime:'14:00',endTime:'16:00'}]);
@@ -38,16 +38,23 @@ async def main():
                 const [lunch,setLunch] = React.useState({});
                 const [veg,setVeg] = React.useState({});
                 window.lunchReadback = {lunch,veg,mode};
-                const plan = {server:{...server,block:mode === 'half' ? 'am' : null},blocks};
+                const plan = {server:mode === 'legacy' ? null : {...server,block:mode === 'half' ? 'am' : null},blocks,meetingPoint:'Täli'};
+                const people = [{id:'a',first_name:'Anna'},{id:'b',first_name:'Ben'}];
+                const state = {productType:'group',sport:'ski',selectedDates:dates,groupPlan:plan,
+                  selectedParticipants:people,lunchSelections:lunch,vegetarianSelections:veg,participantBookings:{},
+                  cartItems:[{id:'item',assignedParticipantIds:['a','b']}],activeCartItemId:'item'};
+                window.lunchPayload = buildStaffGroupLines(state,30);
+                window.hasLunch = staffGroupHasLunch(state);
                 return React.createElement('main', {className:'p-4 max-w-3xl'},
                   React.createElement('select', {'aria-label':'Synthetic course',value:mode,onChange:e=>setMode(e.target.value)},
-                    React.createElement('option',{value:'full'},'Full day'), React.createElement('option',{value:'half'},'Half day')),
-                  groupLunchEligible(plan,dates) ? React.createElement(LunchSupervisionAddon,{
+                    React.createElement('option',{value:'full'},'Full day'), React.createElement('option',{value:'half'},'Half day'), React.createElement('option',{value:'legacy'},'Legacy')),
+                  React.createElement(GroupLunchSelection,{
+                    plan,
                     selectedDates:dates, participants:[{id:'a',first_name:'Anna'},{id:'b',first_name:'Ben'}],
                     lunchSelections:lunch,vegetarianSelections:veg,lunchPricePerDay:30,
                     onLunchDaysChange:(id,days)=>setLunch(v=>({...v,[id]:days})),
                     onVegetarianChange:(id,value)=>setVeg(v=>({...v,[id]:value}))
-                  }) : null);
+                  }));
               }
               createRoot(document.getElementById('fixture')).render(React.createElement(Fixture));
             }""")
@@ -63,13 +70,24 @@ async def main():
             assert await page.evaluate("window.lunchReadback.lunch.a.length") == 0
             assert await page.evaluate("window.lunchReadback.lunch.b.length") == 2
             await page.screenshot(path=str(out / f"{width}-optional.png"))
-            await switch.click()
-            assert await page.evaluate("Object.values(window.lunchReadback.lunch).flat().length") == 0
             await page.get_by_label("Synthetic course").select_option("half")
             assert await page.get_by_role("switch").count() == 0
+            await page.get_by_role('button', name='Mittagsauswahl entfernen', exact=True).wait_for()
+            assert await page.evaluate("window.lunchPayload.kind") == 'error'
+            await page.screenshot(path=str(out / f"{width}-half-recovery.png"))
+            await page.get_by_role('button', name='Mittagsauswahl entfernen', exact=True).click()
+            assert await page.evaluate("Object.values(window.lunchReadback.lunch).flat().length") == 0
+            assert await page.evaluate("window.lunchPayload.kind") == 'server'
+            assert await page.evaluate("window.lunchPayload.lines.every(l => !l.lunch_dates)")
             await page.get_by_label("Synthetic course").select_option("full")
             await page.get_by_role("switch").wait_for()
             assert not await page.get_by_role("switch").is_checked()
+            await page.get_by_role('switch').click()
+            await page.get_by_label('Synthetic course').select_option('legacy')
+            await page.get_by_role('button', name='Mittagsauswahl entfernen', exact=True).click()
+            assert not await page.evaluate('window.hasLunch')
+            assert await page.evaluate('window.lunchPayload.kind') == 'none'
+            await page.screenshot(path=str(out / f"{width}-legacy-cleared.png"))
             assert await page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
             assert not errors, errors
             print(f"{width}: optional selection/readback, empty selection stays empty, full-day only, no runtime errors")
