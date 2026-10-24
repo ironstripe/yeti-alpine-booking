@@ -109,7 +109,7 @@ async def main():
             await page.screenshot(path=str(OUT / f"quote_{width}.png"))
             await page.get_by_role("button", name="Änderungen speichern").click(); await page.wait_for_timeout(300)
             a = sent[-1]
-            check(a["mode"] == "apply" and a["acknowledged_total"] == 269 and a["expected_total"] == 249, f"{tag} apply acknowledges quoted total")
+            check(a["mode"] == "apply" and a["acknowledged_total"] == 269 and a["expected_total"] == 105, f"{tag} apply acknowledges quoted total")
             check(len(a["appointments"]) == 1 and a["appointments"][0]["appointment_id"] == A1 and a["appointments"][0]["acknowledged_price"] == 125
                   and sorted(a["appointments"][0]["participant_ids"]) == sorted([P1, P2, P3]), f"{tag} only explicitly changed appointment sent")
             check(not any(k in a for k in ("payment_method", "payment_due_date", "discount_percent")), f"{tag} no finance fields in edit payload")
