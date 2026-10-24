@@ -233,4 +233,4 @@ All real business writes intercepted (any non-GET to the backend fails with 403 
 
 ## Skilehrer list — Saisonstatus default filter (24 Oct 2026)
 - [x] Default status filter "Aktive" (`instructors.status === "active"`), choices Aktive/Inaktive/Alle; search, sort, real-time filter unchanged; Saisonstatus stays independent of Operativer Status and Homepage toggle. No schema/record changes.
-- [ ] Verify in preview: default shows only active, switch Inaktive/Alle, combined search, refresh back to default, desktop/mobile.
+- [x] Verified in preview (signed in as ivo@ivo.ch): default "Aktive" 98/98 (no inactive instructors exist yet), Inaktive → empty state, Alle 98, Aktive+Suche 72, reload returns to "Aktive", mobile 390px OK, no console errors, build OK.
