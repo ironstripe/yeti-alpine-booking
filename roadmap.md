@@ -1,8 +1,8 @@
 # Roadmap
 
 ## B02 independent review — frozen draft payment consistency
-- [ ] Fail closed before writes if a frozen draft snapshot or its payment columns disagree with current routing; preserve snapshotless issuance and issued replay.
-- [ ] Verify realistic production-generated snapshots with synthetic clients only; preserve concurrent/auth changes. No deployment or publication.
+- [x] Fail closed before writes if a frozen draft snapshot or its payment columns disagree with current routing; preserve snapshotless issuance and issued replay. Only historical snapshot creation time is excluded from fresh-routing comparison (validated and retained).
+- [x] 16 focused Deno tests pass using complete production-generated synthetic snapshots, all payment columns and snapshot-field mutations, profile/override changes and document rendering. No frontend edits, deployment, publication or live writes.
 
 ## B02 only — checkout/invoice due date
 - [x] One derived date for checkout display and private/group/legacy create, explicit choices retained, B01 preserved.

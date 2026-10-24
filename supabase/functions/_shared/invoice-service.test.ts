@@ -89,8 +89,8 @@ Deno.test("changed current profile or override metadata cannot mix with a frozen
   }
 });
 Deno.test("each inconsistent frozen payment column fails closed before writes", async () => {
-  for (const key of ["qr_reference", "payment_profile_id", "payment_presentation_type", "payment_reference_type", "payment_reference", "payment_payload_version", "payment_routing_reason", "payment_profile_overridden", "payment_profile_override_reason", "payment_override_by", "currency"]) {
-    const f = await frozenFixture(); f.tables.invoices[0][key] = key === "payment_profile_overridden" ? true : "changed";
+  for (const key of ["qr_reference", "payment_profile_id", "payment_presentation_type", "payment_reference_type", "payment_reference", "payment_payload_version", "payment_routing_reason", "payment_profile_overridden", "payment_profile_override_reason", "payment_override_by", "is_legacy_payment", "currency"]) {
+    const f = await frozenFixture(); f.tables.invoices[0][key] = key === "payment_profile_overridden" || key === "is_legacy_payment" ? true : "changed";
     const before = structuredClone(f.tables.invoices[0]); const r = await issueInvoice(f.sb, input);
     eq(r.error_code, "DRAFT_PAYMENT_MISMATCH"); eq(f.writes, []); eq(f.tables.invoices[0], before);
   }

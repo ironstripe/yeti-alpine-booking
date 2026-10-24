@@ -241,6 +241,7 @@ export async function issueInvoice(
     payment_profile_overridden: !!input.overrideProfileId,
     payment_profile_override_reason: input.overrideProfileId ? input.overrideReason ?? null : null,
     payment_override_by: input.overrideProfileId ? input.actorUserId ?? null : null,
+    is_legacy_payment: false,
   };
   if (resumeDraft?.payment_snapshot != null) {
     const frozen = resumeDraft.payment_snapshot;
@@ -272,7 +273,6 @@ export async function issueInvoice(
       ...paymentFields,
       payment_snapshot: resumeDraft?.payment_snapshot ?? snapshot,
       issued_at: new Date().toISOString(),
-      is_legacy_payment: false,
       status: "open",
     })
     .eq("id", created.id)
