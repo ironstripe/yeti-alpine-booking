@@ -1,9 +1,9 @@
 # Roadmap
 
 ## B02 only — checkout/invoice due date
-- [ ] One derived date for checkout display and private/group/legacy create, explicit choices retained, B01 preserved.
-- [ ] New invoice reads ticket date fail-closed; issued and resumed invoice dates stay frozen.
-- [ ] Synthetic regression/browser and Edge checks; no live writes, migration, deployment or publication.
+- [x] One derived date for checkout display and private/group/legacy create, explicit choices retained, B01 preserved.
+- [x] New invoice reads ticket date fail-closed; issued and resumed invoice dates/snapshots stay frozen; confirmation copies the issued invoice date.
+- [x] 290 unit tests pass (3 existing skips), 12 Deno invoice tests, 130 desktop/mobile browser checks including intercepted create/legacy insert, four consumer Edge checks; automatic build OK. No live writes, migration, deployment or publication. Details and rollback: docs/b02-verification.md.
 
 ## Active QA fix — lunch after course switch
 - [x] Keep prior lunch selections removable in shared and participant-specific course selection, preserving full-day-only validation; no automatic clearing.
