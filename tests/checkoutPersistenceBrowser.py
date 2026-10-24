@@ -19,10 +19,12 @@ FIXTURE = r"""async () => {
   const {Step4Summary} = await import('/src/components/bookings/wizard/Step4Summary.tsx');
   const {checkoutSubmitFlags} = await import('/src/lib/checkoutSubmitFlags.ts');
   const {checkoutPaymentDueDate} = await import('/src/lib/checkoutDueDate.ts');
+  const {useCreateBooking} = await import('/src/hooks/useCreateBooking.ts');
   await import('/src/index.css');
   const h = React.createElement;
   function Probe() {
     const w = W.useBookingWizard();
+    const create = useCreateBooking(); window.runCreate = (state) => create.mutateAsync(state);
     const [shown, setShown] = React.useState(true);
     window.wiz = w; window.readback = {...w.state, effective: checkoutSubmitFlags(w.state), effectiveDueDate: checkoutPaymentDueDate(w.state)};
     window.unmountSummary = () => setShown(false); window.mountSummary = () => setShown(true);
@@ -59,9 +61,12 @@ async def main():
                 if url == "http://localhost:8080/checkout-fixture":
                     return await route.fulfill(content_type="text/html", body='<html><body><div id="fixture"></div></body></html>')
                 if url.startswith("http://localhost:8080"): return await route.continue_()
-                if "/functions/v1/private-appointments" in url and req.method == "POST":
+                if ("/functions/v1/private-appointments" in url or "/functions/v1/staff-group-booking" in url) and req.method == "POST":
                     captured.append(req.post_data_json)
                     return await route.fulfill(content_type="application/json", body=json.dumps({"ticket_id":"synthetic-ticket", "ticket_number":"TEST-ONLY", "appointment_ids":[], "total":100}))
+                if "/rest/v1/tickets" in url and req.method == "POST":
+                    captured.append({"legacy":req.post_data_json})
+                    return await route.fulfill(status=400,content_type="application/json",body=json.dumps({"message":"synthetic stop after capturing insert"}))
                 if req.method not in ("GET", "HEAD", "OPTIONS") and "/rest/v1/rpc/instructors_ops_list" not in url: writes.append(url); return await route.abort()
                 body = [HOTEL] if "/rest/v1/billing_partners" in url else ([{"id":"synthetic-product", "type":"private", "price":100, "is_active":True}] if "/rest/v1/products" in url else [])
                 await route.fulfill(content_type="application/json", body=json.dumps(body))
@@ -157,6 +162,20 @@ async def main():
             check(len(captured) == 1, f"{tag} real summary submit reaches intercepted private create")
             if captured:
                 check(captured[0]["finalization"]["payment_due_date"] == "2026-12-14", f"{tag} outgoing private due date matches displayed default")
+            for method in ["cash","card","twint","voucher","invoice","hotel"]:
+                for manual in [None,"2026-12-01"]:
+                    await page.evaluate("""async ([method,date]) => {
+                      await window.runCreate({...window.wiz.state,paymentMethod:method,settlement:'pay_later',paymentDueDate:date,billingPartnerId:method==='hotel'?'hotel-synthetic':null});
+                    }""", [method,manual])
+                    check(captured[-1]["finalization"]["payment_due_date"] == (manual or "2026-12-14"),f"{tag} real hook private {method} default/manual payload")
+            for method in ["cash","card","twint","voucher"]:
+                await page.evaluate("async method => window.runCreate({...window.wiz.state,paymentMethod:method,settlement:'paid_now',paymentDueDate:null})", method)
+                check(captured[-1]["finalization"]["payment_due_date"] is None and captured[-1]["finalization"]["settlement"] == "paid_now",f"{tag} real hook {method} paid_now unchanged")
+            await page.evaluate("""async () => window.runCreate({...window.wiz.state,productType:'group',sport:'ski',paymentMethod:'cash',settlement:'pay_later',paymentDueDate:null,
+              groupPlan:{server:{courseId:'synthetic-course',productId:'synthetic-group',block:'am',unitPrice:100},meetingPoint:'malbipark',blocks:[{date:'2026-12-21',startTime:'10:00',endTime:'12:00'}]},meetingPoint:'malbipark'})""")
+            check(captured[-1]["booking"]["finalization"]["payment_due_date"] == "2026-12-14",f"{tag} real hook group payload same date")
+            await page.evaluate("async () => {try {await window.runCreate({...window.wiz.state,productType:null,selectedParticipants:[],paymentMethod:'cash',settlement:'pay_later',paymentDueDate:null})} catch {}}")
+            check(captured[-1].get("legacy",{}).get("payment_due_date") == "2026-12-14",f"{tag} real hook legacy insert same date (synthetic rejection)")
             await page.screenshot(path=str(OUT / f"after_reset_{width}.png"))
             check(not writes, f"{tag} no backend writes ({writes[:2]})")
             check(not errors, f"{tag} no runtime errors ({errors[:2]})")
