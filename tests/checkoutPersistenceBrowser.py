@@ -9,13 +9,13 @@ OUT = Path("/tmp/browser/checkout"); OUT.mkdir(parents=True, exist_ok=True)
 
 FIXTURE = """async () => {
   const Refresh = await import('/@react-refresh'); Refresh.default.injectIntoGlobalHook(window); window.$RefreshReg$ = () => {}; window.$RefreshSig$ = () => t => t; window.__vite_plugin_react_preamble_installed__ = true;
-  const {default: React} = await import('/node_modules/.vite/deps/react.js');
+  const {default: React} = await import((await (await fetch('/src/components/bookings/wizard/Step4Summary.tsx')).text()).match(/from "([^"]*\/deps\/react\.js[^"]*)"/)[1]);
   const {default: {createRoot}} = await import('/node_modules/.vite/deps/react-dom_client.js');
   // Use the exact dependency URLs Vite gave the app modules (same instances as Step4Summary).
-  const dep = async (src, name) => (await (await fetch(src)).text()).match(new RegExp('from "(/node_modules/.vite/deps/' + name + '[^"]*)"'))[1];
+  const dep = async (src, name) => (await (await fetch(src)).text()).match(new RegExp('from "([^"]*/' + name + '[^"]*)"'))[1];
   const {MemoryRouter} = await import(await dep('/src/components/bookings/wizard/Step4Summary.tsx', 'react-router-dom'));
   const {QueryClient, QueryClientProvider} = await import(await dep('/src/hooks/useBillingPartners.ts', '@tanstack_react-query'));
-  const W = await import('/src/contexts/BookingWizardContext.tsx');
+  const W = await import(await dep('/src/components/bookings/wizard/Step4Summary.tsx', 'BookingWizardContext'));
   const {Step4Summary} = await import('/src/components/bookings/wizard/Step4Summary.tsx');
   const {checkoutSubmitFlags} = await import('/src/lib/checkoutSubmitFlags.ts');
   await import('/src/index.css');
