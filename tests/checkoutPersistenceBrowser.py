@@ -61,7 +61,7 @@ async def main():
                 await route.fulfill(content_type="application/json", body=json.dumps(body))
             await page.route("**/*", intercept)
             await page.goto("http://localhost:8080/checkout-fixture")
-            await page.evaluate(FIXTURE)
+            await page.evaluate(FIXTURE); await page.wait_for_timeout(3000); print("ERR", errors[:3]); print((await page.inner_text("body"))[:300])
             await page.get_by_text("Buchung abschliessen").wait_for()
             tag = f"[{width}]"
 
