@@ -667,6 +667,7 @@ function SchedulerGridContent() {
             capabilityFilter={capabilityFilter}
             compactMode={compactMode}
             instructorRefs={instructorRefs}
+            scrollContainerRef={scrollContainerRef}
             isPlanningMode={isPlanningMode}
             roleFilter={roleFilter}
             instructorColumnWidth={effectiveInstructorColumnWidth}
