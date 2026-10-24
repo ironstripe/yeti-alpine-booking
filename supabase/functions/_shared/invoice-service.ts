@@ -220,24 +220,57 @@ export async function issueInvoice(
   });
 
   if (!routing.ok) {
+    // Never delete a frozen draft when current configuration can no longer route it.
+    if (resumeDraft?.payment_snapshot != null) {
+      return { ok: false, error_code: "DRAFT_PAYMENT_MISMATCH", error: "Eingefrorene Zahlungsdaten passen nicht zur aktuellen Zahlungsroute. Rechnungsentwurf unverändert." };
+    }
     await supabase.from("invoices").delete().eq("id", created.id);
     return { ok: false, error_code: routing.error_code, error: routing.error };
+  }
+
+  const { profile, snapshot } = routing;
+  if (!profile || !snapshot) return { ok: false, error_code: "SNAPSHOT_FAILED", error: "Zahlungsdaten fehlen." };
+  const paymentFields = {
+    qr_reference: routing.reference || "",
+    payment_profile_id: profile.id,
+    payment_presentation_type: routing.presentation_type,
+    payment_reference_type: routing.reference_type,
+    payment_reference: routing.reference || null,
+    payment_payload_version: snapshot.payload_version,
+    payment_routing_reason: routing.routing_reason,
+    payment_profile_overridden: !!input.overrideProfileId,
+    payment_profile_override_reason: input.overrideProfileId ? input.overrideReason ?? null : null,
+    payment_override_by: input.overrideProfileId ? input.actorUserId ?? null : null,
+  };
+  if (resumeDraft?.payment_snapshot != null) {
+    const frozen = resumeDraft.payment_snapshot;
+    // Compare the complete production snapshot, including QR amount/debtor payload.
+    // Its creation timestamp is historical, not a fresh routing decision.
+    const snapshotMatches = typeof frozen === "object" && !Array.isArray(frozen)
+      && Object.keys(frozen).length === Object.keys(snapshot).length
+      && typeof frozen.snapshot_created_at === "string" && Number.isFinite(Date.parse(frozen.snapshot_created_at))
+      && Object.entries(snapshot).every(([key, value]) => {
+        if (key === "snapshot_created_at") return true;
+        if (key === "account_holder_address") {
+          const address = frozen[key];
+          return address && typeof address === "object" && !Array.isArray(address)
+            && Object.keys(address).length === Object.keys(snapshot.account_holder_address).length
+            && Object.entries(snapshot.account_holder_address).every(([field, expected]) => address[field] === expected);
+        }
+        return frozen[key] === value;
+      });
+    const columnsMatch = Object.entries(paymentFields).every(([key, value]) => resumeDraft?.[key] === value)
+      && resumeDraft.currency === snapshot.currency;
+    if (!snapshotMatches || !columnsMatch) {
+      return { ok: false, error_code: "DRAFT_PAYMENT_MISMATCH", error: "Eingefrorene Zahlungsdaten passen nicht zur aktuellen Zahlungsroute. Rechnungsentwurf unverändert." };
+    }
   }
 
   const { data: issued, error: updateError } = await supabase
     .from("invoices")
     .update({
-      qr_reference: routing.reference || "",
-      payment_profile_id: routing.profile!.id,
-      payment_presentation_type: routing.presentation_type,
-      payment_snapshot: resumeDraft?.payment_snapshot ?? routing.snapshot,
-      payment_reference_type: routing.reference_type,
-      payment_reference: routing.reference || null,
-      payment_payload_version: routing.snapshot!.payload_version,
-      payment_routing_reason: routing.routing_reason,
-      payment_profile_overridden: !!input.overrideProfileId,
-      payment_profile_override_reason: input.overrideProfileId ? input.overrideReason ?? null : null,
-      payment_override_by: input.overrideProfileId ? input.actorUserId ?? null : null,
+      ...paymentFields,
+      payment_snapshot: resumeDraft?.payment_snapshot ?? snapshot,
       issued_at: new Date().toISOString(),
       is_legacy_payment: false,
       status: "open",
@@ -267,8 +300,8 @@ export async function issueInvoice(
       billing_country: debtor.country,
       currency,
       presentation_type: routing.presentation_type,
-      profile_id: routing.profile!.id,
-      profile_name: routing.profile!.name,
+      profile_id: profile.id,
+      profile_name: profile.name,
       reference_type: routing.reference_type,
       routing_reason: routing.routing_reason,
       overridden: !!input.overrideProfileId,
