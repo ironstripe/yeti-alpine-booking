@@ -230,3 +230,7 @@ All real business writes intercepted (any non-GET to the backend fails with 403 
 
 ## Product delete follow-up
 - [ ] Waiting on Ivo: which product failed to delete. Imported products blocked only by their Booking-Corner price entry would need a decision before that entry may be deleted.
+
+## Skilehrer list — Saisonstatus default filter (24 Oct 2026)
+- [x] Default status filter "Aktive" (`instructors.status === "active"`), choices Aktive/Inaktive/Alle; search, sort, real-time filter unchanged; Saisonstatus stays independent of Operativer Status and Homepage toggle. No schema/record changes.
+- [ ] Verify in preview: default shows only active, switch Inaktive/Alle, combined search, refresh back to default, desktop/mobile.
