@@ -18,12 +18,13 @@ FIXTURE = r"""async () => {
   const W = await import(await dep('/src/components/bookings/wizard/Step4Summary.tsx', 'BookingWizardContext'));
   const {Step4Summary} = await import('/src/components/bookings/wizard/Step4Summary.tsx');
   const {checkoutSubmitFlags} = await import('/src/lib/checkoutSubmitFlags.ts');
+  const {checkoutPaymentDueDate} = await import('/src/lib/checkoutDueDate.ts');
   await import('/src/index.css');
   const h = React.createElement;
   function Probe() {
     const w = W.useBookingWizard();
     const [shown, setShown] = React.useState(true);
-    window.wiz = w; window.readback = {...w.state, effective: checkoutSubmitFlags(w.state)};
+    window.wiz = w; window.readback = {...w.state, effective: checkoutSubmitFlags(w.state), effectiveDueDate: checkoutPaymentDueDate(w.state)};
     window.unmountSummary = () => setShown(false); window.mountSummary = () => setShown(true);
     return shown ? h(Step4Summary, {onEditStep: () => {}}) : h('p', null, 'Schritt 1');
   }
@@ -66,6 +67,22 @@ async def main():
             await page.evaluate(FIXTURE)
             await page.get_by_text("Buchung abschliessen").wait_for()
             tag = f"[{width}]"
+
+            # B02: defaults stay derived, explicit dates persist through date/method/navigation changes.
+            await page.evaluate("window.wiz.setSelectedDates(['2026-12-22','2026-12-21'])")
+            for label in ["Bar", "Karte", "TWINT", "Gutschein", "Rechnung", "Hotel"]:
+                await page.get_by_role("button", name=label, exact=True).click()
+                await page.locator("#settle-later").click()
+                await remount(page)
+                check(await page.locator("#due-date").input_value() == "2026-12-14" and (await rb(page))["effectiveDueDate"] == "2026-12-14", f"{tag} {label} default display/effective match")
+                check((await rb(page))["paymentDueDate"] is None, f"{tag} {label} default not mistaken for explicit date")
+            await page.evaluate("window.wiz.setSelectedDates(['2027-01-04'])")
+            check(await page.locator("#due-date").input_value() == "2026-12-28", f"{tag} date change follows default")
+            await page.locator("#due-date").fill("2026-12-01")
+            await page.evaluate("window.wiz.setSelectedDates(['2027-02-01'])")
+            await remount(page)
+            check(await page.locator("#due-date").input_value() == "2026-12-01", f"{tag} explicit date ignores course change")
+            await page.evaluate("window.wiz.resetWizard()")
 
             # paid_now/pay_later for every immediate method survives remount
             for label, method in [("Bar", "cash"), ("Karte", "card"), ("TWINT", "twint"), ("Gutschein", "voucher")]:
