@@ -90,9 +90,9 @@ export function InstructorFilters({
               <SelectValue placeholder="Anstellungsstatus" />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value="active">Aktive</SelectItem>
+              <SelectItem value="inactive">Inaktive</SelectItem>
               <SelectItem value="all">Alle</SelectItem>
-              <SelectItem value="active">Aktiv</SelectItem>
-              <SelectItem value="inactive">Inaktiv</SelectItem>
             </SelectContent>
           </Select>
         </div>
