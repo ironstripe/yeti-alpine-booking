@@ -45,12 +45,10 @@ export async function issueInvoiceThenConfirm(
     }
   }
 
-  const due = new Date(input.now);
-  due.setDate(due.getDate() + 14);
   const { data: updated, error } = await sb.from("tickets").update({
     status: "confirmed",
     payment_method: "invoice",
-    payment_due_date: due.toISOString().slice(0, 10),
+    payment_due_date: invoice.due_date,
     updated_at: input.now.toISOString(),
   }).eq("id", input.ticketId).in("status", ["provisional", "payment_pending"]).select("id");
   if (error) return { ok: false, code: "ticket_update_failed", error: error.message };
