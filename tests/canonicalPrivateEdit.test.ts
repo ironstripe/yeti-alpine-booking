@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { buildEditRequest, draftFromSnapshot, hydrateCanonicalEdit, needsQuote } from "../src/lib/canonicalPrivateEdit";
 import { legacySaveChangesTotal, legacyTicketTotal } from "../src/hooks/useUpdateBooking";
 
