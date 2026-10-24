@@ -1,9 +1,12 @@
-import { useRef, useMemo } from "react";
+import { useMemo } from "react";
 import { format } from "date-fns";
 import { Skeleton } from "@/components/ui/skeleton";
 import { InstructorWeekBlock } from "./InstructorWeekBlock";
 import { SingleDayInstructorRow } from "./SingleDayInstructorRow";
 import type { SchedulerInstructor, SchedulerBooking, SchedulerAbsence } from "@/lib/scheduler-utils";
+import { VisibleInstructorBlock } from "./VisibleInstructorBlock";
+import { useDndKitDrag } from "@/contexts/DndKitDragContext";
+import { useSchedulerSelection } from "@/contexts/SchedulerSelectionContext";
 
 interface InstructorFocusViewProps {
   instructors: SchedulerInstructor[];
@@ -20,6 +23,7 @@ interface InstructorFocusViewProps {
   isPlanningMode?: boolean;
   roleFilter?: string | null;
   instructorColumnWidth: number;
+  scrollContainerRef?: React.MutableRefObject<HTMLDivElement | null>;
 }
 
 export function InstructorFocusView({
@@ -37,17 +41,31 @@ export function InstructorFocusView({
   isPlanningMode = false,
   roleFilter = null,
   instructorColumnWidth,
+  scrollContainerRef,
 }: InstructorFocusViewProps) {
+  const { activeDragBookingId } = useDndKitDrag();
+  const { state } = useSchedulerSelection();
+  const dataByInstructor = useMemo(() => {
+    const entries = new Map<string, { bookings: SchedulerBooking[]; absences: SchedulerAbsence[] }>();
+    for (const instructor of instructors) entries.set(instructor.id, { bookings: [], absences: [] });
+    for (const booking of bookings) entries.get(booking.instructorId)?.bookings.push(booking);
+    for (const absence of absences) entries.get(absence.instructorId)?.absences.push(absence);
+    return entries;
+  }, [instructors, bookings, absences]);
+  const pinnedInstructorId = activeDragBookingId
+    ? bookings.find(booking => booking.id === activeDragBookingId)?.instructorId
+    : state.drag.isDragging ? state.drag.instructorId
+    : state.isResizing ? state.selections.find(selection => selection.id === state.activeResizeId)?.instructorId : null;
   // Filter instructors in compact mode
   const filteredInstructors = useMemo(() => {
     if (!compactMode) return instructors;
     
     return instructors.filter(instructor => {
-      const hasBookings = bookings.some(b => b.instructorId === instructor.id);
-      const hasAbsences = absences.some(a => a.instructorId === instructor.id);
+      const hasBookings = !!dataByInstructor.get(instructor.id)?.bookings.length;
+      const hasAbsences = !!dataByInstructor.get(instructor.id)?.absences.length;
       return hasBookings || hasAbsences;
     });
-  }, [instructors, bookings, absences, compactMode]);
+  }, [instructors, dataByInstructor, compactMode]);
 
   if (isLoading) {
     return (
@@ -113,19 +131,14 @@ export function InstructorFocusView({
 
       {/* Single Day View - Use simpler rows */}
       {isSingleDay && filteredInstructors.map((instructor, index) => (
+        <VisibleInstructorBlock key={instructor.id} id={instructor.id} index={index} estimatedHeight={41}
+          scrollContainerRef={scrollContainerRef} instructorRefs={instructorRefs}
+          pinned={highlightedInstructorId === instructor.id || pinnedInstructorId === instructor.id}>
         <SingleDayInstructorRow
-          key={instructor.id}
-          ref={(el) => {
-            if (el) {
-              instructorRefs.current.set(instructor.id, el);
-            } else {
-              instructorRefs.current.delete(instructor.id);
-            }
-          }}
           instructor={instructor}
           date={dates[0]}
-          bookings={bookings}
-          absences={absences}
+          bookings={dataByInstructor.get(instructor.id)?.bookings ?? []}
+          absences={dataByInstructor.get(instructor.id)?.absences ?? []}
           slotWidth={slotWidth}
           onSlotClick={onSlotClick}
           isHighlighted={highlightedInstructorId === instructor.id}
@@ -134,23 +147,19 @@ export function InstructorFocusView({
           isPlanningMode={isPlanningMode}
           instructorColumnWidth={instructorColumnWidth}
         />
+        </VisibleInstructorBlock>
       ))}
 
       {/* Multi-Day View - Use week blocks with day sub-rows */}
       {!isSingleDay && filteredInstructors.map((instructor, index) => (
+        <VisibleInstructorBlock key={instructor.id} id={instructor.id} index={index} estimatedHeight={dates.length * 33 + 1}
+          scrollContainerRef={scrollContainerRef} instructorRefs={instructorRefs}
+          pinned={highlightedInstructorId === instructor.id || pinnedInstructorId === instructor.id}>
         <InstructorWeekBlock
-          key={instructor.id}
-          ref={(el) => {
-            if (el) {
-              instructorRefs.current.set(instructor.id, el);
-            } else {
-              instructorRefs.current.delete(instructor.id);
-            }
-          }}
           instructor={instructor}
           dates={dates}
-          bookings={bookings}
-          absences={absences}
+          bookings={dataByInstructor.get(instructor.id)?.bookings ?? []}
+          absences={dataByInstructor.get(instructor.id)?.absences ?? []}
           slotWidth={slotWidth}
           onSlotClick={onSlotClick}
           isHighlighted={highlightedInstructorId === instructor.id}
@@ -159,6 +168,7 @@ export function InstructorFocusView({
           isPlanningMode={isPlanningMode}
           instructorColumnWidth={instructorColumnWidth}
         />
+        </VisibleInstructorBlock>
       ))}
     </div>
   );
