@@ -7,7 +7,7 @@ from playwright.async_api import async_playwright
 HOTEL = {"id": "hotel-synthetic", "name": "Synthetic Hotel", "partner_type": "hotel", "is_active": True}
 OUT = Path("/tmp/browser/checkout"); OUT.mkdir(parents=True, exist_ok=True)
 
-FIXTURE = """async () => {
+FIXTURE = r"""async () => {
   const Refresh = await import('/@react-refresh'); Refresh.default.injectIntoGlobalHook(window); window.$RefreshReg$ = () => {}; window.$RefreshSig$ = () => t => t; window.__vite_plugin_react_preamble_installed__ = true;
   const {default: React} = await import((await (await fetch('/src/components/bookings/wizard/Step4Summary.tsx')).text()).match(/from "([^"]*\/deps\/react\.js[^"]*)"/)[1]);
   const {default: {createRoot}} = await import('/node_modules/.vite/deps/react-dom_client.js');
@@ -58,12 +58,12 @@ async def main():
                 if url == "http://localhost:8080/checkout-fixture":
                     return await route.fulfill(content_type="text/html", body='<html><body><div id="fixture"></div></body></html>')
                 if url.startswith("http://localhost:8080"): return await route.continue_()
-                if req.method not in ("GET", "HEAD", "OPTIONS"): writes.append(url); return await route.abort()
+                if req.method not in ("GET", "HEAD", "OPTIONS") and "/rest/v1/rpc/instructors_ops_list" not in url: writes.append(url); return await route.abort()
                 body = [HOTEL] if "/rest/v1/billing_partners" in url else []
                 await route.fulfill(content_type="application/json", body=json.dumps(body))
             await page.route("**/*", intercept)
             await page.goto("http://localhost:8080/checkout-fixture")
-            await page.evaluate(FIXTURE); await page.wait_for_timeout(3000); print("ERR", errors[:3]); print((await page.inner_text("body"))[:300])
+            await page.evaluate(FIXTURE)
             await page.get_by_text("Buchung abschliessen").wait_for()
             tag = f"[{width}]"
 
@@ -99,11 +99,11 @@ async def main():
             await page.evaluate("window.wiz.setCustomer({id:'c1', first_name:'Syn', last_name:'Test', email:'syn@example.invalid', phone:null})")
             await page.locator("#create-another").click()
             await page.screenshot(path=str(OUT / f"before_{width}.png"))
-            emailBox = page.get_by_role("checkbox").filter(has_not=page.locator("#create-another"))
-            await page.evaluate("window.wiz.setCheckoutOptions({sendCustomerEmail: false, sendCustomerWhatsApp: true, notifyInstructor: false})")
+            await page.locator("#send-email").click()  # real UI: email OFF
+            await page.evaluate("window.wiz.setCheckoutOptions({sendCustomerWhatsApp: true, notifyInstructor: false})")
             await remount(page); r = await rb(page)
             check(r["discountPercent"] == 15 and r["discountReason"] == "Synthetisch", f"{tag} discount+reason kept")
-            check(r["sendCustomerEmail"] is False and r["effective"]["sendCustomerEmail"] is False, f"{tag} email OFF kept (customer has email)")
+            check(await page.locator("#send-email").get_attribute("data-state") == "unchecked" and r["sendCustomerEmail"] is False and r["effective"]["sendCustomerEmail"] is False, f"{tag} email OFF kept (customer has email)")
             check(r["sendCustomerWhatsApp"] is True and r["notifyInstructor"] is False, f"{tag} WhatsApp/instructor kept")
             check(r["effective"]["sendCustomerWhatsApp"] is True and r["effective"]["notifyInstructor"] is False, f"{tag} effective flags kept")
             check(r["createAnother"] is True and await page.locator("#create-another").get_attribute("data-state") == "checked", f"{tag} createAnother kept")
