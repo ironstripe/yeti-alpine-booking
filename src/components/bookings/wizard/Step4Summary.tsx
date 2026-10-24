@@ -1,5 +1,6 @@
 import { customerEmailRecipient } from "@/lib/customerEmail";
 import { checkoutSubmitFlags } from "@/lib/checkoutSubmitFlags";
+import { checkoutFirstCourseDate, checkoutPaymentDueDate } from "@/lib/checkoutDueDate";
 import { useState, useMemo } from "react";
 import { toast } from "sonner";
 import { useParticipantOwnership } from "@/hooks/useParticipantOwnership";
@@ -226,7 +227,7 @@ export function Step4Summary({ onEditStep }: Step4SummaryProps) {
           paymentMethod,
           settlement,
           billingPartnerId,
-          paymentDueDate,
+          paymentDueDate: checkoutPaymentDueDate(state),
           discountPercent: totalDiscount,
           discountReason: combinedReason,
           ...checkoutSubmitFlags(state),
@@ -254,9 +255,7 @@ export function Step4Summary({ onEditStep }: Step4SummaryProps) {
     resetWizard();
   };
 
-  const firstCourseDate = state.selectedDates.length > 0 
-    ? state.selectedDates.sort()[0] 
-    : null;
+  const firstCourseDate = checkoutFirstCourseDate(state);
 
   return (
     <div className="space-y-6 py-6">
@@ -302,7 +301,7 @@ export function Step4Summary({ onEditStep }: Step4SummaryProps) {
             paymentMethod={paymentMethod}
             settlement={settlement}
             billingPartnerId={billingPartnerId}
-            paymentDueDate={paymentDueDate}
+            paymentDueDate={checkoutPaymentDueDate(state)}
             onPaymentMethodChange={setPaymentMethod}
             onSettlementChange={setSettlement}
             onBillingPartnerChange={setBillingPartnerId}

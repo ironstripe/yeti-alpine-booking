@@ -19,3 +19,4 @@
 - Public private display tariffs use revision-checked staff saves; catalog serves verified rows only. Why: safe.
 
 - Lunch: full-day blocks, atomic person/day items; GroupLunchSelection in both modes. Why: safe removal.
+- Checkout deadlines use checkoutDueDate for display/create; only explicit dates live in wizard state. New invoices read the ticket deadline; replays retain invoice data. Why: one date without stale defaults or client invoice authority.

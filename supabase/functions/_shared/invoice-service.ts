@@ -50,12 +50,14 @@ interface Debtor {
 export async function resolveDebtor(
   supabase: Client,
   input: { ticketId: string; customerId?: string | null; billingPartnerId?: string | null },
-): Promise<{ debtor?: Debtor; customerId?: string | null; error?: string }> {
-  const { data: ticket } = await supabase
+): Promise<{ debtor?: Debtor; customerId?: string | null; paymentDueDate?: string | null; error?: string; error_code?: string }> {
+  const { data: ticket, error: ticketError } = await supabase
     .from("tickets")
-    .select("id, customer_id, billing_partner_id")
+    .select("id, customer_id, billing_partner_id, payment_due_date")
     .eq("id", input.ticketId)
     .maybeSingle();
+
+  if (ticketError || !ticket) return { error_code: "TICKET_LOOKUP_FAILED", error: "Buchung konnte nicht geladen werden. Rechnung nicht erstellt." };
 
   const partnerId = input.billingPartnerId ?? ticket?.billing_partner_id ?? null;
   if (partnerId) {
@@ -66,6 +68,7 @@ export async function resolveDebtor(
       .maybeSingle();
     if (partner) {
       return {
+        paymentDueDate: ticket.payment_due_date ?? null,
         customerId: input.customerId ?? ticket?.customer_id ?? null,
         debtor: {
           name: partner.name,
@@ -94,6 +97,7 @@ export async function resolveDebtor(
     || [customer.first_name, customer.last_name].filter(Boolean).join(" ");
 
   return {
+    paymentDueDate: ticket.payment_due_date ?? null,
     customerId,
     debtor: {
       name,
@@ -142,12 +146,12 @@ export async function issueInvoice(
   }
 
   // 2. Billing party
-  const { debtor, customerId, error: debtorError } = await resolveDebtor(supabase, input);
-  if (!debtor) return { ok: false, error_code: "NO_DEBTOR", error: debtorError };
+  const { debtor, customerId, paymentDueDate, error: debtorError, error_code } = await resolveDebtor(supabase, input);
+  if (!debtor) return { ok: false, error_code: error_code ?? "NO_DEBTOR", error: debtorError };
 
   // 3. Currency — from the invoice/ticket, never inferred from country.
   const currency = (input.currency ?? "CHF").toUpperCase();
-  const dueDate = resumeDraft?.due_date ?? addDays(input.dueDays ?? 14);
+  const dueDate = resumeDraft ? resumeDraft.due_date : paymentDueDate ?? addDays(input.dueDays ?? 14);
 
   // 4. Dry-run routing before anything is written.
   const profiles = await loadPaymentProfiles(supabase);
@@ -226,7 +230,7 @@ export async function issueInvoice(
       qr_reference: routing.reference || "",
       payment_profile_id: routing.profile!.id,
       payment_presentation_type: routing.presentation_type,
-      payment_snapshot: routing.snapshot,
+      payment_snapshot: resumeDraft?.payment_snapshot ?? routing.snapshot,
       payment_reference_type: routing.reference_type,
       payment_reference: routing.reference || null,
       payment_payload_version: routing.snapshot!.payload_version,
