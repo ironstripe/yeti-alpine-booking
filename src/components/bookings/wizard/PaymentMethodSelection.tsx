@@ -1,4 +1,4 @@
-import { format, addDays } from "date-fns";
+import { checkoutDefaultDueDate } from "@/lib/checkoutDueDate";
 import { Banknote, CreditCard, Smartphone, FileText, Calendar, Gift, Building2, AlertCircle } from "lucide-react";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -50,11 +50,7 @@ export function PaymentMethodSelection({
 }: PaymentMethodSelectionProps) {
   const { data: hotels = [] } = useBillingPartners({ activeOnly: true });
 
-  const getDefaultDueDate = () => {
-    if (!firstCourseDate) return format(addDays(new Date(), 7), "yyyy-MM-dd");
-    const courseDate = new Date(firstCourseDate);
-    return format(addDays(courseDate, -7), "yyyy-MM-dd");
-  };
+  const getDefaultDueDate = () => checkoutDefaultDueDate(firstCourseDate);
 
   const handlePaymentMethodChange = (method: PaymentMethod) => {
     onPaymentMethodChange(method);
@@ -62,7 +58,6 @@ export function PaymentMethodSelection({
     // Invoice and hotel billing always leave an open balance
     if (method === "invoice" || method === "hotel") {
       onSettlementChange("pay_later");
-      if (!paymentDueDate) onPaymentDueDateChange(getDefaultDueDate());
     }
     if (method !== "hotel") {
       onBillingPartnerChange(null);

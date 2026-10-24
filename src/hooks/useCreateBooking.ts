@@ -5,6 +5,7 @@ import { createInitialComments } from "./useTicketComments";
 import { isImmediateMethod } from "@/lib/finance";
 import { logTicketEvent } from "@/lib/ticket-audit";
 import { buildEffectivePrivatePlan } from "@/lib/effectivePrivatePlan";
+import { checkoutPaymentDueDate } from "@/lib/checkoutDueDate";
 import { paCreate, type PaParticipant, type PaSlot } from "@/lib/privateAppointmentsApi";
 import { endOf, sortPlan, validatePlan } from "@/lib/privatePlan";
 import { buildStaffGroupLines, staffGroupHasLunch } from "@/lib/staffGroupPayload";
@@ -92,7 +93,7 @@ function buildFinalization(state: BookingWizardState) {
     payment_method: state.paymentMethod ?? null,
     settlement: state.settlement === "paid_now" ? ("paid_now" as const) : ("pay_later" as const),
     billing_partner_id: state.paymentMethod === "hotel" ? state.billingPartnerId ?? null : null,
-    payment_due_date: state.paymentDueDate ?? null,
+    payment_due_date: checkoutPaymentDueDate(state),
     ...(state.internalNotes?.trim() ? { internal_notes: state.internalNotes.trim() } : {}),
     ...(state.instructorNotes?.trim() ? { instructor_notes: state.instructorNotes.trim() } : {}),
     ...(state.conversationId ? { conversation_id: state.conversationId } : {}),
@@ -390,7 +391,7 @@ export function useCreateBooking() {
           paid_amount: 0,
           payment_method: state.paymentMethod,
           billing_partner_id: state.paymentMethod === "hotel" ? state.billingPartnerId : null,
-          payment_due_date: state.paymentDueDate,
+          payment_due_date: checkoutPaymentDueDate(state),
           notes: state.customerNotes || null,
           internal_notes: null, // Moved to ticket_comments
         })

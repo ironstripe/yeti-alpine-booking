@@ -59,10 +59,11 @@ Deno.test("retry after failure confirms with exactly one open invoice", async ()
 
 Deno.test("existing open invoice is reused, not issued again", async () => {
   const { sb, tables } = setup();
-  tables.invoices.push({ id: "i0", ticket_id: "t1", invoice_number: "R-0", due_date: "2027-01-15", status: "open" });
+  tables.invoices.push({ id: "i0", ticket_id: "t1", invoice_number: "R-0", due_date: "2027-02-03", status: "open" });
   const c = { n: 0 };
   const r = await issueInvoiceThenConfirm(sb, input, okIssuer(tables, c));
   eq([r.ok && r.invoice.invoice_number, c.n, tables.invoices.length, tables.tickets[0].status], ["R-0", 0, 1, "confirmed"]);
+  eq(tables.tickets[0].payment_due_date, "2027-02-03");
 });
 
 Deno.test("leftover non-open invoice is not accepted; ticket stays provisional", async () => {
