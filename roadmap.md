@@ -2,8 +2,8 @@
 
 ## Scheduler rendering performance — scoped package
 - [x] Record isolated 98-teacher week timing baseline at d816e917, with synthetic bookings/absences and no external writes.
-- [ ] Render nearby teacher slot trees with overscan and stable instructor indexing; preserve row shells/search, selection provider, mobile agenda and booking semantics.
-- [ ] Same before/after benchmark and scoped interaction regression checks; document limits and rollback in docs/scheduler-performance-verification.md. No deployment/publication.
+- [x] Render nearby teacher slot trees with overscan and stable instructor indexing; preserve row shells/search, selection provider, mobile agenda and booking semantics.
+- [x] Same before/after benchmark: 4802→294 slots, median initial render 1550.9→241.9ms; 34 synthetic browser checks and 16 unit tests passed, automatic build OK. Limits (existing resize self-overlap, keyboard drop, full wizard/autoscroll) and rollback in docs/scheduler-performance-verification.md. No deployment/publication.
 
 ## B02 independent review — frozen draft payment consistency
 - [x] Fail closed before writes if a frozen draft snapshot or its payment columns disagree with current routing; preserve snapshotless issuance and issued replay. Only historical snapshot creation time is excluded from fresh-routing comparison (validated and retained).
