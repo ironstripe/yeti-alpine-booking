@@ -20,3 +20,4 @@
 
 - Lunch: full-day blocks, atomic person/day items; GroupLunchSelection in both modes. Why: safe removal.
 - Checkout deadlines use checkoutDueDate for display/create; only explicit dates live in wizard state. New invoices read the ticket deadline; replays retain invoice data. Why: one date without stale defaults or client invoice authority.
+- Resumed invoices with frozen payment snapshots must match final routing and all associated payment columns before any write (except the historical snapshot creation timestamp). Why: documents and invoice routing must never mix different payment configurations.
