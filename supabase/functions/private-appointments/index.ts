@@ -43,6 +43,8 @@ Deno.serve(async (req) => {
     rpc = await db.rpc("pa_edit_booking", { p: payload, p_actor: auth.userId });
   }
 
+  // Edit RPC not installed yet: say so clearly instead of an ambiguous "unknown result".
+  if (p.action === "edit" && rpc.error?.code === "PGRST202") return json({ error: "unavailable" }, 503);
   if (rpc.error || !rpc.data) {
     console.error("private-appointments rpc failed", p.action, rpc.error?.code);
     return json({ error: "internal_error" }, 500);
