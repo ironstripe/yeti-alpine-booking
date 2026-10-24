@@ -1,4 +1,6 @@
--- Security Gate A – step 3 (LOCK). NOT APPLIED. Owner review required before running.
+-- HISTORICAL SQL: Security Gate A (LOCK) APPLIED to live Lovable Cloud on 2026-10-01.
+-- DO NOT RUN THIS FILE AGAIN. For a reproducible new environment use the idempotent
+-- supabase/migrations/20261001132000_gate_a_instructors_lock.sql instead.
 -- Prerequisite (already live): is_staff, instructors_ops_list, instructors_pay_list, instructor_self,
 -- instructor_ops_upsert, instructor_pay_update, instructor_delete, instructor_self_update,
 -- instructor_user_links, instructor_live_status (+ trigger, realtime).
