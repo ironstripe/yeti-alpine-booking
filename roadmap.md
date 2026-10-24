@@ -1,5 +1,9 @@
 # Roadmap
 
+## B02 independent review — frozen draft payment consistency
+- [ ] Fail closed before writes if a frozen draft snapshot or its payment columns disagree with current routing; preserve snapshotless issuance and issued replay.
+- [ ] Verify realistic production-generated snapshots with synthetic clients only; preserve concurrent/auth changes. No deployment or publication.
+
 ## B02 only — checkout/invoice due date
 - [x] One derived date for checkout display and private/group/legacy create, explicit choices retained, B01 preserved.
 - [x] New invoice reads ticket date fail-closed; issued and resumed invoice dates/snapshots stay frozen; confirmation copies the issued invoice date.
