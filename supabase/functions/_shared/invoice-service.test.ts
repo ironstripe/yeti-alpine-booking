@@ -5,7 +5,7 @@ import type { PaymentProfile } from "./payment-domain.ts";
 const eq = (a: unknown, b: unknown) => { if (JSON.stringify(a) !== JSON.stringify(b)) throw new Error(`${JSON.stringify(a)} != ${JSON.stringify(b)}`); };
 type Row = Record<string, any>;
 const profile: PaymentProfile = { id: "p", name: "Synthetic", presentation_type: "swiss_qr", account_holder: "Synthetic School",
-  iban: "CH4431999123000889012", account_holder_zip: "9490", account_holder_city: "Vaduz", account_holder_country: "LI",
+  iban: "CH4431999123000889012", account_holder_street: "Teststrasse", account_holder_house_number: "1", account_holder_zip: "9490", account_holder_city: "Vaduz", account_holder_country: "LI",
   currency: "CHF", reference_type: "QRR", country_scope: "CH_LI", account_type: "qr_iban", is_active: true, is_archived: false, validation_status: "valid" };
 function fixture(date: string | null = "2026-12-14", invoices: Row[] = [], failTicket = false) {
   const tables: Record<string, Row[]> = { tickets: [{ id: "t", customer_id: "c", payment_due_date: date }],
