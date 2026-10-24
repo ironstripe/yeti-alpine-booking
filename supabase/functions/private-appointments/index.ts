@@ -35,10 +35,16 @@ Deno.serve(async (req) => {
       p_id: p.appointment_id, p_date: p.date, p_start: p.time_start, p_end: p.time_end,
       p_instr: p.instructor_id, p_actor: auth.userId,
     });
-  } else {
+  } else if (p.action === "period_update") {
     rpc = await db.rpc("pa_period_update", { p_group: p.period_group_id, p_changes: p.changes, p_actor: auth.userId });
+  } else {
+    // B03a: quote or apply an edit of an existing booking (one transaction, pa_edit_booking).
+    const { action: _a, ...payload } = p;
+    rpc = await db.rpc("pa_edit_booking", { p: payload, p_actor: auth.userId });
   }
 
+  // Edit RPC not installed yet: say so clearly instead of an ambiguous "unknown result".
+  if (p.action === "edit" && rpc.error?.code === "PGRST202") return json({ error: "unavailable" }, 503);
   if (rpc.error || !rpc.data) {
     console.error("private-appointments rpc failed", p.action, rpc.error?.code);
     return json({ error: "internal_error" }, 500);

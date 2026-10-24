@@ -101,3 +101,17 @@ Deno.test("schema: manual discount on create", () => {
   const trimmed = RequestSchema.safeParse({ ...validCreate, discount_percent: 10, discount_reason: "  Stammkunde " });
   assert(trimmed.success && trimmed.data.action === "create" && trimmed.data.discount_reason === "Stammkunde", "trimmed");
 });
+
+Deno.test("schema: edit action (B03a) accepts quote/apply shapes, rejects unknown keys and empty people", () => {
+  const ok = (b: unknown) => RequestSchema.safeParse(b).success;
+  const a = { appointment_id: crypto.randomUUID(), expected_participant_ids: [crypto.randomUUID()], expected_price: 105 };
+  assert(ok({ action: "edit", mode: "quote", ticket_id: crypto.randomUUID(), appointments: [a] }));
+  assert(ok({ action: "edit", mode: "apply", ticket_id: crypto.randomUUID(), expected_total: 105, appointments: [{ ...a, participant_ids: [crypto.randomUUID()], acknowledged_price: 85 }], acknowledged_total: 85 }));
+  assert(ok({ action: "edit", mode: "apply", ticket_id: crypto.randomUUID(), appointments: [], internal_notes: "x" }));
+  assert(!ok({ action: "edit", mode: "commit", ticket_id: crypto.randomUUID(), appointments: [] }));
+  assert(!ok({ action: "edit", mode: "apply", ticket_id: crypto.randomUUID(), appointments: [{ ...a, participant_ids: [] }] }));
+  assert(!ok({ action: "edit", mode: "apply", ticket_id: crypto.randomUUID(), appointments: [{ ...a, unit_price: 1 }] }));
+  assert(!ok({ action: "edit", mode: "apply", ticket_id: crypto.randomUUID(), appointments: [], payment_method: "cash" }));
+  assertEquals(statusFor({ error: "quote_changed", quote: {} }), 409);
+  assertEquals(publicBody({ error: "quote_changed", quote: { new_total: 1 }, secret: 1 }), { error: "quote_changed", quote: { new_total: 1 } });
+});

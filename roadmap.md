@@ -1,5 +1,11 @@
 # Roadmap
 
+## B03a — safe editing of existing canonical private bookings
+- [x] Canonical hydration (per-lesson people/prices/teachers), dedicated edit screen, legacy save refused for canonical bookings.
+- [x] Pending atomic `pa_edit_booking` (quote + acknowledged apply, Ivo rule: person change reprices only that lesson, discount kept, invoiced protected); `edit` action in private-appointments (not deployed).
+- [x] Legacy total guard; SQL 11/11, unit 297, Deno, browser checks. Details: docs/b03a-verification.md.
+- [ ] Release: install pending SQL, deploy private-appointments, publish — awaits authorisation.
+
 ## Scheduler rendering performance — scoped package
 - [x] Record isolated 98-teacher week timing baseline at d816e917, with synthetic bookings/absences and no external writes.
 - [x] Render nearby teacher slot trees with overscan and stable instructor indexing; preserve row shells/search, selection provider, mobile agenda and booking semantics.

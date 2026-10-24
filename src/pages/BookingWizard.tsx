@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, Component, ReactNode } from "react";
+import { CanonicalPrivateEditPanel } from "@/components/bookings/wizard/CanonicalPrivateEditPanel";
 import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import { ArrowLeft, X, RefreshCw } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -587,22 +588,29 @@ function BookingWizardContent() {
 
       {/* Progress */}
       <div className="mx-auto max-w-7xl px-4">
-        <WizardProgress
+        {!state.canonicalEdit && <WizardProgress
           currentStep={state.currentStep}
           onStepClick={setCurrentStep}
-        />
+        />}
       </div>
 
       {/* Content */}
       <main className="mx-auto max-w-7xl space-y-4 px-4 pb-24">
-        {state.currentStep === 1 && <SchedulerPrefillBanner />}
-        {state.currentStep === 1 && <Step1ProductCart />}
-        {state.currentStep === 2 && <Step2AssignCustomer />}
-        {state.currentStep === 3 && <Step4Summary onEditStep={setCurrentStep} />}
+        {state.canonicalEdit ? (
+          // B03a: canonical private bookings never enter the legacy step/save path.
+          <CanonicalPrivateEditPanel key={state.canonicalEdit.ticketId} snapshot={state.canonicalEdit} />
+        ) : (
+          <>
+            {state.currentStep === 1 && <SchedulerPrefillBanner />}
+            {state.currentStep === 1 && <Step1ProductCart />}
+            {state.currentStep === 2 && <Step2AssignCustomer />}
+            {state.currentStep === 3 && <Step4Summary onEditStep={setCurrentStep} />}
+          </>
+        )}
       </main>
 
       {/* Sticky Footer - Only show for steps 1 and 2 */}
-      {state.currentStep < 3 && (
+      {state.currentStep < 3 && !state.canonicalEdit && (
         <footer className="sticky bottom-0 z-40 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 p-3">
           {state.currentStep === 1 && (() => {
             const issues = getStepOneIssues();

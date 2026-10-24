@@ -173,6 +173,10 @@ export function Step4Summary({ onEditStep }: Step4SummaryProps) {
     ].filter(Boolean).join(", ");
 
     try {
+      if (state.isEditMode && state.canonicalEdit) {
+        // Canonical private bookings must never reach the legacy direct item writes.
+        throw new Error("Privatlektionen werden über die Termin-Bearbeitung gespeichert. Es wurde nichts geändert.");
+      }
       if (state.isEditMode && state.editingTicketId) {
         // UPDATE MODE: Use updateBooking hook
         const addedParticipantIds = state.selectedParticipants

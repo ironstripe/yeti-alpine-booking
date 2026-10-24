@@ -43,19 +43,25 @@ export interface UpdateBookingParams {
   internalNotes?: string;
 }
 
+/** Same formula as the server's pa_recalc_ticket_total: stored line totals/discounts, cancelled excluded. */
+export function legacyTicketTotal(items: { unit_price: number | null; quantity: number | null; discount_percent?: number | null; line_total?: number | null; status?: string | null }[]): number {
+  return items
+    .filter((i) => (i.status ?? "") !== "cancelled")
+    .reduce((sum, i) => sum + Number(i.line_total ?? (i.unit_price || 0) * (i.quantity || 1) * (1 - (i.discount_percent || 0) / 100)), 0);
+}
+
+/** Totals are rewritten only when lines were added or removed; notes/teacher-only saves keep the stored total. */
+export const legacySaveChangesTotal = (p: Pick<UpdateBookingParams, "addedParticipants" | "removedParticipantIds">) =>
+  p.addedParticipants.length > 0 || p.removedParticipantIds.length > 0;
+
 async function recalculateBookingTotal(ticketId: string): Promise<number> {
   const { data: items, error } = await supabase
     .from("ticket_items")
-    .select("unit_price, quantity")
+    .select("unit_price, quantity, discount_percent, line_total, status")
     .eq("ticket_id", ticketId);
 
   if (error) throw error;
-
-  const total = (items || []).reduce((sum, item) => {
-    return sum + (item.unit_price || 0) * (item.quantity || 1);
-  }, 0);
-
-  return total;
+  return legacyTicketTotal(items || []);
 }
 
 export function useUpdateBooking() {
@@ -167,7 +173,8 @@ export function useUpdateBooking() {
         if (ticketError) throw ticketError;
       }
 
-      // 6. Recalculate and update total
+      // 6. Recalculate total only when lines changed (no silent repricing on unchanged saves)
+      if (!legacySaveChangesTotal(params)) return { ticketId, newTotal: null };
       const newTotal = await recalculateBookingTotal(ticketId);
       const { error: totalError } = await supabase
         .from("tickets")

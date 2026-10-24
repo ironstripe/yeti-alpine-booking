@@ -6,6 +6,7 @@ import { fetchInstructor } from "@/lib/instructorsApi";
 import { dateSetChanged, dayBlocksBeforeAdd, deriveFromPlan, sortPlan, toMin, validatePlan } from "@/lib/privatePlan";
 import { cartReadinessIssues, type ReadinessIssue } from "@/lib/wizardReadiness";
 import { applyAssignLater } from "@/lib/assignLaterState";
+import { hydrateCanonicalEdit, type CanonicalEditSnapshot } from "@/lib/canonicalPrivateEdit";
 
 export type WizardStep = 1 | 2 | 3;
 
@@ -368,6 +369,8 @@ export interface BookingWizardState {
   editingTicketId: string | null;
   originalItems: OriginalTicketItem[];
   originalParticipantIds: string[]; // Track original participants to detect add/remove
+  /** B03a: set only when editing a canonical private booking (private_appointments). */
+  canonicalEdit: CanonicalEditSnapshot | null;
   // Cart
   cartItems: CartItem[];
   activeCartItemId: string | null;
@@ -526,6 +529,7 @@ const initialState: BookingWizardState = {
   editingTicketId: null,
   originalItems: [],
   originalParticipantIds: [],
+  canonicalEdit: null,
   // Cart
   cartItems: [],
   activeCartItemId: null,
@@ -1692,6 +1696,9 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
             participant_id,
             product_id,
             unit_price,
+            quantity,
+            discount_percent,
+            appointment_id,
             internal_notes,
             instructor_notes,
             product:products!ticket_items_product_id_fkey (id, name, type),
@@ -1706,6 +1713,32 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
       if (!ticket) throw new Error("Buchung nicht gefunden");
 
       const items = ticket.ticket_items || [];
+
+      // Canonical private bookings: people live in private_appointment_participants, not on the line.
+      let canonicalEdit: CanonicalEditSnapshot | null = null;
+      let canonicalPeople: Tables<"customer_participants">[] = [];
+      if (items.some((i) => i.appointment_id)) {
+        const { data: appts, error: aErr } = await supabase.from("private_appointments")
+          .select("id, date, time_start, time_end, instructor_id, meeting_point, status, price").eq("ticket_id", ticketId);
+        if (aErr) throw aErr;
+        const apptIds = (appts ?? []).map((a) => a.id);
+        const { data: links, error: lErr } = apptIds.length
+          ? await supabase.from("private_appointment_participants").select("appointment_id, participant_id").in("appointment_id", apptIds)
+          : { data: [], error: null };
+        if (lErr) throw lErr;
+        const { data: people, error: pErr } = ticket.customer_id
+          ? await supabase.from("customer_participants").select("*").eq("customer_id", ticket.customer_id)
+          : { data: [], error: null };
+        if (pErr) throw pErr;
+        const instrIds = [...new Set((appts ?? []).map((a) => a.instructor_id).filter(Boolean))] as string[];
+        const { data: instrs } = instrIds.length
+          ? await supabase.from("instructors").select("id, first_name, last_name").in("id", instrIds)
+          : { data: [] };
+        canonicalEdit = hydrateCanonicalEdit({
+          ticket, items, appointments: appts ?? [], links: links ?? [], participants: people ?? [], instructors: instrs ?? [],
+        });
+        canonicalPeople = (people ?? []).filter((p) => canonicalEdit!.appointments.some((a) => a.participantIds.includes(p.id)));
+      }
       
       // Extract unique participants from items
       const participantMap = new Map<string, SelectedParticipant>();
@@ -1721,6 +1754,12 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
             sport: item.participant.sport,
           });
         }
+      }
+      for (const p of canonicalPeople) {
+        if (!participantMap.has(p.id)) participantMap.set(p.id, {
+          id: p.id, first_name: p.first_name, last_name: p.last_name, birth_date: p.birth_date,
+          level_last_season: p.level_last_season, level_current_season: p.level_current_season, sport: p.sport,
+        });
       }
       const selectedParticipants = Array.from(participantMap.values());
       const originalParticipantIds = selectedParticipants.map(p => p.id);
@@ -1776,6 +1815,7 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
         editingTicketId: ticketId,
         originalItems,
         originalParticipantIds,
+        canonicalEdit,
         // Customer (locked in edit mode, but still loaded)
         customer: ticket.customer as Tables<"customers">,
         customerId: ticket.customer?.id || null,
