@@ -6,6 +6,7 @@ import { fetchInstructor } from "@/lib/instructorsApi";
 import { dateSetChanged, dayBlocksBeforeAdd, deriveFromPlan, sortPlan, toMin, validatePlan } from "@/lib/privatePlan";
 import { cartReadinessIssues, type ReadinessIssue } from "@/lib/wizardReadiness";
 import { applyAssignLater } from "@/lib/assignLaterState";
+import { hydrateCanonicalEdit, type CanonicalEditSnapshot } from "@/lib/canonicalPrivateEdit";
 
 export type WizardStep = 1 | 2 | 3;
 
@@ -1715,6 +1716,7 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
 
       // Canonical private bookings: people live in private_appointment_participants, not on the line.
       let canonicalEdit: CanonicalEditSnapshot | null = null;
+      let canonicalPeople: Tables<"customer_participants">[] = [];
       if (items.some((i) => i.appointment_id)) {
         const { data: appts, error: aErr } = await supabase.from("private_appointments")
           .select("id, date, time_start, time_end, instructor_id, meeting_point, status, price").eq("ticket_id", ticketId);
@@ -1735,10 +1737,7 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
         canonicalEdit = hydrateCanonicalEdit({
           ticket, items, appointments: appts ?? [], links: links ?? [], participants: people ?? [], instructors: instrs ?? [],
         });
-        const linked = new Set(canonicalEdit.appointments.flatMap((a) => a.participantIds));
-        for (const p of people ?? []) {
-          if (linked.has(p.id)) (items as unknown as { participant: unknown }[]).push({ participant: p } as never);
-        }
+        canonicalPeople = (people ?? []).filter((p) => canonicalEdit!.appointments.some((a) => a.participantIds.includes(p.id)));
       }
       
       // Extract unique participants from items
@@ -1755,6 +1754,12 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
             sport: item.participant.sport,
           });
         }
+      }
+      for (const p of canonicalPeople) {
+        if (!participantMap.has(p.id)) participantMap.set(p.id, {
+          id: p.id, first_name: p.first_name, last_name: p.last_name, birth_date: p.birth_date,
+          level_last_season: p.level_last_season, level_current_season: p.level_current_season, sport: p.sport,
+        });
       }
       const selectedParticipants = Array.from(participantMap.values());
       const originalParticipantIds = selectedParticipants.map(p => p.id);
