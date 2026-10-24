@@ -1,5 +1,10 @@
 # Roadmap
 
+## B02 only — checkout/invoice due date
+- [ ] One derived date for checkout display and private/group/legacy create, explicit choices retained, B01 preserved.
+- [ ] New invoice reads ticket date fail-closed; issued and resumed invoice dates stay frozen.
+- [ ] Synthetic regression/browser and Edge checks; no live writes, migration, deployment or publication.
+
 ## Active QA fix — lunch after course switch
 - [x] Keep prior lunch selections removable in shared and participant-specific course selection, preserving full-day-only validation; no automatic clearing.
 - [x] 48 focused tests pass, including per-person payload recovery preserving the other person's lunch; synthetic browser full-day → half-day/legacy → remove → payload recovery at 1280×1800 and 390×700, no automatic re-selection or runtime errors; build OK. No business writes, deployment or publication; actual live booking deliberately not submitted.
