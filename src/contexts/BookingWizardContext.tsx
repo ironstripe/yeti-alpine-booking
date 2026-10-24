@@ -356,6 +356,8 @@ export interface BookingWizardState {
   sendCustomerEmail: boolean;
   sendCustomerWhatsApp: boolean;
   notifyInstructor: boolean;
+  /** Office preference "Nach Abschluss weitere Buchung erstellen" (kept while the wizard lives). */
+  createAnother: boolean;
   
   // Metadata
   conversationId: string | null;
@@ -444,6 +446,8 @@ interface BookingWizardContextType {
   /** Step-1 blockers per cart item (same rules as canProceed). */
   getStepOneIssues: () => ReadinessIssue[];
   resetWizard: () => void;
+  /** Step-3 checkout choices live in context so they survive step navigation (summary unmounts). */
+  setCheckoutOptions: (patch: Partial<CheckoutOptions>) => void;
   // Cart management
   addCartItem: () => void;
   removeCartItem: (id: string) => void;
@@ -456,6 +460,10 @@ interface BookingWizardContextType {
   // Edit mode
   loadTicketForEditing: (ticketId: string) => Promise<void>;
 }
+
+export type CheckoutOptions = Pick<BookingWizardState,
+  "paymentMethod" | "settlement" | "billingPartnerId" | "paymentDueDate" | "discountPercent" | "discountReason" |
+  "sendCustomerEmail" | "sendCustomerWhatsApp" | "notifyInstructor" | "createAnother">;
 
 const initialState: BookingWizardState = {
   customerId: null,
@@ -510,6 +518,7 @@ const initialState: BookingWizardState = {
   sendCustomerEmail: true,
   sendCustomerWhatsApp: false,
   notifyInstructor: true,
+  createAnother: false,
   conversationId: null,
   currentStep: 1,
   // Edit mode defaults
@@ -1646,6 +1655,24 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
     });
   };
 
+  const setCheckoutOptions = (patch: Partial<CheckoutOptions>) => {
+    setState(prev => ({ ...prev, ...patch }));
+  };
+
+  /** New-booking defaults for checkout choices (used by reset and edit hydration). */
+  const checkoutDefaults = (): CheckoutOptions => ({
+    paymentMethod: initialState.paymentMethod,
+    settlement: initialState.settlement,
+    billingPartnerId: initialState.billingPartnerId,
+    paymentDueDate: initialState.paymentDueDate,
+    discountPercent: initialState.discountPercent,
+    discountReason: initialState.discountReason,
+    sendCustomerEmail: initialState.sendCustomerEmail,
+    sendCustomerWhatsApp: initialState.sendCustomerWhatsApp,
+    notifyInstructor: initialState.notifyInstructor,
+    createAnother: initialState.createAnother,
+  });
+
   // Load existing ticket for editing
   const loadTicketForEditing = async (ticketId: string) => {
     try {
@@ -1742,6 +1769,8 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
       // Update state with all the loaded data
       setState(prev => ({
         ...prev,
+        // Never carry checkout choices from a previous booking into an edit.
+        ...checkoutDefaults(),
         // Edit mode flags
         isEditMode: true,
         editingTicketId: ticketId,
@@ -1870,6 +1899,7 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
         canProceed,
         getStepOneIssues,
         resetWizard,
+        setCheckoutOptions,
         // Cart management
         addCartItem,
         removeCartItem,

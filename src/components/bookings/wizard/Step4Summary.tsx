@@ -1,4 +1,5 @@
 import { customerEmailRecipient } from "@/lib/customerEmail";
+import { checkoutSubmitFlags } from "@/lib/checkoutSubmitFlags";
 import { useState, useMemo } from "react";
 import { toast } from "sonner";
 import { useParticipantOwnership } from "@/hooks/useParticipantOwnership";
@@ -54,22 +55,23 @@ function check2x2hDiscount(
 
 export function Step4Summary({ onEditStep }: Step4SummaryProps) {
   const navigate = useNavigate();
-  const { state, setCurrentStep, resetWizard } = useBookingWizard();
+  const { state, setCurrentStep, resetWizard, setCheckoutOptions } = useBookingWizard();
   const createBooking = useCreateBooking();
   const updateBooking = useUpdateBooking();
 
-  // Local state for Step 4 fields (not in context to keep it simpler)
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | null>(null);
-  const [settlement, setSettlement] = useState<SettlementChoice>("pay_later");
-  const [billingPartnerId, setBillingPartnerId] = useState<string | null>(null);
-  const [paymentDueDate, setPaymentDueDate] = useState<string | null>(null);
-
-  const [discountPercent, setDiscountPercent] = useState(0);
-  const [discountReason, setDiscountReason] = useState("");
-  const [sendCustomerEmail, setSendCustomerEmail] = useState(true);
-  const [sendCustomerWhatsApp, setSendCustomerWhatsApp] = useState(false);
-  const [notifyInstructor, setNotifyInstructor] = useState(true);
-  const [createAnother, setCreateAnother] = useState(false);
+  // Checkout choices live in the wizard context so they survive step navigation (this step unmounts).
+  const {
+    paymentMethod, settlement, billingPartnerId, paymentDueDate, discountPercent, discountReason,
+    sendCustomerEmail, sendCustomerWhatsApp, notifyInstructor, createAnother,
+  } = state;
+  const setPaymentMethod = (v: PaymentMethod) => setCheckoutOptions({ paymentMethod: v });
+  const setSettlement = (v: SettlementChoice) => setCheckoutOptions({ settlement: v });
+  const setBillingPartnerId = (v: string | null) => setCheckoutOptions({ billingPartnerId: v });
+  const setPaymentDueDate = (v: string | null) => setCheckoutOptions({ paymentDueDate: v });
+  const setSendCustomerEmail = (v: boolean) => setCheckoutOptions({ sendCustomerEmail: v });
+  const setSendCustomerWhatsApp = (v: boolean) => setCheckoutOptions({ sendCustomerWhatsApp: v });
+  const setNotifyInstructor = (v: boolean) => setCheckoutOptions({ notifyInstructor: v });
+  const setCreateAnother = (v: boolean) => setCheckoutOptions({ createAnother: v });
 
   // Success modal state
   const [showSuccess, setShowSuccess] = useState(false);
@@ -109,8 +111,7 @@ export function Step4Summary({ onEditStep }: Step4SummaryProps) {
   }, [autoDiscountPercent]);
 
   const handleDiscountChange = (percent: number, reason: string) => {
-    setDiscountPercent(percent);
-    setDiscountReason(reason);
+    setCheckoutOptions({ discountPercent: percent, discountReason: reason });
   };
 
   // Private submit links exactly the participants applied to the active lesson in step 1.
@@ -228,9 +229,7 @@ export function Step4Summary({ onEditStep }: Step4SummaryProps) {
           paymentDueDate,
           discountPercent: totalDiscount,
           discountReason: combinedReason,
-          sendCustomerEmail: sendCustomerEmail && !!customerEmailRecipient(state.customer),
-          sendCustomerWhatsApp,
-          notifyInstructor,
+          ...checkoutSubmitFlags(state),
         });
 
 
