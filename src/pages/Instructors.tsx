@@ -28,7 +28,7 @@ const Instructors = () => {
   // Filter state
   const [searchQuery, setSearchQuery] = useState("");
   const [specializationFilter, setSpecializationFilter] = useState("all");
-  const [statusFilter, setStatusFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("active");
   const [sortBy, setSortBy] = useState("name-asc");
   const [showOnlyAvailable, setShowOnlyAvailable] = useState(false);
   const [realTimeStatusFilter, setRealTimeStatusFilter] = useState<string | null>(null);
@@ -112,14 +112,14 @@ const Instructors = () => {
   const hasFilters =
     searchQuery !== "" ||
     specializationFilter !== "all" ||
-    statusFilter !== "all" ||
+    statusFilter !== "active" ||
     showOnlyAvailable ||
     realTimeStatusFilter !== null;
 
   const clearFilters = () => {
     setSearchQuery("");
     setSpecializationFilter("all");
-    setStatusFilter("all");
+    setStatusFilter("active");
     setShowOnlyAvailable(false);
     setRealTimeStatusFilter(null);
   };
