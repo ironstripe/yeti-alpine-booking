@@ -1,6 +1,7 @@
 // Client for the staff-only `private-appointments` Edge Function.
 // All private-lesson create/move/period changes go through it (no direct table writes).
 import { supabase } from "@/integrations/supabase/client";
+import type { EditQuote, EditRequest } from "@/lib/canonicalPrivateEdit";
 
 export interface PaConflict { index?: number; date?: string; kind?: string; ref_id?: string }
 export interface PaExcluded { id: string; reasons: string[] }
@@ -12,6 +13,7 @@ export class PrivateAppointmentError extends Error {
     public conflicts: PaConflict[] = [],
     public excluded: PaExcluded[] = [],
     public field: string | null = null,
+    public quote: unknown = null,
   ) {
     super(describe(code, conflicts, excluded, field));
   }
@@ -42,6 +44,7 @@ function describe(code: string, conflicts: PaConflict[], excluded: PaExcluded[],
   switch (code) {
     case "conflict": {
       const days = [...new Set(conflicts.map((c) => c.date).filter(Boolean))].join(", ");
+      if (conflicts.some((c) => c.kind === "stale")) return "Die Buchung wurde inzwischen geändert. Bitte neu laden. Es wurde nichts gespeichert.";
       return `Zeitfenster nicht frei${days ? ` (${days})` : ""}. Es wurde nichts geändert.`;
     }
     case "protected": {
@@ -49,6 +52,8 @@ function describe(code: string, conflicts: PaConflict[], excluded: PaExcluded[],
       return `Termin geschützt${r ? `: ${r}` : ""}. Es wurde nichts geändert.`;
     }
     case "forbidden": return "Keine Berechtigung für diese Änderung.";
+    case "quote_changed": return "Der Preis hat sich seit der Vorschau geändert. Bitte neuen Preis prüfen und erneut bestätigen. Es wurde nichts gespeichert.";
+    case "unavailable": return "Bearbeiten bestehender Privatlektionen ist noch nicht freigeschaltet. Es wurde nichts gespeichert.";
     case "not_found": return "Termin nicht gefunden.";
     case "invalid": return `${(field && FIELDS[field]) || "Ungültige Angaben."} Es wurde nichts gespeichert.`;
     default: return "Ergebnis unbekannt: Bitte Buchungsliste prüfen oder erneut senden – eine Wiederholung erzeugt keine doppelte Buchung.";
@@ -66,12 +71,17 @@ async function call<T>(body: Record<string, unknown>): Promise<T> {
     status = res.status;
     try { payload = await res.json(); } catch { /* keep empty */ }
   }
+  // An older deployed function rejects the unknown `edit` action by schema: report unavailability,
+  // never an ambiguous result or a fallback to direct writes.
+  const fields = payload.fields as Record<string, unknown> | undefined;
+  const code = body.action === "edit" && status === 400 && fields && "action" in fields ? "unavailable" : String(payload.error ?? "internal_error");
   throw new PrivateAppointmentError(
     status,
-    String(payload.error ?? "internal_error"),
+    code,
     (payload.conflicts as PaConflict[]) ?? [],
     (payload.excluded as PaExcluded[]) ?? [],
     typeof payload.field === "string" ? payload.field : null,
+    payload.quote ?? null,
   );
 }
 
@@ -110,3 +120,9 @@ export const paMove = (p: { appointment_id: string; date: string; time_start: st
 export const paPeriodUpdate = (p: {
   period_group_id: string; changes: { time_start?: string; time_end?: string; instructor_id?: string };
 }) => call<{ updated_ids: string[]; excluded: PaExcluded[] }>({ action: "period_update", ...p });
+
+/** B03a: server quote / atomic apply for edits of an existing canonical private booking. */
+export const paEditQuote = (p: EditRequest) =>
+  call<{ quote: EditQuote }>({ action: "edit", mode: "quote", ...p });
+export const paEditApply = (p: EditRequest) =>
+  call<{ changed: boolean; quote: EditQuote; total?: number }>({ action: "edit", mode: "apply", ...p });
