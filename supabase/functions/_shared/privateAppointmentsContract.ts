@@ -60,6 +60,25 @@ export const RequestSchema = z.discriminatedUnion("action", [
     changes: z.object({ time_start: time.optional(), time_end: time.optional(), instructor_id: uuid.optional() })
       .refine((c) => Object.keys(c).length > 0, "at least one change"),
   }),
+  // B03a: edit an existing canonical private booking in one transaction (pa_edit_booking).
+  z.object({
+    action: z.literal("edit"),
+    mode: z.enum(["quote", "apply"]),
+    ticket_id: uuid,
+    expected_total: z.number().finite().optional(),
+    appointments: z.array(z.object({
+      appointment_id: uuid,
+      expected_participant_ids: z.array(uuid).max(4).optional(),
+      expected_price: z.number().finite().optional(),
+      participant_ids: z.array(uuid).min(1).max(4).optional(),
+      meeting_point: z.string().max(200).optional(),
+      acknowledged_price: z.number().finite().optional(),
+    }).strict()).max(60),
+    acknowledged_total: z.number().finite().optional(),
+    internal_notes: z.string().max(5000).optional(),
+    instructor_notes: z.string().max(5000).optional(),
+    customer_notes: z.string().max(2000).optional(),
+  }).strict(),
 ]).superRefine((v, ctx) => {
   // A non-zero manual discount always needs a reason.
   if (v.action === "create" && (v.discount_percent ?? 0) > 0 && !v.discount_reason) {
@@ -73,6 +92,7 @@ export function statusFor(result: Record<string, unknown>): number {
   if (result.ok === true) return 200;
   switch (result.error) {
     case "conflict": return 409;
+    case "quote_changed": return 409;
     case "protected": return 423;
     case "not_found": return 404;
     case "forbidden": return 403;
@@ -85,6 +105,7 @@ export function statusFor(result: Record<string, unknown>): number {
 export function publicBody(result: Record<string, unknown>): Record<string, unknown> {
   const status = statusFor(result);
   if (status === 200) { const { ok: _ok, ...rest } = result; return rest; }
+  if (result.error === "quote_changed") return { error: "quote_changed", quote: result.quote };
   if (status === 409) return { error: "conflict", conflicts: result.conflicts };
   if (status === 423) return { error: "protected", excluded: result.excluded };
   if (status === 404) return { error: "not_found" };
