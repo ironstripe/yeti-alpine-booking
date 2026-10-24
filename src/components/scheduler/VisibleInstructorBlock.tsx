@@ -21,6 +21,8 @@ export function VisibleInstructorBlock({ id, index, estimatedHeight, scrollConta
     if (!element) return;
     instructorRefs.current.set(id, element);
     const observer = new IntersectionObserver(([entry]) => {
+      // Portalled booking/absence dialogs belong to the row: do not dismiss them on scroll.
+      if (!entry.isIntersecting && document.querySelector('[role="dialog"]')) return;
       setVisible(entry.isIntersecting);
     }, { root: scrollContainerRef?.current ?? null, rootMargin: "400px 0px" });
     observer.observe(element);
