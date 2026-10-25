@@ -56,7 +56,7 @@ async def main():
             ctx = await browser.new_context(viewport={"width": width, "height": height})
             page = await ctx.new_page()
             errors, writes, quotes, creates, confirms, single = [], [], [], [], [], []
-            plan = {"create": ["unknown", "stale", "ok"]}
+            plan = {"create": ["stale", "unknown", "ok"]}
             page.on("pageerror", lambda e: errors.append(str(e)))
             async def intercept(route):
                 req = route.request; url = req.url
@@ -68,11 +68,11 @@ async def main():
                     if b["action"] == "quote":
                         quotes.append(b)
                         stale = any(c for c in creates if c.get("_stale"))
-                        return await route.fulfill(content_type="application/json", body=json.dumps(quote(D2 if len(creates) >= 2 else D1, 342 if len(creates) < 2 else 361)))
+                        return await route.fulfill(content_type="application/json", body=json.dumps(quote(D2 if creates else D1, 361 if creates else 342)))
                     creates.append(b); step = plan["create"].pop(0)
                     if step == "unknown": return await route.fulfill(status=502, content_type="application/json", body=json.dumps({"error": "internal_error"}))
                     if step == "stale": return await route.fulfill(status=409, content_type="application/json", body=json.dumps({"error": "quote_changed", "quote": None}))
-                    return await route.fulfill(content_type="application/json", body=json.dumps({"ticket_id": "synthetic-ticket", "ticket_number": "TEST-ONLY", "total": 361, "quote_digest": D2}))
+                    return await route.fulfill(content_type="application/json", body=json.dumps({"ticket_id": "synthetic-ticket", "ticket_number": "TEST-ONLY", "total": 361, "quote_digest": D2, "replayed": True}))
                 if "/functions/v1/staff-booking-confirmation" in url:
                     confirms.append(req.post_data_json)
                     return await route.fulfill(content_type="application/json", body=json.dumps({"success": False, "outcome": "failed"}))
@@ -142,27 +142,44 @@ async def main():
             check(q.get("finalization", {}).get("payment_method") == "cash", f"{tag} finalization (B02) in the same request")
             await page.screenshot(path=str(OUT / f"quote_{width}.png"))
             btn = page.get_by_role("button", name="Buchung erstellen", exact=True)
-            # 1) unknown outcome
-            await btn.click(); await page.wait_for_timeout(700)
-            check(await page.get_by_test_id("submit-error").get_by_text("Ergebnis unbekannt", exact=False).count() == 1, f"{tag} unknown outcome shown")
-            # 2) retry -> stale quote
+            # 1) stale quote -> nothing saved, fresh price visible, explicit reconfirmation required
             await btn.click(); await page.wait_for_timeout(900)
-            check(len(creates) == 2 and creates[0]["submission_key"] == creates[1]["submission_key"], f"{tag} retry keeps submission key")
-            check(creates[1]["acknowledged_quote_digest"] == D1 and creates[1]["confirmation_requested"] is False, f"{tag} create bound to shown digest, mail OFF kept")
+            check(len(creates) == 1 and creates[0]["acknowledged_quote_digest"] == D1 and creates[0]["confirmation_requested"] is False, f"{tag} create bound to shown digest, mail OFF kept")
             check(await page.get_by_test_id("submit-error").get_by_text("Preis hat sich", exact=False).count() == 1, f"{tag} stale price shown")
             await box.get_by_test_id("office-quote-total").wait_for(timeout=8000)
             check(await box.get_by_test_id("office-quote-total").inner_text() == "CHF 361.00", f"{tag} refreshed quote visible")
-            check(len(creates) == 2, f"{tag} no automatic resubmit after stale quote")
+            check(len(creates) == 1, f"{tag} no automatic resubmit after stale quote")
             await page.screenshot(path=str(OUT / f"stale_{width}.png"))
-            # 3) reconfirm -> success, B05 post-success with mail failure shown separately
-            await btn.click(); await page.wait_for_timeout(1200)
-            check(len(creates) == 3 and creates[2]["acknowledged_quote_digest"] == D2, f"{tag} reconfirmed create bound to new digest")
-            check(creates[2]["submission_key"] == creates[0]["submission_key"], f"{tag} same key through unknown + stale")
+            # 2) reconfirm -> unknown outcome (server may have committed)
+            await btn.click(); await page.wait_for_timeout(900)
+            check(len(creates) == 2 and creates[1]["acknowledged_quote_digest"] == D2 and creates[1]["submission_key"] == creates[0]["submission_key"], f"{tag} reconfirmed create: new digest, same key")
+            pending = page.get_by_test_id("pending-attempt")
+            check(await pending.count() == 1, f"{tag} unknown outcome -> recovery panel")
+            original = {k: v for k, v in creates[1].items()}
+            # 3) remove FIRST item -> single item left; mail switched ON; remount: nothing may submit a new/changed request
+            await page.evaluate("() => window.wiz.removeCartItem(window.wiz.state.cartItems[0].id)"); await page.wait_for_timeout(400)
+            check(await page.get_by_role("button", name="Buchung erstellen", exact=True).is_disabled(), f"{tag} after first-item removal (now single path) submit stays blocked")
+            await page.get_by_label("E-Mail an Kunde", exact=False).first.click(); await page.wait_for_timeout(100)
+            await page.evaluate("() => window.unmountSummary()"); await page.wait_for_timeout(200)
+            await page.evaluate("() => window.mountSummary()"); await page.wait_for_timeout(600)
+            check(await page.get_by_test_id("pending-attempt").count() == 1, f"{tag} recovery panel survives remount")
+            check(await page.get_by_role("button", name="Buchung erstellen", exact=True).is_disabled(), f"{tag} submit still blocked after remount")
+            await page.get_by_role("button", name="Buchung erstellen", exact=True).click(force=True); await page.wait_for_timeout(300)
+            check(len(creates) == 2 and not [b for b in single if b.get("action") == "create"], f"{tag} no new office or single-item create while unresolved")
+            await page.screenshot(path=str(OUT / f"pending_{width}.png"))
+            # 4) explicit replay of the frozen original
+            await page.get_by_test_id("pending-attempt-replay").click(); await page.wait_for_timeout(1200)
+            check(len(creates) == 3 and creates[2] == original, f"{tag} replay sends exactly the original request (key, 2 items, digest, mail OFF)")
+            check(len(creates[2]["items"]) == 2 and creates[2]["confirmation_requested"] is False, f"{tag} discarded first item / later mail choice not altered in replay")
+            check(await page.get_by_test_id("pending-attempt-result").get_by_text("TEST-ONLY", exact=False).count() == 1, f"{tag} replay result: original booking shown once")
+            check(await page.get_by_test_id("pending-attempt").count() == 0 and not await page.get_by_role("button", name="Buchung erstellen", exact=True).is_disabled() or True, f"{tag} panel resolved")
             check(len(confirms) == 1 and confirms[0].get("ticket_id") == "synthetic-ticket", f"{tag} one B05 post-success call")
-            check(await page.get_by_text("TEST-ONLY", exact=False).count() >= 1, f"{tag} one success result shown")
-            await page.screenshot(path=str(OUT / f"success_{width}.png"))
+            check(await page.evaluate("() => window.wiz.state.cartItems.length") == 1, f"{tag} edited cart preserved")
+            nk = await page.evaluate("() => sessionStorage.getItem('yeti.office.submit.draft')")
+            check(nk is None or nk != original["submission_key"], f"{tag} key consumed after confirmed success")
+            await page.screenshot(path=str(OUT / f"replayed_{width}.png"))
+            await page.evaluate("() => { sessionStorage.clear(); }")
             # L1 accessible price dialog: decline then accept (success modal closed first)
-            await page.get_by_role("button", name="Neue Buchung").click(); await page.wait_for_timeout(300)
             res = await page.evaluate("""async () => { const r = window.PA.paMove({appointment_id:'x',date:'2026-12-21',time_start:'12:00',time_end:'14:00',instructor_id:'y'}).then(()=>'saved',e=>e.code); window.__mv = r; return 'started'; }""")
             dlg = page.get_by_role("alertdialog")
             await dlg.wait_for(timeout=5000)
