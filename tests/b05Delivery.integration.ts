@@ -133,7 +133,7 @@ try {
   const [t]=await sql`INSERT INTO tickets(ticket_number,total_amount,customer_id) VALUES (${crypto.randomUUID()},105,${c.id}) RETURNING id`;
   if(requested!==null)await sql`INSERT INTO office_booking_confirmation_intents(ticket_id,requested,created_by) VALUES (${t.id},${requested},'00000000-0000-4000-8000-000000000099')`;
   const [prod]=await sql`INSERT INTO products(name,type,price,is_active,season_id) VALUES ('Lesson','private',105,true,(SELECT id FROM seasons LIMIT 1)) RETURNING id`;
-  await sql`INSERT INTO ticket_items(ticket_id,product_id,date,time_start,time_end,unit_price,line_total,item_type,internal_notes,instructor_notes) VALUES (${t.id},${prod.id},'2026-12-21','10:00','12:00',105,105,${group?'group':'private'},'DO NOT EXPOSE','SECRET TEACHER')`;
+  await sql`INSERT INTO ticket_items(ticket_id,product_id,date,time_start,time_end,unit_price,item_type,internal_notes,instructor_notes) VALUES (${t.id},${prod.id},'2026-12-21','10:00','12:00',105,${group?'group':'private'},'DO NOT EXPOSE','SECRET TEACHER')`;
   return{ticket:t.id,email:c.email};
  }
  await sql`GRANT ALL ON office_booking_confirmation_intents,private_appointments,private_appointment_participants,customer_participants,group_course_enrollments,group_course_instances TO service_role`;
