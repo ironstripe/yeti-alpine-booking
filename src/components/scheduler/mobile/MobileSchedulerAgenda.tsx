@@ -101,6 +101,7 @@ export function MobileSchedulerAgenda({
         return (
           <section
             key={instructor.id}
+            data-agenda-teacher={instructor.id}
             className={cn(
               "bg-background",
               highlightedInstructorId === instructor.id && "ring-2 ring-primary ring-inset"
@@ -120,6 +121,7 @@ export function MobileSchedulerAgenda({
                   <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
                 )}
                 <span className="truncate text-sm font-semibold">{name}</span>
+                {instructor.real_time_status === "on_call" && <span className="shrink-0 text-[10px] text-muted-foreground">Auf Abruf</span>}
                 {instructor.specialization && (
                   <span className="shrink-0 text-xs">
                     {instructor.specialization === "snowboard" ? "🏂" : "⛷️"}
