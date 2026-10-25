@@ -34,7 +34,7 @@ import { privateTariffsLive } from "@/lib/privateTariffRules";
 import { buildServerPrivateSlots, discountOverrideFor } from "@/lib/serverPrivateSlots";
 import type { CreateQuote, PaSlot } from "@/lib/privateAppointmentsApi";
 import { OfficeCartQuote, type OfficeCartReady } from "./OfficeCartQuote";
-import { officeCreate, officeMultiItemLive, OfficeBookingError } from "@/lib/officeBookingApi";
+import { officeCreate, officeMultiItemLive, OfficeBookingError, replayProvesNotStored } from "@/lib/officeBookingApi";
 import { beginOfficeAttempt, readPendingOfficeAttempt, settleOfficeAttempt, type PendingOfficeAttempt } from "@/lib/officeCartRequest";
 
 interface Step4SummaryProps {
