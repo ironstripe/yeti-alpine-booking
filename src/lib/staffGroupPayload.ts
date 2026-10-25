@@ -20,7 +20,11 @@ export function staffGroupHasLunch(state: BookingWizardState): boolean {
     : Object.values(state.lunchSelections).some((days) => (days?.length ?? 0) > 0);
 }
 
-export function buildStaffGroupLines(state: BookingWizardState, lunchUnitPrice: number | null = null): StaffGroupPlanResult {
+/** Season-aware lunch lookup for a booked product + dates (B09); a bare number is the legacy unit-price check. */
+export type LunchLookup = (productId: string, dates: string[]) => { id: string; price: number } | null;
+
+export function buildStaffGroupLines(state: BookingWizardState, lunch: number | null | LunchLookup = null): StaffGroupPlanResult {
+  const lunchUnitPrice = typeof lunch === "function" ? GROUP_LUNCH_PRICE_CHF : lunch;
   if (state.productType !== "group") return { kind: "none" };
   const active = state.cartItems.find((item) => item.id === state.activeCartItemId);
   const ids = active?.assignedParticipantIds ?? [];
@@ -59,6 +63,14 @@ export function buildStaffGroupLines(state: BookingWizardState, lunchUnitPrice: 
     if (selectedLunch.length > 0 && !groupLunchEligible(plan, dates)) {
       return { kind: "error", message: `Mittagessen und Betreuung für ${person.first_name} sind nur bei einem Ganztages-Gruppenkurs möglich. Bitte Mittagsauswahl entfernen oder Ganztageskurs wählen.` };
     }
+    let lunchProductId: string | undefined;
+    if (lunchDates.length > 0 && typeof lunch === "function") {
+      const resolved = lunch(ref.productId, dates);
+      if (!resolved || resolved.price !== GROUP_LUNCH_PRICE_CHF) {
+        return { kind: "error", message: `Für Mittagessen und Betreuung von ${person.first_name} ist in der Saison des gebuchten Kurses nicht genau ein aktives Produkt zu CHF 30 pro Person und Tag hinterlegt (oder die Daten liegen ausserhalb der Saison).` };
+      }
+      lunchProductId = resolved.id;
+    }
     const vegetarian = participantMode ? !!pb?.isVegetarian : !!state.vegetarianSelections?.[id];
     const base = {
       course_id: ref.courseId,
@@ -68,7 +80,7 @@ export function buildStaffGroupLines(state: BookingWizardState, lunchUnitPrice: 
       sport: state.sport,
       expected_unit_price: ref.unitPrice,
       meeting_point: meetingPoint,
-      ...(lunchDates.length > 0 ? { lunch_dates: lunchDates, vegetarian, expected_lunch_unit_price: GROUP_LUNCH_PRICE_CHF } : {}),
+      ...(lunchDates.length > 0 ? { lunch_dates: lunchDates, vegetarian, expected_lunch_unit_price: GROUP_LUNCH_PRICE_CHF, ...(lunchProductId ? { lunch_product_id: lunchProductId } : {}) } : {}),
     };
     if (id.startsWith("guest-") || person.isGuest) {
       if (!person.birth_date) return { kind: "error", message: `Geburtsdatum für ${person.first_name} fehlt.` };

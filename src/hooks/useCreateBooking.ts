@@ -10,7 +10,7 @@ import { paCreate, paCreateQuote, type PaParticipant, type PaSlot } from "@/lib/
 import { PRODUCT_PRIVATE_TARIFFS_LIVE } from "@/lib/privateTariffRules";
 import { endOf, sortPlan, validatePlan } from "@/lib/privatePlan";
 import { buildStaffGroupLines, staffGroupHasLunch } from "@/lib/staffGroupPayload";
-import { fetchLunchProduct } from "@/hooks/useLunchProduct";
+import { fetchLunchProduct, lunchContextKey } from "@/hooks/useLunchProduct";
 import { createStaffGroupBooking } from "@/lib/staffGroupBookingApi";
 import {
   preflightGroupLines,
@@ -126,12 +126,19 @@ export function useCreateBooking() {
       if (!user) throw new Error("Not authenticated");
 
       // ============ 26/27 STAFF GROUP PATH (one atomic server transaction) ============
-      let staffLunchPrice: number | null = null;
+      // B09: lunch product per booked course product season + dates (server re-resolves identically).
+      const lunchByContext = new Map<string, Awaited<ReturnType<typeof fetchLunchProduct>>>();
       if (state.productType === "group" && staffGroupHasLunch(state)) {
-        // Same authoritative row the server uses: exactly one active lunch product.
-        staffLunchPrice = (await fetchLunchProduct())?.price ?? null;
+        const participantModeLunch = state.useParticipantSpecificBooking && Object.keys(state.participantBookings).length > 0;
+        const contexts = participantModeLunch
+          ? Object.values(state.participantBookings).filter((b) => (b?.lunchDays?.length ?? 0) > 0 && b?.groupServer).map((b) => ({ productId: b.groupServer!.productId, dates: b.dates }))
+          : state.groupPlan?.server ? [{ productId: state.groupPlan.server.productId, dates: state.selectedDates }] : [];
+        for (const ctx of contexts) {
+          const k = lunchContextKey(ctx).join("|");
+          if (!lunchByContext.has(k)) lunchByContext.set(k, await fetchLunchProduct(ctx));
+        }
       }
-      const staffGroup = buildStaffGroupLines(state, staffLunchPrice);
+      const staffGroup = buildStaffGroupLines(state, (productId, dates) => lunchByContext.get(lunchContextKey({ productId, dates }).join("|")) ?? null);
       if (staffGroup.kind === "error") throw new Error(staffGroup.message);
       if (staffGroup.kind === "server") {
         if (!state.customerId) throw new Error("Bitte zahlungspflichtigen Kunden wählen.");
@@ -277,9 +284,9 @@ export function useCreateBooking() {
 
       // Calculate lunch cost from lunchSelections (for groups) or includeLunch (for private)
       let lunchTotal = 0;
-      // Same unique-active lunch product as the server path; never a guessed price.
-      const lunchProducts = (products ?? []).filter((p) => p.type === "lunch");
-      const lunchProduct = lunchProducts.length === 1 && Number(lunchProducts[0].price) > 0 ? lunchProducts[0] : undefined;
+      // B09: season-aware lunch product for the booked product + dates; never a global singleton.
+      const hasLegacyLunch = (state.productType === "group" && Object.values(state.lunchSelections).some((d) => d.length > 0)) || (state.productType !== "group" && state.includeLunch);
+      const lunchProduct = hasLegacyLunch ? (await fetchLunchProduct({ productId, dates: state.selectedDates })) ?? undefined : undefined;
       const lunchPricePerDay = lunchProduct ? Number(lunchProduct.price) : 0;
       
       if (state.productType === "group" && Object.keys(state.lunchSelections).length > 0) {

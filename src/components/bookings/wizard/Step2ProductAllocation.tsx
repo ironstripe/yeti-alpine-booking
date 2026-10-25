@@ -405,8 +405,8 @@ export function Step2ProductAllocation() {
     }
   }, [selectedProduct, state.productId, setProductId]);
 
-  // Authoritative lunch product (same unique-active rule as the server; no fallback price)
-  const { data: lunchProduct = null, isLoading: lunchLoading } = useLunchProduct();
+  // B09: lunch product of the booked course's season + dates (same rule as the server; no fallback price)
+  const { data: lunchProduct = null, isLoading: lunchLoading } = useLunchProduct({ productId: state.groupPlan?.server?.productId, dates: state.selectedDates });
 
   const handleDateSelect = (dates: Date[] | undefined) => {
     if (dates) {
