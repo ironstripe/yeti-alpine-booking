@@ -10,7 +10,7 @@
 -- Note: the save replaces the rule rows, so rule IDs change (before IDs of the 14–16 rule:
 -- Ski 45b0102a-c285-4a13-a2e9-5bd2b1e9aadf, Snowboard d6deec82-7fec-4b30-9ee3-522c5412ca96).
 --
--- Run (privileged psql):  psql "$DB" -v ON_ERROR_STOP=1 -1 -f supabase/pending/private_tariff_1416_170_correction.sql
+-- Run (privileged psql):  psql "$DB" -v ON_ERROR_STOP=1 -f supabase/pending/private_tariff_1416_170_correction.sql
 -- Actor: NULL like the reviewed activation 0028 (installer run); provenance text names the decision and source.
 BEGIN;
 SET LOCAL lock_timeout = '3s';

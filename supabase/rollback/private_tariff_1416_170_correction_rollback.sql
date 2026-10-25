@@ -1,6 +1,6 @@
 -- Rollback for private_tariff_1416_170_correction.sql: sets 14–16 back to 190 through the same canonical save
 -- (new revision, so quotes on the 170 revision also become stale). Bookings priced at 170 meanwhile stay as stored.
--- psql "$DB" -v ON_ERROR_STOP=1 -1 -v expected_revision=<current, normally 2> -f this file
+-- psql "$DB" -v ON_ERROR_STOP=1 -v expected_revision=<current, normally 2> -f this file
 BEGIN;
 SELECT set_config('yeti.tr_rev', :'expected_revision', true);
 DO $$
