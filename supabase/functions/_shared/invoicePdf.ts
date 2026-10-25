@@ -173,7 +173,22 @@ export async function renderInvoicePdf(input: InvoiceDocInput): Promise<InvoiceP
 
     const rx = MARGIN + 6, px = MARGIN + receiptW + 10;
     let ry = top - 16, py = top - 16;
-    const rline = (t: string, o: { size?: number; bold?: boolean } = {}) => { ctx.page.drawText(safe(t), { x: rx, y: ry, size: o.size ?? 8, font: o.bold ? bold : font }); ry -= (o.size ?? 8) + 3.5; };
+    const receiptW2 = receiptW - 12;
+    const rline = (t: string, o: { size?: number; bold?: boolean } = {}) => {
+      const size = o.size ?? 8, f = o.bold ? bold : font;
+      let rest = safe(t);
+      while (rest) {
+        let end = rest.length;
+        while (end > 0 && f.widthOfTextAtSize(rest.slice(0, end), size) > receiptW2) {
+          const sp = rest.lastIndexOf(" ", end - 1);
+          end = sp > 0 ? sp : end - 1;
+        }
+        if (end <= 0) end = rest.length;
+        ctx.page.drawText(rest.slice(0, end).trimEnd(), { x: rx, y: ry, size, font: f });
+        ry -= size + 3.5;
+        rest = rest.slice(end).trimStart();
+      }
+    };
     const pline = (t: string, o: { size?: number; bold?: boolean } = {}) => { ctx.page.drawText(safe(t), { x: px, y: py, size: o.size ?? 8, font: o.bold ? bold : font }); py -= (o.size ?? 8) + 3.5; };
 
     rline("Empfangsschein", { size: 11, bold: true }); ry -= 4;
