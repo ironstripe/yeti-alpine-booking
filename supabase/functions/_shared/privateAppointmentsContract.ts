@@ -48,6 +48,7 @@ export const RequestSchema = z.discriminatedUnion("action", [
     discount_percent: z.number().finite().min(0).max(100).optional(),
     discount_reason: z.string().trim().max(500).optional(),
     finalization: Finalization.optional(),
+    confirmation_requested: z.boolean().optional(),
   }),
   z.object({
     action: z.literal("move"),

@@ -65,7 +65,10 @@ Deno.serve(async (req) => {
       // Actor identity comes only from the verified caller, never from the browser.
       booking.finalization = { ...(f as Record<string, unknown>), actor_name: auth.email?.split("@")[0] || "System", actor_email: auth.email };
     }
-    const rpc = await db.rpc("bc_2627_staff_group_book", { p: booking, p_actor: auth.userId });
+    if (booking.confirmation_requested !== undefined && typeof booking.confirmation_requested !== "boolean") return json({ error: "invalid", field: "confirmation_requested" }, 400);
+    const rpc = booking.confirmation_requested === undefined
+      ? await db.rpc("bc_2627_staff_group_book", { p: booking, p_actor: auth.userId })
+      : await db.rpc("b05_office_create", { p: booking, p_actor: auth.userId, p_kind: "group" });
     if (rpc.error || rpc.data == null) {
       if (MISSING.has(rpc.error?.code ?? "")) return json({ error: "not_installed" }, 503);
       console.error("staff-group-booking create failed", rpc.error?.code);
