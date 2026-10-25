@@ -15,8 +15,6 @@ export const PROMOTED_FROM = 16;
 export function migrations(root: URL): string[] {
   const dir = new URL("drizzle/migrations/", root);
   return [...Deno.readDirSync(dir)].map((e) => e.name).filter((n) => /^\d{4}_.*\.sql$/.test(n) && Number(n.slice(0, 4)) < PROMOTED_FROM).sort().map((n) => new URL(n, dir).pathname);
-  // R1 staged pending SQL (not yet tracked migrations) completes the chain when the segment runs to the end.
-  return until ? promoted : [...promoted, ...R1_PENDING.map((f) => new URL(`supabase/pending/${f}`, root).pathname)];
 }
 /** R1 retest follow-up, staged after 0016-0029 in this order. */
 export const R1_PENDING = ["r1_pa_move_keep_unassigned.sql", "r1_group_created_total_event.sql", "r1_invoice_content_snapshot.sql"];
@@ -25,4 +23,6 @@ export function segment(root: URL, after: string, until?: string): string[] {
   const a = PENDING_ORDER.indexOf(after), b = until ? PENDING_ORDER.indexOf(until) : PENDING_ORDER.length;
   if (a < 0 || b < 0) throw new Error("unknown pending file");
   const promoted = PENDING_ORDER.slice(a + 1, b).map((f) => new URL(`drizzle/migrations/${String(PENDING_ORDER.indexOf(f) + PROMOTED_FROM).padStart(4, "0")}_${f}`, root).pathname);
+  // R1 staged pending SQL (not yet tracked migrations) completes the chain when the segment runs to the end.
+  return until ? promoted : [...promoted, ...R1_PENDING.map((f) => new URL(`supabase/pending/${f}`, root).pathname)];
 }
