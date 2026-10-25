@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useTicketComments, TicketComment } from "./useTicketComments";
+import { compareHistory, historyEventLabel, historyEventText } from "@/lib/ticketHistoryFormat";
 
 export interface TicketHistoryEvent {
   id: string;
@@ -20,34 +21,9 @@ export interface TimelineEntry {
   details: Record<string, unknown> | null;
   actorName: string | null;
   commentType?: "internal" | "instructor";
-}
-
-const EVENT_LABELS: Record<string, string> = {
-  BOOKING_CREATED: "Buchung erstellt",
-  STATUS_CHANGED: "Status geändert",
-  INSTRUCTOR_CHANGED: "Lehrer geändert",
-  BOOKING_CANCELLED: "Stornierung",
-  PAYMENT_RECORDED: "Zahlung erfasst",
-  ITEM_ADDED: "Position hinzugefügt",
-  ITEM_REMOVED: "Position entfernt",
-  PAYMENT_METHOD_CHANGED: "Zahlungsart festgelegt",
-  BILLING_PARTNER_CHANGED: "Hotelabrechnung geändert",
-};
-
-function formatEventDetails(event: TicketHistoryEvent): string {
-  const d = event.details || {};
-  switch (event.event_type) {
-    case "BOOKING_CREATED":
-      return `Ticket ${d.ticket_number || ""} erstellt (CHF ${d.total_amount ?? "–"})`;
-    case "STATUS_CHANGED":
-      return `${d.old_status || "–"} → ${d.new_status || "–"}`;
-    case "INSTRUCTOR_CHANGED":
-      return `Lehrer gewechselt`;
-    case "BOOKING_CANCELLED":
-      return `${d.cancellation_type || "Stornierung"}: ${d.reason || "–"} (Gebühr: CHF ${d.cancellation_fee ?? 0})`;
-    default:
-      return EVENT_LABELS[event.event_type] || event.event_type;
-  }
+  /** Raw event type for traceability (events only). */
+  eventType?: string;
+  rank?: number;
 }
 
 export function useTicketHistory(ticketId: string | undefined) {
@@ -76,8 +52,10 @@ export function useUnifiedTimeline(ticketId: string | undefined) {
       id: e.id,
       timestamp: e.created_at,
       source: "event",
-      type: EVENT_LABELS[e.event_type] || e.event_type,
-      content: formatEventDetails(e),
+      type: historyEventLabel(e),
+      content: historyEventText(e),
+      eventType: e.event_type,
+      rank: e.event_type === "BOOKING_CREATED" ? 0 : 1,
       details: e.details,
       actorName: (e.details?.actor_email as string) || null,
     })),
@@ -91,7 +69,7 @@ export function useUnifiedTimeline(ticketId: string | undefined) {
       actorName: c.created_by_name,
       commentType: c.comment_type,
     })),
-  ].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+  ].sort(compareHistory);
 
   return {
     data: timeline,
