@@ -137,7 +137,7 @@ try {
   await sql`INSERT INTO ticket_items(ticket_id,product_id,date,time_start,time_end,unit_price,item_type,internal_notes,instructor_notes) VALUES (${t.id},${prod.id},'2026-12-21','10:00','12:00',105,${group?'group':'private'},'DO NOT EXPOSE','SECRET TEACHER')`;
   return{ticket:t.id,email:c.email};
  }
- await sql`GRANT ALL ON office_booking_confirmation_intents,private_appointments,private_appointment_participants,customer_participants,group_course_enrollments,group_course_instances TO service_role`;
+ await sql`GRANT ALL ON office_booking_confirmation_intents,private_appointments,private_appointment_participants,customer_participants,group_course_enrollments,group_course_instances,ticket_item_overrides TO service_role`;
  for(let i=0;i<40;i++){await sql`NOTIFY pgrst,'reload schema'`;await new Promise(r=>setTimeout(r,250));const probe=await sb.from("office_booking_confirmation_intents").select("requested").limit(1);if(!probe.error)break;}
  await test("B05 ON/OFF/NULL recipient authoritative; explicit later send only",async()=>{
   for(const group of [false,true])for(const choice of [true,false])for(const email of ["saved@example.invalid",null]){

@@ -14,6 +14,8 @@ BEGIN
  IF p_kind NOT IN ('private','group') OR p_actor IS NULL OR jsonb_typeof(p->'confirmation_requested') IS DISTINCT FROM 'boolean' THEN
   RETURN jsonb_build_object('error','invalid','field','confirmation_requested');
  END IF;
+ -- Required B04 contract must be available before any canonical write.
+ PERFORM claimed_at,first_claimed_at,provider_idempotency_key,frozen_payload,payload_digest,delivery_protocol FROM public.booking_email_deliveries LIMIT 0;
  v_requested := (p->>'confirmation_requested')::boolean;
  IF p_kind='private' THEN r:=public.pa_create_booking_finalized(p-'confirmation_requested',p_actor);
  ELSE r:=public.bc_2627_staff_group_book(p-'confirmation_requested',p_actor); END IF;

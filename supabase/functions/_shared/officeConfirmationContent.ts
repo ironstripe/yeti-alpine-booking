@@ -18,7 +18,10 @@ export async function officeConfirmationVars(sb:Client,ticketId:string):Promise<
  if(appointments.error||links.error) throw new Error("confirmation_content_read_failed");
  const personIds=[...new Set(links.data.map((l:{participant_id:string})=>l.participant_id))];
  const people=personIds.length?await sb.from("customer_participants").select("id,first_name,last_name").in("id",personIds):{data:[],error:null};
- if(people.error) throw new Error("confirmation_content_read_failed");
+ if(people.error || links.data.some((l:{participant_id:string})=>!people.data.some((p:{id:string})=>p.id===l.participant_id))) throw new Error("confirmation_content_read_failed");
+ const legacyIds=items.filter((i:ProjectionLine)=>!i.appointment_id).map((i:ProjectionLine)=>i.id);
+ const overrides=legacyIds.length?await sb.from("ticket_item_overrides").select("ticket_item_id,override_date,start_time,end_time").in("ticket_item_id",legacyIds):{data:[],error:null};
+ if(overrides.error)throw new Error("confirmation_content_read_failed");
  const projection=projectBookingLines(items,appointments.data,links.data,people.data,[]);
  const descriptions:string[]=[],dates=new Set<string>(),points=new Set<string>(),products=new Set<string>(),names=new Set<string>();
  for(const item of items){
@@ -33,6 +36,11 @@ export async function officeConfirmationVars(sb:Client,ticketId:string):Promise<
   if(item.item_type==="group"&&item.end_date&&item.end_date!==item.date&&!blocks.length) throw new Error("confirmation_group_schedule_missing");
   const schedule=blocks.length?blocks.map((b:{date:string;start_time:string;end_time:string})=>({date:b.date,start:b.start_time,end:b.end_time})):
    [{date:lesson.date,start:lesson.time_start,end:lesson.time_end}];
+  if(!item.appointment_id&&!blocks.length){
+   if(item.end_date&&item.end_date!==item.date)throw new Error("confirmation_legacy_period_ambiguous");
+   const override=overrides.data.find((o:{ticket_item_id:string;override_date:string})=>o.ticket_item_id===item.id&&o.override_date===lesson.date);
+   if(override){schedule[0].start=override.start_time??schedule[0].start;schedule[0].end=override.end_time??schedule[0].end;}
+  }
   const byDay=new Map<string,Set<string>>();
   for(const b of schedule){
    if(!b.date||!b.start||!b.end)throw new Error("confirmation_schedule_missing");
