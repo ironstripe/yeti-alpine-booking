@@ -210,8 +210,8 @@ export async function renderInvoicePdf(input: InvoiceDocInput): Promise<InvoiceP
     const c = qrSize * (7 / 46), o = (qrSize - c) / 2, bar = c * 0.6 / 3.2;
     ctx.page.drawRectangle({ x: qrX + o, y: qrY + o, width: c, height: c, color: rgb(1, 1, 1) });
     ctx.page.drawRectangle({ x: qrX + o + c * 0.08, y: qrY + o + c * 0.08, width: c * 0.84, height: c * 0.84, color: BLACK });
-    ctx.page.drawRectangle({ x: qrX + qrSize / 2 - bar / 2, y: qrY + o + c * 0.25, width: bar, height: c * 0.5, color: rgb(1, 1, 1) });
-    ctx.page.drawRectangle({ x: qrX + o + c * 0.25, y: qrY + qrSize / 2 - bar / 2, width: c * 0.5, height: bar, color: rgb(1, 1, 1) });
+    ctx.page.drawRectangle({ x: qrX + qrSize / 2 - bar / 2, y: qrY + o + c * 0.08, width: bar, height: c * 0.84, color: rgb(1, 1, 1) });
+    ctx.page.drawRectangle({ x: qrX + o + c * 0.08, y: qrY + qrSize / 2 - bar / 2, width: c * 0.84, height: bar, color: rgb(1, 1, 1) });
     py = qrY - 14;
 
     pline("Konto / Zahlbar an", { bold: true, size: 6 });
