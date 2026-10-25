@@ -112,12 +112,158 @@ BEGIN
   RETURN jsonb_build_object('ok', true, 'mode', 'hourly', 'revision', v_rev, 'price', v_total, 'rule_ids', v_ids);
 END $$;
 
--- Preview quote for a new office private booking (same resolver as create).
--- p: {product_id, persons, appointments:[{date,time_start,time_end}]}
+-- B07-P2: same-day discount rule (singleton configuration row; values are data, never code).
+-- Rule (Ivo): automatic discount when the SAME participant has >= threshold_minutes of booked private
+-- teaching time (clock blocks) on the SAME date. Shared lessons: the lesson price is divided equally
+-- among its actual participants for the discount calculation only; the discount applies to the
+-- eligible people's shares. One canonical billing line per lesson stays.
+CREATE TABLE public.private_lesson_discount_rule (
+  id boolean PRIMARY KEY DEFAULT true CONSTRAINT pldr_singleton CHECK (id),
+  percent numeric(5,2) NOT NULL CONSTRAINT pldr_percent CHECK (percent > 0 AND percent <= 100),
+  threshold_minutes integer NOT NULL CONSTRAINT pldr_threshold CHECK (threshold_minutes > 0),
+  scope text NOT NULL DEFAULT 'same_participant_same_day' CONSTRAINT pldr_scope CHECK (scope = 'same_participant_same_day'),
+  shared_allocation text NOT NULL DEFAULT 'equal_share' CONSTRAINT pldr_alloc CHECK (shared_allocation = 'equal_share'),
+  revision integer NOT NULL DEFAULT 1,
+  provenance text NOT NULL CONSTRAINT pldr_provenance CHECK (length(trim(provenance)) > 0),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  updated_by uuid
+);
+COMMENT ON TABLE public.private_lesson_discount_rule IS
+  'B07-P2: automatic same-participant same-day private-lesson discount; revision bound into quotes.';
+GRANT SELECT ON public.private_lesson_discount_rule TO authenticated;
+GRANT ALL ON public.private_lesson_discount_rule TO service_role;
+ALTER TABLE public.private_lesson_discount_rule ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Staff read private discount rule" ON public.private_lesson_discount_rule
+  FOR SELECT TO authenticated USING (public.is_staff(auth.uid()));
+CREATE OR REPLACE FUNCTION public.pldr_bump_revision() RETURNS trigger LANGUAGE plpgsql SET search_path TO 'public' AS $$
+BEGIN NEW.revision := OLD.revision + 1; NEW.updated_at := now(); RETURN NEW; END $$;
+CREATE TRIGGER trg_pldr_bump_revision BEFORE UPDATE ON public.private_lesson_discount_rule
+  FOR EACH ROW EXECUTE FUNCTION public.pldr_bump_revision();
+
+-- B07-P2: pricing provenance of appointments priced by product tariffs (marks them for edit/move guards).
+CREATE TABLE public.private_appointment_pricing (
+  appointment_id uuid PRIMARY KEY REFERENCES public.private_appointments(id) ON DELETE RESTRICT,
+  product_id uuid NOT NULL,
+  tariff_revision integer NOT NULL,
+  discount_rule_revision integer NOT NULL,
+  gross_price numeric(10,2) NOT NULL,
+  discount_source text NOT NULL CONSTRAINT pap_source CHECK (discount_source IN ('none','automatic','manual')),
+  discount_percent numeric NOT NULL,
+  discount_amount numeric(10,2) NOT NULL,
+  persons integer NOT NULL,
+  eligible_persons integer NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+COMMENT ON TABLE public.private_appointment_pricing IS
+  'B07-P2: immutable price/discount provenance per product-tariff-priced appointment (written by pa_create_booking only).';
+GRANT SELECT ON public.private_appointment_pricing TO authenticated;
+GRANT ALL ON public.private_appointment_pricing TO service_role;
+ALTER TABLE public.private_appointment_pricing ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Staff read private appointment pricing" ON public.private_appointment_pricing
+  FOR SELECT TO authenticated USING (public.is_staff(auth.uid()));
+
+-- Pure calculator. p_slots: [{date,time_start,time_end,price,participants:[key,...]}] (index = position).
+-- Order-invariant: depends only on per-person/day minute sums and per-slot counts.
+-- discount_amount = round(price * eligible / persons * percent / 100, 2); discount_percent = amount/price*100.
+CREATE OR REPLACE FUNCTION public.pa_same_day_discount(p_slots jsonb, p_percent numeric, p_threshold integer) RETURNS jsonb
+LANGUAGE sql IMMUTABLE SET search_path TO 'public' AS $$
+  WITH s AS (
+    SELECT (o - 1)::int idx, (x->>'date')::date d,
+           (extract(epoch FROM ((x->>'time_end')::time - (x->>'time_start')::time)) / 60)::int mins,
+           (x->>'price')::numeric price, coalesce(x->'participants', '[]'::jsonb) parts
+      FROM jsonb_array_elements(p_slots) WITH ORDINALITY t(x, o)),
+  sp AS (SELECT DISTINCT s.idx, s.d, s.mins, v pid FROM s, jsonb_array_elements_text(s.parts) v),
+  pd AS (SELECT pid, d, sum(mins) m FROM sp GROUP BY pid, d),
+  per AS (
+    SELECT s.idx, s.price, count(sp.pid)::int n, (count(sp.pid) FILTER (WHERE pd.m >= p_threshold))::int e
+      FROM s LEFT JOIN sp ON sp.idx = s.idx LEFT JOIN pd ON pd.pid = sp.pid AND pd.d = sp.d
+     GROUP BY s.idx, s.price),
+  z AS (SELECT *, CASE WHEN n = 0 OR price <= 0 THEN 0::numeric ELSE round(price * e * p_percent / (n * 100.0), 2) END amt FROM per)
+  SELECT coalesce(jsonb_agg(jsonb_build_object('index', idx, 'persons', n, 'eligible', e, 'discount_amount', amt,
+           'discount_percent', CASE WHEN price > 0 THEN amt * 100 / price ELSE 0 END) ORDER BY idx), '[]'::jsonb) FROM z
+$$;
+
+-- Discount intent of a create/quote request. Explicit manual override (discount_override, or the legacy
+-- non-zero discount_percent) REPLACES the automatic discount for every line of the request; it is never
+-- added or compounded. Absent / default 0 => automatic. Explicit 0 is only {discount_override:{percent:0}}.
+CREATE OR REPLACE FUNCTION public.pa_discount_intent(p jsonb, p_require_reason boolean) RETURNS jsonb
+LANGUAGE plpgsql IMMUTABLE SET search_path TO 'public' AS $$
+DECLARE o jsonb := p->'discount_override'; v_pct numeric; v_reason text;
+BEGIN
+  IF p ? 'discount_percent' AND jsonb_typeof(p->'discount_percent') <> 'number' THEN
+    RETURN jsonb_build_object('error','invalid','field','discount_percent');
+  END IF;
+  IF o IS NOT NULL AND jsonb_typeof(o) <> 'null' THEN
+    IF jsonb_typeof(o) <> 'object' OR jsonb_typeof(o->'percent') IS DISTINCT FROM 'number'
+       OR coalesce((p->>'discount_percent')::numeric, 0) <> 0 THEN
+      RETURN jsonb_build_object('error','invalid','field','discount_override');
+    END IF;
+    v_pct := (o->>'percent')::numeric; v_reason := nullif(trim(coalesce(o->>'reason','')),'');
+  ELSIF coalesce((p->>'discount_percent')::numeric, 0) <> 0 THEN
+    v_pct := (p->>'discount_percent')::numeric; v_reason := nullif(trim(coalesce(p->>'discount_reason','')),'');
+  ELSE
+    RETURN jsonb_build_object('mode','automatic');
+  END IF;
+  IF v_pct < 0 OR v_pct > 100 THEN RETURN jsonb_build_object('error','invalid','field','discount_percent'); END IF;
+  IF p_require_reason AND v_reason IS NULL THEN RETURN jsonb_build_object('error','invalid','field','discount_reason'); END IF;
+  RETURN jsonb_build_object('mode','manual','percent',v_pct,'reason',v_reason);
+END $$;
+
+-- Shared pricing of a request: tariff per slot (pa_product_quote) + discount (rule or manual override).
+-- p_slots: [{date,time_start,time_end,participants:[key]}]. Returns {ok, items[], gross_total, discount_total,
+-- automatic_discount_total, total, discount_source, revision, discount_rule_revision} or an error object.
+CREATE OR REPLACE FUNCTION public.pa_price_request(p_product uuid, p_slots jsonb, p_intent jsonb, p_office boolean) RETURNS jsonb
+LANGUAGE plpgsql STABLE SET search_path TO 'public' AS $$
+DECLARE i int; e jsonb; v_q jsonb; v_priced jsonb := '[]'::jsonb; v_rev int; dr record; v_auto jsonb;
+  v_items jsonb := '[]'::jsonb; v_gross numeric := 0; v_disc numeric := 0; v_auto_total numeric := 0; v_net numeric := 0;
+  v_price numeric; v_pct numeric; v_amt numeric; v_src text; v_n int; v_reason text;
+BEGIN
+  SELECT revision INTO v_rev FROM public.product_private_tariff_revisions WHERE product_id = p_product;
+  FOR i IN 0 .. jsonb_array_length(p_slots) - 1 LOOP
+    e := p_slots->i;
+    BEGIN
+      v_n := jsonb_array_length(e->'participants');
+      v_q := public.pa_product_quote(p_product, (e->>'date')::date, (e->>'time_start')::time, (e->>'time_end')::time, v_n, p_office);
+    EXCEPTION WHEN others THEN RETURN jsonb_build_object('error','invalid','field','appointments','index',i); END;
+    IF v_q ? 'error' THEN RETURN jsonb_build_object('error','tariff_unavailable','reason',v_q->>'reason','index',i); END IF;
+    v_priced := v_priced || jsonb_build_array(e || jsonb_build_object('price', v_q->'price', 'mode', v_q->'mode'));
+  END LOOP;
+  SELECT * INTO dr FROM public.private_lesson_discount_rule WHERE id;
+  IF NOT FOUND THEN RETURN jsonb_build_object('error','tariff_unavailable','reason','discount_rule_not_configured'); END IF;
+  v_auto := public.pa_same_day_discount(v_priced, dr.percent, dr.threshold_minutes);
+  FOR i IN 0 .. jsonb_array_length(v_priced) - 1 LOOP
+    v_price := (v_priced->i->>'price')::numeric;
+    v_auto_total := v_auto_total + (v_auto->i->>'discount_amount')::numeric;
+    IF p_intent->>'mode' = 'manual' THEN
+      v_pct := (p_intent->>'percent')::numeric; v_src := 'manual'; v_reason := p_intent->>'reason';
+    ELSE
+      v_pct := (v_auto->i->>'discount_percent')::numeric;
+      v_src := CASE WHEN v_pct > 0 THEN 'automatic' ELSE 'none' END;
+      v_reason := CASE WHEN v_pct > 0 THEN format('Automatischer Tagesrabatt %s%% (ab %s Min. pro Person und Tag): %s von %s Person(en)',
+        trim_scale(dr.percent), dr.threshold_minutes, v_auto->i->>'eligible', v_auto->i->>'persons') END;
+    END IF;
+    -- Net mirrors the generated ticket_items.line_total exactly (quantity 1).
+    v_amt := v_price - v_price * (1 - v_pct / 100);
+    v_items := v_items || jsonb_build_array(jsonb_build_object('index', i, 'price', v_price, 'mode', v_priced->i->'mode',
+      'persons', (v_auto->i->>'persons')::int, 'eligible', (v_auto->i->>'eligible')::int,
+      'automatic_discount_amount', (v_auto->i->>'discount_amount')::numeric,
+      'discount_source', v_src, 'discount_percent', v_pct, 'discount_reason', v_reason,
+      'discount_amount', round(v_amt, 2), 'net', v_price * (1 - v_pct / 100)));
+    v_gross := v_gross + v_price; v_disc := v_disc + v_amt; v_net := v_net + v_price * (1 - v_pct / 100);
+  END LOOP;
+  RETURN jsonb_build_object('ok', true, 'revision', v_rev, 'discount_rule_revision', dr.revision,
+    'discount_rule', jsonb_build_object('percent', dr.percent, 'threshold_minutes', dr.threshold_minutes),
+    'discount_source', CASE WHEN p_intent->>'mode' = 'manual' THEN 'manual' WHEN v_auto_total > 0 THEN 'automatic' ELSE 'none' END,
+    'items', v_items, 'gross_total', v_gross, 'discount_total', round(v_disc, 2),
+    'automatic_discount_total', v_auto_total, 'total', v_net);
+END $$;
+
+-- Preview quote for a new office private booking (same resolver + discount as create).
+-- p: {product_id, persons, appointments:[{date,time_start,time_end}], discount_override?|discount_percent?}
+-- Every person attends every appointment (same shape pa_create_booking writes).
 CREATE OR REPLACE FUNCTION public.pa_create_quote(p jsonb) RETURNS jsonb
 LANGUAGE plpgsql STABLE SET search_path TO 'public' AS $$
-DECLARE v_product uuid; v_persons int; v_appts jsonb := p->'appointments'; e jsonb; i int; v_q jsonb;
-  v_items jsonb := '[]'::jsonb; v_total numeric := 0; v_rev int;
+DECLARE v_product uuid; v_persons int; v_appts jsonb := p->'appointments'; v_intent jsonb; v_parts jsonb; v_slots jsonb := '[]'::jsonb; i int;
 BEGIN
   BEGIN v_product := (p->>'product_id')::uuid; v_persons := (p->>'persons')::int;
   EXCEPTION WHEN others THEN RETURN jsonb_build_object('error','invalid','field','product_id'); END;
@@ -128,17 +274,15 @@ BEGIN
   IF jsonb_typeof(v_appts) <> 'array' OR jsonb_array_length(v_appts) = 0 OR jsonb_array_length(v_appts) > 60 THEN
     RETURN jsonb_build_object('error','invalid','field','appointments');
   END IF;
-  SELECT revision INTO v_rev FROM public.product_private_tariff_revisions WHERE product_id = v_product;
+  v_intent := public.pa_discount_intent(p, false);
+  IF v_intent ? 'error' THEN RETURN v_intent; END IF;
+  SELECT jsonb_agg('p' || g) INTO v_parts FROM generate_series(1, v_persons) g;
   FOR i IN 0 .. jsonb_array_length(v_appts) - 1 LOOP
-    e := v_appts->i;
-    BEGIN
-      v_q := public.pa_product_quote(v_product, (e->>'date')::date, (e->>'time_start')::time, (e->>'time_end')::time, v_persons, true);
-    EXCEPTION WHEN others THEN RETURN jsonb_build_object('error','invalid','field','appointments','index',i); END;
-    IF v_q ? 'error' THEN RETURN jsonb_build_object('error','tariff_unavailable','reason',v_q->>'reason','index',i); END IF;
-    v_items := v_items || jsonb_build_array(jsonb_build_object('index', i, 'price', v_q->'price', 'mode', v_q->'mode'));
-    v_total := v_total + (v_q->>'price')::numeric;
+    IF jsonb_typeof(v_appts->i) <> 'object' THEN RETURN jsonb_build_object('error','invalid','field','appointments','index',i); END IF;
+    v_slots := v_slots || jsonb_build_array(jsonb_build_object('date', v_appts->i->'date', 'time_start', v_appts->i->'time_start',
+      'time_end', v_appts->i->'time_end', 'participants', v_parts));
   END LOOP;
-  RETURN jsonb_build_object('ok', true, 'revision', v_rev, 'items', v_items, 'total', v_total);
+  RETURN public.pa_price_request(v_product, v_slots, v_intent, true);
 END $$;
 
 -- Atomic, revision-checked replace of one product's rule set (staff via Edge Function only).
