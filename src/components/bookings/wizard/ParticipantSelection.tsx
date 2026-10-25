@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { birthDateChangeError, pickerDateToIso } from "@/lib/birthDate";
 import { useQuery } from "@tanstack/react-query";
 import { Check, Plus, User, AlertTriangle, Loader2, ArrowRight, TrendingUp } from "lucide-react";
 import { useForm } from "react-hook-form";
@@ -52,7 +53,7 @@ interface ParticipantSelectionProps {
 
 const participantSchema = z.object({
   first_name: z.string().min(1, "Vorname ist erforderlich").max(100),
-  birth_date: z.date({ required_error: "Geburtsdatum ist erforderlich" }),
+  birth_date: z.date({ required_error: "Geburtsdatum ist erforderlich" }).refine((d) => birthDateChangeError(pickerDateToIso(d)) === null, { message: "Das Geburtsdatum darf nicht in der Zukunft liegen." }),
   level_last_season: z.string().optional(),
   level_current_season: z.string().optional(),
   sport: z.string().default("ski"),

@@ -1,5 +1,6 @@
 // Input schema + status mapping for the `private-appointments` staff endpoint.
 import { z } from "https://esm.sh/zod@3.23.8";
+import { birthDateIssue } from "./birthDate.ts";
 
 const uuid = z.string().uuid();
 const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
@@ -17,7 +18,8 @@ const participant = z.union([
     guest_key: z.string().min(8).max(100),
     first_name: z.string().trim().min(1).max(100),
     last_name: z.string().trim().max(100).optional(),
-    birth_date: date,
+    // B08: real calendar date, not after the school date (Europe/Zurich).
+    birth_date: date.refine((v) => birthDateIssue(v) === null, "birth_date"),
     sport: z.enum(["ski", "snowboard"]).optional(),
     // Draft participant's chosen level; validated per sport by SQL staff_guest_level_ok (migration 0007).
     level: z.string().trim().min(1).max(40).optional(),

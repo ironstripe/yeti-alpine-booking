@@ -290,3 +290,7 @@ All real business writes intercepted (any non-GET to the backend fails with 403 
 - [x] Pending SQL, Resolver, Vorschau/Create-Bindung, Editor, Edge-Vertrag; lokal getestet (docs/b07-pricing-verification.md)
 - [ ] Wartet auf Ivo: Personenzuschlag im neuen Modell, Doppelstunde 14–16, Abdeckung aller aktiven Privatprodukte; danach Installation/Deploy/Schalter nur mit Freigabe
 - [ ] B07b: Zusammenfassung zeigt Server-Vorschau (Voraussetzung für Schalter); Verschieben/Bearbeiten nutzt noch altes Preismodell
+
+## B08 (Geburtsdatum)
+- [x] UI + Edge-Validierung, pending Trigger, lokale Tests, Browser Kundendetail (docs/b08-verification.md)
+- [ ] Wartet auf Freigabe: Functions deployen, publizieren, Trigger installieren; HB042–044 Retest

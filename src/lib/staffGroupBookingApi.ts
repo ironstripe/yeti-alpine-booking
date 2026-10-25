@@ -41,6 +41,7 @@ export interface StaffGroupBookingResult { ticket_id: string; ticket_number: str
 const FIELD_MESSAGES: Record<string, string> = {
   course: "Der Kurs ist nicht (mehr) buchbar – bitte Kurs neu wählen.",
   participant: "Ein Teilnehmer gehört nicht zu diesem Kunden.",
+  birth_date: "Das Geburtsdatum eines neuen Teilnehmers ist ungültig oder liegt in der Zukunft. Bitte prüfen. Es wurde nichts gespeichert.",
   level: "Das gewählte Niveau passt nicht zur Sportart eines neuen Teilnehmers. Bitte Niveau prüfen. Es wurde nichts gespeichert.",
   dates: "Die Kurstage passen nicht zum Kursangebot.",
   blocks: "Die Kurszeiten haben sich geändert – bitte Kurs neu wählen.",

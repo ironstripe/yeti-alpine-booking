@@ -50,6 +50,8 @@ Deno.serve(async (req) => {
 
   // Edit RPC not installed yet: say so clearly instead of an ambiguous "unknown result".
   if ((p.action === "edit" || p.action === "quote") && rpc.error?.code === "PGRST202") return json({ error: "unavailable" }, 503);
+  // B08 last-resort guard (trigger): nothing was written; report the field, not an unknown result.
+  if (rpc.error?.code === "22008") return json({ error: "invalid", field: "birth_date", index: null }, 400);
   if (rpc.error || !rpc.data) {
     console.error("private-appointments rpc failed", p.action, rpc.error?.code);
     return json({ error: "internal_error" }, 500);

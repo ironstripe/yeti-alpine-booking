@@ -6,6 +6,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { checkSaturdaySelection } from "../_shared/saturdaySelection.ts";
 import { requireRole } from "../_shared/staffAuth.ts";
+import { birthDateIssue } from "../_shared/birthDate.ts";
 
 const json = (body: unknown, status: number) =>
   new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
@@ -51,6 +52,13 @@ Deno.serve(async (req) => {
     if (!body.booking || typeof body.booking !== "object") return json({ error: "invalid", field: "booking" }, 400);
     const booking = { ...(body.booking as Record<string, unknown>) };
     if (!Array.isArray(booking.lines)) return json({ error: "invalid", field: "lines" }, 400);
+    // B08: new people need a real birth date not after the school date; rejected before any write.
+    for (const [index, line] of booking.lines.entries()) {
+      const guest = line && typeof line === "object" ? (line as { guest?: { birth_date?: unknown } }).guest : undefined;
+      if (guest && typeof guest === "object" && birthDateIssue(guest.birth_date) !== null) {
+        return json({ error: "invalid", field: "birth_date", line: String(index) }, 400);
+      }
+    }
     try {
       for (const [index, line] of booking.lines.entries()) {
         if (!line || typeof line.course_id !== 'string' || typeof line.product_id !== 'string'
@@ -69,6 +77,7 @@ Deno.serve(async (req) => {
     const rpc = booking.confirmation_requested === undefined
       ? await db.rpc("bc_2627_staff_group_book", { p: booking, p_actor: auth.userId })
       : await db.rpc("b05_office_create", { p: booking, p_actor: auth.userId, p_kind: "group" });
+    if (rpc.error?.code === "22008") return json({ error: "invalid", field: "birth_date" }, 400);
     if (rpc.error || rpc.data == null) {
       if (MISSING.has(rpc.error?.code ?? "")) return json({ error: "not_installed" }, 503);
       console.error("staff-group-booking create failed", rpc.error?.code);
