@@ -63,7 +63,7 @@ try {
       ('${ANNA}','${CUST}','Anna','Synth','2016-02-02'),('${BEN}','${CUST}','Ben','Synth','2017-03-03');
     INSERT INTO private_lesson_rates(start_time,end_time,rate_per_hour) VALUES ('09:00','17:00',80);
   `);
-  for (const [P, n] of [[SKI, 35], [SB, 35], [PX, 1], [GX, 1]]) for (let k = 1; k <= n; k++)
+  for (const P of [SKI, SB, PX, GX]) for (const k of [1])
     await sql`INSERT INTO bc_product_tariff_sources(source_id,season_id,product_id,source_sha256,source_family,import_status,day_count,duration_minutes,persons_per_lesson,price_chf,source_payload)
       VALUES (${`src-${P}-${k}`},${S},${P},'sha','Privat','draft',${k},60,1,${100 + k},'{}')`;
   const TIERS = [150, 200, 245, 285, 320];
