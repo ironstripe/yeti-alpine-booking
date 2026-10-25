@@ -68,7 +68,7 @@ async def main():
    assert all(x['action'] in ['status','send'] for x in confirmation_requests)
    mode['error']=True;await page.evaluate("window.qc.invalidateQueries({queryKey:['booking-read-projection']})")
    await page.get_by_text('Teilnehmerdaten nicht verfügbar',exact=False).first.wait_for()
-   assert await page.get_by_role('alert').count()>=2
+   await page.get_by_role('alert').nth(1).wait_for()
    assert await page.locator('div.hidden').last.inner_html()==invoice_before
    await page.screenshot(path=str(OUT/f'error_{width}.png'))
    assert not writes and not errors,(writes,errors)
