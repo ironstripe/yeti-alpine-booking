@@ -88,8 +88,8 @@ try {
 
   for(const f of ['supabase/pending/b04_delivery_compatibility.sql','supabase/pending/b05_office_confirmation_intent.sql']){const r=psqlFile(f);if(r.status!==0)throw new Error(r.stderr);}
   const create=(kind,p)=>sql`SELECT public.b05_office_create(${sql.json(p)}::jsonb,${ACTOR}::uuid,${kind}) r`.then(x=>x[0].r);
-  const privatePayload=()=>({submission_key:key(),customer_id:CUST,product_id:PRIV,appointments:[{date:'2026-12-21',time_start:'10:00',time_end:'11:00',assign_later:true}],participants:[{guest_key:'b05-guest-'+key(),first_name:'Guest',birth_date:'2016-01-01'}],finalization:fin()});
-  const groupPayload=()=>({submission_key:key(),customer_id:CUST,lines:[gline({guest:{guest_key:'b05-guest-'+key(),first_name:'Guest',birth_date:'2016-01-01'},dates:WEEK})],finalization:fin()});
+  const privatePayload=()=>({submission_key:key(),customer_id:CUST,product_id:PRIV,appointments:[{date:'2026-12-21',time_start:'10:00',time_end:'11:00',assign_later:true}],participants:[{guest_key:'b05-guest-'+key(),first_name:'Guest'+key(),birth_date:'2016-01-01'}],finalization:fin()});
+  const groupPayload=()=>({submission_key:key(),customer_id:CUST,lines:[gline({guest:{guest_key:'b05-guest-'+key(),first_name:'Guest'+key(),birth_date:'2016-01-01'},dates:WEEK})],finalization:fin()});
   for(const kind of ['private','group'])for(const choice of [true,false])await t(kind+' atomic '+choice+' lost response/replay keeps one booking/people/payment/intent',async()=>{
    const p={...(kind==='private'?privatePayload():groupPayload()),confirmation_requested:choice};const before=await counts();
    const [a,b]=await Promise.all([create(kind,p),create(kind,{...p,confirmation_requested:!choice})]);assert.ok(a.ok&&b.ok,JSON.stringify([a,b]));assert.equal(a.ticket_id,b.ticket_id);
