@@ -94,12 +94,13 @@ try {
   });
   await t('rollback restores previous body; existing events kept; grants unchanged', async () => {
     const n = (await sql`SELECT count(*)::int n FROM ticket_history WHERE details ? 'ticket_total_after_create'`)[0].n;
+    const acl = async () => (await sql`SELECT coalesce(proacl::text,'') a FROM pg_proc WHERE proname='pa_emit_change'`)[0].a; const aclBefore = await acl();
     const r = spawnSync('psql', [u.toString(), '-q', '-v', 'ON_ERROR_STOP=1', '-f', fileURLToPath(new URL('supabase/pending/b11_created_total_event_rollback.sql', root))], { encoding: 'utf8', env: { ...process.env, PGSSLMODE: 'disable' } });
     assert.equal(r.status, 0, r.stderr);
     assert.equal((await sql`SELECT count(*)::int n FROM ticket_history WHERE details ? 'ticket_total_after_create'`)[0].n, n);
     const c = await create([withT(D1, I2, '09:00', '10:00')]); const e = (await ev(c.ticket_id)).find((x) => x.details.change === 'created');
     assert.ok(!('ticket_total_after_create' in e.details));
-    for (const role of ['anon', 'authenticated']) assert.equal((await sql`SELECT has_function_privilege(${role}, 'public.pa_emit_change(uuid,uuid[],text,uuid,jsonb)', 'EXECUTE') ok`)[0].ok, false);
+    assert.equal(await acl(), aclBefore);
   });
 } finally {
   console.log(results.join('\n')); console.log(`${passed}/${results.length} passed`);
