@@ -103,7 +103,6 @@ try {
     const before = await invoiceRow(f.invoice);
     assertEquals((await invoke(f.invoice, "status")).outcome, "not_sent");
     const r = await invoke(f.invoice, "send");
-    if (r.outcome !== "sent") console.log("DEBUG first send:", JSON.stringify(r));
     assertEquals(r.outcome, "sent");
     assertEquals(calls.length, 1);
     const mail = calls[0];
@@ -115,7 +114,6 @@ try {
     assertEquals(await invoiceRow(f.invoice), before); // no financial/status/sent_at mutation
     const st = await invoke(f.invoice, "status");
     const re = await invoke(f.invoice, "send");
-    console.log("DEBUG status:", JSON.stringify(st), "resend:", JSON.stringify(re));
     assertEquals(st.outcome, "sent");
     assertEquals(re.outcome, "already_sent");
     assertEquals(calls.length, 1);
