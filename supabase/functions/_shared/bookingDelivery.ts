@@ -127,7 +127,7 @@ export async function attemptConfirmation(
   // Old failed rows do not record whether a provider handoff occurred.
   if (opts.manual) return "needs_review";
   if (current.delivery_protocol !== "legacy_v1" || current.attempts !== 0) return "needs_review";
-  const { data: claimed } = await sb
+  const { data: claimed, error: claimError } = await sb
     .from("booking_email_deliveries")
     .update({ status: "sending", attempts: current.attempts + 1 })
     .eq("id", deliveryId)
@@ -135,13 +135,14 @@ export async function attemptConfirmation(
     .in("status", allowed)
     .select("id, ticket_id, recipient_email, idempotency_key")
     .maybeSingle();
+  if (claimError) return "needs_review";
   if (!claimed) return "not_claimed";
 
   const fail = async (code: string, message: string, extra: Record<string, unknown> = {}) => {
-    await sb.from("booking_email_deliveries")
+    const { error } = await sb.from("booking_email_deliveries")
       .update({ status: "failed", last_error_code: code, last_error: message.slice(0, 500), ...extra })
-      .eq("id", deliveryId);
-    return "failed";
+      .eq("id", deliveryId).eq("attempts", current.attempts + 1).eq("status", "sending");
+    return error ? "unknown" : "failed";
   };
 
   try {
@@ -158,7 +159,7 @@ export async function attemptConfirmation(
     }
     const subject = subj.text.replace(/[\r\n]+/g, " ");
 
-    const { data: log } = await sb.from("email_logs").insert({
+    const { data: log, error: auditError } = await sb.from("email_logs").insert({
       template_id: tpl.id,
       recipient_email: claimed.recipient_email,
       subject,
@@ -166,6 +167,7 @@ export async function attemptConfirmation(
       delivery_id: deliveryId,
       metadata: { ticket_id: claimed.ticket_id, kind: "booking_confirmation" },
     }).select("id").single();
+    if (auditError || !log?.id) return await fail("audit_write_failed", "Versandprotokoll konnte nicht gespeichert werden");
 
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
@@ -184,11 +186,11 @@ export async function attemptConfirmation(
     }
     const now = new Date().toISOString();
     if (log?.id) await sb.from("email_logs").update({ status: "sent", sent_at: now, provider_message_id: out.id }).eq("id", log.id);
-    await sb.from("booking_email_deliveries").update({
+    const { data: saved, error: saveError } = await sb.from("booking_email_deliveries").update({
       status: "sent", sent_at: now, provider_message_id: out.id ?? null, template_id: tpl.id,
       email_log_id: log?.id ?? null, last_error_code: null, last_error: null,
-    }).eq("id", deliveryId);
-    return "sent";
+    }).eq("id", deliveryId).eq("attempts", current.attempts + 1).eq("status", "sending").select("id").maybeSingle();
+    return saveError || !saved ? "unknown" : "sent";
   } catch (e) {
     return await fail("exception", e instanceof Error ? e.message : String(e));
   }
