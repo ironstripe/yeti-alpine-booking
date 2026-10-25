@@ -1,3 +1,4 @@
+-- Promoted 2026-10-25 from supabase/pending/pa_edit_booking.sql (B01-B11 + B07 coordinated release step 7). Do not re-run the pending copy: it was removed.
 -- B03a: atomic edit of an existing canonical private booking (PENDING – not installed).
 -- One call = one transaction. Validates everything first, then writes; any error returns before the
 -- first write, so a failing second appointment never leaves the first one changed.

@@ -1,3 +1,4 @@
+-- Promoted 2026-10-25 from supabase/pending/b05_office_confirmation_intent.sql (B01-B11 + B07 coordinated release step 8). Do not re-run the pending copy: it was removed.
 -- B05 pending/uninstalled. No sends, triggers, backfill or financial changes.
 CREATE TABLE public.office_booking_confirmation_intents (
  ticket_id uuid PRIMARY KEY REFERENCES public.tickets(id), requested boolean NOT NULL,

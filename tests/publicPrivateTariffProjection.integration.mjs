@@ -50,7 +50,7 @@ try {
   // Staged install: projection SQL refuses to install before the tariff resolver exists.
   const early = psqlFile('supabase/pending/public_private_tariff_projection.sql');
   const earlyRefused = early.status !== 0 && /Install .* first/.test(early.stderr);
-  const res = psqlFile('supabase/pending/product_private_tariff_rules.sql'); if (res.status !== 0) throw new Error(res.stderr);
+  const res = psqlFile('drizzle/migrations/0024_product_private_tariff_rules.sql'); if (res.status !== 0) throw new Error(res.stderr);
   const proj = psqlFile('supabase/pending/public_private_tariff_projection.sql'); if (proj.status !== 0) throw new Error(proj.stderr);
 
   await sql.unsafe(`

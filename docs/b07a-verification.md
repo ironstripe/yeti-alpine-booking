@@ -5,12 +5,12 @@ Status: **B07a server implemented and verified on an isolated local database wit
 Nothing installed, deployed, published or sent. No live business writes. UI lock `multiItemBlocked` unchanged (lifted only with B07b).
 
 ## Changed / new files
-- `supabase/pending/b07a_office_multi_create.sql` (new, NOT installed):
+- `drizzle/migrations/0026_b07a_office_multi_create.sql` (new, NOT installed):
   - body patch of `bc_2627_staff_group_book` (fails closed unless the B09 body is installed): when the transaction-local marker `b07a.ticket` is set, lines go onto that ticket instead of a new ticket/submission row; otherwise byte-identical behaviour.
   - table `b07a_office_submissions(submission_key, payload_digest, ticket_id, result, created_by)`, service-only, RLS on, no policies.
   - `b07a_office_multi(p, actor, mode 'quote'|'create')`, service-only, office/admin/super_admin actor check.
 - `supabase/rollback/b07a_office_multi_create_rollback.sql` (new, executable).
-- `supabase/pending/pa_tariff_l1.sql`: two demonstrated fixes (below).
+- `drizzle/migrations/0025_pa_tariff_l1.sql`: two demonstrated fixes (below).
 - `supabase/rollback/pa_tariff_l1_rollback.sql`: now executable (restores pre-L1 bodies, then drops L1 objects; refuses while B07a is installed).
 - `supabase/functions/office-booking/index.ts` (new staff endpoint, `requireRole(["office","admin"])`), `supabase/functions/_shared/officeBookingContract.ts`, `supabase/functions/office-booking/contract.test.ts`; `scripts/check-edge-functions.sh` default list includes `office-booking`.
 - Tests: `tests/b07aMultiCreate.integration.mjs`, `tests/paTariffL1Rollback.integration.mjs`.

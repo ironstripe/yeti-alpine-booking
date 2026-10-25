@@ -1,3 +1,4 @@
+-- Promoted 2026-10-25 from supabase/pending/b07a_office_multi_create.sql (B01-B11 + B07 coordinated release step 11). Do not re-run the pending copy: it was removed.
 -- B07a (PENDING, NOT INSTALLED): atomic multi-item office booking (mixed private + group cart).
 -- Requires, installed in this order: production baseline + 0001..0007, b04_delivery_compatibility,
 -- b05_office_confirmation_intent, b11_created_total_event, participant_birth_date_guard,

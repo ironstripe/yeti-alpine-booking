@@ -1,3 +1,4 @@
+-- Promoted 2026-10-25 from supabase/pending/product_private_tariff_rules.sql (B01-B11 + B07 coordinated release step 9). Do not re-run the pending copy: it was removed.
 -- B07-P (PENDING, NOT INSTALLED): product-configured private-lesson tariffs.
 -- Prerequisite for B07a. Requires installed migrations 0001 + 0006 + 0007 (pa_create_booking lineage).
 -- Additive: new tables/functions; replaces pa_create_booking so that NEW private bookings are priced

@@ -14,7 +14,7 @@ Birth date must be a real calendar date (YYYY-MM-DD) and not after the school da
 - `supabase/functions/_shared/birthDate.ts` (new, dependency-free; re-exported by `src/lib/birthDate.ts`).
 - `privateAppointmentsContract.ts`: guest `birth_date` refined (real date, not future) → 400 before RPC.
 - `private-appointments/index.ts`, `staff-group-booking/index.ts`: group guests checked before any RPC; DB code `22008` from the guard mapped to `invalid / birth_date` (400) instead of an unknown result.
-- `supabase/pending/participant_birth_date_guard.sql` (new, NOT installed): BEFORE INSERT / UPDATE OF birth_date trigger; fires only on insert with non-NULL DOB or an actual change. Rollback: `supabase/rollback/participant_birth_date_guard_rollback.sql` (drops only trigger+function).
+- `drizzle/migrations/0019_participant_birth_date_guard.sql` (new, NOT installed): BEFORE INSERT / UPDATE OF birth_date trigger; fires only on insert with non-NULL DOB or an actual change. Rollback: `supabase/rollback/participant_birth_date_guard_rollback.sql` (drops only trigger+function).
 - UI: `FamilyHub.tsx`, `ParticipantSelection.tsx` (create schemas), `ParticipantCard.tsx`, `ParticipantEditDialog.tsx` (only changed DOB checked), `useParticipants.ts` (server 22008 message), `privateAppointmentsApi.ts` / `staffGroupBookingApi.ts` field messages.
 - Not changed: RPC bodies, import/Booking-Corner contracts, website paths (`intake-booking`, `confirm-booking`), pricing, scheduler, delivery. Those writers are covered by the trigger once installed.
 

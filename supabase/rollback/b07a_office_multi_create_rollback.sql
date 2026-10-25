@@ -1,4 +1,4 @@
--- Rollback for supabase/pending/b07a_office_multi_create.sql, consumer-first:
+-- Rollback for drizzle/migrations/0026_b07a_office_multi_create.sql, consumer-first:
 -- 0. Redeploy without `office-booking` (or disable it) and publish the client that keeps multiItemBlocked.
 -- 1. Export evidence: \copy public.b07a_office_submissions TO 'b07a_submissions.csv' CSV HEADER
 --    (tickets/appointments/lines created by B07a stay; they are ordinary bookings).

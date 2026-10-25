@@ -1,4 +1,4 @@
-// B03a real SQL tests for supabase/pending/pa_edit_booking.sql (edit existing canonical private bookings).
+// B03a real SQL tests for drizzle/migrations/0022_pa_edit_booking.sql (edit existing canonical private bookings).
 // Throwaway local PostgreSQL only: production schema baseline + pending SQL + synthetic data.
 //   PA_TEST_DATABASE_URL=postgres://postgres@127.0.0.1:55432/postgres bun tests/paEditBooking.integration.mjs
 import postgres from 'postgres';
@@ -27,7 +27,7 @@ const I1 = id(0xf001), I2 = id(0xf002), ACTOR = id(0xbeef), TEACHER = id(0xbee2)
 const sortIds = (a) => [...a].sort();
 
 try {
-  for (const f of ['tests/sql/baseline_prelude.sql', 'tests/sql/production_schema_baseline.sql', 'supabase/pending/pa_assign_later.sql', 'supabase/pending/pa_edit_booking.sql']) {
+  for (const f of ['tests/sql/baseline_prelude.sql', 'tests/sql/production_schema_baseline.sql', 'supabase/pending/pa_assign_later.sql', 'drizzle/migrations/0022_pa_edit_booking.sql']) {
     const r = spawnSync('psql', [u.toString(), '-q', '-v', 'ON_ERROR_STOP=1', '-f', fileURLToPath(new URL(f, root))],
       { encoding: 'utf8', env: { ...process.env, PGSSLMODE: 'disable' } });
     if (r.status !== 0) throw new Error(`psql ${f}: ${r.stderr}`);

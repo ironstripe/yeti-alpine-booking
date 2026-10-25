@@ -1,3 +1,4 @@
+-- Promoted 2026-10-25 from supabase/pending/b11_created_total_event.sql (B01-B11 + B07 coordinated release step 3). Do not re-run the pending copy: it was removed.
 -- B11 PREPARATION ONLY (not installed). Additive audit field: the 'created' PRIVATE_APPOINTMENT_CHANGED
 -- event records the ticket total at the end of the successful canonical create transaction
 -- (pa_create_booking calls pa_emit_change after pa_recalc_ticket_total). Same signature, grants,

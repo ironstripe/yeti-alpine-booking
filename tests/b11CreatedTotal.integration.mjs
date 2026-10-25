@@ -1,4 +1,4 @@
-// B11: real SQL tests for supabase/pending/b11_created_total_event.sql (created-event total).
+// B11: real SQL tests for drizzle/migrations/0018_b11_created_total_event.sql (created-event total).
 // Throwaway local PostgreSQL only: schema-only production baseline + pending SQL + synthetic data.
 //   PA_TEST_DATABASE_URL=postgres://postgres@127.0.0.1:55432/postgres bun tests/paAssignLater.integration.mjs
 import postgres from 'postgres';
@@ -31,7 +31,7 @@ const I1 = id(0xf001), I2 = id(0xf002), ACTOR = id(0xbeef);
 const D1 = '2026-12-21', D2 = '2026-12-22', D3 = '2026-12-23';
 
 try {
-  for (const f of ['tests/sql/baseline_prelude.sql', 'tests/sql/production_schema_baseline.sql', ...(process.env.PA_BASELINE_ONLY ? [] : ['supabase/pending/pa_assign_later.sql', 'supabase/pending/b11_created_total_event.sql'])]) {
+  for (const f of ['tests/sql/baseline_prelude.sql', 'tests/sql/production_schema_baseline.sql', ...(process.env.PA_BASELINE_ONLY ? [] : ['supabase/pending/pa_assign_later.sql', 'drizzle/migrations/0018_b11_created_total_event.sql'])]) {
     const r = spawnSync('psql', [u.toString(), '-q', '-v', 'ON_ERROR_STOP=1', '-f', fileURLToPath(new URL(f, root))],
       { encoding: 'utf8', env: { ...process.env, PGSSLMODE: 'disable' } });
     if (r.status !== 0) throw new Error(`psql ${f}: ${r.stderr}`);

@@ -1,3 +1,4 @@
+-- Promoted 2026-10-25 from supabase/pending/b07_private_activation_guard.sql (B01-B11 + B07 coordinated release step 12). Do not re-run the pending copy: it was removed.
 -- B07b release prerequisite (PENDING, NOT INSTALLED). Requires product_private_tariff_rules.sql.
 -- Extends prevent_bc_draft_activation minimally: a Booking-Corner-sourced PRIVATE product may be
 -- activated only when it has a tariff revision AND exactly one configured rule for every decided

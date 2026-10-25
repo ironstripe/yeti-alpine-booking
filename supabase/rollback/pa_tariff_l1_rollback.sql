@@ -1,4 +1,4 @@
--- Rollback for supabase/pending/pa_tariff_l1.sql (B07 L1), consumer-first. Executable (psql -1 -f).
+-- Rollback for drizzle/migrations/0025_pa_tariff_l1.sql (B07 L1), consumer-first. Executable (psql -1 -f).
 -- 0. BEFORE running: redeploy the previous private-appointments function and publish the previous client
 --    (they never send acknowledged_quote_digest / p_ack).
 -- 1. Export evidence: \copy public.private_appointment_pricing TO 'pricing_l1.csv' CSV HEADER

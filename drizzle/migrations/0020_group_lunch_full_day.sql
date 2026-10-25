@@ -1,3 +1,4 @@
+-- Promoted 2026-10-25 from supabase/pending/group_lunch_full_day.sql (B01-B11 + B07 coordinated release step 5). Do not re-run the pending copy: it was removed.
 -- PREPARATION ONLY: body patch preserving guest levels, settlement, discounts, locks and replay.
 -- No tables or business writes. Unexpected installed function version fails closed.
 DO $patch$

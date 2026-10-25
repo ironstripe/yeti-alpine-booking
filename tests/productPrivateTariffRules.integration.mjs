@@ -1,4 +1,4 @@
-// Real SQL tests for supabase/pending/product_private_tariff_rules.sql (B07-P):
+// Real SQL tests for drizzle/migrations/0024_product_private_tariff_rules.sql (B07-P):
 // one product-configured resolver for preview (pa_create_quote) and new create (pa_create_booking[_finalized]).
 // Throwaway local PostgreSQL only: schema-only production baseline + installed pending lineage + synthetic data.
 // Prices below are SYNTHETIC CONFIG DATA (fixture rows), never code branches.
@@ -52,7 +52,7 @@ try {
   for (const f of ['tests/sql/baseline_prelude.sql', 'tests/sql/production_schema_baseline.sql', 'supabase/pending/pa_assign_later.sql',
     'supabase/pending/course_archive_delete.sql', 'supabase/pending/bc_2627_staff_group_booking.sql',
     'supabase/pending/bc_2627_staff_group_booking_v2.sql', 'supabase/pending/staff_booking_finalize.sql',
-    'supabase/pending/staff_guest_level.sql', 'supabase/pending/product_private_tariff_rules.sql']) {
+    'supabase/pending/staff_guest_level.sql', 'drizzle/migrations/0024_product_private_tariff_rules.sql']) {
     const r = psqlFile(f); if (r.status !== 0) throw new Error(`psql ${f}: ${r.stderr}`);
   }
   await sql.unsafe(`CREATE OR REPLACE FUNCTION public.pa_business_today() RETURNS date LANGUAGE sql STABLE AS $$ SELECT DATE '2026-10-25' $$;`);

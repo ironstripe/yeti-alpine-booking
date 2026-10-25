@@ -5,7 +5,7 @@
 Authorised B04 only; baseline `7ac4ed58caaa67a9a49bb33633832c4af1460849`.
 Tested implementation checkpoint: `7a96c0bb1b00122e275185d08374ca6816732f52` (final documentation/roadmap follow-up has no delivery-code changes). Git checkpoints are managed by the platform, not manually committed.
 
-Files: `supabase/pending/b04_delivery_compatibility.sql`, `_shared/courseDelivery.ts`, `_shared/bookingDelivery.ts`, `_shared/bookingDelivery.test.ts` (the three shared paths are under `supabase/functions/`), `supabase/functions/retry-course-booking-delivery/handler.ts`, `tests/b04Delivery.integration.ts`, `AGENTS.md`, `roadmap.md`, this report. No frontend, invoice-service, lifecycle or document renderer modifications.
+Files: `drizzle/migrations/0016_b04_delivery_compatibility.sql`, `_shared/courseDelivery.ts`, `_shared/bookingDelivery.ts`, `_shared/bookingDelivery.test.ts` (the three shared paths are under `supabase/functions/`), `supabase/functions/retry-course-booking-delivery/handler.ts`, `tests/b04Delivery.integration.ts`, `AGENTS.md`, `roadmap.md`, this report. No frontend, invoice-service, lifecycle or document renderer modifications.
 
 ## Actual schema and change
 

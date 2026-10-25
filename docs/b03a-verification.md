@@ -11,7 +11,7 @@
 - `src/lib/canonicalPrivateEdit.ts` (new), `src/components/bookings/wizard/CanonicalPrivateEditPanel.tsx` (new)
 - `src/contexts/BookingWizardContext.tsx` (hydration, `canonicalEdit`), `src/pages/BookingWizard.tsx` (render panel), `src/components/bookings/wizard/Step4Summary.tsx` (refuse legacy save), `src/hooks/useUpdateBooking.ts` (total guard), `src/lib/privateAppointmentsApi.ts` (`paEditQuote`/`paEditApply`, messages)
 - `supabase/functions/_shared/privateAppointmentsContract.ts`, `supabase/functions/private-appointments/index.ts` (`edit` action)
-- `supabase/pending/pa_edit_booking.sql` (new, NOT installed, no migration number assigned), `supabase/rollback/pa_edit_booking_rollback.sql`
+- `drizzle/migrations/0022_pa_edit_booking.sql` (new, NOT installed, no migration number assigned), `supabase/rollback/pa_edit_booking_rollback.sql`
 - Tests: `tests/canonicalPrivateEdit.test.ts`, `tests/paEditBooking.integration.mjs`, `tests/canonicalPrivateEditBrowser.py`, `supabase/functions/private-appointments/contract.test.ts`
 
 ## Evidence (this change, synthetic only)
@@ -22,7 +22,7 @@
 - Not run: live backend, authenticated real ticket (T-2026-998114 deliberately untouched), real notifications.
 
 ## Release (coordinated, each step separately authorised)
-1. Install `supabase/pending/pa_edit_booking.sql` as the next free tracked migration number at release time.
+1. Install `drizzle/migrations/0022_pa_edit_booking.sql` as the next free tracked migration number at release time.
 2. Deploy only `private-appointments`.
 3. Publish the frontend.
 Order 1→2→3. Before step 2 the frontend reports unavailability; before step 1 a new function returns 503 `unavailable`.
@@ -59,6 +59,6 @@ Start: `0122df5e26a3e5b69a295ebc4211466d200f1e46` (current main, preserving the 
 - No live ticket, historic test ticket, notification, payment, invoice, remote database or deployed endpoint was touched. Authenticated live save and notification delivery were deliberately not tested. B03b and B02 retest remain separate.
 
 ### Exact changed files / release boundary
-`src/lib/canonicalPrivateEdit.ts`, `src/components/bookings/wizard/CanonicalPrivateEditPanel.tsx`, `supabase/functions/_shared/privateAppointmentsContract.ts`, `supabase/pending/pa_edit_booking.sql`, `tests/canonicalPrivateEdit.test.ts`, `tests/paEditBooking.integration.mjs`, `tests/canonicalPrivateEditBrowser.py`, `supabase/functions/private-appointments/contract.test.ts`, `AGENTS.md`, `roadmap.md`, this document. No generated auth/config files changed.
+`src/lib/canonicalPrivateEdit.ts`, `src/components/bookings/wizard/CanonicalPrivateEditPanel.tsx`, `supabase/functions/_shared/privateAppointmentsContract.ts`, `drizzle/migrations/0022_pa_edit_booking.sql`, `tests/canonicalPrivateEdit.test.ts`, `tests/paEditBooking.integration.mjs`, `tests/canonicalPrivateEditBrowser.py`, `supabase/functions/private-appointments/contract.test.ts`, `AGENTS.md`, `roadmap.md`, this document. No generated auth/config files changed.
 
 Pending only: release reviewed pending SQL as the next free tracked migration, deploy only `private-appointments`, then matching frontend, each separately authorised. No migration number allocated, SQL installed, function deployed or frontend published. Old frontend payloads are rejected by the stricter contract; coordinate versions, do not downgrade to permissive originals. Release rollback: revert matching frontend/function and drop `pa_edit_booking` with existing `supabase/rollback/pa_edit_booking_rollback.sql`; this disables editing without data repair or history deletion. Do not restore the unsafe permissive edit function. Retest two editors with notes and moved same-price lesson; per-lesson distinct notes; same-price replacement on synthetic discrepant-total ticket; stale after quote; mixed ticket private-only edit; original T-2026-998114 read-only/no-op after separately authorised release.
