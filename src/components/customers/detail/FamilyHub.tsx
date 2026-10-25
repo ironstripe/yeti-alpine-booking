@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { birthDateChangeError, pickerDateToIso } from "@/lib/birthDate";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -32,7 +33,7 @@ const MAX_PARTICIPANTS = 10;
 const createSchema = z.object({
   first_name: z.string().min(1, "Vorname ist erforderlich"),
   last_name: z.string().optional(),
-  birth_date: z.date({ required_error: "Geburtsdatum ist erforderlich" }),
+  birth_date: z.date({ required_error: "Geburtsdatum ist erforderlich" }).refine((d) => birthDateChangeError(pickerDateToIso(d)) === null, { message: "Das Geburtsdatum darf nicht in der Zukunft liegen." }),
   level_last_season: z.string().optional(),
   level_current_season: z.string().optional(),
   sport: z.string().default("ski"),

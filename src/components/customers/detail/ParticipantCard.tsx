@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { birthDateChangeError, pickerDateToIso } from "@/lib/birthDate";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -119,6 +120,9 @@ export function ParticipantCard({ participant, customerId }: ParticipantCardProp
   };
 
   const onSubmit = async (data: EditFormData) => {
+    // B08: only a new/changed birth date is checked; an unchanged historic value never blocks saving.
+    const dobError = birthDateChangeError(resolveBirthDateForSave(data.birth_date, participant.birth_date), participant.birth_date ?? null);
+    if (dobError) { setError("birth_date", { message: dobError }); return; }
     await updateParticipant.mutateAsync({
       participantId: participant.id,
       data: {

@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { birthDateChangeError, pickerDateToIso } from "@/lib/birthDate";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -124,6 +125,9 @@ export function ParticipantEditDialog({
   }, [levelLastSeason, watchedSport, form]);
 
   const onSubmit = (data: ParticipantEditFormData) => {
+    // B08: only a new/changed birth date is checked; an unchanged historic value never blocks saving.
+    const dobError = birthDateChangeError(resolveBirthDateForSave(data.birth_date, participant.birth_date), participant.birth_date ?? null);
+    if (dobError) { form.setError("birth_date", { message: dobError }); return; }
     updateMutation.mutate(data);
   };
 
