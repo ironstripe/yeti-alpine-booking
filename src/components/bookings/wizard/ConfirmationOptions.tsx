@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 
 import { useBookingWizard } from "@/contexts/BookingWizardContext";
+import { useAssignedTeacherNames } from "@/hooks/useAssignedTeacherNames";
 import { formatPhoneDisplay } from "@/lib/phone-utils";
 
 interface ConfirmationOptionsProps {
@@ -24,6 +25,7 @@ export function ConfirmationOptions({
   onNotifyInstructorChange,
 }: ConfirmationOptionsProps) {
   const { state } = useBookingWizard();
+  const teacherNames = useAssignedTeacherNames();
 
   return (
     <Card>
@@ -78,7 +80,7 @@ export function ConfirmationOptions({
         </div>
 
         {/* Instructor Notification */}
-        {state.productType === "private" && state.instructor && (
+        {state.productType === "private" && teacherNames.length > 0 && (
           <div className="space-y-2">
             <div className="flex items-start gap-3">
               <Checkbox
@@ -92,7 +94,7 @@ export function ConfirmationOptions({
                 </label>
                 <p className="flex items-center gap-1 text-sm text-muted-foreground">
                   <MessageCircle className="h-3 w-3" />
-                  {state.instructor.first_name} {state.instructor.last_name} per WhatsApp
+                  {teacherNames.join(", ")} – Wunsch wird vermerkt, kein automatischer WhatsApp-Versand
                 </p>
               </div>
             </div>

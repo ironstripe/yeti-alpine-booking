@@ -24,6 +24,7 @@ import { PriceBreakdown } from "./PriceBreakdown";
 import { DiscountSection } from "./DiscountSection";
 import { PaymentMethodSelection } from "./PaymentMethodSelection";
 import { ConfirmationOptions } from "./ConfirmationOptions";
+import { useAssignedTeacherNames } from "@/hooks/useAssignedTeacherNames";
 import { BookingSuccessModal } from "./BookingSuccessModal";
 import { BookingWarnings, type BookingWarning } from "./BookingWarnings";
 
@@ -58,6 +59,7 @@ function check2x2hDiscount(
 export function Step4Summary({ onEditStep }: Step4SummaryProps) {
   const navigate = useNavigate();
   const { state, setCurrentStep, resetWizard, setCheckoutOptions } = useBookingWizard();
+  const teacherNames = useAssignedTeacherNames();
   const createBooking = useCreateBooking();
   const updateBooking = useUpdateBooking();
 
@@ -401,9 +403,7 @@ export function Step4Summary({ onEditStep }: Step4SummaryProps) {
           customerEmail={sendCustomerEmail ? customerEmailRecipient(state.customer) : null}
           confirmation={confirmation}
           instructorName={
-            notifyInstructor && state.instructor
-              ? `${state.instructor.first_name} ${state.instructor.last_name}`
-              : null
+            notifyInstructor && teacherNames.length > 0 ? teacherNames.join(", ") : null
           }
           onClose={() => setShowSuccess(false)}
           onNewBooking={handleNewBooking}
