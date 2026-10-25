@@ -17,7 +17,7 @@
 
 - Pricing stays in `productEditorPricing.ts`; offerings use one atomic staff JSON RPC, exact tiers service-only. Saturday checks use `_shared/saturdaySelection.ts` with trusted level/period/tariff facts. Why: no name matching, repricing or booking release.
 
-- Public private display tariffs use revision-checked staff saves; catalog serves verified rows only. Why: safe.
+- Public private display tariffs use revision-checked staff saves; catalog publishes only verified standard exact windows priced via service-only `public_private_tariff_projection` (public `pa_product_quote` + configured discount rule), never stored display amounts. Why: one price source; exceptions never public.
 
 - Lunch: full-day blocks, atomic person/day items; GroupLunchSelection in both modes. Why: safe removal.
 - Checkout deadlines use checkoutDueDate for display/create; only explicit dates live in wizard state. New invoices read the ticket deadline; replays retain invoice data. Why: one date without stale defaults or client invoice authority.
