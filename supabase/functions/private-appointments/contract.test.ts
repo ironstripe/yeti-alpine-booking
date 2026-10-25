@@ -135,3 +135,13 @@ Deno.test("schema: B07-P2 discount override replaces automatic; explicit 0 needs
   assertEquals(statusFor({ error: "tariff_transition_required" }), 409);
   assertEquals(publicBody({ error: "tariff_transition_required", secret: 1 }), { error: "tariff_transition_required" });
 });
+
+Deno.test("schema: L1 acknowledged_quote_digest on move/period_update/edit (md5 only)", () => {
+  const U = "00000000-0000-4000-8000-000000000001", D = "0123456789abcdef0123456789abcdef";
+  const move = { action: "move", appointment_id: U, date: "2026-12-08", time_start: "12:00", time_end: "14:00", instructor_id: U };
+  assert(RequestSchema.safeParse(move).success);
+  assert(RequestSchema.safeParse({ ...move, acknowledged_quote_digest: D }).success);
+  assert(!RequestSchema.safeParse({ ...move, acknowledged_quote_digest: "190" }).success);
+  assert(RequestSchema.safeParse({ action: "period_update", period_group_id: U, changes: { time_start: "12:00" }, acknowledged_quote_digest: D }).success);
+  assert(RequestSchema.safeParse({ action: "edit", mode: "apply", ticket_id: U, expected_total: 190, appointments: [], acknowledged_quote_digest: D }).success);
+});
