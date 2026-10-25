@@ -246,7 +246,7 @@ END $$;
 -- p_slots: [{date,time_start,time_end,participants:[key]}]. Returns {ok, items[], gross_total, discount_total,
 -- automatic_discount_total, total, discount_source, revision, discount_rule_revision} or an error object.
 CREATE OR REPLACE FUNCTION public.pa_price_request(p_product uuid, p_slots jsonb, p_intent jsonb, p_office boolean) RETURNS jsonb
-LANGUAGE sql STABLE SET search_path TO 'public' AS $$ SELECT public.pa_price_request(p_product, p_slots, p_intent, p_office, '[]'::jsonb) $$;
+LANGUAGE plpgsql STABLE SET search_path TO 'public' AS $$ BEGIN RETURN public.pa_price_request(p_product, p_slots, p_intent, p_office, '[]'::jsonb); END $$;
 
 -- B07-P3: p_context = already booked slots (pa_private_day_context().slots, price 0): they add minutes to
 -- the same person's day but are never priced, discounted or returned. Only p_slots are new lines.
