@@ -29,6 +29,8 @@ export interface Invoice {
   payment_profile_overridden?: boolean | null;
   is_legacy_payment?: boolean | null;
   issued_at?: string | null;
+  /** R1: frozen content (version 1) for new invoices; null/absent = legacy rendering. */
+  content_snapshot?: unknown;
 }
 
 
