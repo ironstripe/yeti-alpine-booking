@@ -38,7 +38,7 @@ const profile: any = {
 };
 function snapshotFor(invoiceNumber: string, total: number) {
   const r = routePayment({
-    billingCountry: "CH", currency: "CHF", invoiceIdentifier: "T-1", invoiceNumber, dueDate: "2026-12-31", amount: total,
+    billingCountry: "CH", currency: "CHF", invoiceIdentifier: invoiceNumber, invoiceNumber, dueDate: "2026-12-31", amount: total,
     debtor: { name: "Müller", street: "Bergstrasse", houseNumber: "12b", zip: "8000", city: "Zürich", country: "CH" }, profiles: [profile],
   });
   if (!r.ok || !r.snapshot) throw new Error("routing failed");
@@ -49,6 +49,7 @@ try {
   for (const file of ["tests/sql/baseline_prelude.sql", "tests/sql/production_schema_baseline.sql"]) await psql(url, ["-f", new URL(file, root).pathname]);
   await psql(url, ["-f", new URL("supabase/pending/b04_delivery_compatibility.sql", root).pathname]);
   await psql(url, ["-f", new URL("supabase/pending/b06_invoice_delivery.sql", root).pathname]);
+  await psql(url, ["-f", new URL("drizzle/migrations/0009_customers_email_optional.sql", root).pathname]);
   // Synthetic stub for the website reservation table invoiceContent reads.
   await sql.unsafe(`CREATE TABLE bc_2627_reservations(ticket_id uuid, quote_snapshot jsonb)`);
   await sql.unsafe(`INSERT INTO school_settings(name,email) VALUES ('Test','test@example.invalid');
