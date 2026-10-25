@@ -70,7 +70,7 @@ async def main():
                 r3 = saves[0]["rules"][2]
                 check(r3["rule_kind"] == "exact_block" and r3["window_start"] == "14:00" and r3["price_chf"] == 190 and r3["extra_person_chf"] == 40, f"{tag} 14-16 block sent as configuration")
             stale["on"] = True
-            await page.get_by_role("button", name="Tarife speichern").click()
+            await page.get_by_role("button", name="Tarife speichern").click(force=True)
             await page.get_by_text("Tarife wurden inzwischen geändert", exact=False).wait_for(timeout=3000)
             check(True, f"{tag} stale save shows reload message")
             check(not writes, f"{tag} no other backend writes {writes[:2]}")
