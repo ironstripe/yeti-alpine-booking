@@ -142,7 +142,7 @@ CREATE TRIGGER trg_pldr_bump_revision BEFORE UPDATE ON public.private_lesson_dis
 
 -- B07-P2: pricing provenance of appointments priced by product tariffs (marks them for edit/move guards).
 CREATE TABLE public.private_appointment_pricing (
-  appointment_id uuid PRIMARY KEY REFERENCES public.private_appointments(id) ON DELETE RESTRICT,
+  appointment_id uuid PRIMARY KEY REFERENCES public.private_appointments(id) ON DELETE CASCADE,
   product_id uuid NOT NULL,
   tariff_revision integer NOT NULL,
   discount_rule_revision integer NOT NULL,
