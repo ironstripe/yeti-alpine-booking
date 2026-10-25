@@ -131,6 +131,15 @@ BEGIN
     END IF;
     RETURN NEW;
   ELSE
+    -- UPDATE that re-points a participant row (other person or other appointment): the server paths
+    -- never do this (they DELETE + INSERT), so it is refused whenever either side is tariff-priced.
+    IF TG_OP = 'UPDATE' THEN
+      IF (NEW.appointment_id, NEW.participant_id) IS DISTINCT FROM (OLD.appointment_id, OLD.participant_id)
+         AND EXISTS (SELECT 1 FROM public.private_appointment_pricing WHERE appointment_id IN (OLD.appointment_id, NEW.appointment_id)) THEN
+        RAISE EXCEPTION USING ERRCODE = 'YT001', MESSAGE = 'tariff_transition_required';
+      END IF;
+      RETURN NEW;
+    END IF;
     v_appt := CASE WHEN TG_OP = 'DELETE' THEN OLD.appointment_id ELSE NEW.appointment_id END;
     SELECT * INTO pr FROM public.private_appointment_pricing WHERE appointment_id = v_appt;
     IF FOUND AND EXISTS (SELECT 1 FROM public.private_appointments WHERE id = v_appt)
@@ -142,6 +151,11 @@ BEGIN
   END IF;
 END $$;
 REVOKE ALL ON FUNCTION public.pa_tariff_transition_guard() FROM PUBLIC, anon, authenticated;
+-- L1: the participant trigger also covers UPDATE of appointment_id/participant_id (office RLS allows
+-- direct table writes); attendance and other columns stay freely updatable.
+DROP TRIGGER IF EXISTS trg_pa_tariff_transition_parts ON public.private_appointment_participants;
+CREATE TRIGGER trg_pa_tariff_transition_parts BEFORE INSERT OR DELETE OR UPDATE OF appointment_id, participant_id
+  ON public.private_appointment_participants FOR EACH ROW EXECUTE FUNCTION public.pa_tariff_transition_guard();
 
 -- pa_apply_slot: tariff-priced appointments take price + discount from the (already written) pricing row;
 -- a time change without a prior requote is refused by the guard. Legacy appointments: unchanged (pa_price).
@@ -276,7 +290,7 @@ CREATE OR REPLACE FUNCTION public.pa_period_update(p_group uuid, p_changes jsonb
 DECLARE a record; j jsonb; c record; v_ticket uuid;
   v_excluded jsonb := '[]'::jsonb; v_conf jsonb := '[]'::jsonb; v_todo uuid[] := ARRAY[]::uuid[];
   v_targets jsonb := '[]'::jsonb; s time; t time; ins uuid;
-  v_ids0 uuid[]; v_pids0 uuid[]; v_dates0 date[]; v_ids uuid[]; v_pids uuid[];
+  v_ids0 uuid[]; v_pids0 uuid[]; v_dates0 date[]; v_ids uuid[]; v_pids uuid[]; v_sig0 text;
   v_req jsonb := '[]'::jsonb; v_q jsonb; v_legacy boolean := false; v_old numeric := 0; v_new numeric; v_total numeric; x jsonb;
 BEGIN
   IF p_group IS NULL OR p_changes IS NULL OR NOT (p_changes ?| ARRAY['time_start','time_end','instructor_id']) THEN
