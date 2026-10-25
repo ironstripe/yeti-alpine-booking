@@ -6689,6 +6689,10 @@ export type Database = {
         Returns: string[]
       }
       public_private_display_shape: { Args: { w: Json }; Returns: boolean }
+      public_private_tariff_projection: {
+        Args: { p_product: string; p_season: string }
+        Returns: Json
+      }
       queue_confirmation_reminders: { Args: never; Returns: number }
       quote_bc_2627_product: {
         Args: { p_items: Json; p_participants: number; p_product_id: string }
