@@ -4,11 +4,10 @@ import type { BookingWizardState } from "@/contexts/BookingWizardContext";
 import { createInitialComments } from "./useTicketComments";
 import { isImmediateMethod } from "@/lib/finance";
 import { logTicketEvent } from "@/lib/ticket-audit";
-import { buildEffectivePrivatePlan } from "@/lib/effectivePrivatePlan";
 import { checkoutPaymentDueDate } from "@/lib/checkoutDueDate";
-import { paCreate, paCreateQuote, type PaParticipant, type PaSlot } from "@/lib/privateAppointmentsApi";
-import { PRODUCT_PRIVATE_TARIFFS_LIVE } from "@/lib/privateTariffRules";
-import { endOf, sortPlan, validatePlan } from "@/lib/privatePlan";
+import { paCreate, type PaParticipant, type PaSlot } from "@/lib/privateAppointmentsApi";
+import { privateTariffsLive } from "@/lib/privateTariffRules";
+import { buildServerPrivateSlots, discountOverrideFor } from "@/lib/serverPrivateSlots";
 import { buildStaffGroupLines, staffGroupHasLunch } from "@/lib/staffGroupPayload";
 import { fetchLunchProduct, lunchContextKey } from "@/hooks/useLunchProduct";
 import { createStaffGroupBooking } from "@/lib/staffGroupBookingApi";
@@ -321,41 +320,7 @@ export function useCreateBooking() {
         if (discountPercent < 0 || discountPercent > 100) throw new Error("Rabatt muss zwischen 0 und 100 % liegen.");
         if (discountPercent > 0 && !discountReason) throw new Error("Bitte gib einen Grund für den Rabatt an");
 
-        const appointments: PaSlot[] = [];
-        if (state.appointments) {
-          // Canonical plan: payload is built 1:1 from the real lessons, nothing reconstructed.
-          if (state.appointments.length === 0) throw new Error("Bitte mindestens einen Termin planen.");
-          const planError = validatePlan(state.appointments);
-          if (planError) throw new Error(planError);
-          for (const a of sortPlan(state.appointments)) {
-            if (!state.selectedDates.includes(a.date)) throw new Error(`Termin am ${a.date} gehört zu keinem gewählten Datum.`);
-            const instr = a.instructorId || state.instructorId;
-            // Only this item's explicit "Später zuweisen" may omit the teacher.
-            if (!instr && !state.assignLater) throw new Error(`Bitte für ${a.date} ${a.startTime} eine Lehrperson wählen.`);
-            appointments.push({
-              date: a.date,
-              time_start: a.startTime.slice(0, 5),
-              time_end: endOf(a),
-              ...(instr ? { instructor_id: instr } : { assign_later: true as const }),
-              ...(state.meetingPoint ? { meeting_point: state.meetingPoint } : {}),
-            });
-          }
-        } else {
-          // Same effective plan the wizard showed and validated; no default times.
-          const effective = buildEffectivePrivatePlan(state);
-          if (effective.status !== "ready") throw new Error(effective.message);
-          for (const iv of effective.intervals) {
-            const instr = iv.fixedInstructorId !== undefined ? iv.fixedInstructorId : state.instructorId;
-            if (!instr && !state.assignLater) throw new Error(`Bitte für ${iv.date} eine Lehrperson wählen.`);
-            appointments.push({
-              date: iv.date,
-              time_start: iv.startTime,
-              time_end: iv.endTime,
-              ...(instr ? { instructor_id: instr } : { assign_later: true as const }),
-              ...(state.meetingPoint ? { meeting_point: state.meetingPoint } : {}),
-            });
-          }
-        }
+        const appointments: PaSlot[] = buildServerPrivateSlots(state);
         const participants: PaParticipant[] = state.selectedParticipants.map((pt) =>
           pt.id.startsWith("guest-") || pt.isGuest
             ? {
@@ -383,19 +348,27 @@ export function useCreateBooking() {
         let submissionKey = sessionStorage.getItem(fp);
         if (!submissionKey) { submissionKey = crypto.randomUUID(); sessionStorage.setItem(fp, submissionKey); }
 
-        // B07-P (switched off until released): bind the create to the server tariff revision.
-        // A changed product tariff makes the server answer quote_changed; nothing is saved then.
-        const quoteRevision = PRODUCT_PRIVATE_TARIFFS_LIVE
-          ? (await paCreateQuote({
-              product_id: productId,
-              persons: participants.length,
-              appointments: appointments.map(({ date, time_start, time_end }) => ({ date, time_start, time_end })),
-            })).revision
-          : undefined;
-        const created = await paCreate({
-          submission_key: submissionKey, ...payload,
-          ...(quoteRevision !== undefined ? { quote_revision: quoteRevision } : {}),
-        });
+        // B07-P/P2 (switched off until released): bind the create to the server tariff + discount-rule
+        // revisions the summary showed; an explicit manual discount REPLACES the automatic one.
+        // A changed configuration makes the server answer quote_changed; nothing is saved then.
+        let created;
+        if (privateTariffsLive()) {
+          if (!state.productId) throw new Error("Bitte ein Privatstunden-Produkt wählen. Es wurde nichts gespeichert.");
+          const override = discountOverrideFor(state);
+          if (override && !override.reason) throw new Error("Bitte gib einen Grund für den manuellen Rabatt an");
+          // Bind to the revisions of the quote the office actually saw in the summary (never re-quote silently).
+          const shown = state.privateQuoteShown;
+          if (!shown) throw new Error("Der Serverpreis wurde noch nicht angezeigt. Bitte Zusammenfassung prüfen. Es wurde nichts gespeichert.");
+          const q = { revision: shown.revision, discount_rule_revision: shown.discountRuleRevision };
+          const { discount_percent: _dp, discount_reason: _dr, ...rest } = payload as typeof payload & { discount_percent?: number; discount_reason?: string };
+          created = await paCreate({
+            submission_key: submissionKey, ...rest, product_id: state.productId,
+            quote_revision: q.revision, discount_rule_revision: q.discount_rule_revision,
+            ...(override ? { discount_override: override } : {}),
+          });
+        } else {
+          created = await paCreate({ submission_key: submissionKey, ...payload });
+        }
         try { sessionStorage.removeItem("yeti.scheduler.planningDraft.v1"); } catch { /* ignore */ }
         return { ticketId: created.ticket_id, ticketNumber: created.ticket_number, confirmationAction: "process" };
       }

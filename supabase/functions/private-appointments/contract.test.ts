@@ -121,3 +121,17 @@ Deno.test("schema: edit action (B03a) accepts quote/apply shapes, rejects unknow
   assertEquals(statusFor({ error: "quote_changed", quote: {} }), 409);
   assertEquals(publicBody({ error: "quote_changed", quote: { new_total: 1 }, secret: 1 }), { error: "quote_changed", quote: { new_total: 1 } });
 });
+
+Deno.test("schema: B07-P2 discount override replaces automatic; explicit 0 needs a reason; not combinable", () => {
+  const base = { action: "create", submission_key: "schema-key-0002", customer_id: crypto.randomUUID(), product_id: crypto.randomUUID(),
+    participants: [{ participant_id: crypto.randomUUID() }], appointments: [{ date: "2030-01-10", time_start: "10:00", time_end: "12:00", assign_later: true }],
+    quote_revision: 1, discount_rule_revision: 1 };
+  assert(RequestSchema.safeParse(base).success);
+  assert(RequestSchema.safeParse({ ...base, discount_override: { percent: 0, reason: "Kein Rabatt" } }).success);
+  assert(!RequestSchema.safeParse({ ...base, discount_override: { percent: 0 } }).success);
+  assert(!RequestSchema.safeParse({ ...base, discount_override: { percent: 5, reason: "x" }, discount_percent: 5, discount_reason: "x" }).success);
+  assert(RequestSchema.safeParse({ action: "quote", product_id: crypto.randomUUID(), persons: 2,
+    appointments: [{ date: "2030-01-10", time_start: "10:00", time_end: "12:00" }], discount_override: { percent: 20 } }).success);
+  assertEquals(statusFor({ error: "tariff_transition_required" }), 409);
+  assertEquals(publicBody({ error: "tariff_transition_required", secret: 1 }), { error: "tariff_transition_required" });
+});

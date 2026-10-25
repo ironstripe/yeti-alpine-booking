@@ -52,6 +52,8 @@ Deno.serve(async (req) => {
   if ((p.action === "edit" || p.action === "quote") && rpc.error?.code === "PGRST202") return json({ error: "unavailable" }, 503);
   // B08 last-resort guard (trigger): nothing was written; report the field, not an unknown result.
   if (rpc.error?.code === "22008") return json({ error: "invalid", field: "birth_date", index: null }, 400);
+  // B07-P2 guard: a tariff-priced lesson cannot be repriced by the legacy move/edit paths; nothing was written.
+  if (rpc.error?.code === "YT001") return json({ error: "tariff_transition_required" }, 409);
   if (rpc.error || !rpc.data) {
     console.error("private-appointments rpc failed", p.action, rpc.error?.code);
     return json({ error: "internal_error" }, 500);

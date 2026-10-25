@@ -59,6 +59,7 @@ try {
     INSERT INTO customers(id,last_name,first_name,email) VALUES ('${CUST}','Synth','Kunde','k@example.invalid'),('${OTHER}','O','K','o@example.invalid');
     INSERT INTO customer_participants(id,customer_id,first_name,last_name,birth_date) VALUES
       ('${P1}','${CUST}','Lea','Synth','2016-02-02'),('${P2}','${CUST}','Tom','Synth','2014-03-03'),('${PF}','${OTHER}','X','Y','2015-01-01');
+    INSERT INTO private_lesson_discount_rule(percent,threshold_minutes,provenance) VALUES (10,240,'synthetic fixture');
   `);
 
   const save = async (product, expected, rules) => (await sql`SELECT save_product_private_tariff_rules(${product}::uuid, ${expected}::int, ${sql.json(rules)}::jsonb, ${ACTOR}::uuid) r`)[0].r;
@@ -67,7 +68,7 @@ try {
   const slot = (date, s, e, ins = I1) => ({ date, time_start: s, time_end: e, instructor_id: ins });
   const create = async (product, appts, extra = {}) => (await sql`SELECT pa_create_booking_finalized(${sql.json({
     submission_key: extra.submission_key ?? key(), customer_id: CUST, product_id: product, appointments: appts,
-    participants: extra.participants ?? [{ participant_id: P1 }], ...extra.more,
+    participants: extra.participants ?? [{ participant_id: P1 }], discount_rule_revision: 1, ...extra.more,
   })}::jsonb, ${ACTOR}::uuid) r`)[0].r;
   const counts = async () => (await sql`SELECT (SELECT count(*)::int FROM tickets) t, (SELECT count(*)::int FROM ticket_items) i,
     (SELECT count(*)::int FROM private_appointments) a, (SELECT count(*)::int FROM customer_participants) p`)[0];
@@ -120,7 +121,9 @@ try {
     const q = await quote(A, [slot(D1, '09:00', '10:00'), slot(D1, '10:00', '11:00'), slot(D2, '10:00', '12:00'), slot(D2, '12:00', '14:00')]);
     assert.equal(q.ok, true, JSON.stringify(q));
     assert.deepEqual(q.items.map((x) => [Number(x.price), x.mode]), [[75, 'hourly'], [85, 'hourly'], [190, 'exact_block'], [150, 'hourly']]);
-    assert.equal(Number(q.total), 500); assert.equal(q.revision, 1);
+    assert.equal(Number(q.gross_total), 500); assert.equal(q.revision, 1);
+    // D2 has 10-12 + 12-14 = 240 min for the same person => configured automatic 10% on those two lines only.
+    assert.equal(Number(q.discount_total), 34); assert.equal(Number(q.total), 466); assert.equal(q.discount_source, 'automatic');
     const two = await quote(A, [slot(D2, '10:00', '12:00'), slot(D1, '09:00', '10:00')], 2);
     assert.deepEqual(two.items.map((x) => Number(x.price)), [220, 95]);
   });
@@ -164,7 +167,7 @@ try {
 
   await t('tariff failure after guest mapping rolls back guests/ticket (plain pa_create_booking too)', async () => {
     const before = await counts();
-    const r = (await sql`SELECT pa_create_booking(${sql.json({ submission_key: key(), customer_id: CUST, product_id: A, quote_revision: 1,
+    const r = (await sql`SELECT pa_create_booking(${sql.json({ submission_key: key(), customer_id: CUST, product_id: A, quote_revision: 1, discount_rule_revision: 1,
       appointments: [slot(D1, '14:00', '16:00', I2)], participants: [{ guest_key: 'guest-rollback1', first_name: 'Weg', birth_date: '2015-01-01' }] })}::jsonb, ${ACTOR}::uuid) r`)[0].r;
     assert.equal(r.error, 'tariff_unavailable'); assert.equal(r.reason, 'block_not_allowed'); assert.equal(r.index, 0);
     assert.deepEqual(await counts(), before);
@@ -204,7 +207,7 @@ try {
 
   await t('concurrent config save waits for an in-flight create (FOR SHARE) and bumps revision after it', async () => {
     const res = await sql.begin(async (tx) => {
-      const r = (await tx`SELECT pa_create_booking(${sql.json({ submission_key: key(), customer_id: CUST, product_id: A, quote_revision: 2,
+      const r = (await tx`SELECT pa_create_booking(${sql.json({ submission_key: key(), customer_id: CUST, product_id: A, quote_revision: 2, discount_rule_revision: 1,
         appointments: [slot('2026-12-17', '09:00', '10:00', I1)], participants: [{ participant_id: P2 }] })}::jsonb, ${ACTOR}::uuid) r`)[0].r;
       const pending = save(A, 2, CONFIG_A); // separate connection; must block on the revision row
       const raced = await Promise.race([pending.then(() => 'done'), new Promise((ok) => setTimeout(() => ok('blocked'), 400))]);

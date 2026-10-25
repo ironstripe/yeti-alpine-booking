@@ -38,6 +38,11 @@ export const Finalization = z.object({
   conversation_id: uuid.nullable().optional(),
 }).strict();
 
+const DiscountOverride = z.object({
+  percent: z.number().finite().min(0).max(100),
+  reason: z.string().trim().max(500).optional(),
+}).strict();
+
 export const RequestSchema = z.discriminatedUnion("action", [
   z.object({
     action: z.literal("create"),
@@ -53,6 +58,10 @@ export const RequestSchema = z.discriminatedUnion("action", [
     confirmation_requested: z.boolean().optional(),
     // B07-P: tariff revision shown in the preview; required once product tariffs are installed.
     quote_revision: z.number().int().min(0).optional(),
+    // B07-P2: discount-rule revision shown in the preview, and an explicit manual override that
+    // REPLACES the automatic same-day discount (never added). Absent => automatic.
+    discount_rule_revision: z.number().int().min(0).optional(),
+    discount_override: DiscountOverride.optional(),
   }),
   // B07-P: server preview of a new office private booking (same resolver as create).
   z.object({
@@ -60,6 +69,7 @@ export const RequestSchema = z.discriminatedUnion("action", [
     product_id: uuid,
     persons: z.number().int().min(1).max(4),
     appointments: z.array(z.object({ date, time_start: time, time_end: time })).min(1).max(60),
+    discount_override: DiscountOverride.optional(),
   }).strict(),
   z.object({
     action: z.literal("move"),
@@ -104,6 +114,10 @@ export const RequestSchema = z.discriminatedUnion("action", [
   if (v.action === "create" && (v.discount_percent ?? 0) > 0 && !v.discount_reason) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["discount_reason"], message: "required when discount_percent > 0" });
   }
+  // An explicit override (including an explicit 0) always needs a reason and excludes the legacy field.
+  if (v.action === "create" && v.discount_override && (!v.discount_override.reason || (v.discount_percent ?? 0) !== 0)) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["discount_override"], message: "reason required; not combinable with discount_percent" });
+  }
 });
 export type PaRequest = z.infer<typeof RequestSchema>;
 
@@ -113,6 +127,7 @@ export function statusFor(result: Record<string, unknown>): number {
   switch (result.error) {
     case "conflict": return 409;
     case "quote_changed": return 409;
+    case "tariff_transition_required": return 409;
     case "tariff_unavailable": return 422;
     case "protected": return 423;
     case "not_found": return 404;
@@ -127,6 +142,7 @@ export function publicBody(result: Record<string, unknown>): Record<string, unkn
   const status = statusFor(result);
   if (status === 200) { const { ok: _ok, ...rest } = result; return rest; }
   if (result.error === "quote_changed") return { error: "quote_changed", quote: result.quote };
+  if (result.error === "tariff_transition_required") return { error: "tariff_transition_required" };
   if (status === 422) return { error: "tariff_unavailable", reason: result.reason ?? null, index: result.index ?? null };
   if (status === 409) return { error: "conflict", conflicts: result.conflicts };
   if (status === 423) return { error: "protected", excluded: result.excluded };

@@ -10,12 +10,18 @@ import { Badge } from "@/components/ui/badge";
 interface DiscountSectionProps {
   discountPercent: number;
   discountReason: string;
-  onDiscountChange: (percent: number, reason: string) => void;
+  /** B07-P2: explicit office choice (explicit 0 included). Empty field = no manual discount. */
+  discountExplicit?: boolean;
+  /** Shown under the field when a manual value replaces an automatic discount. */
+  overrideNote?: string;
+  onDiscountChange: (percent: number, reason: string, explicit: boolean) => void;
 }
 
 export function DiscountSection({
   discountPercent,
   discountReason,
+  discountExplicit = false,
+  overrideNote,
   onDiscountChange,
 }: DiscountSectionProps) {
   const [voucherCode, setVoucherCode] = useState("");
@@ -29,7 +35,7 @@ export function DiscountSection({
       setVoucherError(null);
       setVoucherCode("");
     } else if (voucherCode.toUpperCase() === "STAMM10") {
-      onDiscountChange(10, "Stammkunden-Rabatt");
+      onDiscountChange(10, "Stammkunden-Rabatt", true);
       setVoucherError(null);
       setVoucherCode("");
     } else {
@@ -42,8 +48,9 @@ export function DiscountSection({
   };
 
   const handleDiscountPercentChange = (value: string) => {
+    if (value.trim() === "") return onDiscountChange(0, discountReason, false);
     const percent = parseInt(value) || 0;
-    onDiscountChange(Math.min(100, Math.max(0, percent)), discountReason);
+    onDiscountChange(Math.min(100, Math.max(0, percent)), discountReason, true);
   };
 
   return (
@@ -95,7 +102,8 @@ export function DiscountSection({
               type="number"
               min="0"
               max="100"
-              value={discountPercent || ""}
+              aria-label="Manueller Rabatt in Prozent"
+              value={discountExplicit ? String(discountPercent) : (discountPercent || "")}
               onChange={(e) => handleDiscountPercentChange(e.target.value)}
               className="w-20"
               placeholder="0"
@@ -105,10 +113,19 @@ export function DiscountSection({
             <Input
               placeholder="Stammkunde"
               value={discountReason}
-              onChange={(e) => onDiscountChange(discountPercent, e.target.value)}
+              aria-label="Grund für manuellen Rabatt"
+              onChange={(e) => onDiscountChange(discountPercent, e.target.value, discountExplicit || discountPercent > 0)}
               className="flex-1"
             />
           </div>
+          {discountExplicit && (
+            <div className="flex flex-wrap items-center gap-2">
+              {overrideNote && <p className="text-xs text-muted-foreground">{overrideNote}</p>}
+              <Button variant="ghost" size="sm" onClick={() => onDiscountChange(0, "", false)}>
+                Manuellen Rabatt entfernen
+              </Button>
+            </div>
+          )}
         </div>
       </CardContent>
     </Card>

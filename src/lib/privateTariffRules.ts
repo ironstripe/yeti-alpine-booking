@@ -9,6 +9,17 @@
  */
 export const PRODUCT_PRIVATE_TARIFFS_LIVE = false;
 
+/**
+ * Effective switch. Production builds: exactly PRODUCT_PRIVATE_TARIFFS_LIVE. Local dev server only:
+ * localStorage "yeti.privateTariffPreview" = "1" enables the path for intercepted browser tests
+ * (the backend still rejects it until the pending SQL/function are installed).
+ */
+export function privateTariffsLive(): boolean {
+  if (PRODUCT_PRIVATE_TARIFFS_LIVE) return true;
+  if (!import.meta.env.DEV) return false;
+  try { return globalThis.localStorage?.getItem("yeti.privateTariffPreview") === "1"; } catch { return false; }
+}
+
 export type TariffRuleKind = "exact_block" | "hourly";
 
 export interface TariffRule {
@@ -59,4 +70,5 @@ export const TARIFF_UNAVAILABLE_REASONS: Record<string, string> = {
   office_only: "Dieser Tarif ist nur als Büro-Ausnahme buchbar.",
   persons_exceeded: "Zu viele Personen für diesen Tarif.",
   invalid_input: "Ungültige Zeitangabe.",
+  discount_rule_not_configured: "Die Rabattregel für Privatlektionen ist nicht hinterlegt.",
 };
