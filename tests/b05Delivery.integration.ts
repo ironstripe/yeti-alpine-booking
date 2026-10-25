@@ -127,6 +127,7 @@ try {
  await psql(url,["-f",new URL("drizzle/migrations/0009_customers_email_optional.sql",root).pathname]);
  await sql`INSERT INTO seasons(name,start_date,end_date) VALUES ('Synthetic','2026-12-01','2027-04-15')`;
  await sql.unsafe("NOTIFY pgrst,'reload schema';NOTIFY pgrst,'reload config'");await new Promise(r=>setTimeout(r,300));
+ await sql`UPDATE email_templates SET body_html='<p>{{customer_last_name}}</p><div>{{booking_time}}</div>',subject='Booking {{ticket_number}}'`;
  const staff=createConfirmationHandler(sb,{transport,authorize:async()=>({userId:"synthetic-office"}),now:()=>clock});
  const invoke=async(t:string,action:string,extra={})=>{const r=await staff(new Request("http://localhost/confirmation",{method:"POST",body:JSON.stringify({ticket_id:t,action,...extra})}));return{status:r.status,...await r.json()};};
  async function fixture(requested:boolean|null,email:string|null="saved@example.invalid",group=false){
@@ -143,7 +144,7 @@ try {
   for(const group of [false,true])for(const choice of [true,false])for(const email of ["saved@example.invalid",null]){
    const f=await fixture(choice,email,group),n=calls.length;const result=await invoke(f.ticket,"process");
    assertEquals(result.outcome,email===null?"no_email":choice?"sent":"not_requested");assertEquals(calls.length,n+(email!==null&&choice?1:0));
-   if(email!==null&&choice)assertEquals(calls.at(-1)?.to,f.email);
+   if(email!==null&&choice){assertEquals(calls.at(-1)?.to,f.email);assert(calls.at(-1)?.html.includes("Saved &lt;Customer&gt;"));assert(calls.at(-1)?.html.includes("10:00–12:00"));assert(!calls.at(-1)?.html.includes("DO NOT EXPOSE"));assert(!calls.at(-1)?.html.includes("SECRET TEACHER"));}
    if(email!==null&&!choice){assertEquals((await invoke(f.ticket,"send")).outcome,"sent");assertEquals(calls.at(-1)?.to,f.email);}
   }
  });
