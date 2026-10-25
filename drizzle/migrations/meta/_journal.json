@@ -204,6 +204,13 @@
       "when": 1792946667310,
       "tag": "0028_b07_private_2627_activation",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1792953262994,
+      "tag": "0029_b01_b11_release_install_verification",
+      "breakpoints": true
     }
   ]
 }
