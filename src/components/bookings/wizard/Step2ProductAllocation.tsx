@@ -679,6 +679,13 @@ export function Step2ProductAllocation() {
             </div>
           )}
         </div>
+        {tariffProducts && privateChoice?.kind === "none" && privateChoice.reason !== "incomplete" && (
+          <Alert variant="destructive" className="py-2" data-testid="private-product-missing"><AlertTriangle className="h-3.5 w-3.5" /><AlertDescription className="text-xs">
+            {privateChoice.reason === "ambiguous"
+              ? "Für diese Sportart sind mehrere aktive Privatunterricht-Produkte vorhanden. Bitte im Büro klären; es wird kein Produkt automatisch gewählt."
+              : "Für diese Sportart ist in der aktuellen Saison kein aktives Privatunterricht-Produkt vorhanden."}
+          </AlertDescription></Alert>
+        )}
         {groupRecommendation.hasAdults && (
           <Alert variant="destructive" className="py-2"><AlertTriangle className="h-3.5 w-3.5" /><AlertDescription className="text-xs">{groupRecommendation.hint}</AlertDescription></Alert>
         )}
