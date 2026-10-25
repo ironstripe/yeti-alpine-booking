@@ -5,11 +5,11 @@
  * split invoices for shared private lessons, corrections/reissues).
  */
 import {
-import { loadInvoiceContent } from "./invoiceContentLoad.ts";
   routePayment,
   type PaymentProfile,
   type RoutingResult,
 } from "./payment-domain.ts";
+import { loadInvoiceContent } from "./invoiceContentLoad.ts";
 
 // deno-lint-ignore no-explicit-any
 type Client = any;
