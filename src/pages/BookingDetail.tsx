@@ -78,6 +78,9 @@ const BookingDetail = () => {
   const { data: schoolSettings } = useSchoolSettings();
   const createInvoice = useCreateInvoice();
   const sendInvoice = useSendInvoice();
+  const latestInvoiceId = invoices?.[0]?.id;
+  const latestInvoiceStatus = invoices?.[0]?.status;
+  const invoiceDelivery = useInvoiceDeliveryStatus(latestInvoiceId, latestInvoiceStatus === 'open');
   const confirmation = useBookingConfirmation(id);
   const sendConfirmation = confirmation.send;
   
@@ -409,7 +412,7 @@ const BookingDetail = () => {
                       Erstellt am {format(new Date(latestInvoice.created_at), 'dd.MM.yyyy', { locale: de })}
                     </p>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <Badge variant={latestInvoice.status === 'paid' ? 'default' : 'secondary'}>
                       {latestInvoice.status === 'paid' ? 'Bezahlt' : 
                        latestInvoice.status === 'sent' ? 'Gesendet' : 
