@@ -3,6 +3,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { EditQuote, EditRequest } from "@/lib/canonicalPrivateEdit";
 import { TARIFF_UNAVAILABLE_REASONS } from "@/lib/privateTariffRules";
+import { describeMoveQuote, isMoveQuote } from "@/lib/privateMoveQuote";
 
 export interface PaConflict { index?: number; date?: string; kind?: string; ref_id?: string }
 export interface PaExcluded { id: string; reasons: string[] }
@@ -60,6 +61,7 @@ function describe(code: string, conflicts: PaConflict[], excluded: PaExcluded[],
     case "unavailable": return "Bearbeiten bestehender Privatlektionen ist noch nicht freigeschaltet. Es wurde nichts gespeichert.";
     case "tariff_unavailable": return `${(field && TARIFF_UNAVAILABLE_REASONS[field]) || "Kein gültiger Produkttarif."} Es wurde nichts gespeichert.`;
     case "tariff_transition_required": return "Diese Privatlektion wurde mit Produkttarif und Rabatt berechnet. Zeit- oder Teilnehmeränderungen sind dafür noch nicht freigeschaltet (nur Lehrperson, Notizen, Treffpunkt). Es wurde nichts geändert.";
+    case "price_declined": return "Neuer Preis nicht bestätigt. Es wurde nichts geändert.";
     case "not_found": return "Termin nicht gefunden.";
     case "invalid": return `${(field && FIELDS[field]) || "Ungültige Angaben."} Es wurde nichts gespeichert.`;
     default: return "Ergebnis unbekannt: Bitte Buchungsliste prüfen oder erneut senden – eine Wiederholung erzeugt keine doppelte Buchung.";
@@ -125,12 +127,26 @@ export const paCreate = (p: {
   { action: "create", ...p },
 );
 
-export const paMove = (p: { appointment_id: string; date: string; time_start: string; time_end: string; instructor_id: string }) =>
-  call<{ price: number; confirmation_reset: boolean }>({ action: "move", ...p });
+export type ConfirmPrice = (text: string) => boolean;
+const browserConfirm: ConfirmPrice = (text) => typeof window !== "undefined" && window.confirm(text);
+
+/** L1: if the server requotes the price, ask once and re-send bound to exactly that quote. */
+export async function withPriceAck<T>(body: Record<string, unknown>, confirm: ConfirmPrice = browserConfirm): Promise<T> {
+  try {
+    return await call<T>(body);
+  } catch (e) {
+    if (!(e instanceof PrivateAppointmentError) || e.code !== "quote_changed" || !isMoveQuote(e.quote)) throw e;
+    if (!confirm(describeMoveQuote(e.quote))) throw new PrivateAppointmentError(409, "price_declined");
+    return await call<T>({ ...body, acknowledged_quote_digest: e.quote.quote_digest });
+  }
+}
+
+export const paMove = (p: { appointment_id: string; date: string; time_start: string; time_end: string; instructor_id: string }, confirm?: ConfirmPrice) =>
+  withPriceAck<{ price: number; confirmation_reset: boolean }>({ action: "move", ...p }, confirm);
 
 export const paPeriodUpdate = (p: {
   period_group_id: string; changes: { time_start?: string; time_end?: string; instructor_id?: string };
-}) => call<{ updated_ids: string[]; excluded: PaExcluded[] }>({ action: "period_update", ...p });
+}, confirm?: ConfirmPrice) => withPriceAck<{ updated_ids: string[]; excluded: PaExcluded[] }>({ action: "period_update", ...p }, confirm);
 
 /** B03a: server quote / atomic apply for edits of an existing canonical private booking. */
 export const paEditQuote = (p: EditRequest) =>

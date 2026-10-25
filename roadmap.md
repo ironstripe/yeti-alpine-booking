@@ -1,5 +1,12 @@
 # Roadmap
 
+## B07 retest readiness (authorised 2026-10-25)
+- [x] L1: tariff-priced move/period_update/B03a edit requote via the shared resolver with digest acknowledgement, consistent participant/day locks (also legacy paths), guard accepts only server pricing rows. SQL 17/17 + regressions; docs/b07-pricing-verification.md.
+- [x] Backend target verified (single Lovable Cloud project) and combined install manifest: docs/b01-b11-install-manifest.md.
+- [ ] B07a atomic multi-item create (next checkpoint).
+- [ ] B07b UI (summary-style price dialog replaces confirm; combined quote).
+- [ ] Coordinated install/deploy/publish of B07 server + client (after B07a/B07b).
+
 ## B05 — Office booking confirmation (authorised after B03b)
 - [x] Verify final B03b/B04 contracts; persist explicit intent atomically for canonical create/replay without changing finance.
 - [x] Integrate saved-ticket staff confirmation with B04 guards, complete saved lesson content and separate UI delivery outcomes.
