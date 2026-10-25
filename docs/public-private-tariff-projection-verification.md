@@ -49,17 +49,17 @@ Public standard prices are no longer a second set of money values. `get-website-
 - Not run: the hosted backend, a deployed function, or a Onepager render.
 
 ## Minimum release prerequisites (each needs explicit approval, in this order)
-1. Install `product_private_tariff_rules.sql` (B07 pricing, including the discount rule and cross-booking). Installing alone does not activate office pricing; `PRODUCT_PRIVATE_TARIFFS_LIVE` stays false.
+1. B07 pricing server foundation (`product_private_tariff_rules.sql`) in place, released together with the matching B07 client. This is NOT a harmless standalone install: the file replaces `pa_create_booking`, which then rejects any create without numeric `quote_revision`, `discount_rule_revision` and a `day_context_digest` string (`error: invalid`), and returns `tariff_unavailable` while a product has no tariff revision. Existing clients with `PRODUCT_PRIVATE_TARIFFS_LIVE = false` treat those fields as optional and omit them, so canonical private-lesson creation would break. The `pa_tariff_transition_guard` trigger (YT001) also refuses repricing moves/edits of tariff-priced appointments. Requirement: a coordinated server/client B07 rollout, or a compatible isolation (e.g. only the display-relevant read objects without replacing `pa_create_booking`, prepared and reviewed separately). The full B07 SQL must not be installed solely for this display patch.
 2. Run the reviewed tariff seed (`product_private_tariff_rules_seed.PROPOSED.sql`) for both private products, plus the discount rule row.
 3. Install `public_private_tariff_projection.sql`.
 4. Run `public_private_tariff_display_windows.PROPOSED.sql`, then have Office verify both products.
 5. Deploy `get-website-products`. If deployed earlier, the private fields are simply omitted (fail closed), and verified legacy display values that are visible today disappear until steps 1–4 are done.
 
-Steps 1–3 do not enable office tariff booking, the move/edit transition or B07a/B07b. Those stay behind their own switch and release.
+Step 1 changes office booking behaviour (see above); it belongs to the B07 release, not to this display patch. Steps 2–3 do not enable office tariff booking, the move/edit transition or B07a/B07b.
 
 ## Rollback
 Redeploy the previous `get-website-products` first, then run the rollback file (drops only the read-only function). The window seed changed display metadata only; restore it from the revision history or by saving the previous list. No booking, price or history data is affected.
 
 ## Remaining dependencies / limits
-- Live projection depends on the B07 pricing install and seed, which are pending.
-- `private_rates` still publishes the BC draft value (120 min = 170). That is outside this patch; it is the legacy field the Onepager may still read.
+- Real rollout dependencies: (a) a coordinated B07 server/client release or a reviewed compatible isolation that leaves the current `pa_create_booking` contract intact; (b) the reviewed tariff + discount seed; (c) projection install; (d) window seed + Office verification; (e) endpoint deploy. None is done.
+- `private_rates` still publishes the BC draft value (120 min = 170), unchanged. Verified boundary: the Onepager's `productCardData` filters 60/120-minute entries via `isTimeDependentDuration`, so this value is not rendered as a 2-hour price there. Other consumers of the endpoint were not checked.
