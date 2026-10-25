@@ -86,7 +86,7 @@ async def main():
                     return await route.fulfill(content_type="application/json", body=json.dumps({"price": 150, "confirmation_reset": False}))
                 if "/functions/v1/" in url:
                     return await route.fulfill(content_type="application/json", body=json.dumps({}))
-                if req.method not in ("GET", "HEAD", "OPTIONS"): writes.append(url); return await route.abort()
+                if req.method not in ("GET", "HEAD", "OPTIONS") and "/rest/v1/rpc/instructors_ops_list" not in url: writes.append(url); return await route.abort()
                 if "/rest/v1/customer_participants" in url:
                     return await route.fulfill(content_type="application/json", body=json.dumps([{"id": ANNA, "customer_id": "00000000-0000-4000-8000-0000000000c1", "first_name": "Anna", "last_name": "Synth"}]))
                 await route.fulfill(content_type="application/json", body="[]")
