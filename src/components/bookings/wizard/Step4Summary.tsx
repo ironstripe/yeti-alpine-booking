@@ -33,6 +33,9 @@ import { PrivateAppointmentError } from "@/lib/privateAppointmentsApi";
 import { privateTariffsLive } from "@/lib/privateTariffRules";
 import { buildServerPrivateSlots, discountOverrideFor } from "@/lib/serverPrivateSlots";
 import type { CreateQuote, PaSlot } from "@/lib/privateAppointmentsApi";
+import { OfficeCartQuote, type OfficeCartReady } from "./OfficeCartQuote";
+import { officeCreate, officeMultiItemLive, OfficeBookingError } from "@/lib/officeBookingApi";
+import { clearOfficeSubmissionKey } from "@/lib/officeCartRequest";
 
 interface Step4SummaryProps {
   onEditStep: (step: WizardStep) => void;
@@ -147,10 +150,14 @@ export function Step4Summary({ onEditStep }: Step4SummaryProps) {
   const participantsUnresolved = !!participantIssue || ownershipLoading;
   const [submitError, setSubmitError] = useState<{ message: string; unknown: boolean } | null>(null);
   // The create path saves the active lesson only; never drop further cart items silently.
-  const multiItemBlocked = !state.isEditMode && state.cartItems.length > 1;
+  // B07b: several positions are saved together only via the atomic office-booking path (switch-gated).
+  const multiCart = !state.isEditMode && state.cartItems.length > 1 && officeMultiItemLive();
+  const multiItemBlocked = !state.isEditMode && state.cartItems.length > 1 && !multiCart;
+  const [officeReady, setOfficeReady] = useState<{ ready: OfficeCartReady | null; busy: boolean }>({ ready: null, busy: false });
+  const handleOfficeReady = useCallback((ready: OfficeCartReady | null, busy: boolean) => setOfficeReady({ ready, busy }), []);
 
   // B07-P2 (switch OFF until release): the summary shows the server quote and the create binds to it.
-  const serverQuoteActive = usesServerPrivatePath && privateTariffsLive();
+  const serverQuoteActive = !multiCart && usesServerPrivatePath && privateTariffsLive();
   const quoteOverride = useMemo(() => discountOverrideFor({ discountExplicit, discountPercent, discountReason }),
     // reason does not change the price; only percent/explicitness requote
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -188,6 +195,10 @@ export function Step4Summary({ onEditStep }: Step4SummaryProps) {
     }
 
 
+    if (multiCart && (!officeReady.ready || officeReady.busy)) {
+      toast.error("Der Gesamtpreis wird noch berechnet oder ist nicht verfügbar.");
+      return;
+    }
     if (quoteBlocked) {
       toast.error("Der Serverpreis wird noch berechnet oder ist nicht verfügbar.");
       return;
@@ -256,6 +267,16 @@ export function Step4Summary({ onEditStep }: Step4SummaryProps) {
 
         resetWizard();
         navigate(`/bookings/${state.editingTicketId}`);
+      } else if (multiCart && officeReady.ready) {
+        // B07b: the whole cart in ONE server transaction, bound to exactly the quote shown above.
+        const { cart, key, quote } = officeReady.ready;
+        const created = await officeCreate(key, cart, quote.quote_digest, sendCustomerEmail);
+        clearOfficeSubmissionKey(state);
+        try { sessionStorage.removeItem("yeti.scheduler.planningDraft.v1"); } catch { /* ignore */ }
+        setCreatedTicket({ id: created.ticket_id, number: created.ticket_number });
+        setShowSuccess(true);
+        setConfirmation({ success: false, outcome: "pending" });
+        void bookingConfirmation(created.ticket_id, "process").then(setConfirmation);
       } else {
         // CREATE MODE: Use createBooking hook
         const result = await createBooking.mutateAsync({
@@ -288,6 +309,11 @@ export function Step4Summary({ onEditStep }: Step4SummaryProps) {
       console.error("Failed to save booking:", error);
       // B07-P3: price basis changed (tariff, rule or same-day lessons) => fetch a fresh quote; the office
       // must look at the new price and submit again. Nothing was saved.
+      if (error instanceof OfficeBookingError && error.code === "quote_changed") {
+        // Stale combined quote: drop the acknowledged one, show the fresh price, require a new click.
+        setOfficeReady({ ready: null, busy: true });
+        void queryClient.invalidateQueries({ queryKey: ["office-cart-quote"] });
+      }
       if (error instanceof PrivateAppointmentError && error.code === "quote_changed") {
         void queryClient.invalidateQueries({ queryKey: ["pa-create-quote"] });
       }
@@ -295,7 +321,8 @@ export function Step4Summary({ onEditStep }: Step4SummaryProps) {
       const message = error instanceof Error && error.message && !/^(Failed to fetch|NetworkError|TypeError)/i.test(error.message)
         ? error.message
         : null;
-      const unknown = !!(error && typeof error === "object" && "unknown" in error && (error as { unknown?: boolean }).unknown);
+      const unknown = error instanceof OfficeBookingError ? error.unknown
+        : !!(error && typeof error === "object" && "unknown" in error && (error as { unknown?: boolean }).unknown);
       const fallback = state.isEditMode ? "Fehler beim Speichern" : "Fehler beim Erstellen der Buchung";
       setSubmitError({ message: message ?? `${fallback}. Ihre Eingaben bleiben erhalten.`, unknown });
       toast.error(message ?? fallback, { duration: 10000 });
@@ -333,7 +360,9 @@ export function Step4Summary({ onEditStep }: Step4SummaryProps) {
           <Separator />
 
           {/* Price: server quote on the released product-tariff path, legacy breakdown otherwise */}
-          {serverQuoteActive ? (
+          {multiCart ? (
+            <OfficeCartQuote state={state} onReady={handleOfficeReady} />
+          ) : serverQuoteActive ? (
             <PrivateServerQuote
               productId={state.productId}
               persons={linkedParticipants.length}
@@ -429,7 +458,7 @@ export function Step4Summary({ onEditStep }: Step4SummaryProps) {
 
           <Button 
             onClick={handleCreateBooking} 
-            disabled={createBooking.isPending || updateBooking.isPending || (!state.isEditMode && (multiItemBlocked || participantsUnresolved || quoteBlocked))}
+            disabled={createBooking.isPending || updateBooking.isPending || (!state.isEditMode && (multiItemBlocked || participantsUnresolved || quoteBlocked || (multiCart && (!officeReady.ready || officeReady.busy))))}
             className="min-w-[180px]"
           >
             {(createBooking.isPending || updateBooking.isPending) ? (
