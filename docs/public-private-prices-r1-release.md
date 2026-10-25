@@ -47,7 +47,7 @@ No new accounts or credentials are needed or created.
 ## Local verification
 `tests/publicPrivatePricesR1.integration.mjs` – baseline + 0000–0027 + R1 pending + projection, fixtures = live
 rules/before-image: **12/12** (old list fails closed; service-only; non-staff and changed revision refused without
-writes; unverified save not public; verified: exactly six windows 75/75/75/190/150/190, extras 20/20/20/40/40/40,
+writes; unverified save not public; verified: exactly six windows 75/75/75/190/150/190 (Stand Tarif-Revision 1, vor Korrektur; seit 2026-10-25 22:43 UTC live: 75/75/75/190/150/170), extras 20/20/20/40/40/40,
 no 85/160, both sports, discount 10 %/240 min; `pa_product_quote` parity 1/2 persons; products and group unchanged;
 changed tariff config reflected without code/metadata change; rollback restores hash `5f6ce3cf…`).
 `get-website-products` envelope tests + `publicPrivateTariffDisplay` 4/4; `websiteCatalogContract` PASS.
