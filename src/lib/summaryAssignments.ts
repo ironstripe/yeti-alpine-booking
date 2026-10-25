@@ -46,3 +46,12 @@ export function blocksWithPeople<T extends { date: string; startTime: string; en
   }
   return [...map.values()].sort((a, b) => a.startTime.localeCompare(b.startTime));
 }
+
+/** Unique assigned teacher ids of the effective private plan (empty if plan not ready / none assigned). */
+export function assignedTeacherIds(
+  plan: { status: string; intervals?: Pick<IntendedInterval, "fixedInstructorId">[] } | null,
+  mainInstructorId: string | null | undefined,
+): string[] {
+  if (!plan || plan.status !== "ready" || !plan.intervals) return mainInstructorId ? [mainInstructorId] : [];
+  return [...new Set(plan.intervals.map((iv) => blockTeacherId(iv, mainInstructorId)).filter((x): x is string => !!x))];
+}
