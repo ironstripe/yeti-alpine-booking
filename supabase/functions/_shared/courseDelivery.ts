@@ -28,7 +28,7 @@
  * Transport is injected; tests never send real e-mail.
  */
 import { activeConfirmationTemplate, buildVars, fillTemplate } from "./bookingDelivery.ts";
-import { renderInvoiceDocument } from "./invoiceDocument.ts";
+import { renderInvoicePdf } from "./invoicePdf.ts";
 
 // deno-lint-ignore no-explicit-any
 type Client = any;
@@ -52,8 +52,8 @@ export type Transport = (mail: Mail) => Promise<TransportResult>;
 
 export const deliveryKey = (ticketId: string, kind: DeliveryKind) => `ticket:${ticketId}:${kind}`;
 
-const b64 = (s: string) => {
-  const bytes = new TextEncoder().encode(s);
+const b64 = (s: string | Uint8Array) => {
+  const bytes = typeof s === "string" ? new TextEncoder().encode(s) : s;
   let bin = "";
   for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
   return btoa(bin);
@@ -84,11 +84,11 @@ export async function resolveSender(sb: Client): Promise<string | null> {
   return name ? `${name} <${email}>` : email;
 }
 
-export async function ensureDelivery(sb: Client, ticketId: string, kind: DeliveryKind, email: string) {
+export async function ensureDelivery(sb: Client, ticketId: string, kind: DeliveryKind, email: string, invoiceId?: string) {
   await assertDeliverySchema(sb);
   const key = deliveryKey(ticketId, kind);
   const { error } = await sb.from("booking_email_deliveries").upsert(
-    { ticket_id: ticketId, kind, idempotency_key: key, recipient_email: email, delivery_protocol: "leased_v1" },
+    { ticket_id: ticketId, kind, idempotency_key: key, recipient_email: email, delivery_protocol: "leased_v1", ...(invoiceId ? { invoice_id: invoiceId } : {}) },
     { onConflict: "idempotency_key", ignoreDuplicates: true },
   );
   if (error) throw new Error(`delivery upsert failed: ${error.message}`);
@@ -98,7 +98,7 @@ export async function ensureDelivery(sb: Client, ticketId: string, kind: Deliver
 }
 
 export interface DeliveryRow {
-  id: string; ticket_id: string; kind: DeliveryKind; idempotency_key: string; recipient_email: string;
+  id: string; ticket_id: string; kind: DeliveryKind; idempotency_key: string; recipient_email: string; invoice_id?: string | null;
   status: string; attempts: number; claimed_at: string | null; first_claimed_at: string | null;
   provider_idempotency_key: string | null; provider_message_id: string | null; last_error_code: string | null;
   delivery_protocol: string | null; frozen_payload: FrozenPayload | null; payload_digest: string | null;
@@ -207,7 +207,7 @@ export async function attemptDelivery(
       if (!fresh && !retryKnownNotSent) return await fail("frozen_payload_missing", "Versandinhalt fehlt – manuelle Prüfung nötig");
       const sender = await resolveSender(sb);
       if (!sender) return await fail("sender_not_configured", "Absender (Schul-E-Mail in den Einstellungen) fehlt");
-      const content = row.kind === "invoice" ? await invoiceContent(sb, row.ticket_id) : await confirmationContent(sb, row.ticket_id, opts.confirmationVars);
+      const content = row.kind === "invoice" ? await invoiceContent(sb, row.ticket_id, row.invoice_id ?? undefined) : await confirmationContent(sb, row.ticket_id, opts.confirmationVars);
       if (!content.ok) return await fail(content.code, content.message, content.templateId ? { template_id: content.templateId } : {});
       mail = { from: sender, to: row.recipient_email, subject: content.subject, html: content.html, text: content.text ?? null,
         attachments: content.attachments ?? [], idempotencyKey: providerKey };
