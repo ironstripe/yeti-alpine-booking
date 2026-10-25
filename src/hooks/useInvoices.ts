@@ -212,38 +212,75 @@ export function useUpdateInvoiceStatus() {
   });
 }
 
+export type InvoiceDeliveryOutcome =
+  | "sent" | "already_sent" | "reconciled_sent" | "failed" | "unknown" | "in_progress"
+  | "not_sent" | "no_recipient" | "needs_review" | "not_issued" | "not_sendable"
+  | "not_found" | "not_claimed" | "unavailable" | "invalid";
+
+export interface InvoiceDeliveryResult {
+  success: boolean;
+  outcome: InvoiceDeliveryOutcome;
+  code?: string | null;
+}
+
+export function invoiceDeliveryLabel(r: { outcome?: string | null; code?: string | null } | undefined): string {
+  switch (r?.outcome) {
+    case "sent": return "Rechnung wurde an den E-Mail-Anbieter übergeben";
+    case "already_sent":
+    case "reconciled_sent": return "Rechnung wurde bereits gesendet";
+    case "in_progress": return "Versand läuft – Status bitte gleich erneut prüfen";
+    case "unknown": return "Versandstatus unbekannt – bitte später erneut prüfen, nicht erneut senden";
+    case "failed": return `Versand fehlgeschlagen${r?.code ? ` (${r.code})` : ""} – erneuter Versand möglich`;
+    case "not_sent": return "Rechnung wurde noch nicht gesendet";
+    case "no_recipient": return "Keine E-Mail-Adresse beim Rechnungsempfänger hinterlegt";
+    case "needs_review": return "Manuelle Prüfung nötig – bitte nicht erneut senden";
+    case "not_issued": return "Entwurf: Rechnung zuerst erstellen/ausstellen";
+    case "not_sendable": return "Diese Rechnung kann nicht gesendet werden";
+    case "unavailable": return "Versand derzeit nicht verfügbar – Buchung und Rechnung sind gespeichert";
+    default: return "Versandstatus unbekannt";
+  }
+}
+
+/** B06: staff send/retry of an issued invoice via the leased delivery protocol.
+ *  The server resolves the saved recipient and PDF; the client never marks
+ *  invoices as sent and never supplies recipient or content. */
 export function useSendInvoice() {
-  const updateStatus = useUpdateInvoiceStatus();
-  
+  const queryClient = useQueryClient();
+
   return useMutation({
-    mutationFn: async ({ invoiceId, recipientEmail }: { invoiceId: string; recipientEmail: string }) => {
-      // Call edge function to send invoice email
-      const { data, error } = await supabase.functions.invoke("send-notification", {
-        body: {
-          type: "invoice",
-          invoiceId,
-          recipientEmail,
-        },
+    mutationFn: async ({ invoiceId }: { invoiceId: string }): Promise<InvoiceDeliveryResult> => {
+      const { data, error } = await supabase.functions.invoke("send-invoice", {
+        body: { invoice_id: invoiceId, action: "send" },
       });
-      
       if (error) throw error;
-      
-      // Update status to sent
-      await updateStatus.mutateAsync({
-        invoiceId,
-        status: 'sent',
-        sentAt: new Date().toISOString(),
-      });
-      
-      return data;
+      return data as InvoiceDeliveryResult;
     },
-    onSuccess: () => {
-      toast.success("Rechnung per E-Mail gesendet");
+    onSuccess: (result, { invoiceId }) => {
+      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      queryClient.invalidateQueries({ queryKey: ["invoice-delivery", invoiceId] });
+      if (result.success) toast.success(invoiceDeliveryLabel(result));
+      else toast.error(invoiceDeliveryLabel(result));
     },
     onError: (error) => {
       console.error("Failed to send invoice:", error);
-      toast.error("Fehler beim Senden der Rechnung");
+      toast.error("Fehler beim Senden der Rechnung – die Rechnung bleibt gespeichert");
     },
+  });
+}
+
+/** Independent delivery state of one invoice (never the financial status). */
+export function useInvoiceDeliveryStatus(invoiceId: string | undefined, enabled = true) {
+  return useQuery({
+    queryKey: ["invoice-delivery", invoiceId],
+    queryFn: async (): Promise<InvoiceDeliveryResult> => {
+      const { data, error } = await supabase.functions.invoke("send-invoice", {
+        body: { invoice_id: invoiceId, action: "status" },
+      });
+      if (error) throw error;
+      return data as InvoiceDeliveryResult;
+    },
+    enabled: !!invoiceId && enabled,
+    retry: false,
   });
 }
 
