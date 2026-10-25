@@ -4,7 +4,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import postgres from "npm:postgres@3.4.5";
 import { assert, assertEquals } from "jsr:@std/assert@1";
 import { attemptDelivery, ensureDelivery, payloadDigest, type Mail, type Transport } from "../supabase/functions/_shared/courseDelivery.ts";
-import { attemptConfirmation } from "../supabase/functions/_shared/bookingDelivery.ts";
+import { attemptConfirmation, ensureConfirmationDelivery } from "../supabase/functions/_shared/bookingDelivery.ts";
 import { createRetryHandler } from "../supabase/functions/retry-course-booking-delivery/handler.ts";
 const admin = "postgres://postgres@127.0.0.1:55432/postgres";
 const db = `b04_${Date.now()}`;
@@ -113,6 +113,11 @@ try {
   const id=await fresh("invoice"),d=await row(id);const mail:Mail={from:"Test <x@example.invalid>",to:d.recipient_email,subject:"Frozen invoice",html:"<p>Unchanged</p>",idempotencyKey:d.idempotency_key,attachments:[{filename:"invoice.html",content:"ZnJvemVu",content_type:"text/html"}]};
   await sql`UPDATE booking_email_deliveries SET status='failed',attempts=1,claimed_at=${new Date(clock).toISOString()},first_claimed_at=${new Date(clock).toISOString()},provider_idempotency_key=${mail.idempotencyKey},frozen_payload=${sql.json({mail,template_id:null,invoice_id:null})},payload_digest=${await payloadDigest(mail)},last_error_code='transport_unknown' WHERE id=${id}`;
   assertEquals((await attempt(id,"manual")).outcome,"sent");assertEquals(calls.at(-1),mail);
+ });
+ await test("staged ensure collision never upgrades legacy or changes leased bytes",async()=>{
+  const [old]=await sql`SELECT * FROM booking_email_deliveries WHERE idempotency_key='legacy'`;await sql`UPDATE booking_email_deliveries SET idempotency_key=${`ticket:${ticket}:booking_confirmation`},status='pending' WHERE id=${old.id}`;
+  const original=await row(old.id);const d=await ensureDelivery(sb,ticket,"booking_confirmation","different@example.invalid");assert(d);assertEquals(await row(old.id),original);assertEquals((await attempt(old.id)).code,"legacy_delivery_review");assertEquals(await attemptConfirmation(sb,old.id),"needs_review");
+  const id=await fresh(),leased=await row(id);await ensureConfirmationDelivery(sb,leased.ticket_id,"different@example.invalid");assertEquals(await row(id),leased);
  });
  await test("schema incompatible fails closed before insert/transport",async()=>{
   await sql`ALTER TABLE booking_email_deliveries RENAME COLUMN delivery_protocol TO hidden_protocol`;await sql`NOTIFY pgrst,'reload schema'`;await new Promise(r=>setTimeout(r,300));const n=calls.length;const[id]=await sql`SELECT id FROM booking_email_deliveries LIMIT 1`;assertEquals((await attempt(id.id)).code,"schema_incompatible");let rejected=false;try{await ensureDelivery(sb,ticket,"invoice","x@example.invalid");}catch{rejected=true;}assert(rejected);assertEquals(calls.length,n);
