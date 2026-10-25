@@ -26,19 +26,43 @@ noch offen (Verzeichnis im Sandbox schreibgeschützt; über das Migrationswerkze
 **Reihenfolge zwingend: SQL vor Edge.** Neue `issueInvoice` schreibt `content_snapshot`; ohne Spalte schlägt jede
 Ausstellung fail-closed fehl (lokal reproduziert: `Could not find the 'content_snapshot' column`).
 
-## Edge-Deploy-Closure (aus Imports abgeleitet)
-- `invoice-service.ts` → `issue-invoice`, `confirm-booking`, `course-booking`
-- `courseDelivery.ts` (liest Snapshot) → `course-booking`, `retry-course-booking-delivery`, `send-invoice`, `staff-booking-confirmation`
-- `privateAppointmentsContract.ts` → `private-appointments`, `office-booking` (via `officeBookingContract`)
+## Edge-Deploy-Closure (transitiv aus Imports neu berechnet, Review-Korrektur)
+Geänderte Server-Module: `_shared/invoice-service.ts`, `_shared/invoiceContent.ts`, `_shared/invoiceContentLoad.ts`,
+`_shared/courseDelivery.ts`, `_shared/privateAppointmentsContract.ts`, `private-appointments/index.ts`.
+**Acht** Funktionen (vorher fälschlich „7"):
+`issue-invoice`, `confirm-booking`, `course-booking`, `retry-course-booking-delivery`, `send-invoice`,
+`staff-booking-confirmation`, `private-appointments`, `office-booking`.
+Separat (öffentliches Preis-Paket, nicht R1): `get-website-products` – siehe `docs/public-private-prices-r1-release.md`.
 
-Total 7 Funktionen. `retry-booking-confirmation`, `staff-group-booking`, `get-products`, Tarif-Endpunkte: keine geänderte Abhängigkeit.
-Frontend-Dateien: BookingDetail, BookingSummaryCards, StepOnePrivateServerQuote, SlotBookingPopover, ParticipantListCard,
-Step4Summary, useUpdateTicketItem, useTicketHistory, useInvoices, ticketHistoryFormat, ticketItemEditPlan,
-privateAppointmentsApi, invoiceContent (re-export).
+## Kombiniertes Migrationspaket (Reihenfolge, SQL vor Edge)
+0016–0029 (installiert) → 0030 `r1_pa_move_keep_unassigned.sql` → 0031 `r1_group_created_total_event.sql` →
+0032 `r1_invoice_content_snapshot.sql` → 0033 `public_private_tariff_projection.sql` (öffentliches Paket) →
+Datenschritt `public_private_prices_r1_display_update.sql` (nicht Migration; Akteur-Voraussetzung dort).
+Quellen liegen in `supabase/pending/`; Promotion zu getrackten Dateien über das Migrationswerkzeug.
 
-## Bekannte Grenzen
-- `tests/courseBookingApi.integration.ts`: 14/20; die 6 Fehler betreffen Versandschema/-erwartungen (Suite installiert B04 0016 nicht, erwartet ältere Anhänge) – nicht R1, bereits vor R1 veraltet; R1-SQL wurde der Suite hinzugefügt.
-- S2c nicht im Browser nachgeprüft; kein Test gegen gehostetes Backend.
+## Review-Korrekturen (Basis 5d0bd196, Arbeitsstand HEAD 0410551 + diese Änderungen)
+- **Vollständigkeit (S1):** `buildInvoiceContentV1` verweigert jetzt (`invoice_content_incomplete`) bei fehlendem
+  Termin, fehlender Teilnehmerverknüpfung, fehlender Teilnehmerzeile, fehlender Zeile einer **zugewiesenen**
+  Lehrperson; `instructor_id NULL` (Später zuweisen) bleibt gültig ohne Lehrpersonangabe. Test 6/6
+  (`_shared/invoiceContent.test.ts`).
+- **CHECK (S1):** dreiwertige Logik geschlossen: nicht-NULL Snapshot muss Objekt, `version` = Zahl 1 und
+  `lines` Array sein; `{}`, `{"version":1}`, `{"lines":[]}`, `"1"`, `lines:{}`, `[]`, Skalar, v2 abgelehnt
+  (`tests/sql/r1_invoice_content_snapshot_check.sql`, lokal grün).
+- **courseBookingApi:** Suite installiert jetzt Baseline + Kurs-SQL + 0000–0027 + R1-Pending (falls vorhanden).
+  Vergleich mit Pre-R1-Checkout c6eaef5 (gleiches Setup, fake Transport): **beide 15/20, identische
+  Ergebnisliste** (`diff` leer) → keine neuen Fehler durch R1. Die 5 gemeinsamen Fehler (full flow, provider
+  rejection, missing QR, network unknown, delivery unknown outcomes) sind Erwartungsdrift der Suite, nicht R1.
+- **Schritt-1-Preis (S2c):** `tests/r1StepOneQuote.test.tsx` 5/5 – echte Komponenten, Server-190 bei 14–16,
+  kein 170; beim (Neu-)Laden kein alter Preis; Zeit/Datum/Personen/Produkt ändern den Request-Schlüssel (alte
+  Antwort nicht wiederverwendbar); Fehler/fehlendes Produkt ehrlich ohne Betrag; ohne Personen kein Request.
+  Kein Browserlauf, keine Buchung/Nachricht.
+
+## Bestandsschutz nach Installation (read-only zu prüfen)
+Vorher: 19 Rechnungen, 1423 Tickets, 11 Zahlungen. Neue Spalte verändert einen Voll-JSON-Fingerabdruck; daher
+vor/nach vergleichen **ohne** `content_snapshot`:
+`SELECT count(*), md5(string_agg((to_jsonb(i) - 'content_snapshot')::text, ',' ORDER BY id)) FROM invoices i;`
+plus `SELECT count(*) FROM invoices WHERE content_snapshot IS NOT NULL` = 0 für alle 19 bestehenden Rechnungen;
+Tickets/Zahlungen-Fingerabdrücke unverändert.
 
 ## Onepager: warum keine Privatpreise (nur Diagnose, nichts geändert)
 Gehostet, read-only geprüft:
@@ -49,3 +73,8 @@ Gehostet, read-only geprüft:
 
 Minimal fehlend für Privatpreise: (a) Projektion-SQL installieren, (b) Fenster-Metadaten auf die sechs Standardfenster
 korrigieren und neu verifizieren, (c) Repo-`get-website-products` deployen, (d) Onepager liest die Projektion. Keine Preisänderung nötig.
+
+### Vorher-Fingerabdrücke (read-only, 2026-10-25 ~22:40 UTC, vor jeder R1-Installation)
+- invoices: 19, md5 ohne content_snapshot `ef69b758b53d1eb1b7f93f317fd9964f`
+- tickets: **1424** (Ihre Angabe 1423 – ein Ticket mehr; nicht von Lovable angelegt, vor Installation prüfen), md5 `93502a0629d36b2b8171e584fa042fb2`
+- payments: 11, md5 `eac18fe59c47f6dc6dff22673ba12585`

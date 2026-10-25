@@ -44,6 +44,17 @@ Deno.test("incomplete canonical relationship fails closed (no frozen wrong docum
   assertThrows(() => buildInvoiceContentV1([line("i1", "a-missing", 190)], [], [], [], []), Error, "invoice_content_incomplete");
 });
 
+Deno.test("missing link / participant row / assigned teacher row fails closed; NULL teacher is fine", () => {
+  const items = [line("i1", "a1", 190)];
+  const ok = [{ appointment_id: "a1", participant_id: "p-anna" }];
+  assertThrows(() => buildInvoiceContentV1(items, [appt("a1", "2026-12-12", "10:00:00", "12:00:00")], [], [anna], [teacher]), Error, "invoice_content_incomplete");
+  assertThrows(() => buildInvoiceContentV1(items, [appt("a1", "2026-12-12", "10:00:00", "12:00:00")],
+    [...ok, { appointment_id: "a1", participant_id: "p-ben" }], [anna], [teacher]), Error, "invoice_content_incomplete");
+  assertThrows(() => buildInvoiceContentV1(items, [appt("a1", "2026-12-12", "10:00:00", "12:00:00")], ok, [anna], []), Error, "invoice_content_incomplete");
+  const s = buildInvoiceContentV1(items, [appt("a1", "2026-12-12", "10:00:00", "12:00:00", null)], ok, [anna], []);
+  assertEquals(s.lines[0].details, "Anna Muster · Sa 12.12.2026 10:00–12:00");
+});
+
 Deno.test("legacy invoice (no or unknown snapshot) => null, renderer keeps legacy lines", () => {
   assertEquals(snapshotLines(null), null); assertEquals(snapshotLines(undefined), null);
   assertEquals(snapshotLines({ version: 2, lines: [] }), null); assertEquals(snapshotLines({ lines: [] }), null);

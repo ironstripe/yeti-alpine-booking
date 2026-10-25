@@ -34,7 +34,15 @@ export function buildInvoiceContentV1(
     if (it.appointment_id) {
       if (!p?.appointment) throw new Error("invoice_content_incomplete");
       const a = p.appointment;
-      const who = p.people.map((x) => x.name).join(", ") || "Teilnehmende nicht hinterlegt";
+      // Canonical private lessons always have >=1 participant link; every linked person and an assigned
+      // teacher must resolve to a row. NULL instructor_id = genuinely unassigned ("Später zuweisen").
+      const raw = appointments.find((x) => x.id === it.appointment_id);
+      const linked = links.filter((l) => l.appointment_id === it.appointment_id);
+      if (!raw || linked.length === 0) throw new Error("invoice_content_incomplete");
+      if (linked.some((l) => !people.some((x) => x.id === l.participant_id))) throw new Error("invoice_content_incomplete");
+      if (raw.instructor_id && !instructors.some((x) => x.id === raw.instructor_id)) throw new Error("invoice_content_incomplete");
+      if (p.people.length !== new Set(linked.map((l) => l.participant_id)).size) throw new Error("invoice_content_incomplete");
+      const who = p.people.map((x) => x.name).join(", ");
       const when = `${weekday(a.date)} ${fmtDate(a.date)} ${hm(a.time_start)}–${hm(a.time_end)}`;
       return { description: name, details: [who, when, p.instructorName ? `Lehrperson: ${p.instructorName}` : null].filter(Boolean).join(" · "), amount, ticket_item_ids: [it.id] };
     }
