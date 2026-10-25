@@ -18,7 +18,7 @@ FIXTURE = r"""async () => {
   const {checkoutSubmitFlags} = await import('/src/lib/checkoutSubmitFlags.ts');
   const {checkoutPaymentDueDate} = await import('/src/lib/checkoutDueDate.ts');
   const {PriceAckDialogHost} = await import('/src/components/PriceAckDialogHost.tsx');
-  window.PA = await import('/src/lib/privateAppointmentsApi.ts');
+  window.PA = await import(await dep('/src/components/PriceAckDialogHost.tsx', 'privateAppointmentsApi'));
   await import('/src/index.css');
   const h = React.createElement;
   function Probe() {
