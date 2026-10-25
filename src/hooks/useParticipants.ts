@@ -64,7 +64,7 @@ export function useCreateParticipant(customerId: string) {
     onError: (error) => {
       toast({
         title: "Fehler",
-        description: "Teilnehmer konnte nicht erstellt werden.",
+        description: (error as { code?: string })?.code === "22008" ? "Das Geburtsdatum darf nicht in der Zukunft liegen." : "Teilnehmer konnte nicht erstellt werden.",
         variant: "destructive",
       });
       console.error("Create participant error:", error);
@@ -95,7 +95,7 @@ export function useUpdateParticipant(customerId: string) {
     onError: (error) => {
       toast({
         title: "Fehler",
-        description: "Teilnehmer konnte nicht aktualisiert werden.",
+        description: (error as { code?: string })?.code === "22008" ? "Das Geburtsdatum darf nicht in der Zukunft liegen." : "Teilnehmer konnte nicht aktualisiert werden.",
         variant: "destructive",
       });
       console.error("Update participant error:", error);
