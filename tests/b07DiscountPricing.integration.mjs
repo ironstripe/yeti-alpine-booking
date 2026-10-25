@@ -82,9 +82,9 @@ try {
   const priced = async (slots, intent = { mode: 'automatic' }) =>
     (await sql`SELECT pa_price_request(${P}::uuid, ${sql.json(slots)}::jsonb, ${sql.json(intent)}::jsonb, true) r`)[0].r;
   let k = 0; const key = () => `b07p2-${++k}-${Date.now()}`;
-  const create = async (appts, more = {}, participants = [{ participant_id: ANNA }]) => (await sql`SELECT pa_create_booking_finalized(${sql.json({
+  const create = async (appts, more = {}, participants = [{ participant_id: ANNA }]) => (await sql`SELECT pa_create_booking_finalized(${sql.json(await withCtx({
     submission_key: key(), customer_id: CUST, product_id: P, appointments: appts, participants, quote_revision: 1, discount_rule_revision: 1, ...more,
-  })}::jsonb, ${ACTOR}::uuid) r`)[0].r;
+  }))}::jsonb, ${ACTOR}::uuid) r`)[0].r;
 
   await t('grants: new helpers service-only; new tables SELECT-only for authenticated, none for anon', async () => {
     for (const f of ['pa_same_day_discount(jsonb,numeric,integer)', 'pa_discount_intent(jsonb,boolean)', 'pa_price_request(uuid,jsonb,jsonb,boolean)']) {

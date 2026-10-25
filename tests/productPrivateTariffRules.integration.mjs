@@ -75,10 +75,10 @@ try {
   const quote = async (product, appts, persons = 1) => (await sql`SELECT pa_create_quote(${sql.json({ product_id: product, persons, appointments: appts })}::jsonb) r`)[0].r;
   let k = 0; const key = () => `b07p-${++k}-${Date.now()}`;
   const slot = (date, s, e, ins = I1) => ({ date, time_start: s, time_end: e, instructor_id: ins });
-  const create = async (product, appts, extra = {}) => (await sql`SELECT pa_create_booking_finalized(${sql.json({
+  const create = async (product, appts, extra = {}) => (await sql`SELECT pa_create_booking_finalized(${sql.json(await withCtx({
     submission_key: extra.submission_key ?? key(), customer_id: CUST, product_id: product, appointments: appts,
     participants: extra.participants ?? [{ participant_id: P1 }], discount_rule_revision: 1, ...extra.more,
-  })}::jsonb, ${ACTOR}::uuid) r`)[0].r;
+  }))}::jsonb, ${ACTOR}::uuid) r`)[0].r;
   const counts = async () => (await sql`SELECT (SELECT count(*)::int FROM tickets) t, (SELECT count(*)::int FROM ticket_items) i,
     (SELECT count(*)::int FROM private_appointments) a, (SELECT count(*)::int FROM customer_participants) p`)[0];
 
