@@ -127,9 +127,10 @@ export async function attemptConfirmation(
   // Old failed rows do not record whether a provider handoff occurred.
   if (opts.manual) return "needs_review";
   if (current.delivery_protocol !== "legacy_v1" || current.attempts !== 0) return "needs_review";
+  const claimedAttempt = current.attempts + 1;
   const { data: claimed, error: claimError } = await sb
     .from("booking_email_deliveries")
-    .update({ status: "sending", attempts: current.attempts + 1 })
+    .update({ status: "sending", attempts: claimedAttempt })
     .eq("id", deliveryId)
     .eq("attempts", current.attempts)
     .in("status", allowed)
@@ -141,7 +142,7 @@ export async function attemptConfirmation(
   const fail = async (code: string, message: string, extra: Record<string, unknown> = {}) => {
     const { error } = await sb.from("booking_email_deliveries")
       .update({ status: "failed", last_error_code: code, last_error: message.slice(0, 500), ...extra })
-      .eq("id", deliveryId).eq("attempts", current.attempts + 1).eq("status", "sending");
+      .eq("id", deliveryId).eq("attempts", claimedAttempt).eq("status", "sending");
     return error ? "unknown" : "failed";
   };
 
@@ -189,7 +190,7 @@ export async function attemptConfirmation(
     const { data: saved, error: saveError } = await sb.from("booking_email_deliveries").update({
       status: "sent", sent_at: now, provider_message_id: out.id ?? null, template_id: tpl.id,
       email_log_id: log?.id ?? null, last_error_code: null, last_error: null,
-    }).eq("id", deliveryId).eq("attempts", current.attempts + 1).eq("status", "sending").select("id").maybeSingle();
+    }).eq("id", deliveryId).eq("attempts", claimedAttempt).eq("status", "sending").select("id").maybeSingle();
     return saveError || !saved ? "unknown" : "sent";
   } catch (e) {
     return await fail("exception", e instanceof Error ? e.message : String(e));
