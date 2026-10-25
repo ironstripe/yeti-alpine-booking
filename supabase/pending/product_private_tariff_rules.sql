@@ -351,18 +351,12 @@ DECLARE
   v_guest_map jsonb := '{}'::jsonb; v_ids uuid[] := ARRAY[]::uuid[];
   e jsonb; e2 jsonb; i int; k int; v_pid uuid; v_aid uuid; v_price numeric; c record;
   d date; s time; t time; ins uuid; v_later boolean; v_unassigned date[] := ARRAY[]::date[];
-  v_disc numeric; v_reason text := nullif(trim(coalesce(p->>'discount_reason','')),'');
-  -- B07-P: product-configured tariff resolver state.
-  v_rev int; v_q jsonb; v_quotes jsonb := '[]'::jsonb; v_err jsonb;
+  -- B07-P/P2: product-configured tariff resolver + discount state.
+  v_rev int; v_drev int; v_intent jsonb; v_quote jsonb; v_slots jsonb := '[]'::jsonb; v_it jsonb; v_err jsonb;
 BEGIN
   IF v_key IS NULL OR length(v_key) < 8 THEN RETURN jsonb_build_object('error','invalid','field','submission_key'); END IF;
-  IF p ? 'discount_percent' AND jsonb_typeof(p->'discount_percent') <> 'number' THEN
-    RETURN jsonb_build_object('error','invalid','field','discount_percent');
-  END IF;
-  v_disc := coalesce((p->>'discount_percent')::numeric, 0);
-  IF v_disc < 0 OR v_disc > 100 THEN RETURN jsonb_build_object('error','invalid','field','discount_percent'); END IF;
-  IF v_disc > 0 AND v_reason IS NULL THEN RETURN jsonb_build_object('error','invalid','field','discount_reason'); END IF;
-  IF v_disc = 0 THEN v_reason := NULL; END IF;
+  v_intent := public.pa_discount_intent(p, true);
+  IF v_intent ? 'error' THEN RETURN v_intent; END IF;
 
   PERFORM pg_advisory_xact_lock(hashtext('pa_create:' || v_key));
   SELECT ticket_id INTO v_existing FROM public.private_appointment_submissions WHERE submission_key = v_key;
@@ -379,10 +373,13 @@ BEGIN
   -- B07-P: the client must name the tariff revision it was shown; the row lock (FOR SHARE)
   -- makes a concurrent tariff save wait until this booking commits or rolls back.
   IF jsonb_typeof(p->'quote_revision') IS DISTINCT FROM 'number' THEN RETURN jsonb_build_object('error','invalid','field','quote_revision'); END IF;
+  IF jsonb_typeof(p->'discount_rule_revision') IS DISTINCT FROM 'number' THEN RETURN jsonb_build_object('error','invalid','field','discount_rule_revision'); END IF;
   SELECT revision INTO v_rev FROM public.product_private_tariff_revisions WHERE product_id = v_product FOR SHARE;
   IF v_rev IS NULL THEN RETURN jsonb_build_object('error','tariff_unavailable','reason','not_configured'); END IF;
-  IF v_rev <> (p->>'quote_revision')::numeric THEN
-    RETURN jsonb_build_object('error','quote_changed','quote',jsonb_build_object('revision',v_rev));
+  SELECT revision INTO v_drev FROM public.private_lesson_discount_rule WHERE id FOR SHARE;
+  IF v_drev IS NULL THEN RETURN jsonb_build_object('error','tariff_unavailable','reason','discount_rule_not_configured'); END IF;
+  IF v_rev <> (p->>'quote_revision')::numeric OR v_drev <> (p->>'discount_rule_revision')::numeric THEN
+    RETURN jsonb_build_object('error','quote_changed','quote',jsonb_build_object('revision',v_rev,'discount_rule_revision',v_drev));
   END IF;
 
   PERFORM public.pa_lock_slots((SELECT coalesce(jsonb_agg(jsonb_build_object('instructor_id', x->>'instructor_id', 'date', x->>'date')), '[]'::jsonb)
@@ -446,16 +443,19 @@ BEGIN
   END LOOP;
   v_persons := cardinality(v_part_ids);
 
-  -- B07-P: one authoritative product-configured price per appointment, before any booking write.
+  -- B07-P/P2: one authoritative product price + discount per appointment, before any booking write.
+  -- All persons attend every appointment of this request (canonical single-item create); eligibility is
+  -- aggregated per real participant and date over all slots of THIS request only.
   FOR i IN 0 .. jsonb_array_length(v_appts) - 1 LOOP
     e := v_appts->i;
-    v_q := public.pa_product_quote(v_product, (e->>'date')::date, (e->>'time_start')::time, (e->>'time_end')::time, v_persons, true);
-    IF v_q ? 'error' THEN
-      v_err := jsonb_build_object('error','tariff_unavailable','reason',v_q->>'reason','index',i);
-      RAISE EXCEPTION USING ERRCODE = 'PT001', MESSAGE = 'tariff_unavailable';
-    END IF;
-    v_quotes := v_quotes || jsonb_build_array(v_q);
+    v_slots := v_slots || jsonb_build_array(jsonb_build_object('date', e->'date', 'time_start', e->'time_start',
+      'time_end', e->'time_end', 'participants', to_jsonb(v_part_ids::text[])));
   END LOOP;
+  v_quote := public.pa_price_request(v_product, v_slots, v_intent, true);
+  IF v_quote ? 'error' THEN
+    v_err := v_quote;
+    RAISE EXCEPTION USING ERRCODE = 'PT001', MESSAGE = 'tariff_unavailable';
+  END IF;
 
   v_number := public.generate_ticket_number();
   INSERT INTO public.tickets (ticket_number, customer_id, status, total_amount, paid_amount, source, created_by, participant_count, notes)
@@ -466,7 +466,8 @@ BEGIN
 
   FOR i IN 0 .. jsonb_array_length(v_appts) - 1 LOOP
     e := v_appts->i; d := (e->>'date')::date; s := (e->>'time_start')::time; t := (e->>'time_end')::time; ins := (e->>'instructor_id')::uuid;
-    v_price := (v_quotes->i->>'price')::numeric;
+    v_it := v_quote->'items'->i;
+    v_price := (v_it->>'price')::numeric;
     INSERT INTO public.private_appointments (ticket_id, date, time_start, time_end, instructor_id, status, instructor_confirmation, meeting_point, period_group_id, price, submission_key)
     VALUES (v_ticket, d, s, t, ins, 'booked', CASE WHEN ins IS NULL THEN NULL ELSE 'pending' END, e->>'meeting_point', v_group, v_price, v_key)
     RETURNING id INTO v_aid;
@@ -474,7 +475,12 @@ BEGIN
       SELECT v_aid, unnest(v_part_ids);
     INSERT INTO public.ticket_items (ticket_id, product_id, participant_id, instructor_id, date, time_start, time_end, meeting_point,
       unit_price, quantity, discount_percent, discount_reason, status, instructor_confirmation, item_type, group_participant_count, period_group_id, appointment_id)
-    VALUES (v_ticket, v_product, NULL, ins, d, s, t, e->>'meeting_point', v_price, 1, v_disc, v_reason, 'booked', CASE WHEN ins IS NULL THEN NULL ELSE 'pending' END, 'private', v_persons, v_group, v_aid);
+    VALUES (v_ticket, v_product, NULL, ins, d, s, t, e->>'meeting_point', v_price, 1, (v_it->>'discount_percent')::numeric, v_it->>'discount_reason',
+      'booked', CASE WHEN ins IS NULL THEN NULL ELSE 'pending' END, 'private', v_persons, v_group, v_aid);
+    INSERT INTO public.private_appointment_pricing (appointment_id, product_id, tariff_revision, discount_rule_revision, gross_price,
+      discount_source, discount_percent, discount_amount, persons, eligible_persons)
+    VALUES (v_aid, v_product, v_rev, v_drev, v_price, v_it->>'discount_source', (v_it->>'discount_percent')::numeric,
+      (v_it->>'discount_amount')::numeric, (v_it->>'persons')::int, (v_it->>'eligible')::int);
     v_ids := v_ids || v_aid;
     IF ins IS NULL THEN v_unassigned := v_unassigned || d; END IF;
   END LOOP;
@@ -488,11 +494,14 @@ BEGIN
             v_ticket, (SELECT min(x) FROM unnest(v_unassigned) x), 'high', 'pending', p_actor);
   END IF;
   PERFORM public.pa_emit_change(v_ticket, v_ids, 'created', p_actor,
-    jsonb_build_object('persons', v_persons, 'discount_percent', v_disc, 'discount_reason', v_reason,
+    jsonb_build_object('persons', v_persons,
+                       'discount_percent', CASE WHEN v_intent->>'mode' = 'manual' THEN (v_intent->>'percent')::numeric ELSE 0 END,
+                       'discount_reason', CASE WHEN v_intent->>'mode' = 'manual' THEN v_intent->>'reason' END,
+                       'discount_source', v_quote->>'discount_source', 'discount_total', v_quote->'discount_total',
                        'unassigned', cardinality(v_unassigned)));
   RETURN jsonb_build_object('ok', true, 'ticket_id', v_ticket, 'ticket_number', v_number,
     'appointment_ids', to_jsonb(v_ids), 'total', (SELECT total_amount FROM public.tickets WHERE id = v_ticket),
-    'tariff_revision', v_rev);
+    'tariff_revision', v_rev, 'discount_rule_revision', v_drev, 'discount_source', v_quote->>'discount_source');
   EXCEPTION WHEN SQLSTATE 'PT001' THEN
     RETURN v_err; -- participants created by this attempt are rolled back with the subtransaction
   END;
