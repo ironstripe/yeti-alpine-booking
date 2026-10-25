@@ -159,7 +159,7 @@ async def main():
             # 3) remove FIRST item -> single item left; mail switched ON; remount: nothing may submit a new/changed request
             await page.evaluate("() => window.wiz.removeCartItem(window.wiz.state.cartItems[0].id)"); await page.wait_for_timeout(400)
             check(await page.get_by_role("button", name="Buchung erstellen", exact=True).is_disabled(), f"{tag} after first-item removal (now single path) submit stays blocked")
-            await page.get_by_label("E-Mail an Kunde", exact=False).first.click(); await page.wait_for_timeout(100)
+            await page.evaluate("() => window.wiz.setCheckoutOptions({sendCustomerEmail:true})"); await page.wait_for_timeout(100)
             await page.evaluate("() => window.unmountSummary()"); await page.wait_for_timeout(200)
             await page.evaluate("() => window.mountSummary()"); await page.wait_for_timeout(600)
             check(await page.get_by_test_id("pending-attempt").count() == 1, f"{tag} recovery panel survives remount")
