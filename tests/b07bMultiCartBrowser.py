@@ -161,7 +161,8 @@ async def main():
             check(len(confirms) == 1 and confirms[0].get("ticket_id") == "synthetic-ticket", f"{tag} one B05 post-success call")
             check(await page.get_by_text("TEST-ONLY", exact=False).count() >= 1, f"{tag} one success result shown")
             await page.screenshot(path=str(OUT / f"success_{width}.png"))
-            # L1 accessible price dialog: decline then accept
+            # L1 accessible price dialog: decline then accept (success modal closed first)
+            await page.get_by_role("button", name="Neue Buchung").click(); await page.wait_for_timeout(300)
             res = await page.evaluate("""async () => { const r = window.PA.paMove({appointment_id:'x',date:'2026-12-21',time_start:'12:00',time_end:'14:00',instructor_id:'y'}).then(()=>'saved',e=>e.code); window.__mv = r; return 'started'; }""")
             dlg = page.get_by_role("alertdialog")
             await dlg.wait_for(timeout=5000)
