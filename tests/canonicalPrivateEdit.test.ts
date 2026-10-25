@@ -52,8 +52,8 @@ describe("canonical private edit hydration", () => {
 describe("canonical edit request", () => {
   it("unchanged save sends nothing", () => { const s = base(); expect(buildEditRequest(s, draftFromSnapshot(s))).toBeNull(); });
   it("notes-only does not need a quote and carries no participants", () => {
-    const s = base(); const r = buildEditRequest(s, { ...draftFromSnapshot(s), internalNotes: "neu" })!;
-    expect(r.appointments).toEqual([]); expect(r.internal_notes).toBe("neu"); expect(needsQuote(r)).toBe(false);
+    const s = base(); const r = buildEditRequest(s, { ...draftFromSnapshot(s), internalNotes: { [A1]: "neu" } })!;
+    expect(r.appointments).toHaveLength(1); expect(r.appointments[0].internal_notes).toBe("neu"); expect(needsQuote(r)).toBe(false);
   });
   it("adding a person needs a quote and acknowledges exactly the quoted prices", () => {
     const s = base(); const d = { ...draftFromSnapshot(s), participantIds: { [A1]: [P1, P2, P3] } };

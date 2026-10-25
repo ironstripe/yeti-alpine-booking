@@ -51,7 +51,11 @@ try {
     assert.equal(r.ok, true, JSON.stringify(r)); return r;
   };
   const slot = (date, ins = I1, s = '10:00', e = '11:00') => ({ date, time_start: s, time_end: e, instructor_id: ins });
-  const edit = async (p, actor = ACTOR) => (await sql`SELECT pa_edit_booking(${sql.json(p)}, ${actor}) r`)[0].r;
+  const edit = async (p, actor = ACTOR) => {
+    // Old regression calls omit total; production builder always supplies it.
+    if (!('expected_total' in p)) { const rows=await sql`SELECT total_amount FROM tickets WHERE id=${p.ticket_id}`; p={...p,expected_total:Number(rows[0]?.total_amount ?? 0)}; }
+    return (await sql`SELECT pa_edit_booking(${sql.json(p)}, ${actor}) r`)[0].r;
+  };
   const state = async (ticket) => {
     const [tk] = await sql`SELECT total_amount::numeric tot, paid_amount::numeric paid, notes, participant_count FROM tickets WHERE id=${ticket}`;
     const ap = await sql`SELECT a.id, a.price::numeric price, a.meeting_point, ti.unit_price::numeric up, ti.discount_percent::numeric disc, ti.internal_notes, ti.instructor_notes,
@@ -127,7 +131,7 @@ try {
     const before = await state(two.ticket_id);
     const q = await edit({ mode: 'quote', ticket_id: two.ticket_id, appointments: [expectAppt(before, 0)] });
     assert.equal(q.ok, true); assert.equal(q.quote.changed, false); assert.equal(Number(q.quote.new_total), 100);
-    const r = await edit({ mode: 'apply', ticket_id: two.ticket_id, expected_total: 100, appointments: [{ ...expectAppt(before, 0), participant_ids: [P2, P1] }], internal_notes: before.ap[0].internal_notes ?? '' });
+    const r = await edit({ mode: 'apply', ticket_id: two.ticket_id, expected_total: 100, appointments: [{ ...expectAppt(before, 0), participant_ids: [P2, P1], internal_notes: before.ap[0].internal_notes ?? '' }] });
     assert.equal(r.ok, true); assert.equal(r.changed, false);
     assert.deepEqual(await state(two.ticket_id), before);
   });
@@ -135,7 +139,7 @@ try {
   const disc = await create([slot('2026-12-27')], [P1, P2], { discount_percent: 10, discount_reason: 'Stammkunde' });
   await t('notes + meeting point only on discounted ticket: no repricing, total/discount kept', async () => {
     const before = await state(disc.ticket_id); assert.equal(Number(before.tk.tot), 90);
-    const r = await edit({ mode: 'apply', ticket_id: disc.ticket_id, appointments: [{ ...expectAppt(before, 0), meeting_point: 'malbipark' }], internal_notes: 'neu', customer_notes: 'Kunde' });
+    const r = await edit({ mode: 'apply', ticket_id: disc.ticket_id, appointments: [{ ...expectAppt(before, 0), meeting_point: 'malbipark', internal_notes: 'neu' }], expected_customer_notes:before.tk.notes, customer_notes: 'Kunde' });
     assert.equal(r.ok, true, JSON.stringify(r)); assert.equal(r.changed, true);
     const s = await state(disc.ticket_id);
     assert.equal(Number(s.tk.tot), 90); assert.equal(Number(s.ap[0].price), 100); assert.equal(Number(s.ap[0].disc), 10);
@@ -161,9 +165,9 @@ try {
 
   await t('stale data or concurrent change aborts without writes', async () => {
     const before = await state(disc.ticket_id);
-    const stale = { ticket_id: disc.ticket_id, mode: 'apply', appointments: [{ appointment_id: before.ap[0].id, expected_participant_ids: [P1, P2], expected_price: 100, participant_ids: [P1], acknowledged_price: 80 }], acknowledged_total: 72 };
+    const stale = { ticket_id: disc.ticket_id, mode: 'apply', appointments: [{ ...expectAppt(before,0), expected_participant_ids: [P1, P2], expected_price: 100, participant_ids: [P1], acknowledged_price: 80 }], acknowledged_total: 72 };
     assert.equal((await edit(stale)).error, 'conflict');
-    assert.equal((await edit({ ...stale, appointments: [{ ...expectAppt(before, 0), internal_notes: undefined }].map(({ internal_notes, ...a }) => a), expected_total: 1, internal_notes: 'x' })).error, 'conflict');
+    assert.equal((await edit({ ...stale, appointments: [{ ...expectAppt(before, 0), internal_notes: undefined }].map(({ internal_notes, ...a }) => a), expected_total: 1 })).error, 'conflict');
     assert.deepEqual(await state(disc.ticket_id), before);
   });
 
@@ -211,7 +215,7 @@ try {
     assert.equal(r.error, 'protected'); assert.deepEqual(r.excluded[0].reasons, ['invoiced']);
     assert.equal((await edit({ mode: 'apply', ticket_id: two.ticket_id, appointments: [{ ...expectAppt(before, 0), meeting_point: 'malbipark' }] })).error, 'protected');
     assert.deepEqual(await state(two.ticket_id), before);
-    const n = await edit({ mode: 'apply', ticket_id: two.ticket_id, appointments: [], instructor_notes: 'Helm' });
+    const n = await edit({ mode: 'apply', ticket_id: two.ticket_id, appointments: [{...expectAppt(before,0),instructor_notes:'Helm'}] });
     assert.equal(n.ok, true); const s = await state(two.ticket_id);
     assert.equal(Number(s.tk.tot), 100); assert.equal(Number(s.tk.paid), 100); assert.equal(Number(s.ap[0].price), 100);
   });

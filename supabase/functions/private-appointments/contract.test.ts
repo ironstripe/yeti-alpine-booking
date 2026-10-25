@@ -104,14 +104,20 @@ Deno.test("schema: manual discount on create", () => {
 
 Deno.test("schema: edit action (B03a) accepts quote/apply shapes, rejects unknown keys and empty people", () => {
   const ok = (b: unknown) => RequestSchema.safeParse(b).success;
-  const a = { appointment_id: crypto.randomUUID(), expected_participant_ids: [crypto.randomUUID()], expected_price: 105 };
-  assert(ok({ action: "edit", mode: "quote", ticket_id: crypto.randomUUID(), appointments: [a] }));
+  const a = { appointment_id: crypto.randomUUID(), expected_participant_ids: [crypto.randomUUID()], expected_price: 105,
+    expected:{date:'2030-01-10',time_start:'10:00:00',time_end:'11:00:00',instructor_id:crypto.randomUUID(),meeting_point:null,status:'booked',
+      line:{id:crypto.randomUUID(),quantity:1,unit_price:105,line_total:94.5,discount_percent:10,discount_reason:'keep',internal_notes:'lesson one',instructor_notes:null}} };
+  assert(ok({ action: "edit", mode: "quote", ticket_id: crypto.randomUUID(), expected_total:105, appointments: [a] }));
   assert(ok({ action: "edit", mode: "apply", ticket_id: crypto.randomUUID(), expected_total: 105, appointments: [{ ...a, participant_ids: [crypto.randomUUID()], acknowledged_price: 85 }], acknowledged_total: 85 }));
-  assert(ok({ action: "edit", mode: "apply", ticket_id: crypto.randomUUID(), appointments: [], internal_notes: "x" }));
+  assert(ok({ action: "edit", mode: "apply", ticket_id: crypto.randomUUID(), expected_total:105, appointments: [{...a,internal_notes:"x"}] }));
   assert(!ok({ action: "edit", mode: "commit", ticket_id: crypto.randomUUID(), appointments: [] }));
   assert(!ok({ action: "edit", mode: "apply", ticket_id: crypto.randomUUID(), appointments: [{ ...a, participant_ids: [] }] }));
   assert(!ok({ action: "edit", mode: "apply", ticket_id: crypto.randomUUID(), appointments: [{ ...a, unit_price: 1 }] }));
   assert(!ok({ action: "edit", mode: "apply", ticket_id: crypto.randomUUID(), appointments: [], payment_method: "cash" }));
+  assert(!ok({action:'edit',mode:'apply',ticket_id:crypto.randomUUID(),appointments:[a]}), 'total mandatory');
+  assert(!ok({action:'edit',mode:'apply',ticket_id:crypto.randomUUID(),expected_total:105,appointments:[{...a,expected:undefined}]}), 'original mandatory');
+  assert(!ok({action:'edit',mode:'apply',ticket_id:crypto.randomUUID(),expected_total:105,appointments:[],customer_notes:'x'}), 'customer original mandatory');
+  assert(ok({action:'edit',mode:'apply',ticket_id:crypto.randomUUID(),expected_total:105,appointments:[],customer_notes:'x',expected_customer_notes:null}));
   assertEquals(statusFor({ error: "quote_changed", quote: {} }), 409);
   assertEquals(publicBody({ error: "quote_changed", quote: { new_total: 1 }, secret: 1 }), { error: "quote_changed", quote: { new_total: 1 } });
 });
