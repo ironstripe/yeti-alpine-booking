@@ -20,6 +20,8 @@ Deno.serve(async (req) => {
   const parsed = RequestSchema.safeParse(raw);
   if (!parsed.success) return json({ error: "invalid", fields: parsed.error.flatten().fieldErrors }, 400);
   const p = parsed.data;
+  // R1: a move names exactly one of a teacher or the explicit "Später zuweisen" intent; a merely missing teacher is invalid.
+  if (p.action === "move" && !p.instructor_id === !p.assign_later) return json({ error: "invalid", field: "slot" }, 400);
 
   const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
   let rpc;

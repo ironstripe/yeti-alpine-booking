@@ -145,7 +145,10 @@ export async function withPriceAck<T>(body: Record<string, unknown>, confirm: Co
   }
 }
 
-export const paMove = (p: { appointment_id: string; date: string; time_start: string; time_end: string; instructor_id: string }, confirm?: ConfirmPrice) =>
+/** R1: exactly one of a teacher or explicit assign_later (only accepted for an already unassigned lesson). */
+export type PaMoveInput = { appointment_id: string; date: string; time_start: string; time_end: string }
+  & ({ instructor_id: string; assign_later?: undefined } | { assign_later: true; instructor_id?: undefined });
+export const paMove = (p: PaMoveInput, confirm?: ConfirmPrice) =>
   withPriceAck<{ price: number; confirmation_reset: boolean }>({ action: "move", ...p }, confirm);
 
 export const paPeriodUpdate = (p: {
