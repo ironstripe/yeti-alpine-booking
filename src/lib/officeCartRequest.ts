@@ -5,6 +5,7 @@ import {
   applyCartItemToState, extractCartItemFromState,
   type BookingWizardState, type CartItem, type SelectedParticipant,
 } from "@/contexts/BookingWizardContext";
+import { participantPool } from "@/lib/linkedParticipants";
 import { buildServerPrivateSlots, discountOverrideFor } from "@/lib/serverPrivateSlots";
 import { buildStaffGroupLines, type LunchLookup } from "@/lib/staffGroupPayload";
 import type { StaffFinalization } from "@/lib/privateAppointmentsApi";
@@ -59,9 +60,10 @@ export function buildOfficeCart(
   // One stable ref per person for the whole cart (first appearance order).
   const refs: Record<string, string> = {};
   const participants: OfficeParticipant[] = [];
+  const pool = participantPool({ selectedParticipants: state.selectedParticipants, localParticipants: state.localParticipants ?? [] });
   const refFor = (id: string): string | { error: string } => {
     if (refs[id]) return refs[id];
-    const p = state.selectedParticipants.find((x) => x.id === id);
+    const p = pool.find((x) => x.id === id);
     if (!p) return { error: "Ein zugewiesener Teilnehmer ist nicht mehr vorhanden. Bitte Teilnehmer neu zuweisen." };
     const ref = `p${participants.length + 1}`;
     if (isGuest(p)) {

@@ -13,6 +13,7 @@ import { fetchLunchProduct, lunchContextKey } from "@/hooks/useLunchProduct";
 import { buildFinalization } from "@/hooks/useCreateBooking";
 import { buildOfficeCart, currentCartItems, itemState, officeSubmissionKey, type OfficeCart } from "@/lib/officeCartRequest";
 import { officeQuote, OfficeBookingError, type OfficeQuote } from "@/lib/officeBookingApi";
+import { participantPool } from "@/lib/linkedParticipants";
 import { staffGroupHasLunch } from "@/lib/staffGroupPayload";
 
 const chf = (n: number | null | undefined) => `CHF ${Number(n ?? 0).toFixed(2)}`;
@@ -55,11 +56,11 @@ export function OfficeCartQuote({ state, onReady }: { state: BookingWizardState;
   const names = useMemo(() => {
     const out: Record<string, string> = {};
     if (built?.kind === "ready") for (const [id, ref] of Object.entries(built.refs)) {
-      const p = state.selectedParticipants.find((x) => x.id === id);
+      const p = participantPool(state).find((x) => x.id === id);
       out[ref] = p ? [p.first_name, p.last_name].filter(Boolean).join(" ") : ref;
     }
     return out;
-  }, [built, state.selectedParticipants]);
+  }, [built, state]);
 
   const problem = built?.kind === "error" ? built.message
     : q.error instanceof OfficeBookingError ? q.error.message
