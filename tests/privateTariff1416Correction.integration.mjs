@@ -69,6 +69,7 @@ try {
   const quote = async (p, s, e, n = 1) => (await sql`SELECT pa_product_quote(${p}::uuid, '2026-12-14'::date, ${s}::time, ${e}::time, ${n}::int, false) r`)[0].r;
   const rev = async (p) => (await sql`SELECT revision FROM product_private_tariff_revisions WHERE product_id=${p}`)[0].revision;
   const ids1416 = async () => (await sql`SELECT product_id, id FROM product_private_tariff_rules WHERE rule_kind='exact_block' AND window_start='14:00' ORDER BY product_id`);
+  await sql`INSERT INTO customers(id,last_name,first_name,email) VALUES ('00000000-0000-4000-8000-0000000c0001','Synth','Kunde','k@example.invalid')`;
   // Stand-in for stored historical pricing: must be untouched.
   await sql`CREATE TABLE hist_probe AS SELECT 190::numeric AS price, 'pre-change 14-16' AS note`;
   const before = { ski: await quote(SKI, '14:00', '16:00'), ids: await ids1416() };
@@ -108,7 +109,7 @@ try {
     assert.equal((await sql`SELECT count(*)::int n FROM private_appointment_pricing`)[0].n, 0);
   });
   await t('stale rev-1 acknowledgement is rejected with quote_changed (existing semantics)', async () => {
-    const res = (await sql`SELECT pa_create_booking(${sql.json({ submission_key: 'tr170-stale', product_id: SKI, quote_revision: 1, discount_rule_revision: 1, day_context_digest: 'x' })}::jsonb, ${ACTOR}::uuid) r`)[0].r;
+    const res = (await sql`SELECT pa_create_booking(${sql.json({ submission_key: 'tr170-stale', customer_id: '00000000-0000-4000-8000-0000000c0001', product_id: SKI, quote_revision: 1, discount_rule_revision: 1, day_context_digest: 'x' })}::jsonb, ${ACTOR}::uuid) r`)[0].r;
     assert.equal(res.error, 'quote_changed', JSON.stringify(res)); assert.equal(res.quote.revision, 2);
   });
   await t('installer is not re-runnable (revision now 2)', async () => {
@@ -118,7 +119,7 @@ try {
     const s = psqlFile('supabase/pending/public_private_prices_r1_display_update.sql', [`staff_actor=${ACTOR}`, 'verify=true']); assert.equal(s.status, 0, s.stderr);
     for (const p of [SKI, SNOW]) {
       const pr = await project(p); assert.ok(!pr.error, JSON.stringify(pr));
-      const prices = Object.fromEntries(pr.windows.map((w) => [key(w), Number(w.price_chf ?? w.price)]));
+      const prices = Object.fromEntries(pr.windows.map((w) => [key(w), Number(w.amount_chf)]));
       assert.deepEqual(Object.keys(prices).sort(), [...SIX].sort());
       assert.equal(prices['14:00-16:00'], 170); assert.equal(prices['10:00-12:00'], 190); assert.equal(prices['12:00-14:00'], 150);
     }
