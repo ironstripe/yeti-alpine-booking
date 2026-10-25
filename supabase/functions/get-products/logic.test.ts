@@ -49,7 +49,7 @@ Deno.test("B07: activating a tariff-priced private product does not add it to ge
   assertEquals(eligibleProducts([{ id: "old", season_id: "s1", type: "private", is_active: true, show_on_website: true }], "s1", ids).map((p) => p.id), ["old"]);
 });
 Deno.test("tariff state: not installed => none; other error => fail closed", () => {
-  assertEquals(tariffPricedIds(null, { code: "PGRST205" }), { ok: true, ids: new Set() });
-  assertEquals(tariffPricedIds(null, { code: "42P01" }), { ok: true, ids: new Set() });
+  assertEquals(tariffPricedIds(null, { code: "PGRST205" }), { ok: true, ids: new Set<string>() });
+  assertEquals(tariffPricedIds(null, { code: "42P01" }), { ok: true, ids: new Set<string>() });
   assertEquals(tariffPricedIds(null, { code: "42501" }), { ok: false });
 });
