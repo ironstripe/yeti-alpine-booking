@@ -204,7 +204,7 @@ export function createEmptyCartItem(): CartItem {
 }
 
 // Extract product-related fields from root state into a CartItem snapshot
-function extractCartItemFromState(state: BookingWizardState, itemId: string): CartItem {
+export function extractCartItemFromState(state: BookingWizardState, itemId: string): CartItem {
   return {
     id: itemId,
     productType: state.productType,
@@ -241,7 +241,7 @@ function extractCartItemFromState(state: BookingWizardState, itemId: string): Ca
 }
 
 // Apply a CartItem's fields back to root state
-function applyCartItemToState(item: CartItem): Partial<BookingWizardState> {
+export function applyCartItemToState(item: CartItem): Partial<BookingWizardState> {
   return {
     productType: item.productType,
     productId: item.productId,
