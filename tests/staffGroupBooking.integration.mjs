@@ -80,7 +80,6 @@ try {
   await seedCourse(C_NOMP, 'Ski Ohne Treffpunkt', { mp: null });
   await seedCourse(C_CONC, 'Ski Parallel');
   await sql`INSERT INTO products(id,name,type,price,season_id,is_active) VALUES (${LUNCH},'Mittagsbetreuung','lunch',30,${S},true),(${LUNCH_OLD},'Mittagsbetreuung','lunch',30,${S_OLD},true)`;
-  await seedCourse(C_B09, 'Ski B09 Saison'); await seedCourse(C_B09B, 'Ski B09 Zweit');
   await seedCourse(C_OLD, 'Alt 25/26', { product: P_OLD, variants: [[P_OLD, [5]]] });
 
   await t('options: 14-18 Dec ski lists active 26/27 courses with exact quote, every AM/PM block, no inactive/snowboard/wrong-season', async () => {
@@ -300,6 +299,7 @@ try {
   });
 
   // ---------- B09: season-aware lunch product (two active CHF30 lunch products in different seasons) ----------
+  await seedCourse(C_B09, 'Ski B09 Saison'); await seedCourse(C_B09B, 'Ski B09 Zweit');
   const lunchItems = (t_) => sql`SELECT ti.product_id, ti.date::text d, ti.unit_price, cp.first_name FROM ticket_items ti JOIN customer_participants cp ON cp.id=ti.participant_id WHERE ticket_id=${t_} AND item_type='lunch' ORDER BY cp.first_name, ti.date`;
   await t('B09: booked 26/27 course picks its own season lunch, never the other active season product; 2 people x 2 days = 4 items CHF120', async () => {
     const two = [XMAS[0], XMAS[1]];
