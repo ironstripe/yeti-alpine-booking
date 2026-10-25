@@ -171,7 +171,7 @@ async def main():
             check(r1 == "price_declined", f"{tag} Escape declines, nothing saved ({r1})")
             await page.evaluate("""() => { window.__mv = window.PA.paMove({appointment_id:'x',date:'2026-12-21',time_start:'12:00',time_end:'14:00',instructor_id:'y'}).then(()=>'saved',e=>e.code); }""")
             await dlg.wait_for(timeout=5000)
-            await page.screenshot(path=str(OUT / f"pricedialog_{width}.png"))
+            await page.wait_for_timeout(500); await page.screenshot(path=str(OUT / f"pricedialog_{width}.png"))
             await dlg.get_by_role("button", name="Neuen Preis übernehmen").click()
             r2 = await page.evaluate("window.__mv")
             acks = [b for b in single if b.get("acknowledged_quote_digest")]
