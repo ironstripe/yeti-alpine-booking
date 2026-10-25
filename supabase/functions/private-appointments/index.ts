@@ -24,6 +24,12 @@ Deno.serve(async (req) => {
   const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
   let rpc;
   if (p.action === "create") {
+    // B07 coordinated rollout: this function version ships only together with the B07 pricing SQL, whose
+    // pa_create_booking requires the shown quote revisions. A screen loaded before the release omits them:
+    // refuse explicitly (nothing saved, no legacy price) so the office reloads instead of retrying.
+    if (typeof p.quote_revision !== "number" || typeof p.discount_rule_revision !== "number" || typeof p.day_context_digest !== "string") {
+      return json({ error: "invalid", field: "client_outdated" }, 400);
+    }
     const { action: _a, finalization, ...payload } = p;
     // Booking + settlement/notes in one transaction (pa_create_booking_finalized, migration 0006).
     const body = finalization

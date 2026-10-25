@@ -30,6 +30,7 @@ const REASONS: Record<string, string> = {
 };
 
 const FIELDS: Record<string, string> = {
+  client_outdated: "Diese Seite ist veraltet (Preisregeln wurden aktualisiert). Bitte die Seite neu laden und die Buchung erneut prüfen.",
   birth_date: "Das Geburtsdatum eines neuen Teilnehmers ist ungültig oder liegt in der Zukunft. Bitte prüfen.",
   level: "Das gewählte Niveau passt nicht zur Sportart eines neuen Teilnehmers. Bitte Niveau prüfen.",
   participants: "Ein Teilnehmer gehört nicht zum gewählten Kunden oder es fehlen Angaben (Vorname, Geburtsdatum). Bitte Teilnehmer prüfen.",
