@@ -122,7 +122,7 @@ function TimelineItem({ entry }: { entry: TimelineEntry }) {
       </Avatar>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
-          <Badge variant={isComment ? "secondary" : "outline"} className="text-xs">
+          <Badge variant={isComment ? "secondary" : "outline"} className="text-xs" title={entry.eventType ? `${entry.eventType} · ${entry.id}` : undefined}>
             {isComment ? <MessageSquare className="h-3 w-3 mr-1" /> : <Settings className="h-3 w-3 mr-1" />}
             {entry.type}
           </Badge>
