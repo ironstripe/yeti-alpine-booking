@@ -354,6 +354,10 @@ export interface BookingWizardState {
   paymentDueDate: string | null;
   discountPercent: number;
   discountReason: string;
+  /** B07-P2: true only after an explicit office discount choice (incl. explicit 0); default 0 is not an override. */
+  discountExplicit: boolean;
+  /** B07-P2: revisions of the server private quote shown in the summary (create binds to them). */
+  privateQuoteShown?: { revision: number; discountRuleRevision: number; total: number } | null;
   sendCustomerEmail: boolean;
   sendCustomerWhatsApp: boolean;
   notifyInstructor: boolean;
@@ -465,7 +469,7 @@ interface BookingWizardContextType {
 }
 
 export type CheckoutOptions = Pick<BookingWizardState,
-  "paymentMethod" | "settlement" | "billingPartnerId" | "paymentDueDate" | "discountPercent" | "discountReason" |
+  "paymentMethod" | "settlement" | "billingPartnerId" | "paymentDueDate" | "discountPercent" | "discountReason" | "discountExplicit" |
   "sendCustomerEmail" | "sendCustomerWhatsApp" | "notifyInstructor" | "createAnother">;
 
 const initialState: BookingWizardState = {
@@ -518,6 +522,7 @@ const initialState: BookingWizardState = {
   paymentDueDate: null,
   discountPercent: 0,
   discountReason: "",
+  discountExplicit: false,
   sendCustomerEmail: true,
   sendCustomerWhatsApp: false,
   notifyInstructor: true,
@@ -1671,6 +1676,7 @@ export function BookingWizardProvider({ children }: { children: ReactNode }) {
     paymentDueDate: initialState.paymentDueDate,
     discountPercent: initialState.discountPercent,
     discountReason: initialState.discountReason,
+    discountExplicit: initialState.discountExplicit,
     sendCustomerEmail: initialState.sendCustomerEmail,
     sendCustomerWhatsApp: initialState.sendCustomerWhatsApp,
     notifyInstructor: initialState.notifyInstructor,

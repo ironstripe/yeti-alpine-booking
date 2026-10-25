@@ -36,6 +36,8 @@ const FIELDS: Record<string, string> = {
   appointments: "Ein Termin ist ungültig (Datum/Zeit/Lehrperson).",
   discount_reason: "Bitte einen Grund für den Rabatt angeben.",
   discount_percent: "Rabatt muss zwischen 0 und 100 % liegen.",
+  discount_override: "Manueller Rabatt ungültig (Grund fehlt oder doppelt angegeben).",
+  discount_rule_revision: "Der Preis muss zuerst in der Zusammenfassung geprüft werden.",
   payment_method: "Ungültige Zahlungsart.",
   billing_partner_id: "Bitte das Hotel wählen, das die Rechnung übernimmt.",
   settlement: "Ungültige Zahlungsangabe.",
@@ -57,6 +59,7 @@ function describe(code: string, conflicts: PaConflict[], excluded: PaExcluded[],
     case "quote_changed": return "Der Preis hat sich seit der Vorschau geändert. Bitte neuen Preis prüfen und erneut bestätigen. Es wurde nichts gespeichert.";
     case "unavailable": return "Bearbeiten bestehender Privatlektionen ist noch nicht freigeschaltet. Es wurde nichts gespeichert.";
     case "tariff_unavailable": return `${(field && TARIFF_UNAVAILABLE_REASONS[field]) || "Kein gültiger Produkttarif."} Es wurde nichts gespeichert.`;
+    case "tariff_transition_required": return "Diese Privatlektion wurde mit Produkttarif und Rabatt berechnet. Zeit- oder Teilnehmeränderungen sind dafür noch nicht freigeschaltet (nur Lehrperson, Notizen, Treffpunkt). Es wurde nichts geändert.";
     case "not_found": return "Termin nicht gefunden.";
     case "invalid": return `${(field && FIELDS[field]) || "Ungültige Angaben."} Es wurde nichts gespeichert.`;
     default: return "Ergebnis unbekannt: Bitte Buchungsliste prüfen oder erneut senden – eine Wiederholung erzeugt keine doppelte Buchung.";
@@ -132,9 +135,22 @@ export const paEditQuote = (p: EditRequest) =>
 export const paEditApply = (p: EditRequest) =>
   call<{ changed: boolean; quote: EditQuote; total?: number }>({ action: "edit", mode: "apply", ...p });
 
-/** B07-P: server preview of a new office private booking (same resolver as create). */
-export interface CreateQuote { revision: number; total: number; items: { index: number; price: number; mode: string }[] }
+/** B07-P/P2: server preview of a new office private booking (same resolver + discount as create). */
+export type DiscountSource = "none" | "automatic" | "manual";
+export interface CreateQuoteItem {
+  index: number; price: number; mode: string; persons: number; eligible: number;
+  automatic_discount_amount: number; discount_source: DiscountSource; discount_percent: number;
+  discount_reason: string | null; discount_amount: number; net: number;
+}
+export interface CreateQuote {
+  revision: number; discount_rule_revision: number; total: number; gross_total: number;
+  discount_total: number; automatic_discount_total: number; discount_source: DiscountSource;
+  discount_rule: { percent: number; threshold_minutes: number };
+  items: CreateQuoteItem[];
+}
+export interface DiscountOverride { percent: number; reason?: string }
 export const paCreateQuote = (p: {
   product_id: string; persons: number;
   appointments: { date: string; time_start: string; time_end: string }[];
+  discount_override?: DiscountOverride;
 }) => call<CreateQuote>({ action: "quote", ...p });
