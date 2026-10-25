@@ -203,7 +203,7 @@ export function Step4Summary({ onEditStep }: Step4SummaryProps) {
       toast.error("Der Serverpreis wird noch berechnet oder ist nicht verfügbar.");
       return;
     }
-    if ((discountPercent > 0 || (serverQuoteActive && discountExplicit)) && !discountReason.trim()) {
+    if ((discountPercent > 0 || ((serverQuoteActive || multiCart) && discountExplicit && discountPercent > 0)) && !discountReason.trim()) {
       toast.error("Bitte gib einen Grund für den Rabatt an");
       return;
     }
@@ -385,8 +385,8 @@ export function Step4Summary({ onEditStep }: Step4SummaryProps) {
           <DiscountSection
             discountPercent={discountPercent}
             discountReason={discountReason}
-            discountExplicit={serverQuoteActive ? discountExplicit : false}
-            overrideNote={serverQuoteActive ? "Ersetzt den automatischen Tagesrabatt für diese Lektionen (wird nicht addiert)." : undefined}
+            discountExplicit={serverQuoteActive || multiCart ? discountExplicit : false}
+            overrideNote={serverQuoteActive || multiCart ? "Ersetzt den automatischen Tagesrabatt für diese Lektionen (wird nicht addiert)." : undefined}
             onDiscountChange={handleDiscountChange}
           />
 
