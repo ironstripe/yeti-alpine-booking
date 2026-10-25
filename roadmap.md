@@ -1,5 +1,9 @@
 # Roadmap
 
+## B03a focused review follow-up
+- [ ] Reproduce stale originals, flattened notes and same-price total discrepancy on isolated fixtures, then correct pending contract/hydration/panel only.
+- [ ] Verify atomic SQL, intercepted UI payloads and capabilities; document exact evidence, B02 asset correction and release boundaries.
+
 ## Scheduler visible filters — current package
 - [x] Add compact searchable single-teacher selection/reset and default-off hide-absent control; keep search separate and selected teacher inspectable.
 - [x] Verify confirmed full displayed-range absence with no assignment, conservative intervals and mobile actual day; preserve draft/performance/booking paths.
