@@ -126,6 +126,21 @@ try {
     assert.equal(Number((await state(b.ticket_id)).ap[0].disc),10);
   });
 
+  await t('review: mixed ticket group line/notes/discount survive private-only edit', async () => {
+    const b=await create([slot('2027-02-09')],[P1,P2]);
+    await sql`INSERT INTO ticket_items(ticket_id,product_id,item_type,date,time_start,time_end,unit_price,quantity,discount_percent,internal_notes,instructor_notes)
+      VALUES(${b.ticket_id},${PRIV},'group','2027-02-09','13:00','14:00',50,1,10,'group internal','group teacher')`;
+    await sql`UPDATE tickets SET total_amount=145 WHERE id=${b.ticket_id}`;
+    const [groupBefore]=await sql`SELECT to_jsonb(ti) row FROM ticket_items ti WHERE ticket_id=${b.ticket_id} AND appointment_id IS NULL`;
+    const before=await state(b.ticket_id);
+    const req={ticket_id:b.ticket_id,expected_total:145,appointments:[{...expectAppt(before,0),participant_ids:[P1,P2,P3],internal_notes:'private only'}]};
+    const q=await edit({...req,mode:'quote'}); assert.equal(Number(q.quote.new_total),165);
+    const r=await edit({...req,mode:'apply',appointments:[{...req.appointments[0],acknowledged_price:120}],acknowledged_total:165});
+    assert.equal(r.ok,true);
+    const [groupAfter]=await sql`SELECT to_jsonb(ti) row FROM ticket_items ti WHERE ticket_id=${b.ticket_id} AND appointment_id IS NULL`;
+    assert.deepEqual(groupAfter,groupBefore);
+  });
+
   await t('privileges: only service_role executes pa_edit_booking', async () => {
     for (const role of ['anon', 'authenticated']) {
       const [{ ok }] = await sql`SELECT has_function_privilege(${role}, 'public.pa_edit_booking(jsonb, uuid)', 'EXECUTE') ok`; assert.equal(ok, false, role);
