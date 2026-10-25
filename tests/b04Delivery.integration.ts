@@ -28,7 +28,8 @@ let pass=0, fail=0;
 async function test(name:string,fn:()=>Promise<void>) {try {await fn();pass++;console.log("ok "+name);}catch(e){fail++;console.log("FAIL "+name+": "+String(e));}}
 try {
  for (const file of ["tests/sql/baseline_prelude.sql","tests/sql/production_schema_baseline.sql"]) await psql(url,["-f",new URL(file,root).pathname]);
- await sql.unsafe(`INSERT INTO tickets(id,ticket_number,total_amount) VALUES ('00000000-0000-4000-8000-000000000001','B04 synthetic',105);
+ await sql.unsafe(`INSERT INTO customers(id,email,last_name) VALUES ('00000000-0000-4000-8000-000000000002','synthetic@example.invalid','Test');
+ INSERT INTO tickets(id,ticket_number,total_amount,customer_id) VALUES ('00000000-0000-4000-8000-000000000001','B04 synthetic',105,'00000000-0000-4000-8000-000000000002');
  INSERT INTO school_settings(name,email) VALUES ('Test','test@example.invalid');
  INSERT INTO email_templates(name,trigger,subject,body_html,is_active) VALUES ('Test','booking.confirmed','T {{ticket_number}}','<p>{{customer_last_name}}</p>',true);
  INSERT INTO booking_email_deliveries(ticket_id,kind,idempotency_key,recipient_email,status,attempts) SELECT '00000000-0000-4000-8000-000000000001','booking_confirmation','legacy','x@example.invalid','pending',0;`);
@@ -59,7 +60,7 @@ try {
  const transport:Transport=async(mail)=>{calls.push(structuredClone(mail));if(mode==="timeout")throw new Error("fake timeout");if(mode==="reject")return{ok:false,error:"fake 422",status:422};return{ok:true,id:`fake-${calls.length}`};};
  const attempt=(id:string,mode:"auto"|"manual"|"recover"="auto",force=false)=>attemptDelivery(sb,id,transport,{mode,force,now:()=>clock});
  const row=async(id:string)=>(await sql`SELECT * FROM booking_email_deliveries WHERE id=${id}`)[0];
- async function fresh(kind="booking_confirmation") {const [t]=await sql`INSERT INTO tickets(ticket_number,total_amount) VALUES (${crypto.randomUUID()},105) RETURNING id`;const d=await ensureDelivery(sb,t.id,kind as "invoice"|"booking_confirmation","x@example.invalid");assert(d);return d.id;}
+ async function fresh(kind="booking_confirmation") {const [t]=await sql`INSERT INTO tickets(ticket_number,total_amount,customer_id) VALUES (${crypto.randomUUID()},105,'00000000-0000-4000-8000-000000000002') RETURNING id`;const d=await ensureDelivery(sb,t.id,kind as "invoice"|"booking_confirmation","x@example.invalid");assert(d);return d.id;}
  const financial=await sql`SELECT to_jsonb(t) row FROM tickets t WHERE id=${ticket}`;
  await test("legacy pending/sending/failed/sent unchanged and force cannot resend",async()=>{
   const [d]=await sql`SELECT id FROM booking_email_deliveries WHERE idempotency_key='legacy'`;
