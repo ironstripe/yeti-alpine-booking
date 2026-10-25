@@ -90,6 +90,11 @@ function QuoteBody({ quote, slots }: { quote: CreateQuote; slots: PaSlot[] }) {
           );
         })}
       </ul>
+      {Number(quote.existing_appointments) > 0 && (
+        <p className="text-xs text-muted-foreground" data-testid="quote-existing-lessons">
+          Für den Tagesrabatt mitgezählt: {quote.existing_appointments} bereits gebuchte Privatlektion(en) derselben Person(en) am selben Tag. Bestehende Buchungen werden nicht neu berechnet.
+        </p>
+      )}
       <div className="space-y-1 border-t pt-2">
         <div className="flex justify-between"><span>Zwischensumme</span><span className="tabular-nums whitespace-nowrap">{chf(quote.gross_total)}</span></div>
         {quote.discount_source === "automatic" && (
