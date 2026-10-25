@@ -46,7 +46,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useSchoolSettings } from "@/hooks/useSchoolSettings";
 import { useCreateInvoice, useInvoicesByTicket, useSendInvoice } from "@/hooks/useInvoices";
-import { useSendTestEmail } from "@/hooks/useEmailTemplates";
+import { useBookingConfirmation } from "@/hooks/useBookingConfirmation";
+import { confirmationLabel } from "@/lib/bookingConfirmationApi";
 import { InvoicePrintTemplate } from "@/components/invoices/InvoicePrintTemplate";
 import { TicketItemEditCard } from "@/components/bookings/TicketItemEditCard";
 import { SharedLessonWizard } from "@/components/bookings/SharedLessonWizard";
@@ -77,7 +78,8 @@ const BookingDetail = () => {
   const { data: schoolSettings } = useSchoolSettings();
   const createInvoice = useCreateInvoice();
   const sendInvoice = useSendInvoice();
-  const sendConfirmation = useSendTestEmail();
+  const confirmation = useBookingConfirmation(id);
+  const sendConfirmation = confirmation.send;
   
   // Fetch ticket with all details
   const { data: ticket, isLoading: ticketLoading } = useQuery({
@@ -189,26 +191,11 @@ const BookingDetail = () => {
   };
   
   const handleSendConfirmation = async () => {
-    if (!ticket?.customer?.email) {
-      toast.error("Keine E-Mail-Adresse vorhanden");
-      return;
-    }
-    
+    if (!ticket) return;
     try {
-      await sendConfirmation.mutateAsync({
-        templateId: "booking_confirmation",
-        recipientEmail: ticket.customer.email,
-        testData: {
-          customer: {
-            first_name: ticket.customer.first_name,
-            last_name: ticket.customer.last_name,
-          },
-          ticket: {
-            number: ticket.ticket_number,
-            total: formatCurrency(ticket.total_amount || 0),
-          },
-        },
-      });
+      const result = await sendConfirmation.mutateAsync();
+      if (result?.success) toast.success(confirmationLabel(result));
+      else toast.error(confirmationLabel(result));
     } catch (error) {
       console.error("Failed to send confirmation:", error);
     }
@@ -544,14 +531,14 @@ const BookingDetail = () => {
                 variant="outline" 
                 className="w-full justify-start"
                 onClick={handleSendConfirmation}
-                disabled={sendConfirmation.isPending}
+                disabled={sendConfirmation.isPending || ["sent", "already_sent", "reconciled_sent", "in_progress", "needs_review"].includes(confirmation.status.data?.outcome ?? "")}
               >
                 {sendConfirmation.isPending ? (
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                 ) : (
                   <Mail className="h-4 w-4 mr-2" />
                 )}
-                Bestätigung senden
+                {["failed", "unknown"].includes(confirmation.status.data?.outcome ?? "") ? "Bestätigung erneut versuchen" : "Bestätigung senden"}
               </Button>
               
               {!latestInvoice ? (

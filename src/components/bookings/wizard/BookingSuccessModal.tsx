@@ -1,4 +1,5 @@
 import { Check, Mail, MessageCircle, Eye, Plus, Printer } from "lucide-react";
+import { confirmationLabel, type ConfirmationResult } from "@/lib/bookingConfirmationApi";
 import { useNavigate } from "react-router-dom";
 
 import {
@@ -15,6 +16,7 @@ interface BookingSuccessModalProps {
   ticketNumber: string;
   ticketId: string;
   customerEmail: string | null;
+  confirmation?: ConfirmationResult | null;
   instructorName: string | null;
   onClose: () => void;
   onNewBooking: () => void;
@@ -25,6 +27,7 @@ export function BookingSuccessModal({
   ticketNumber,
   ticketId,
   customerEmail,
+  confirmation,
   instructorName,
   onClose,
   onNewBooking,
@@ -54,10 +57,10 @@ export function BookingSuccessModal({
         </DialogHeader>
 
         <div className="space-y-2 py-4 text-sm text-muted-foreground">
-          {customerEmail && (
+          {confirmation && (
             <p className="flex items-center justify-center gap-2">
               <Mail className="h-4 w-4" />
-              Bestätigung wird an {customerEmail} gesendet
+              <span role="status">{confirmationLabel(confirmation)}</span>
             </p>
           )}
           {instructorName && (

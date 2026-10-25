@@ -1,6 +1,7 @@
 import { z } from "https://esm.sh/zod@3.23.8";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { assertDeliverySchema, ensureDelivery, attemptDelivery, type Transport } from "../_shared/courseDelivery.ts";
+import { officeConfirmationVars } from "../_shared/officeConfirmationContent.ts";
 // deno-lint-ignore no-explicit-any
 type Client = any;
 const Body = z.object({ ticket_id: z.string().uuid(), action: z.enum(["status", "process", "send"]) }).strict();
@@ -34,7 +35,7 @@ export function createConfirmationHandler(sb: Client, deps: {
    if(!row) throw new Error("delivery_read_failed");
    if(action==="process"&&row.status!=="pending") return json({success:false,outcome:row.status==="sending"?"in_progress":row.status,code:row.last_error_code});
    const mode=row.status==="pending"?"auto":row.status==="failed"?"manual":"recover";
-   const result=await attemptDelivery(sb,row.id,deps.transport,{mode,now:deps.now});
+   const result=await attemptDelivery(sb,row.id,deps.transport,{mode,now:deps.now,confirmationVars:officeConfirmationVars});
    return json({success:["sent","already_sent","reconciled_sent"].includes(result.outcome),...result});
   } catch(e) {return json({success:false,outcome:"unavailable",code:e instanceof Error?e.message:"delivery_unavailable"},503);}
  };
