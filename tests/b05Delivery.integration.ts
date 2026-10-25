@@ -43,12 +43,12 @@ try {
   let rejected=false;try{await sql`UPDATE booking_email_deliveries SET kind='invoice'`;}catch{rejected=true;}assert(rejected);
  });
  await psql(url,["-f",new URL("supabase/pending/b04_delivery_compatibility.sql",root).pathname]);
- if (COMBINED) for (const f of segment(root,"b04_delivery_compatibility.sql","b05_office_confirmation_intent.sql")) await psql(url,["-f",f]);
  await test("only additive B04 SQL preserves existing row bytes, ACL/RLS and uniques",async()=>{
   const after=await sql`SELECT to_jsonb(d)-ARRAY['claimed_at','first_claimed_at','provider_idempotency_key','frozen_payload','payload_digest','delivery_protocol'] AS row FROM booking_email_deliveries d`;
   assertEquals(JSON.stringify(after),JSON.stringify(before));assertEquals(await sql`SELECT relname,relacl::text,relrowsecurity FROM pg_class WHERE oid IN ('booking_email_deliveries'::regclass,'email_logs'::regclass) ORDER BY relname`,acl);
   assertEquals((await sql`SELECT conname FROM pg_constraint WHERE conrelid='booking_email_deliveries'::regclass AND contype='u'`).length,2);
  });
+ if (COMBINED) for (const f of segment(root,"b04_delivery_compatibility.sql","b05_office_confirmation_intent.sql")) await psql(url,["-f",f]);
  await sql.unsafe(`DO $$ BEGIN IF NOT EXISTS(SELECT FROM pg_roles WHERE rolname='authenticator') THEN CREATE ROLE authenticator LOGIN NOINHERIT; END IF; END $$;
  GRANT anon,authenticated,service_role TO authenticator; ALTER ROLE service_role BYPASSRLS;
  GRANT USAGE ON SCHEMA public TO service_role,authenticated,anon;
