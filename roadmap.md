@@ -1,9 +1,10 @@
 # Roadmap
 
 ## B04 — existing delivery schema compatibility
-- [ ] Prepare additive pending SQL against current production-schema baseline; preserve historical fields, grants/RLS and both uniqueness constraints.
-- [ ] Fail closed for legacy/ambiguous/corrupt delivery evidence; verify claims, frozen retry bytes and provider window with isolated SQL/PostgREST and fake transport.
-- [ ] Record staged release, consumer-first rollback and HB081/082/086/093 limits; no release, provider requests or business writes. Frontend Workbox failure remains separate.
+- [x] Prepare additive pending SQL against current production-schema baseline; preserve historical fields, grants/RLS and both uniqueness constraints.
+- [x] Fail closed for legacy/ambiguous/corrupt delivery evidence; isolated SQL/PostgREST 19/19, Deno delivery/invoice regressions 22/22 and four caller checks passed.
+- [x] Record staged release, consumer-first rollback and HB081/082/086/093 limits in docs/b04-verification.md; no release, provider requests or business writes. Frontend Workbox issue remains separate.
+- [ ] B04 release and HB081/082/086/093 operational retests await separate authorisation and original issue acceptance criteria; not part of implemented preview checks.
 
 ## B03b — canonical read projection (authorised, queued)
 - [ ] Implement booking-detail canonical people/schedule projection and zero-preserving amounts; verify new-only document boundary and R1–R8. Blocked before dependent edits: current HEAD `4e6b9b7b41da50e851a358c97ab405deb559d144` automatic preview build fails at Workbox precache (bundle 3,148.17 kB exceeds configured 3 MiB); B03a focused SQL/unit checks passed. See docs/b03b-verification.md. No implementation or release performed.
