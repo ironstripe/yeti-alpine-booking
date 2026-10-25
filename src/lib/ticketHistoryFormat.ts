@@ -41,9 +41,29 @@ const fmtDate = (d: unknown) => (typeof d === "string" && /^\d{4}-\d{2}-\d{2}/.t
 const fmtTime = (t: unknown) => (typeof t === "string" ? t.slice(0, 5) : "–");
 const slot = (s: Record<string, unknown> | undefined) => (s ? `${fmtDate(s.date)} ${fmtTime(s.time_start)}–${fmtTime(s.time_end)}` : "–");
 
+type TeacherChange = "assigned" | "removed" | "changed";
+const TEACHER_LABEL: Record<TeacherChange, string> = {
+  assigned: "Lehrperson zugewiesen", removed: "Lehrperson entfernt (später zuweisen)", changed: "Lehrperson gewechselt",
+};
+/** Differences in a "moved" payload; null when from/to are not both objects (legacy/unknown shape). */
+export function movedDiff(d: Record<string, unknown>): { slot: boolean; teacher: TeacherChange | null } | null {
+  const from = d.from, to = d.to;
+  if (!from || !to || typeof from !== "object" || typeof to !== "object") return null;
+  const f = from as Record<string, unknown>, t = to as Record<string, unknown>;
+  const slotChanged = String(f.date ?? "") !== String(t.date ?? "") || fmtTime(f.time_start) !== fmtTime(t.time_start) || fmtTime(f.time_end) !== fmtTime(t.time_end);
+  const a = (f.instructor_id as string | null | undefined) ?? null, b = (t.instructor_id as string | null | undefined) ?? null;
+  const teacher: TeacherChange | null = a === b ? null : !a ? "assigned" : !b ? "removed" : "changed";
+  return { slot: slotChanged, teacher };
+}
+
 export function historyEventLabel(e: HistoryEventLike): string {
   if (e.event_type === "PRIVATE_APPOINTMENT_CHANGED") {
     const c = String(e.details?.change ?? "");
+    if (c === "moved" && e.details) {
+      // R1: label by what actually differs in the event's own payload (raw history unchanged).
+      const m = movedDiff(e.details);
+      if (m && !m.slot) return m.teacher ? TEACHER_LABEL[m.teacher] : "Privatlektion gespeichert (ohne Termin- oder Lehrpersonänderung)";
+    }
     return PA_LABELS[c] ?? "Privatlektion geändert";
   }
   return EVENT_LABELS[e.event_type] ?? `Ereignis (${e.event_type})`;
@@ -66,9 +86,15 @@ function privateChange(d: Record<string, unknown>): string {
     }
     case "moved": {
       const from = d.from as Record<string, unknown> | undefined, to = d.to as Record<string, unknown> | undefined;
-      const parts = [`${slot(from)} → ${slot(to)}`];
-      const a = from?.instructor_id ?? null, b = to?.instructor_id ?? null;
-      if (a !== b) parts.push(!a ? "Lehrperson zugewiesen" : !b ? "Lehrperson entfernt (später zuweisen)" : "Lehrperson gewechselt");
+      const m = movedDiff(d);
+      // Unknown/legacy payload shape: show what is stored, never guess a difference.
+      if (!m) return `${slot(from)} → ${slot(to)}`;
+      const parts: string[] = [];
+      if (m.slot) parts.push(`${slot(from)} → ${slot(to)}`);
+      else parts.push(`Termin unverändert: ${slot(to)}`);
+      if (m.teacher) parts.push(TEACHER_LABEL[m.teacher]);
+      const o = storedAmount(d.old_total), n = storedAmount(d.new_total);
+      if (d.pricing && (o !== null || n !== null)) parts.push(`Betrag ${o !== null ? chf(o) : "nicht protokolliert"} → ${n !== null ? chf(n) : "nicht protokolliert"}`);
       return parts.join(" · ");
     }
     case "period_updated": {
