@@ -62,12 +62,17 @@ export const RequestSchema = z.discriminatedUnion("action", [
     // REPLACES the automatic same-day discount (never added). Absent => automatic.
     discount_rule_revision: z.number().int().min(0).optional(),
     discount_override: DiscountOverride.optional(),
+    // B07-P3: digest of the participant/day context (already booked lessons) the shown quote used.
+    day_context_digest: z.string().regex(/^[0-9a-f]{32}$/).optional(),
   }),
   // B07-P: server preview of a new office private booking (same resolver as create).
   z.object({
     action: z.literal("quote"),
     product_id: uuid,
     persons: z.number().int().min(1).max(4),
+    // B07-P3: saved participants (stable ids of this customer); their same-day private lessons count.
+    customer_id: uuid.optional(),
+    participant_ids: z.array(uuid).max(4).optional(),
     appointments: z.array(z.object({ date, time_start: time, time_end: time })).min(1).max(60),
     discount_override: DiscountOverride.optional(),
   }).strict(),

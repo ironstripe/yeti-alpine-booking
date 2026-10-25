@@ -357,7 +357,7 @@ export interface BookingWizardState {
   /** B07-P2: true only after an explicit office discount choice (incl. explicit 0); default 0 is not an override. */
   discountExplicit: boolean;
   /** B07-P2: revisions of the server private quote shown in the summary (create binds to them). */
-  privateQuoteShown?: { revision: number; discountRuleRevision: number; total: number } | null;
+  privateQuoteShown?: { revision: number; discountRuleRevision: number; total: number; dayContextDigest?: string } | null;
   sendCustomerEmail: boolean;
   sendCustomerWhatsApp: boolean;
   notifyInstructor: boolean;

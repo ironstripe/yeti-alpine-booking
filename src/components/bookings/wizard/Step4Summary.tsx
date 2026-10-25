@@ -266,6 +266,7 @@ export function Step4Summary({ onEditStep }: Step4SummaryProps) {
           discountReason: combinedReason,
           ...(serverQuoteActive && shownQuote.quote ? { privateQuoteShown: {
             revision: shownQuote.quote.revision, discountRuleRevision: shownQuote.quote.discount_rule_revision, total: Number(shownQuote.quote.total),
+            dayContextDigest: shownQuote.quote.day_context_digest,
           } } : {}),
           ...checkoutSubmitFlags(state),
         });
@@ -328,6 +329,8 @@ export function Step4Summary({ onEditStep }: Step4SummaryProps) {
             <PrivateServerQuote
               productId={state.productId}
               persons={linkedParticipants.length}
+              customerId={state.customerId}
+              knownParticipantIds={linkedParticipants.filter((p) => !p.isGuest && !p.id.startsWith("guest-")).map((p) => p.id)}
               slots={quoteSlots.slots}
               planError={quoteSlots.error}
               override={quoteOverride}
