@@ -102,6 +102,7 @@ try {
     const before = await invoiceRow(f.invoice);
     assertEquals((await invoke(f.invoice, "status")).outcome, "not_sent");
     const r = await invoke(f.invoice, "send");
+    if (r.outcome !== "sent") console.log("DEBUG first send:", JSON.stringify(r));
     assertEquals(r.outcome, "sent");
     assertEquals(calls.length, 1);
     const mail = calls[0];
