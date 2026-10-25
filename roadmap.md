@@ -4,8 +4,8 @@
 - [x] L1: tariff-priced move/period_update/B03a edit requote via the shared resolver with digest acknowledgement, consistent participant/day locks (also legacy paths), guard accepts only server pricing rows. SQL 17/17 + regressions; docs/b07-pricing-verification.md.
 - [x] Backend target verified (single Lovable Cloud project) and combined install manifest: docs/b01-b11-install-manifest.md.
 - [x] B07a atomic multi-item server (`b07a_office_multi` + `office-booking`), full pending chain installed together, 19/19 + rollback 4/4; L1 fixes (participant UPDATE guard, period stale locks). docs/b07a-verification.md.
-- [ ] B07b UI (summary-style price dialog replaces confirm; combined quote).
-- [ ] Coordinated install/deploy/publish of B07 server + client (after B07b; needs verified 26/27 private product mapping, no blanket seed).
+- [x] B07b UI: whole-cart office-booking quote/create, accessible price dialog, private activation guard + targeted 26/27 seed, old-client refusal, combined delivery suites. docs/b07b-verification.md.
+- [ ] Coordinated install/deploy/publish of B07 server + client per manifest deployment section (awaits the reviewed execution step).
 
 ## B05 — Office booking confirmation (authorised after B03b)
 - [x] Verify final B03b/B04 contracts; persist explicit intent atomically for canonical create/replay without changing finance.
