@@ -32,6 +32,9 @@ Deno.serve(async (req) => {
     rpc = p.confirmation_requested === undefined
       ? await db.rpc("pa_create_booking_finalized", { p: body, p_actor: auth.userId })
       : await db.rpc("b05_office_create", { p: body, p_actor: auth.userId, p_kind: "private" });
+  } else if (p.action === "quote") {
+    const { action: _a, ...payload } = p;
+    rpc = await db.rpc("pa_create_quote", { p: payload });
   } else if (p.action === "move") {
     rpc = await db.rpc("pa_move_appointment", {
       p_id: p.appointment_id, p_date: p.date, p_start: p.time_start, p_end: p.time_end,
@@ -46,7 +49,7 @@ Deno.serve(async (req) => {
   }
 
   // Edit RPC not installed yet: say so clearly instead of an ambiguous "unknown result".
-  if (p.action === "edit" && rpc.error?.code === "PGRST202") return json({ error: "unavailable" }, 503);
+  if ((p.action === "edit" || p.action === "quote") && rpc.error?.code === "PGRST202") return json({ error: "unavailable" }, 503);
   if (rpc.error || !rpc.data) {
     console.error("private-appointments rpc failed", p.action, rpc.error?.code);
     return json({ error: "internal_error" }, 500);

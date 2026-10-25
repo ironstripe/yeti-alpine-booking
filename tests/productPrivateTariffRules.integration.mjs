@@ -138,7 +138,7 @@ try {
   });
 
   let aTicket;
-  await t('create A: stored prices equal preview (190 + 75), zero-teacher assign-later allowed, canonical participants, revision bound', async () => {
+  await t('create A (2 persons): stored prices equal preview (190+30, 75+20), zero-teacher assign-later allowed, canonical participants, revision bound', async () => {
     const appts = [slot(D3, '10:00', '12:00'), { date: D3, time_start: '12:00', time_end: '13:00', assign_later: true }];
     const q = await quote(A, appts, 2);
     const r = await create(A, appts, { participants: [{ participant_id: P1 }, { guest_key: 'guest-abcdefgh', first_name: 'Neu', birth_date: '2015-05-05' }],
