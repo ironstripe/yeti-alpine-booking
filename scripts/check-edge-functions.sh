@@ -16,7 +16,7 @@ set -uo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 FUNCS_DIR="$ROOT/supabase/functions"
-DEFAULT=(instructor-website-publish instructor-photo-upload instructor-import-apply instructor-import-preview private-appointments)
+DEFAULT=(instructor-website-publish instructor-photo-upload instructor-import-apply instructor-import-preview private-appointments office-booking)
 if [ "$#" -gt 0 ]; then TARGETS=("$@"); else TARGETS=("${DEFAULT[@]}"); fi
 
 command -v deno >/dev/null 2>&1 || { echo "deno not found" >&2; exit 2; }

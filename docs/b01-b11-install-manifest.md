@@ -1,10 +1,10 @@
-# B01–B11 + B07/L1 install dependency manifest (prepared 2026-10-25, nothing installed)
+# B01–B11 + B07/L1/B07a install dependency manifest (refreshed 2026-10-25 for B07a, nothing installed)
 
 ## Backend target (verified read-only, 2026-10-25)
 - Only one backend: Lovable Cloud project `pgrlrsrjwyixndmrzhct`. It serves both preview and published app (the same ID is in `.env` and `supabase/config.toml`). The exec `psql` pooler user is bound to the same project.
 - The `psql` and `read_query` tools both see the same database: 1,400 tickets, 16 `pa_*` functions (`pa_apply_slot … pa_ticket_item_guard`), table `public_private_tariff_display` (0013) present, `T-2026-998117`/`T-2026-998118` present (confirmed, 75.00 each, untouched).
 - Not present (expected, still pending): `private_appointment_pricing`, `product_private_tariff_rules`, `private_lesson_discount_rule`, `product_private_tariffs`, `pa_edit_booking`, `pa_create_quote`, `b05_office_create`, `office_booking_confirmation_intents`, `participant_birth_date_guard`, B04 delivery columns (`claimed_at`, `invoice_id`). `pa_emit_change` has no B11 total. `bc_2627_staff_group_book` still has the pre-B09 lunch body.
-- So a report of "zero `pa_*` functions / missing tariff tables" fits the missing tariff tables (not installed). It does not fit the `pa_*` functions: this backend has 16. That query probably ran against a different connection, or used an unescaped `_` pattern in a different scope. No external Supabase project is connected to this repository.
+- Clarification (Ivo, 2026-10-25): the earlier null result queried only `pa_create_quote`, `pa_private_day_context`, `pa_edit_booking` and multi-booking names, not all `pa_*`; null was correct because those are pending. The inventory confirms the 16 existing `pa_*` functions on the same `pgrlrsrjwyixndmrzhct` backend. No external Supabase project is connected to this repository.
 - Deployment route: tracked schema changes go in as Drizzle migrations (`drizzle/migrations`, next free number 0016) applied to this Cloud database; Edge Functions are deployed to the same project. The client switch (`PRODUCT_PRIVATE_TARIFFS_LIVE`) only takes effect after publishing.
 
 ## Pending files that replace the same function (install order matters)
@@ -17,15 +17,23 @@
 | `pa_move_appointment` / `pa_period_update` | production → `pa_tariff_l1` (old signatures become wrappers + new `p_ack` overloads) | L1 |
 | `pa_private_day_context` | `product_private_tariff_rules` (2-arg wrapper + 3-arg with exclude) | — |
 | `pa_emit_change` | production → `b11_created_total_event` | B11 |
-| `bc_2627_staff_group_book` | 0003/0005/0006/0007 (installed) → `group_lunch_full_day` → `group_lunch_season` | B09 (each patch checks the expected installed body and fails closed otherwise) |
+| `bc_2627_staff_group_book` | 0003/0005/0006/0007 (installed) → `group_lunch_full_day` → `group_lunch_season` → `b07a_office_multi_create` | B09 + B07a ticket marker (each patch checks the expected installed body and fails closed otherwise) |
+| `pa_tariff_transition_guard` + participant trigger | `product_private_tariff_rules` → `pa_tariff_l1` (trigger now also `UPDATE OF appointment_id, participant_id`) | L1 |
+| `b07a_office_multi` (new) + `b07a_office_submissions` | `b07a_office_multi_create` | needs B04, B05, B09, B11, B08, B03a, B07-P, L1 installed first |
 | `save_product_public_offering`, `product_offering_validate`, `product_delete`, `quote_bc_2627_product` | installed via 0010–0015 / earlier; `product_offering_duration_independent` still pending | separate, not part of B07 |
 
 `b05_office_create` calls `pa_create_booking_finalized` → `pa_create_booking`. It must go in after `pa_edit_booking` and before or together with B07. Once B07 is installed, B05 creates also need revisions + digest; the B07 client sends them on both paths.
 
 ## Install groups (each needs its own approval; no step is run by this document)
 1. **Independent of the B07 client:** `b04_delivery_compatibility` → `b06_invoice_delivery` (needs B04); `b11_created_total_event`; `participant_birth_date_guard`; `group_lunch_full_day` → `group_lunch_season`; `pa_edit_booking` (B03a, legacy pricing); `b05_office_confirmation_intent`. These keep today's create contract. Deploy the matching Edge Functions (`send-invoice`, `staff-booking-confirmation`, `private-appointments`, `staff-group-booking`, `course-booking` retry paths) after their SQL.
-2. **Coordinated B07 release (server and client together, never just for display):** `product_private_tariff_rules` (+ reviewed `product_private_tariff_rules_seed.PROPOSED` + discount rule row) → `pa_tariff_l1` → deploy `private-appointments` + `product-private-tariff-rules` → set `PRODUCT_PRIVATE_TARIFFS_LIVE=true` and publish. Between the SQL and the publish, canonical private creates from the old client are rejected (`invalid quote_revision`); keep that window short or close Office booking during it.
+2. **Coordinated B07 release (server and client together, never just for display):** `product_private_tariff_rules` (+ reviewed tariff rows for the verified products only, see below + discount rule row) → `pa_tariff_l1` → `b07a_office_multi_create` → deploy `private-appointments` + `product-private-tariff-rules` + `office-booking` → set `PRODUCT_PRIVATE_TARIFFS_LIVE=true` and publish. Between the SQL and the publish, canonical private creates from the old client are rejected (`invalid quote_revision`); keep that window short or close Office booking during it.
 3. **After 2:** `public_private_tariff_projection` → `public_private_tariff_display_windows.PROPOSED` + Office verification → deploy `get-website-products`.
-4. **Still open before group 2:** B07a (atomic multi-item) and B07b (UI) must be finished.
+4. **Still open before group 2:** B07b (UI: combined quote dialog, lift `multiItemBlocked` onto `office-booking`). B07a server is done (docs/b07a-verification.md).
+
+## Verified combined install (local only)
+`tests/b07aMultiCreate.integration.mjs` installs, in one database and this order, without error: baseline prelude, production baseline, `drizzle/migrations` 0000–0015, `b04_delivery_compatibility`, `b06_invoice_delivery`, `b11_created_total_event`, `participant_birth_date_guard`, `group_lunch_full_day`, `group_lunch_season`, `pa_edit_booking`, `b05_office_confirmation_intent`, `product_private_tariff_rules`, `pa_tariff_l1`, `b07a_office_multi_create` (29 files). Commands and results: docs/b07a-verification.md. Rollbacks rehearsed locally by `tests/paTariffL1Rollback.integration.mjs` (B07a first, then L1).
+
+## Product mapping prerequisite (no blanket seed)
+Read-only check 2026-10-25: the five active private products are all Winter 25/26: `Private Lektion Ski 2h` (0), `Private Lektion Snowboard 2h` (0), `Privatstunde 75`, `Privatstunde 85`, `Schulatrif` (60). The Malbun standard tariff must NOT be seeded over all of them. Before group 2: verify which 26/27 Ski/Snowboard private products are eligible, seed the reviewed rules only for those, and decide separately how the school rate and legacy products are handled. Products without a tariff revision return `tariff_unavailable` in the B07 paths (no fabricated rate); the settled standard tariff values are not reopened.
 
 Rollbacks: `supabase/rollback/` has one file per group (`pa_tariff_l1_rollback.sql`, `product_private_tariff_rules_rollback.sql`, `b11_created_total_event_rollback.sql`, `group_lunch_season_rollback.sql`, `public_private_tariff_projection_rollback.sql`, …), always consumer-first.

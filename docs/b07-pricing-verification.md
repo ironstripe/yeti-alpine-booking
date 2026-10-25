@@ -204,3 +204,7 @@ Resolver `pa_product_quote` (single source): exact match wins; otherwise each ho
 
 ## Rollback (consumer first, data preserved)
 Switch OFF + republish → redeploy previous `private-appointments` → re-run 0007 `pa_create_booking` block → run rollback file (drops functions only; rule tables kept as evidence). Bookings created meanwhile keep their stored prices; nothing is recalculated.
+
+## L1 follow-up (B07a checkpoint, 2026-10-25)
+- Fixed in `pa_tariff_l1.sql`, both demonstrated on `bdad341`: participant trigger now also covers `UPDATE OF appointment_id, participant_id` (raw re-pointing refused, YT001); `pa_period_update` re-checks (id, date, teacher) under lock and returns `stale` when its slot/day locks were taken for an outdated date.
+- `supabase/rollback/pa_tariff_l1_rollback.sql` is now executable and rehearsed locally (`tests/paTariffL1Rollback.integration.mjs` 4/4). Details: docs/b07a-verification.md.
