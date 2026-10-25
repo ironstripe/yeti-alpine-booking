@@ -40,7 +40,7 @@ export function classifyMultiItemCart(items: CartItem[]): MultiItemPlan {
       const slots = it.appointments ?? [];
       if (slots.length === 0) issues.push({ code: "private_without_slots", item: it.id });
       for (const a of slots) for (const p of parts)
-        blocks.push({ p, date: a.date, s: min(a.startTime), e: min(a.endTime), item: it.id });
+        blocks.push({ p, date: a.date, s: min(a.startTime), e: min(a.startTime) + a.durationMinutes, item: it.id });
     } else if (!it.groupPlan?.server) {
       issues.push({ code: "group_without_source", item: it.id });
     }
