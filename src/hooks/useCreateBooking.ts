@@ -30,6 +30,7 @@ import {
 interface CreateBookingResult {
   ticketId: string;
   ticketNumber: string;
+  confirmationAction: "process" | "send" | null;
 }
 
 async function generateTicketNumber(): Promise<string> {
@@ -138,6 +139,7 @@ export function useCreateBooking() {
         if (staffDiscount < 0 || staffDiscount > 100) throw new Error("Rabatt muss zwischen 0 und 100 % liegen.");
         if (staffDiscount > 0 && !staffDiscountReason) throw new Error("Bitte gib einen Grund für den Rabatt an");
         const payload = {
+          confirmation_requested: state.sendCustomerEmail,
           customer_id: state.customerId,
           ...(state.customerNotes ? { notes: state.customerNotes } : {}),
           lines: staffGroup.lines,
@@ -147,12 +149,11 @@ export function useCreateBooking() {
         };
         // Same payload in this browser session => same key => server replays, never duplicates.
         // Booking, settlement (payment) and notes are ONE server transaction: a replay is complete.
-        const fp = "yeti.staffgroup.submit." + JSON.stringify(payload);
+        const fp = "yeti.staffgroup.submit." + (state.activeCartItemId ?? JSON.stringify(payload));
         let submissionKey = sessionStorage.getItem(fp);
         if (!submissionKey) { submissionKey = crypto.randomUUID(); sessionStorage.setItem(fp, submissionKey); }
         const created = await createStaffGroupBooking({ submission_key: submissionKey, ...payload });
-        sessionStorage.removeItem(fp);
-        return { ticketId: created.ticket_id, ticketNumber: created.ticket_number };
+        return { ticketId: created.ticket_id, ticketNumber: created.ticket_number, confirmationAction: "process" };
       }
 
       // New (not yet saved) people are only created by the atomic server paths (private / 26/27 group).
@@ -360,7 +361,8 @@ export function useCreateBooking() {
             : { participant_id: pt.id },
         );
         const payload = {
-          customer_id: state.customerId!,
+          confirmation_requested: state.sendCustomerEmail,
+          customer_id: state.customerId ?? "",
           product_id: productId,
           ...(state.customerNotes ? { notes: state.customerNotes } : {}),
           appointments,
@@ -369,14 +371,13 @@ export function useCreateBooking() {
           finalization: buildFinalization(state),
         };
         // Same payload in this browser session => same key => server replays, never duplicates.
-        const fp = "yeti.pa.submit." + JSON.stringify(payload);
+        const fp = "yeti.pa.submit." + (state.activeCartItemId ?? JSON.stringify(payload));
         let submissionKey = sessionStorage.getItem(fp);
         if (!submissionKey) { submissionKey = crypto.randomUUID(); sessionStorage.setItem(fp, submissionKey); }
 
         const created = await paCreate({ submission_key: submissionKey, ...payload });
-        sessionStorage.removeItem(fp);
         try { sessionStorage.removeItem("yeti.scheduler.planningDraft.v1"); } catch { /* ignore */ }
-        return { ticketId: created.ticket_id, ticketNumber: created.ticket_number };
+        return { ticketId: created.ticket_id, ticketNumber: created.ticket_number, confirmationAction: "process" };
       }
 
       // Create ticket (without notes - they go to ticket_comments now)
@@ -1126,7 +1127,6 @@ export function useCreateBooking() {
       }
 
       // Log notifications (placeholder for actual sending)
-      console.log("📧 Would send confirmation email to:", state.customer?.email);
       if (state.sendCustomerWhatsApp) {
         console.log("📱 Would send WhatsApp to customer:", state.customer?.phone);
       }
@@ -1137,6 +1137,7 @@ export function useCreateBooking() {
       return {
         ticketId: ticket.id,
         ticketNumber,
+        confirmationAction: state.sendCustomerEmail ? "send" : null,
       };
     },
     onSuccess: () => {

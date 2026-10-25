@@ -1,7 +1,8 @@
 import { customerEmailRecipient } from "@/lib/customerEmail";
 import { checkoutSubmitFlags } from "@/lib/checkoutSubmitFlags";
 import { checkoutFirstCourseDate, checkoutPaymentDueDate } from "@/lib/checkoutDueDate";
-import { useState, useMemo } from "react";
+import { bookingConfirmation, type ConfirmationResult } from "@/lib/bookingConfirmationApi";
+import { useState, useMemo, useRef } from "react";
 import { toast } from "sonner";
 import { useParticipantOwnership } from "@/hooks/useParticipantOwnership";
 import { resolveLinkedParticipants } from "@/lib/linkedParticipants";
@@ -77,6 +78,8 @@ export function Step4Summary({ onEditStep }: Step4SummaryProps) {
   // Success modal state
   const [showSuccess, setShowSuccess] = useState(false);
   const [createdTicket, setCreatedTicket] = useState<{ id: string; number: string } | null>(null);
+  const [confirmation, setConfirmation] = useState<ConfirmationResult | null>(null);
+  const submitLock = useRef(false);
 
   // Check for automatic 2x2h discount
   const qualifiesFor2x2hDiscount = useMemo(() => {
@@ -139,6 +142,7 @@ export function Step4Summary({ onEditStep }: Step4SummaryProps) {
   const multiItemBlocked = !state.isEditMode && state.cartItems.length > 1;
 
   const handleCreateBooking = async () => {
+    if (submitLock.current || showSuccess) return;
     if (!state.isEditMode && multiItemBlocked) {
       toast.error("Mehrere Unterrichte können noch nicht gemeinsam gespeichert werden.");
       return;
@@ -172,6 +176,7 @@ export function Step4Summary({ onEditStep }: Step4SummaryProps) {
       discountReason,
     ].filter(Boolean).join(", ");
 
+    submitLock.current = true;
     try {
       if (state.isEditMode && state.canonicalEdit) {
         // Canonical private bookings must never reach the legacy direct item writes.
@@ -240,6 +245,12 @@ export function Step4Summary({ onEditStep }: Step4SummaryProps) {
 
         setCreatedTicket({ id: result.ticketId, number: result.ticketNumber });
         setShowSuccess(true);
+        setConfirmation({ success: false, outcome: result.confirmationAction ? "pending" : "not_requested" });
+        // Saved ticket is visible before sending. All post-commit delivery failures
+        // remain mail outcomes, never enter the booking-create error path.
+        if (result.confirmationAction) {
+          void bookingConfirmation(result.ticketId, result.confirmationAction).then(setConfirmation);
+        }
       }
     } catch (error) {
       console.error("Failed to save booking:", error);
@@ -251,7 +262,7 @@ export function Step4Summary({ onEditStep }: Step4SummaryProps) {
       const fallback = state.isEditMode ? "Fehler beim Speichern" : "Fehler beim Erstellen der Buchung";
       setSubmitError({ message: message ?? `${fallback}. Ihre Eingaben bleiben erhalten.`, unknown });
       toast.error(message ?? fallback, { duration: 10000 });
-    }
+    } finally { submitLock.current = false; }
   };
 
   const handleNewBooking = () => {
@@ -388,6 +399,7 @@ export function Step4Summary({ onEditStep }: Step4SummaryProps) {
           ticketNumber={createdTicket.number}
           ticketId={createdTicket.id}
           customerEmail={sendCustomerEmail ? customerEmailRecipient(state.customer) : null}
+          confirmation={confirmation}
           instructorName={
             notifyInstructor && state.instructor
               ? `${state.instructor.first_name} ${state.instructor.last_name}`

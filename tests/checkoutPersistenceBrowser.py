@@ -61,6 +61,9 @@ async def main():
                 if url == "http://localhost:8080/checkout-fixture":
                     return await route.fulfill(content_type="text/html", body='<html><body><div id="fixture"></div></body></html>')
                 if url.startswith("http://localhost:8080"): return await route.continue_()
+                if "/functions/v1/staff-booking-confirmation" in url:
+                    check(req.post_data_json == {"ticket_id":"synthetic-ticket","action":"process"}, f"{tag} confirmation uses saved ticket only")
+                    return await route.fulfill(content_type="application/json",body=json.dumps({"success":False,"outcome":"failed"}))
                 if ("/functions/v1/private-appointments" in url or "/functions/v1/staff-group-booking" in url) and req.method == "POST":
                     captured.append(req.post_data_json)
                     return await route.fulfill(content_type="application/json", body=json.dumps({"ticket_id":"synthetic-ticket", "ticket_number":"TEST-ONLY", "appointment_ids":[], "total":100}))

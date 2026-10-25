@@ -29,7 +29,9 @@ Deno.serve(async (req) => {
     const body = finalization
       ? { ...payload, finalization: { ...finalization, actor_name: auth.email?.split("@")[0] || "System", actor_email: auth.email } }
       : payload;
-    rpc = await db.rpc("pa_create_booking_finalized", { p: body, p_actor: auth.userId });
+    rpc = p.confirmation_requested === undefined
+      ? await db.rpc("pa_create_booking_finalized", { p: body, p_actor: auth.userId })
+      : await db.rpc("b05_office_create", { p: body, p_actor: auth.userId, p_kind: "private" });
   } else if (p.action === "move") {
     rpc = await db.rpc("pa_move_appointment", {
       p_id: p.appointment_id, p_date: p.date, p_start: p.time_start, p_end: p.time_end,

@@ -110,6 +110,7 @@ export const paCreate = (p: {
   appointments: PaSlot[]; participants: PaParticipant[];
   discount_percent?: number; discount_reason?: string;
   finalization?: StaffFinalization;
+  confirmation_requested?: boolean;
 }) => call<{ ticket_id: string; ticket_number: string; appointment_ids: string[]; total: number; replayed?: boolean }>(
   { action: "create", ...p },
 );

@@ -112,7 +112,7 @@ export async function attemptDelivery(
   sb: Client,
   deliveryId: string,
   transport: Transport,
-  opts: { mode: AttemptMode; force?: boolean; now?: () => number } = { mode: "auto" },
+  opts: { mode: AttemptMode; force?: boolean; now?: () => number; confirmationVars?: (sb: Client, ticketId: string) => Promise<Record<string, string>> } = { mode: "auto" },
 ): Promise<{ outcome: AttemptOutcome; code?: string }> {
   const now = opts.now ?? Date.now;
   try { await assertDeliverySchema(sb); } catch { return { outcome: "needs_review", code: "schema_incompatible" }; }
@@ -207,7 +207,7 @@ export async function attemptDelivery(
       if (!fresh && !retryKnownNotSent) return await fail("frozen_payload_missing", "Versandinhalt fehlt – manuelle Prüfung nötig");
       const sender = await resolveSender(sb);
       if (!sender) return await fail("sender_not_configured", "Absender (Schul-E-Mail in den Einstellungen) fehlt");
-      const content = row.kind === "invoice" ? await invoiceContent(sb, row.ticket_id) : await confirmationContent(sb, row.ticket_id);
+      const content = row.kind === "invoice" ? await invoiceContent(sb, row.ticket_id) : await confirmationContent(sb, row.ticket_id, opts.confirmationVars);
       if (!content.ok) return await fail(content.code, content.message, content.templateId ? { template_id: content.templateId } : {});
       mail = { from: sender, to: row.recipient_email, subject: content.subject, html: content.html, text: content.text ?? null,
         attachments: content.attachments ?? [], idempotencyKey: providerKey };
@@ -301,10 +301,10 @@ function fill(tpl: { id: string; subject: string; body_html: string; body_text: 
   return { ok: true, templateId: tpl.id, subject: subj.text.replace(/[\r\n]+/g, " "), html: html.text, text: text?.text ?? null };
 }
 
-async function confirmationContent(sb: Client, ticketId: string): Promise<Content> {
+async function confirmationContent(sb: Client, ticketId: string, vars?: (sb: Client, ticketId: string) => Promise<Record<string, string>>): Promise<Content> {
   const tpl = await activeConfirmationTemplate(sb);
   if (!tpl) return { ok: false, code: "template_missing", message: "Vorlage booking.confirmed fehlt oder ist inaktiv" };
-  return fill(tpl, await buildVars(sb, ticketId, ""));
+  return fill(tpl, vars ? await vars(sb, ticketId) : await buildVars(sb, ticketId, ""));
 }
 
 const fmtDate = (d?: string | null) => (d ? d.slice(0, 10).split("-").reverse().join(".") : "");

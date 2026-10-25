@@ -1,7 +1,7 @@
 import asyncio,json
 from pathlib import Path
 from playwright.async_api import async_playwright
-OUT=Path('/tmp/browser/b03b')
+OUT=Path('/tmp/browser/b03b');OUT.mkdir(parents=True,exist_ok=True)
 T='synthetic-ticket'
 people=[{'id':'p','first_name':'Lea','last_name':'<S>'},{'id':'q','first_name':'Tom','last_name':'S'},{'id':'r','first_name':'Mia','last_name':'S'}]
 appts=[{'id':'a','date':'2026-12-26','time_start':'10:00:00','time_end':'11:00:00','instructor_id':'t','meeting_point':'Park'}, {'id':'b','date':'2026-12-27','time_start':'14:00:00','time_end':'16:00:00','instructor_id':'u','meeting_point':'Dorf'}]
@@ -26,6 +26,7 @@ async def main():
     req=r.request;url=req.url
     if url=='http://localhost:8080/b03b-fixture':return await r.fulfill(content_type='text/html',body='<html><body><div id="fixture"></div></body></html>')
     if url.startswith('http://localhost:8080'):return await r.continue_()
+    if '/functions/v1/staff-booking-confirmation' in url:return await r.fulfill(content_type='application/json',body=json.dumps({'success':False,'outcome':'not_requested'}))
     if '/rest/v1/rpc/instructors_ops_list' in url:return await r.fulfill(content_type='application/json',body='[]')
     if req.method not in ('GET','HEAD','OPTIONS'):writes.append(req.method+' '+url);return await r.abort()
     if '/rest/v1/' in url:
@@ -58,7 +59,7 @@ async def main():
    await page.screenshot(path=str(OUT/f'detail_{width}.png'))
    mode['error']=True;await page.evaluate("window.qc.invalidateQueries({queryKey:['booking-read-projection']})")
    await page.get_by_text('Teilnehmerdaten nicht verfügbar',exact=False).first.wait_for()
-   assert await page.get_by_role('alert').count()>=2
+   await page.get_by_role('alert').nth(1).wait_for()
    assert await page.locator('div.hidden').last.inner_html()==invoice_before
    await page.screenshot(path=str(OUT/f'error_{width}.png'))
    assert not writes and not errors,(writes,errors)
