@@ -14,7 +14,7 @@ mock.module("@/contexts/BookingWizardContext", () => ({ ...realWizardContext, us
 mock.module("@/hooks/useProducts", () => ({ ...realProducts, useProducts: () => ({ isLoading: false, data: [
   { id: "decoy", type: "group", name: "Alt Gruppe", price: 999, pricing_type: "tiered", price_tiers: [{ day_count: 5, cumulative_price: 999 }] },
 ] }) }));
-mock.module("@/hooks/useLunchProduct", () => ({ ...realLunch, useLunchProduct: () => ({ data: { id: "l", price: 30 }, isLoading: false }) }));
+mock.module("@/hooks/useLunchProduct", () => ({ ...realLunch, useLunchProduct: () => ({ data: { id: "l", price: 30 }, isLoading: false }), useLunchProducts: (ctxs: unknown[]) => ctxs.map((ctx) => ({ ctx, data: { id: "l", price: 30 }, isLoading: false })) }));
 mock.module("@/hooks/usePrivateLessonRates", () => ({ ...realRates, usePrivateLessonRates: () => ({ data: [] }), useHighSeasonPeriods: () => ({ data: [] }) }));
 
 const { PriceBreakdown } = await import("../src/components/bookings/wizard/PriceBreakdown.tsx?real-under-test");
