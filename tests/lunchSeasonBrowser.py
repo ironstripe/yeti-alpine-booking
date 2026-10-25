@@ -14,7 +14,6 @@ async def main():
         browser = await p.chromium.launch(headless=True)
         page = await (await browser.new_context(viewport={"width": 1280, "height": 1800})).new_page()
         calls = []
-        page.on("console", lambda m: print("CONSOLE", m.text[:200]))
         page.on("pageerror", lambda e: print("PAGEERR", str(e)[:300]))
         async def intercept(route):
             url = route.request.url
