@@ -65,6 +65,15 @@ export function createSendInvoiceHandler(sb: Client, deps: {
         .select("*").eq("ticket_id", inv.ticket_id).eq("kind", "invoice").maybeSingle();
       if (de) throw new Error("delivery_read_failed");
 
+      const validRecipient0 = typeof recipient === "string" && VALID_EMAIL.test(recipient);
+      if (action === "status") {
+        return json({
+          success: existing?.status === "sent",
+          outcome: existing?.status === "sending" ? "in_progress" : existing?.status ?? (validRecipient0 ? "not_sent" : "no_recipient"),
+          code: existing?.last_error_code ?? null,
+        });
+      }
+
       // Identity binding: a delivery row belongs to exactly one invoice.
       if (existing) {
         const bound = existing.invoice_id ?? existing.frozen_payload?.invoice_id ?? null;
@@ -80,16 +89,8 @@ export function createSendInvoiceHandler(sb: Client, deps: {
         }
       }
 
-      const validRecipient = typeof recipient === "string" && VALID_EMAIL.test(recipient);
+      const validRecipient = validRecipient0;
       if (!existing && !validRecipient) return json({ success: false, outcome: "no_recipient" });
-
-      if (action === "status") {
-        return json({
-          success: existing?.status === "sent",
-          outcome: existing?.status === "sending" ? "in_progress" : existing?.status ?? (validRecipient ? "not_sent" : "no_recipient"),
-          code: existing?.last_error_code ?? null,
-        });
-      }
 
       const row = existing ?? await ensureDelivery(sb, inv.ticket_id, "invoice", recipient!, invoiceId);
       if (!row) throw new Error("delivery_read_failed");
