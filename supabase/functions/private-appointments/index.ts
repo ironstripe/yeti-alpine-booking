@@ -36,12 +36,17 @@ Deno.serve(async (req) => {
     const { action: _a, ...payload } = p;
     rpc = await db.rpc("pa_create_quote", { p: payload });
   } else if (p.action === "move") {
+    // L1: p_ack only when the user confirmed a server quote (7-arg overload); otherwise the legacy signature.
     rpc = await db.rpc("pa_move_appointment", {
       p_id: p.appointment_id, p_date: p.date, p_start: p.time_start, p_end: p.time_end,
       p_instr: p.instructor_id, p_actor: auth.userId,
+      ...(p.acknowledged_quote_digest ? { p_ack: { quote_digest: p.acknowledged_quote_digest } } : {}),
     });
   } else if (p.action === "period_update") {
-    rpc = await db.rpc("pa_period_update", { p_group: p.period_group_id, p_changes: p.changes, p_actor: auth.userId });
+    rpc = await db.rpc("pa_period_update", {
+      p_group: p.period_group_id, p_changes: p.changes, p_actor: auth.userId,
+      ...(p.acknowledged_quote_digest ? { p_ack: { quote_digest: p.acknowledged_quote_digest } } : {}),
+    });
   } else {
     // B03a: quote or apply an edit of an existing booking (one transaction, pa_edit_booking).
     const { action: _a, ...payload } = p;
@@ -50,9 +55,11 @@ Deno.serve(async (req) => {
 
   // Edit RPC not installed yet: say so clearly instead of an ambiguous "unknown result".
   if ((p.action === "edit" || p.action === "quote") && rpc.error?.code === "PGRST202") return json({ error: "unavailable" }, 503);
+  // An acknowledgement can only exist after an L1 server asked for it; without L1 installed: unavailable, nothing written.
+  if ((p.action === "move" || p.action === "period_update") && rpc.error?.code === "PGRST202") return json({ error: "unavailable" }, 503);
   // B08 last-resort guard (trigger): nothing was written; report the field, not an unknown result.
   if (rpc.error?.code === "22008") return json({ error: "invalid", field: "birth_date", index: null }, 400);
-  // B07-P2 guard: a tariff-priced lesson cannot be repriced by the legacy move/edit paths; nothing was written.
+  // B07 guard (L1): a tariff-priced lesson can only take its server-requoted price; anything else is refused, nothing written.
   if (rpc.error?.code === "YT001") return json({ error: "tariff_transition_required" }, 409);
   if (rpc.error || !rpc.data) {
     console.error("private-appointments rpc failed", p.action, rpc.error?.code);

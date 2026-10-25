@@ -5,6 +5,7 @@ import { birthDateIssue } from "./birthDate.ts";
 const uuid = z.string().uuid();
 const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const time = z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/);
+const md5 = z.string().regex(/^[0-9a-f]{32}$/);
 
 const meeting_point = z.string().max(200).optional();
 // A slot either names a real teacher, or carries the explicit "Später zuweisen" intent
@@ -80,12 +81,15 @@ export const RequestSchema = z.discriminatedUnion("action", [
     action: z.literal("move"),
     appointment_id: uuid,
     date, time_start: time, time_end: time, instructor_id: uuid,
+    // L1: digest of the server quote the user confirmed after a price-changing move (quote_changed).
+    acknowledged_quote_digest: md5.optional(),
   }),
   z.object({
     action: z.literal("period_update"),
     period_group_id: uuid,
     changes: z.object({ time_start: time.optional(), time_end: time.optional(), instructor_id: uuid.optional() })
       .refine((c) => Object.keys(c).length > 0, "at least one change"),
+    acknowledged_quote_digest: md5.optional(),
   }),
   // B03a: edit an existing canonical private booking in one transaction (pa_edit_booking).
   z.object({
@@ -108,6 +112,8 @@ export const RequestSchema = z.discriminatedUnion("action", [
       acknowledged_price: z.number().finite().optional(),
     }).strict()).max(60),
     acknowledged_total: z.number().finite().optional(),
+    // L1: required by the server when tariff-priced lessons are requoted.
+    acknowledged_quote_digest: md5.optional(),
     expected_customer_notes: z.string().nullable().optional(),
     customer_notes: z.string().max(2000).optional(),
   }).strict(),
