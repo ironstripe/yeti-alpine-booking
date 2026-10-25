@@ -2,6 +2,7 @@
 // All private-lesson create/move/period changes go through it (no direct table writes).
 import { supabase } from "@/integrations/supabase/client";
 import type { EditQuote, EditRequest } from "@/lib/canonicalPrivateEdit";
+import { TARIFF_UNAVAILABLE_REASONS } from "@/lib/privateTariffRules";
 
 export interface PaConflict { index?: number; date?: string; kind?: string; ref_id?: string }
 export interface PaExcluded { id: string; reasons: string[] }
@@ -54,6 +55,7 @@ function describe(code: string, conflicts: PaConflict[], excluded: PaExcluded[],
     case "forbidden": return "Keine Berechtigung für diese Änderung.";
     case "quote_changed": return "Der Preis hat sich seit der Vorschau geändert. Bitte neuen Preis prüfen und erneut bestätigen. Es wurde nichts gespeichert.";
     case "unavailable": return "Bearbeiten bestehender Privatlektionen ist noch nicht freigeschaltet. Es wurde nichts gespeichert.";
+    case "tariff_unavailable": return `${(field && TARIFF_UNAVAILABLE_REASONS[field]) || "Kein gültiger Produkttarif."} Es wurde nichts gespeichert.`;
     case "not_found": return "Termin nicht gefunden.";
     case "invalid": return `${(field && FIELDS[field]) || "Ungültige Angaben."} Es wurde nichts gespeichert.`;
     default: return "Ergebnis unbekannt: Bitte Buchungsliste prüfen oder erneut senden – eine Wiederholung erzeugt keine doppelte Buchung.";
@@ -80,7 +82,7 @@ async function call<T>(body: Record<string, unknown>): Promise<T> {
     code,
     (payload.conflicts as PaConflict[]) ?? [],
     (payload.excluded as PaExcluded[]) ?? [],
-    typeof payload.field === "string" ? payload.field : null,
+    typeof payload.field === "string" ? payload.field : typeof payload.reason === "string" ? payload.reason : null,
     payload.quote ?? null,
   );
 }
@@ -111,6 +113,7 @@ export const paCreate = (p: {
   discount_percent?: number; discount_reason?: string;
   finalization?: StaffFinalization;
   confirmation_requested?: boolean;
+  quote_revision?: number;
 }) => call<{ ticket_id: string; ticket_number: string; appointment_ids: string[]; total: number; replayed?: boolean }>(
   { action: "create", ...p },
 );
@@ -127,3 +130,10 @@ export const paEditQuote = (p: EditRequest) =>
   call<{ quote: EditQuote }>({ action: "edit", mode: "quote", ...p });
 export const paEditApply = (p: EditRequest) =>
   call<{ changed: boolean; quote: EditQuote; total?: number }>({ action: "edit", mode: "apply", ...p });
+
+/** B07-P: server preview of a new office private booking (same resolver as create). */
+export interface CreateQuote { revision: number; total: number; items: { index: number; price: number; mode: string }[] }
+export const paCreateQuote = (p: {
+  product_id: string; persons: number;
+  appointments: { date: string; time_start: string; time_end: string }[];
+}) => call<CreateQuote>({ action: "quote", ...p });

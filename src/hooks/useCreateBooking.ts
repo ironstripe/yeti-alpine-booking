@@ -6,7 +6,8 @@ import { isImmediateMethod } from "@/lib/finance";
 import { logTicketEvent } from "@/lib/ticket-audit";
 import { buildEffectivePrivatePlan } from "@/lib/effectivePrivatePlan";
 import { checkoutPaymentDueDate } from "@/lib/checkoutDueDate";
-import { paCreate, type PaParticipant, type PaSlot } from "@/lib/privateAppointmentsApi";
+import { paCreate, paCreateQuote, type PaParticipant, type PaSlot } from "@/lib/privateAppointmentsApi";
+import { PRODUCT_PRIVATE_TARIFFS_LIVE } from "@/lib/privateTariffRules";
 import { endOf, sortPlan, validatePlan } from "@/lib/privatePlan";
 import { buildStaffGroupLines, staffGroupHasLunch } from "@/lib/staffGroupPayload";
 import { fetchLunchProduct } from "@/hooks/useLunchProduct";
@@ -375,7 +376,19 @@ export function useCreateBooking() {
         let submissionKey = sessionStorage.getItem(fp);
         if (!submissionKey) { submissionKey = crypto.randomUUID(); sessionStorage.setItem(fp, submissionKey); }
 
-        const created = await paCreate({ submission_key: submissionKey, ...payload });
+        // B07-P (switched off until released): bind the create to the server tariff revision.
+        // A changed product tariff makes the server answer quote_changed; nothing is saved then.
+        const quoteRevision = PRODUCT_PRIVATE_TARIFFS_LIVE
+          ? (await paCreateQuote({
+              product_id: productId,
+              persons: participants.length,
+              appointments: appointments.map(({ date, time_start, time_end }) => ({ date, time_start, time_end })),
+            })).revision
+          : undefined;
+        const created = await paCreate({
+          submission_key: submissionKey, ...payload,
+          ...(quoteRevision !== undefined ? { quote_revision: quoteRevision } : {}),
+        });
         try { sessionStorage.removeItem("yeti.scheduler.planningDraft.v1"); } catch { /* ignore */ }
         return { ticketId: created.ticket_id, ticketNumber: created.ticket_number, confirmationAction: "process" };
       }
