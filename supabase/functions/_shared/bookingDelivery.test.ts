@@ -60,7 +60,7 @@ function fakeDb(tables: Record<string, Row[]>) {
 const TPL = { id: "tpl-1", trigger: "booking.confirmed", is_active: true, subject: "Bestätigung {{ticket_number}}", body_html: "<p>Hallo {{customer_last_name}}, {{product_name}} am {{booking_date}}</p>", body_text: null };
 function setup(opts: { status?: string; template?: Row | null } = {}) {
   const tables: Record<string, Row[]> = {
-    booking_email_deliveries: [{ id: "d1", ticket_id: "t1", recipient_email: "gast@example.test", idempotency_key: confirmationKey("t1"), status: opts.status ?? "pending", attempts: 0 }],
+    booking_email_deliveries: [{ id: "d1", kind: "booking_confirmation", ticket_id: "t1", recipient_email: "gast@example.test", idempotency_key: confirmationKey("t1"), status: opts.status ?? "pending", attempts: 0 }],
     email_templates: opts.template === null ? [] : [opts.template ?? { ...TPL }],
     tickets: [{ id: "t1", ticket_number: "T-100", customer: { last_name: "Muster" } }],
     ticket_items: [{ ticket_id: "t1", date: "2027-01-10", time_start: "10:00:00", time_end: "12:00:00", meeting_point: "Talstation", product: { name: "Privatlektion" } }],
@@ -127,7 +127,7 @@ Deno.test("delivery: already sent is never resent (auto or manual)", async () =>
   const { sb } = setup({ status: "sent" });
   await withResend(200, { id: "x" }, async (calls) => {
     eq(await attemptConfirmation(sb, "d1"), "not_claimed");
-    eq(await attemptConfirmation(sb, "d1", { manual: true }), "not_claimed");
+    eq(await attemptConfirmation(sb, "d1", { manual: true }), "needs_review");
     eq(calls.length, 0);
   });
 });

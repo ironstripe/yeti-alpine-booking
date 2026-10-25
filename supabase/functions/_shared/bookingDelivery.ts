@@ -110,12 +110,18 @@ export async function attemptConfirmation(
   const allowed = opts.manual ? ["failed"] : ["pending"];
 
   // Atomic claim: only one caller moves the row into 'sending'.
-  const { data: current } = await sb
+  const { data: current, error: readError } = await sb
     .from("booking_email_deliveries")
-    .select("attempts")
+    .select("*")
     .eq("id", deliveryId)
     .maybeSingle();
+  if (readError) return "needs_review";
   if (!current) return "not_found";
+  // Staged coexistence: this legacy sender must never claim a leased course row
+  // (including invoice rows). New protocol has its own frozen bytes and lease.
+  if (current.delivery_protocol || current.kind !== "booking_confirmation") return "not_claimed";
+  // Old failed rows do not record whether a provider handoff occurred.
+  if (opts.manual) return "needs_review";
   const { data: claimed } = await sb
     .from("booking_email_deliveries")
     .update({ status: "sending", attempts: current.attempts + 1 })
