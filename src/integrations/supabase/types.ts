@@ -132,6 +132,48 @@ export type Database = {
         }
         Relationships: []
       }
+      b07a_office_submissions: {
+        Row: {
+          created_at: string
+          created_by: string
+          payload_digest: string
+          result: Json
+          submission_key: string
+          ticket_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          payload_digest: string
+          result: Json
+          submission_key: string
+          ticket_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          payload_digest?: string
+          result?: Json
+          submission_key?: string
+          ticket_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "b07a_office_submissions_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: true
+            referencedRelation: "pending_booking_confirmations"
+            referencedColumns: ["ticket_id"]
+          },
+          {
+            foreignKeyName: "b07a_office_submissions_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: true
+            referencedRelation: "tickets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bc_2627_course_period_sources: {
         Row: {
           course_id: string
@@ -508,13 +550,20 @@ export type Database = {
       booking_email_deliveries: {
         Row: {
           attempts: number
+          claimed_at: string | null
           created_at: string
+          delivery_protocol: string | null
           email_log_id: string | null
+          first_claimed_at: string | null
+          frozen_payload: Json | null
           id: string
           idempotency_key: string
+          invoice_id: string | null
           kind: string
           last_error: string | null
           last_error_code: string | null
+          payload_digest: string | null
+          provider_idempotency_key: string | null
           provider_message_id: string | null
           recipient_email: string
           sent_at: string | null
@@ -525,13 +574,20 @@ export type Database = {
         }
         Insert: {
           attempts?: number
+          claimed_at?: string | null
           created_at?: string
+          delivery_protocol?: string | null
           email_log_id?: string | null
+          first_claimed_at?: string | null
+          frozen_payload?: Json | null
           id?: string
           idempotency_key: string
+          invoice_id?: string | null
           kind: string
           last_error?: string | null
           last_error_code?: string | null
+          payload_digest?: string | null
+          provider_idempotency_key?: string | null
           provider_message_id?: string | null
           recipient_email: string
           sent_at?: string | null
@@ -542,13 +598,20 @@ export type Database = {
         }
         Update: {
           attempts?: number
+          claimed_at?: string | null
           created_at?: string
+          delivery_protocol?: string | null
           email_log_id?: string | null
+          first_claimed_at?: string | null
+          frozen_payload?: Json | null
           id?: string
           idempotency_key?: string
+          invoice_id?: string | null
           kind?: string
           last_error?: string | null
           last_error_code?: string | null
+          payload_digest?: string | null
+          provider_idempotency_key?: string | null
           provider_message_id?: string | null
           recipient_email?: string
           sent_at?: string | null
@@ -3558,6 +3621,42 @@ export type Database = {
         }
         Relationships: []
       }
+      office_booking_confirmation_intents: {
+        Row: {
+          created_at: string
+          created_by: string
+          requested: boolean
+          ticket_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          requested: boolean
+          ticket_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          requested?: boolean
+          ticket_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "office_booking_confirmation_intents_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: true
+            referencedRelation: "pending_booking_confirmations"
+            referencedColumns: ["ticket_id"]
+          },
+          {
+            foreignKeyName: "office_booking_confirmation_intents_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: true
+            referencedRelation: "tickets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       office_hour_blocks: {
         Row: {
           created_at: string | null
@@ -4052,6 +4151,74 @@ export type Database = {
           },
         ]
       }
+      private_appointment_pricing: {
+        Row: {
+          appointment_id: string
+          created_at: string
+          discount_amount: number
+          discount_percent: number
+          discount_reason: string | null
+          discount_rule_revision: number
+          discount_source: string
+          eligible_persons: number
+          gross_price: number
+          participant_ids: string[]
+          persons: number
+          priced_date: string
+          priced_time_end: string
+          priced_time_start: string
+          product_id: string
+          tariff_revision: number
+          updated_at: string
+        }
+        Insert: {
+          appointment_id: string
+          created_at?: string
+          discount_amount: number
+          discount_percent: number
+          discount_reason?: string | null
+          discount_rule_revision: number
+          discount_source: string
+          eligible_persons: number
+          gross_price: number
+          participant_ids: string[]
+          persons: number
+          priced_date: string
+          priced_time_end: string
+          priced_time_start: string
+          product_id: string
+          tariff_revision: number
+          updated_at?: string
+        }
+        Update: {
+          appointment_id?: string
+          created_at?: string
+          discount_amount?: number
+          discount_percent?: number
+          discount_reason?: string | null
+          discount_rule_revision?: number
+          discount_source?: string
+          eligible_persons?: number
+          gross_price?: number
+          participant_ids?: string[]
+          persons?: number
+          priced_date?: string
+          priced_time_end?: string
+          priced_time_start?: string
+          product_id?: string
+          tariff_revision?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "private_appointment_pricing_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: true
+            referencedRelation: "private_appointments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       private_appointment_submissions: {
         Row: {
           created_at: string
@@ -4164,6 +4331,42 @@ export type Database = {
           },
         ]
       }
+      private_lesson_discount_rule: {
+        Row: {
+          id: boolean
+          percent: number
+          provenance: string
+          revision: number
+          scope: string
+          shared_allocation: string
+          threshold_minutes: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          id?: boolean
+          percent: number
+          provenance: string
+          revision?: number
+          scope?: string
+          shared_allocation?: string
+          threshold_minutes: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          id?: boolean
+          percent?: number
+          provenance?: string
+          revision?: number
+          scope?: string
+          shared_allocation?: string
+          threshold_minutes?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       private_lesson_rates: {
         Row: {
           additional_person_rate: number | null
@@ -4194,6 +4397,33 @@ export type Database = {
           rate_per_hour?: number
           start_time?: string
           updated_at?: string | null
+        }
+        Relationships: []
+      }
+      private_tariff_required_coverage: {
+        Row: {
+          max_block_minutes: number | null
+          office_only: boolean
+          provenance: string
+          rule_kind: string
+          window_end: string
+          window_start: string
+        }
+        Insert: {
+          max_block_minutes?: number | null
+          office_only: boolean
+          provenance: string
+          rule_kind: string
+          window_end: string
+          window_start: string
+        }
+        Update: {
+          max_block_minutes?: number | null
+          office_only?: boolean
+          provenance?: string
+          rule_kind?: string
+          window_end?: string
+          window_start?: string
         }
         Relationships: []
       }
@@ -4252,6 +4482,91 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "product_price_tiers_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      product_private_tariff_revisions: {
+        Row: {
+          product_id: string
+          revision: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          product_id: string
+          revision: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          product_id?: string
+          revision?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_private_tariff_revisions_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: true
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      product_private_tariff_rules: {
+        Row: {
+          extra_person_chf: number
+          id: string
+          max_block_minutes: number | null
+          max_persons: number
+          office_only: boolean
+          price_chf: number
+          product_id: string
+          provenance: string
+          rule_kind: string
+          updated_at: string
+          updated_by: string | null
+          window_end: string
+          window_start: string
+        }
+        Insert: {
+          extra_person_chf: number
+          id?: string
+          max_block_minutes?: number | null
+          max_persons: number
+          office_only?: boolean
+          price_chf: number
+          product_id: string
+          provenance: string
+          rule_kind: string
+          updated_at?: string
+          updated_by?: string | null
+          window_end: string
+          window_start: string
+        }
+        Update: {
+          extra_person_chf?: number
+          id?: string
+          max_block_minutes?: number | null
+          max_persons?: number
+          office_only?: boolean
+          price_chf?: number
+          product_id?: string
+          provenance?: string
+          rule_kind?: string
+          updated_at?: string
+          updated_by?: string | null
+          window_end?: string
+          window_start?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_private_tariff_rules_product_id_fkey"
             columns: ["product_id"]
             isOneToOne: false
             referencedRelation: "products"
@@ -5910,6 +6225,14 @@ export type Database = {
         }
         Returns: Json
       }
+      b05_office_create: {
+        Args: { p: Json; p_actor: string; p_kind: string }
+        Returns: Json
+      }
+      b07a_office_multi: {
+        Args: { p: Json; p_actor: string; p_mode: string }
+        Returns: Json
+      }
       bc_2627_staff_group_blocks: {
         Args: {
           p_block: string
@@ -6185,6 +6508,12 @@ export type Database = {
         Args: { p: Json; p_actor: string }
         Returns: Json
       }
+      pa_create_quote: { Args: { p: Json }; Returns: Json }
+      pa_discount_intent: {
+        Args: { p: Json; p_require_reason: boolean }
+        Returns: Json
+      }
+      pa_edit_booking: { Args: { p: Json; p_actor: string }; Returns: Json }
       pa_emit_change: {
         Args: {
           p_actor: string
@@ -6196,22 +6525,52 @@ export type Database = {
         Returns: undefined
       }
       pa_is_protected: { Args: { p_appointment_id: string }; Returns: Json }
+      pa_l1_line_net: { Args: { p_appt: string }; Returns: number }
+      pa_l1_requote: { Args: { p_targets: Json }; Returns: Json }
+      pa_l1_write_pricing: { Args: { p_item: Json }; Returns: undefined }
+      pa_lock_days: {
+        Args: { p_dates: string[]; p_participants: string[] }
+        Returns: undefined
+      }
       pa_lock_slots: { Args: { p_targets: Json }; Returns: undefined }
-      pa_move_appointment: {
-        Args: {
-          p_actor: string
-          p_date: string
-          p_end: string
-          p_id: string
-          p_instr: string
-          p_start: string
-        }
-        Returns: Json
-      }
-      pa_period_update: {
-        Args: { p_actor: string; p_changes: Json; p_group: string }
-        Returns: Json
-      }
+      pa_move_appointment:
+        | {
+            Args: {
+              p_actor: string
+              p_date: string
+              p_end: string
+              p_id: string
+              p_instr: string
+              p_start: string
+            }
+            Returns: Json
+          }
+        | {
+            Args: {
+              p_ack: Json
+              p_actor: string
+              p_date: string
+              p_end: string
+              p_id: string
+              p_instr: string
+              p_start: string
+            }
+            Returns: Json
+          }
+      pa_period_update:
+        | {
+            Args: { p_actor: string; p_changes: Json; p_group: string }
+            Returns: Json
+          }
+        | {
+            Args: {
+              p_ack: Json
+              p_actor: string
+              p_changes: Json
+              p_group: string
+            }
+            Returns: Json
+          }
       pa_price: {
         Args: {
           p_date: string
@@ -6220,6 +6579,50 @@ export type Database = {
           p_start: string
         }
         Returns: number
+      }
+      pa_price_request:
+        | {
+            Args: {
+              p_intent: Json
+              p_office: boolean
+              p_product: string
+              p_slots: Json
+            }
+            Returns: Json
+          }
+        | {
+            Args: {
+              p_context: Json
+              p_intent: Json
+              p_office: boolean
+              p_product: string
+              p_slots: Json
+            }
+            Returns: Json
+          }
+      pa_private_day_context:
+        | {
+            Args: { p_dates: string[]; p_participants: string[] }
+            Returns: Json
+          }
+        | {
+            Args: {
+              p_dates: string[]
+              p_exclude: string[]
+              p_participants: string[]
+            }
+            Returns: Json
+          }
+      pa_product_quote: {
+        Args: {
+          p_date: string
+          p_end: string
+          p_office: boolean
+          p_persons: number
+          p_product: string
+          p_start: string
+        }
+        Returns: Json
       }
       pa_recalc_ticket_total: { Args: { p_ticket: string }; Returns: number }
       pa_reconcile_report: {
@@ -6232,6 +6635,10 @@ export type Database = {
           ticket_id: string
           ticket_total: number
         }[]
+      }
+      pa_same_day_discount: {
+        Args: { p_percent: number; p_slots: Json; p_threshold: number }
+        Returns: Json
       }
       pa_slot_conflicts: {
         Args: {
@@ -6262,6 +6669,10 @@ export type Database = {
         Args: { p_source_id: string; p_target_id: string }
         Returns: Json
       }
+      private_tariff_activation_ok: {
+        Args: { p_product: string }
+        Returns: boolean
+      }
       product_delete: {
         Args: { p_actor: string; p_product: string }
         Returns: Json
@@ -6285,6 +6696,15 @@ export type Database = {
         Returns: Json
       }
       rollback_entity_merge: { Args: { p_merge_id: string }; Returns: Json }
+      save_product_private_tariff_rules: {
+        Args: {
+          p_actor: string
+          p_expected_revision: number
+          p_product: string
+          p_rules: Json
+        }
+        Returns: Json
+      }
       save_product_public_offering: {
         Args: { p_actor: string; p_offering: Json; p_product_id: string }
         Returns: Json
