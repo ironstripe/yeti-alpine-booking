@@ -121,11 +121,11 @@ try {
   const id=await fresh(),leased=await row(id);await ensureConfirmationDelivery(sb,leased.ticket_id,"different@example.invalid");assertEquals(await row(id),leased);
  });
  await test("schema incompatible fails closed before insert/transport",async()=>{
-  await sql`ALTER TABLE booking_email_deliveries RENAME COLUMN delivery_protocol TO hidden_protocol`;await sql`NOTIFY pgrst,'reload schema'`;await new Promise(r=>setTimeout(r,300));const n=calls.length;const[id]=await sql`SELECT id FROM booking_email_deliveries LIMIT 1`;assertEquals((await attempt(id.id)).code,"schema_incompatible");let rejected=false;try{await ensureDelivery(sb,ticket,"invoice","x@example.invalid");}catch{rejected=true;}assert(rejected);assertEquals(calls.length,n);
+  await sql`ALTER TABLE booking_email_deliveries RENAME COLUMN delivery_protocol TO hidden_protocol`;await sql`NOTIFY pgrst,'reload schema';NOTIFY pgrst,'reload config'`;await new Promise(r=>setTimeout(r,300));const n=calls.length;const[id]=await sql`SELECT id FROM booking_email_deliveries LIMIT 1`;assertEquals((await attempt(id.id)).code,"schema_incompatible");let rejected=false;try{await ensureDelivery(sb,ticket,"invoice","x@example.invalid");}catch{rejected=true;}assert(rejected);assertEquals(calls.length,n);
  }); await psql(url,["-f",new URL("supabase/pending/b05_office_confirmation_intent.sql",root).pathname]);
- await sql`ALTER TABLE booking_email_deliveries RENAME COLUMN hidden_protocol TO delivery_protocol`;await sql`NOTIFY pgrst,'reload schema'`;await new Promise(r=>setTimeout(r,300));
+ await sql`ALTER TABLE booking_email_deliveries RENAME COLUMN hidden_protocol TO delivery_protocol`;await sql`NOTIFY pgrst,'reload schema';NOTIFY pgrst,'reload config'`;await new Promise(r=>setTimeout(r,300));
  await sql`INSERT INTO seasons(name,start_date,end_date) VALUES ('Synthetic','2026-12-01','2027-04-15')`;
- await sql`NOTIFY pgrst,'reload schema'`;await new Promise(r=>setTimeout(r,300));
+ await sql`NOTIFY pgrst,'reload schema';NOTIFY pgrst,'reload config'`;await new Promise(r=>setTimeout(r,300));
  const staff=createConfirmationHandler(sb,{transport,authorize:async()=>({userId:"synthetic-office"}),now:()=>clock});
  const invoke=async(t:string,action:string,extra={})=>{const r=await staff(new Request("http://localhost/confirmation",{method:"POST",body:JSON.stringify({ticket_id:t,action,...extra})}));return{status:r.status,...await r.json()};};
  async function fixture(requested:boolean|null,email:string|null="saved@example.invalid",group=false){
@@ -156,8 +156,8 @@ try {
  await test("B05 denies force/recipient/payload, anon/teacher and unavailable intent schema",async()=>{
   const f=await fixture(true),n=calls.length;assertEquals((await invoke(f.ticket,"send",{force:true})).status,400);assertEquals((await invoke(f.ticket,"send",{recipient_email:"evil@example.invalid"})).status,400);
   for(const status of [401,403]){const denied=createConfirmationHandler(sb,{transport,authorize:async()=>new Response("denied",{status})});assertEquals((await denied(new Request("http://localhost/c",{method:"POST",body:JSON.stringify({ticket_id:f.ticket,action:"send"})}))).status,status);}
-  await sql`ALTER TABLE office_booking_confirmation_intents RENAME TO b05_missing`;await sql`NOTIFY pgrst,'reload schema'`;await new Promise(r=>setTimeout(r,300));
-  assertEquals((await invoke(f.ticket,"send")).outcome,"unavailable");assertEquals(calls.length,n);await sql`ALTER TABLE b05_missing RENAME TO office_booking_confirmation_intents`;await sql`NOTIFY pgrst,'reload schema'`;await new Promise(r=>setTimeout(r,300));
+  await sql`ALTER TABLE office_booking_confirmation_intents RENAME TO b05_missing`;await sql`NOTIFY pgrst,'reload schema';NOTIFY pgrst,'reload config'`;await new Promise(r=>setTimeout(r,300));
+  assertEquals((await invoke(f.ticket,"send")).outcome,"unavailable");assertEquals(calls.length,n);await sql`ALTER TABLE b05_missing RENAME TO office_booking_confirmation_intents`;await sql`NOTIFY pgrst,'reload schema';NOTIFY pgrst,'reload config'`;await new Promise(r=>setTimeout(r,300));
  });
  await test("B05 unknown/expired/digest mismatch obey existing B04 guards",async()=>{
   for(const corrupt of [false,true]){const f=await fixture(true);mode="timeout";assertEquals((await invoke(f.ticket,"process")).code,"transport_unknown");mode="ok";
