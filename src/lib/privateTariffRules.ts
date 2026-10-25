@@ -7,7 +7,7 @@
  * product has reviewed rules, and the updated `private-appointments` function is deployed.
  * While OFF, office creates behave exactly as before (no quote call, no quote_revision).
  */
-export const PRODUCT_PRIVATE_TARIFFS_LIVE = false;
+export const PRODUCT_PRIVATE_TARIFFS_LIVE = true;
 
 /**
  * Effective switch. Production builds: exactly PRODUCT_PRIVATE_TARIFFS_LIVE. Local dev server only:

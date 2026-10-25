@@ -4,7 +4,7 @@ import { privateTariffsLive } from "@/lib/privateTariffRules";
 import type { OfficeCart } from "@/lib/officeCartRequest";
 
 /** Release switch: OFF until b07a_office_multi + office-booking are installed/deployed together with B07. */
-export const OFFICE_MULTI_ITEM_LIVE = false;
+export const OFFICE_MULTI_ITEM_LIVE = true;
 export function officeMultiItemLive(): boolean {
   if (!privateTariffsLive()) return false;
   if (OFFICE_MULTI_ITEM_LIVE) return true;

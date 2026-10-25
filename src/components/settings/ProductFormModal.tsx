@@ -35,11 +35,9 @@ import { ProductWithTiers, useCreateProduct, useUpdateProduct } from "@/hooks/us
 import { useEffect, useMemo, useRef, useState } from "react";
 import { PrivateTariffMatrixEditor, PrivateTariffMatrixHandle } from "@/components/settings/PrivateTariffMatrixEditor";
 import { PrivateTariffRulesEditor } from "@/components/settings/PrivateTariffRulesEditor";
-import { privateTariffsLive } from "@/lib/privateTariffRules";
 
 // Temporary release gate: the private tariff table is not installed yet. Flip to true after its migration.
-// Obsolete per-duration matrix (product_private_tariffs): stays OFF; its table/endpoint are not released.
-const PRIVATE_TARIFF_EDITOR_ENABLED = false;
+import { privateTariffEditors } from "@/lib/privateTariffEditors";
 import { cn } from "@/lib/utils";
 import { calculateSavingsPercent, formatPriceCHF, getDefaultPriceTiers } from "@/lib/pricing-utils";
 import { UnsavedChangesDialog } from "@/components/ui/unsaved-changes-dialog";
@@ -572,7 +570,7 @@ export function ProductFormModal({ open, onOpenChange, product, seasonId }: Prod
                 </div>
               )}
               {/* Editable private tariff matrix — gated off until its backend table is installed */}
-              {PRIVATE_TARIFF_EDITOR_ENABLED && isEditing && product?.type === "private" && (
+              {privateTariffEditors(isEditing, product?.type).matrix && (
                 <div className="space-y-2">
                   <FormLabel className="text-base font-medium">Tarife</FormLabel>
                   <PrivateTariffMatrixEditor
@@ -583,7 +581,7 @@ export function ProductFormModal({ open, onOpenChange, product, seasonId }: Prod
                 </div>
               )}
               {/* B07-P product-configured tariff rules — follows the B07 release switch */}
-              {privateTariffsLive() && isEditing && product?.type === "private" && (
+              {privateTariffEditors(isEditing, product?.type).rules && product && (
                 <div className="space-y-2">
                   <FormLabel className="text-base font-medium">Tarifregeln (Zeitfenster)</FormLabel>
                   <PrivateTariffRulesEditor productId={product.id} />
