@@ -51,6 +51,7 @@ async def main():
           createRoot(document.getElementById('fixture')).render(React.createElement(QueryClientProvider, { client: new QueryClient() }, React.createElement(Probe)));
         }""")
         out_el = page.locator("#out")
+        await page.wait_for_timeout(1500); print("DBG", await page.evaluate("document.getElementById('out')?.textContent"), calls[:4])
         async def expect(v):
             await page.wait_for_function("v => document.getElementById('out')?.textContent === v", arg=v, timeout=5000)
         await expect("lunch-26:30"); print("26/27 course -> lunch-26")
