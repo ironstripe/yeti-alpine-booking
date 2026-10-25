@@ -40,12 +40,15 @@ Nothing below has been run. Order matters; each SQL file is one tracked migratio
 **Edge Functions to deploy (all consumers of changed SQL or shared code):**
 - B02 / B04 delivery + invoice consumers: `issue-invoice`, `confirm-booking`, `course-booking`, `retry-course-booking-delivery`, `retry-booking-confirmation` (legacy B04 consumer), `send-invoice` (B06), `staff-booking-confirmation` (B05).
 - Booking writers: `private-appointments` (B03a edit, L1, B07-P, `client_outdated` refusal — deploy only after step 9), `office-booking` (B07a, after step 11), `staff-group-booking` (B08/B09).
+- Public product list: `get-products` (review 991688d9: excludes private products with a tariff revision; must be deployed BEFORE step 13 so activation never adds a public offer; safe before step 9 — missing table means nothing excluded).
 - Tariff management: `product-private-tariff-rules` (after step 9), `product-private-tariffs`, `product-management` (unchanged contract, redeploy only if its bundle changed).
 - Also importing changed shared birth-date/lunch code (redeploy for consistency, no contract change): `create-booking-from-extraction`, `submit-booking-request`, `get-booking-request`, `intake-booking`. Not deployed in this release: `get-website-products`, `public-private-tariff-display` (group 3).
 
 **Client:** set `PRODUCT_PRIVATE_TARIFFS_LIVE = true` and `OFFICE_MULTI_ITEM_LIVE = true` and publish in the same window as steps 9–13 + `private-appointments`/`office-booking` deploy.
 
 **Old clients (explicit decision):** a screen loaded before the publish omits the quote revisions. After steps 9 + `private-appointments` deploy it is refused with `invalid client_outdated` (old screens read "Ungültige Angaben. Es wurde nichts gespeichert."); no booking, no legacy CHF 170-style price. Office must reload. Keep the window between step 9 and the publish short or pause Office private bookings during it. `office-booking` is never called by old clients.
+
+**Activation vs public offer (checked 991688d9):** `get-website-products` ignores `is_active` (already lists both products, `online_bookable: false`), so step 13 does not change it; `get-products` would have listed them from 1.12.2026 with flat CHF 75 — prevented by the redeployed `get-products` above. No `online_bookable` column exists.
 
 **Verify after release:** one synthetic private and one mixed cart on a test customer in Office, with mail OFF; check ticket total = summary total, history amount, no e-mail queued.
 
