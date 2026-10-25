@@ -329,6 +329,7 @@ async function invoiceContent(sb: Client, ticketId: string, invoiceId?: string):
     if ((invoices?.length ?? 0) !== 1) return { ok: false, code: "invoice_missing", message: `${invoices?.length ?? 0} offene Rechnungen` };
     inv = invoices[0];
   }
+  if (!inv) return { ok: false, code: "invoice_missing", message: "Rechnung nicht gefunden" };
   const { data: t, error: ticketRead } = await sb.from("tickets").select("ticket_number, customer_id").eq("id", ticketId).maybeSingle();
   const { data: c, error: customerRead } = await sb.from("customers").select("first_name, last_name, street, house_number, zip, city")
     .eq("id", inv.customer_id ?? t?.customer_id).maybeSingle();
@@ -347,7 +348,7 @@ async function invoiceContent(sb: Client, ticketId: string, invoiceId?: string):
   });
 
   const doc = await renderInvoicePdf({
-    invoice: inv, school: school?.[0] ?? { name: "" }, customer: c ?? { last_name: "" }, ticketNumber: t?.ticket_number ?? "", lines,
+    invoice: inv as Parameters<typeof renderInvoicePdf>[0]["invoice"], school: school?.[0] ?? { name: "" }, customer: c ?? { last_name: "" }, ticketNumber: t?.ticket_number ?? "", lines,
   });
   if (!doc.ok) return { ok: false, code: doc.code, message: doc.message, templateId: tpl.id };
 
