@@ -515,3 +515,91 @@ REVOKE ALL ON FUNCTION public.save_product_private_tariff_rules(uuid, integer, j
 GRANT EXECUTE ON FUNCTION public.save_product_private_tariff_rules(uuid, integer, jsonb, uuid) TO service_role;
 REVOKE ALL ON FUNCTION public.pa_create_booking(jsonb, uuid) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.pa_create_booking(jsonb, uuid) TO service_role;
+REVOKE ALL ON FUNCTION public.pa_same_day_discount(jsonb, numeric, integer) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.pa_same_day_discount(jsonb, numeric, integer) TO service_role;
+REVOKE ALL ON FUNCTION public.pa_discount_intent(jsonb, boolean) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.pa_discount_intent(jsonb, boolean) TO service_role;
+REVOKE ALL ON FUNCTION public.pa_price_request(uuid, jsonb, jsonb, boolean) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.pa_price_request(uuid, jsonb, jsonb, boolean) TO service_role;
+REVOKE ALL ON FUNCTION public.pldr_bump_revision() FROM PUBLIC, anon, authenticated;
+
+-- B07-P2 controlled transition (L1): move/period_update/edit still price with legacy pa_price.
+-- For appointments priced by product tariffs (private_appointment_pricing row) every change that would
+-- reprice or change discount eligibility is REFUSED (SQLSTATE YT001, whole transaction rolled back)
+-- until the edit/move paths use pa_price_request. Teacher-only reassignment, notes, meeting point,
+-- confirmation and status changes stay allowed. Legacy appointments (no pricing row) are unaffected.
+CREATE OR REPLACE FUNCTION public.pa_tariff_transition_guard() RETURNS trigger
+LANGUAGE plpgsql SET search_path TO 'public' AS $$
+DECLARE v_appt uuid;
+BEGIN
+  IF TG_TABLE_NAME = 'private_appointments' THEN
+    IF (NEW.date, NEW.time_start, NEW.time_end, NEW.price) IS DISTINCT FROM (OLD.date, OLD.time_start, OLD.time_end, OLD.price)
+       AND EXISTS (SELECT 1 FROM public.private_appointment_pricing WHERE appointment_id = OLD.id) THEN
+      RAISE EXCEPTION USING ERRCODE = 'YT001', MESSAGE = 'tariff_transition_required';
+    END IF;
+    RETURN NEW;
+  ELSIF TG_TABLE_NAME = 'ticket_items' THEN
+    IF OLD.appointment_id IS NOT NULL
+       AND (NEW.unit_price, NEW.quantity, NEW.discount_percent, NEW.discount_reason) IS DISTINCT FROM
+           (OLD.unit_price, OLD.quantity, OLD.discount_percent, OLD.discount_reason)
+       AND EXISTS (SELECT 1 FROM public.private_appointment_pricing WHERE appointment_id = OLD.appointment_id) THEN
+      RAISE EXCEPTION USING ERRCODE = 'YT001', MESSAGE = 'tariff_transition_required';
+    END IF;
+    RETURN NEW;
+  ELSE -- private_appointment_participants: participant changes alter persons/eligibility
+    v_appt := CASE WHEN TG_OP = 'DELETE' THEN OLD.appointment_id ELSE NEW.appointment_id END;
+    IF EXISTS (SELECT 1 FROM public.private_appointment_pricing WHERE appointment_id = v_appt)
+       AND EXISTS (SELECT 1 FROM public.private_appointments WHERE id = v_appt) THEN
+      RAISE EXCEPTION USING ERRCODE = 'YT001', MESSAGE = 'tariff_transition_required';
+    END IF;
+    RETURN CASE WHEN TG_OP = 'DELETE' THEN OLD ELSE NEW END;
+  END IF;
+END $$;
+REVOKE ALL ON FUNCTION public.pa_tariff_transition_guard() FROM PUBLIC, anon, authenticated;
+CREATE TRIGGER trg_pa_tariff_transition_appt BEFORE UPDATE ON public.private_appointments
+  FOR EACH ROW EXECUTE FUNCTION public.pa_tariff_transition_guard();
+CREATE TRIGGER trg_pa_tariff_transition_item BEFORE UPDATE ON public.ticket_items
+  FOR EACH ROW EXECUTE FUNCTION public.pa_tariff_transition_guard();
+CREATE TRIGGER trg_pa_tariff_transition_parts BEFORE INSERT OR DELETE ON public.private_appointment_participants
+  FOR EACH ROW EXECUTE FUNCTION public.pa_tariff_transition_guard();
+
+-- pa_apply_slot: body of migration 0001 + one change: a product-tariff-priced appointment keeps its stored
+-- price on a teacher-only change (legacy pa_price must never reprice it); a date/time change is refused.
+CREATE OR REPLACE FUNCTION public.pa_apply_slot(p_id uuid, p_date date, p_start time without time zone, p_end time without time zone, p_instr uuid) RETURNS jsonb
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+DECLARE a record; v_changed boolean; v_persons int; v_price numeric; v_conf text; v_tariffed boolean;
+BEGIN
+  SELECT * INTO a FROM public.private_appointments WHERE id = p_id;
+  v_changed := a.date IS DISTINCT FROM p_date OR a.time_start IS DISTINCT FROM p_start
+            OR a.time_end IS DISTINCT FROM p_end OR a.instructor_id IS DISTINCT FROM p_instr;
+  v_tariffed := EXISTS (SELECT 1 FROM public.private_appointment_pricing WHERE appointment_id = p_id);
+  IF v_tariffed THEN
+    IF a.date IS DISTINCT FROM p_date OR a.time_start IS DISTINCT FROM p_start OR a.time_end IS DISTINCT FROM p_end THEN
+      RAISE EXCEPTION USING ERRCODE = 'YT001', MESSAGE = 'tariff_transition_required';
+    END IF;
+    v_price := a.price;
+  ELSE
+    SELECT greatest(count(*),1) INTO v_persons FROM public.private_appointment_participants WHERE appointment_id = p_id;
+    v_price := public.pa_price(p_date, p_start, p_end, v_persons);
+  END IF;
+  v_conf := CASE WHEN v_changed THEN 'pending' ELSE a.instructor_confirmation END;
+  UPDATE public.private_appointments
+     SET date = p_date, time_start = p_start, time_end = p_end, instructor_id = p_instr, price = v_price,
+         instructor_confirmation = v_conf,
+         confirmed_at = CASE WHEN v_changed THEN NULL ELSE confirmed_at END,
+         confirmed_by = CASE WHEN v_changed THEN NULL ELSE confirmed_by END
+   WHERE id = p_id;
+  UPDATE public.ticket_items
+     SET date = p_date, time_start = p_start, time_end = p_end, instructor_id = p_instr,
+         instructor_confirmation = v_conf, unit_price = v_price, quantity = 1,
+         instructor_confirmed_at = CASE WHEN v_changed THEN NULL ELSE instructor_confirmed_at END,
+         confirmation_reset_at = CASE WHEN v_changed AND a.instructor_confirmation IS NOT NULL AND a.instructor_confirmation <> 'pending' THEN now() ELSE confirmation_reset_at END,
+         confirmation_reset_reason = CASE WHEN v_changed AND a.instructor_confirmation IS NOT NULL AND a.instructor_confirmation <> 'pending' THEN 'private_appointment_changed' ELSE confirmation_reset_reason END
+   WHERE appointment_id = p_id;
+  RETURN jsonb_build_object('changed', v_changed, 'price', v_price,
+    'confirmation_reset', v_changed AND a.instructor_confirmation IS NOT NULL AND a.instructor_confirmation <> 'pending');
+END $$;
+REVOKE ALL ON FUNCTION public.pa_apply_slot(uuid, date, time, time, uuid) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.pa_apply_slot(uuid, date, time, time, uuid) TO service_role;
