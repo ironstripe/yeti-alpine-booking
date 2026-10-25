@@ -121,7 +121,9 @@ try {
     const q = await quote(A, [slot(D1, '09:00', '10:00'), slot(D1, '10:00', '11:00'), slot(D2, '10:00', '12:00'), slot(D2, '12:00', '14:00')]);
     assert.equal(q.ok, true, JSON.stringify(q));
     assert.deepEqual(q.items.map((x) => [Number(x.price), x.mode]), [[75, 'hourly'], [85, 'hourly'], [190, 'exact_block'], [150, 'hourly']]);
-    assert.equal(Number(q.total), 500); assert.equal(q.revision, 1);
+    assert.equal(Number(q.gross_total), 500); assert.equal(q.revision, 1);
+    // D2 has 10-12 + 12-14 = 240 min for the same person => configured automatic 10% on those two lines only.
+    assert.equal(Number(q.discount_total), 34); assert.equal(Number(q.total), 466); assert.equal(q.discount_source, 'automatic');
     const two = await quote(A, [slot(D2, '10:00', '12:00'), slot(D1, '09:00', '10:00')], 2);
     assert.deepEqual(two.items.map((x) => Number(x.price)), [220, 95]);
   });
