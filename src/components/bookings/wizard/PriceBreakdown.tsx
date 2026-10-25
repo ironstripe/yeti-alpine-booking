@@ -291,10 +291,10 @@ export function PriceBreakdown({
   // Calculate lunch from lunchSelections (for group courses) or includeLunch (for private)
   // B09: lunch priced per booked course season + dates; no fallback (unresolved => CHF 0 shown, save refused).
   const lunchParticipantMode = state.useParticipantSpecificBooking && Object.keys(state.participantBookings).length > 0;
-  const lunchContexts = useMemo(() => productType !== "group" ? [] : lunchParticipantMode
+  const lunchContexts = useMemo(() => productType !== "group" ? (state.includeLunch ? [{ productId: state.productId, dates: state.selectedDates }] : []) : lunchParticipantMode
     ? pricingParticipants.map((p) => state.participantBookings[p.id]).filter(Boolean).map((b) => ({ productId: b!.groupServer?.productId, dates: b!.dates }))
     : [{ productId: state.groupPlan?.server?.productId, dates: state.selectedDates }],
-  [productType, lunchParticipantMode, pricingParticipants, state.participantBookings, state.groupPlan, state.selectedDates]);
+  [productType, state.includeLunch, state.productId, lunchParticipantMode, pricingParticipants, state.participantBookings, state.groupPlan, state.selectedDates]);
   const lunchResolved = useLunchProducts(lunchContexts);
   const lunchPriceFor = (productId: string | null | undefined, dates: string[]) =>
     lunchResolved.find((r) => r.ctx.productId === productId && r.ctx.dates.join() === dates.join())?.data?.price ?? 0;
