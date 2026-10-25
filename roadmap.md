@@ -7,6 +7,7 @@
 - [ ] B04 release and HB081/082/086/093 operational retests await separate authorisation and original issue acceptance criteria; not part of implemented preview checks.
 
 ## B03b — canonical read projection (authorised, queued)
+- [ ] Resolve only the Workbox 3-MiB precache blocker, verify automatic preview build, then resume authorised B03b with synthetic checks; no release/live writes.
 - [ ] Implement booking-detail canonical people/schedule projection and zero-preserving amounts; verify new-only document boundary and R1–R8. Blocked before dependent edits: current HEAD `4e6b9b7b41da50e851a358c97ab405deb559d144` automatic preview build fails at Workbox precache (bundle 3,148.17 kB exceeds configured 3 MiB); B03a focused SQL/unit checks passed. See docs/b03b-verification.md. No implementation or release performed.
 
 ## B03a focused review follow-up
