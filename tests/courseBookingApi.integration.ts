@@ -53,9 +53,13 @@ const dbUrl = u.toString();
 const sql = postgres(dbUrl, { onnotice: () => {}, ssl: false, max: 5 });
 let rest: Deno.ChildProcess | null = null;
 try {
-  for (const f of ["tests/sql/baseline_prelude.sql", "tests/sql/production_schema_baseline.sql", "supabase/pending/bc_2627_atomic_course_booking.sql",
-    // R1: issueInvoice freezes the content snapshot; its column ships with the same release.
-    "supabase/pending/r1_invoice_content_snapshot.sql"]) {
+  // Released chain: baseline + atomic course booking + tracked 0000-0027 (0028/0029 need the hosted 26/27 products)
+  // + staged R1 SQL when present (so the same setup runs on a pre-R1 checkout as a baseline).
+  const tracked = [...Deno.readDirSync(new URL("drizzle/migrations/", root))].map((e) => e.name)
+    .filter((n) => /^\d{4}_.*\.sql$/.test(n) && Number(n.slice(0, 4)) <= 27).sort().map((n) => `drizzle/migrations/${n}`);
+  const r1 = ["r1_pa_move_keep_unassigned.sql", "r1_group_created_total_event.sql", "r1_invoice_content_snapshot.sql"]
+    .map((n) => `supabase/pending/${n}`).filter((f) => { try { Deno.statSync(new URL(f, root)); return true; } catch { return false; } });
+  for (const f of ["tests/sql/baseline_prelude.sql", "tests/sql/production_schema_baseline.sql", "supabase/pending/bc_2627_atomic_course_booking.sql", ...tracked, ...r1]) {
     await psql(dbUrl, ["-f", new URL(f, root).pathname]);
   }
   await psql(dbUrl, [], fixtureSql);
