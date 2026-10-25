@@ -32,6 +32,8 @@ export interface StaffGroupLine {
   lunch_dates?: string[];
   vegetarian?: boolean;
   expected_lunch_unit_price?: number;
+  /** Preview's season-resolved lunch product; server re-resolves and rejects a mismatch. */
+  lunch_product_id?: string;
   participant_id?: string;
   guest?: { guest_key: string; first_name: string; last_name?: string; birth_date: string; sport?: string; level?: string };
 }
@@ -54,7 +56,9 @@ const FIELD_MESSAGES: Record<string, string> = {
   lunch_full_day: "Mittagessen und Betreuung sind nur bei Ganztages-Gruppenkursen möglich.",
   lunch: "Mittagsbetreuung nur an gebuchten Kurstagen möglich.",
   lunch_price_changed: "Der Preis der Mittagsbetreuung hat sich geändert – bitte prüfen.",
-  lunch_product: "Für Mittagessen und Betreuung muss genau ein aktives Produkt zu CHF 30 pro Person und Tag hinterlegt sein.",
+  lunch_product: "Für Mittagessen und Betreuung muss in der Saison des gebuchten Kurses genau ein aktives Produkt zu CHF 30 pro Person und Tag hinterlegt sein.",
+  lunch_season: "Die Mittagsdaten liegen nicht in der Saison des gebuchten Kurses.",
+  lunch_product_mismatch: "Das Mittagsprodukt passt nicht zur Saison des gebuchten Kurses – bitte Buchung neu prüfen.",
   line_shape: "Ungültige Buchungsdaten – bitte Kurs neu wählen.",
   payment_method: "Ungültige Zahlungsart.",
   billing_partner_id: "Bitte das Hotel wählen, das die Rechnung übernimmt.",
