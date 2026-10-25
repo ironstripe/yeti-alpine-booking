@@ -27,7 +27,7 @@ async function t(name, fn) {
 const id = (n) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
 const S = id(1), S_OLD = id(9), P4 = id(2), P2 = id(3), P_OLD = id(4), ACTOR = id(0xbeef), CUST = id(0xc1), CUST2 = id(0xc2);
 const PA = id(0xa1), PB = id(0xa2), PC = id(0xa3), PX = id(0xa9);
-const C_NOMP = id(0x150), LUNCH = id(0x5), C_CONC = id(0x160);
+const C_NOMP = id(0x150), LUNCH = id(0x5), LUNCH_OLD = id(0x6), C_CONC = id(0x160), C_B09 = id(0x170), C_B09B = id(0x180);
 const C_BLUE = id(0x100), C_RED = id(0x110), C_INACTIVE = id(0x120), C_SB = id(0x130), C_OLD = id(0x140);
 const WEEK = ['2026-12-14', '2026-12-15', '2026-12-16', '2026-12-17', '2026-12-18'];
 const XMAS = ['2026-12-21', '2026-12-22', '2026-12-23', '2026-12-24', '2026-12-25'];
@@ -54,7 +54,7 @@ async function seedCourse(cid, name, { mp = 'Täli', discipline = 'ski', active 
 }
 
 try {
-  for (const f of ['tests/sql/baseline_prelude.sql', 'tests/sql/production_schema_baseline.sql', 'supabase/pending/course_archive_delete.sql', 'supabase/pending/bc_2627_staff_group_booking.sql', 'supabase/pending/bc_2627_staff_group_booking_v2.sql', 'supabase/pending/staff_booking_finalize.sql', 'supabase/pending/staff_guest_level.sql', 'supabase/pending/group_lunch_full_day.sql']) {
+  for (const f of ['tests/sql/baseline_prelude.sql', 'tests/sql/production_schema_baseline.sql', 'supabase/pending/course_archive_delete.sql', 'supabase/pending/bc_2627_staff_group_booking.sql', 'supabase/pending/bc_2627_staff_group_booking_v2.sql', 'supabase/pending/staff_booking_finalize.sql', 'supabase/pending/staff_guest_level.sql', 'supabase/pending/group_lunch_full_day.sql', 'supabase/pending/group_lunch_season.sql']) {
     const r = psqlFile(f); if (r.status !== 0) throw new Error(`psql ${f}: ${r.stderr}`);
   }
   await sql.unsafe(`
@@ -79,7 +79,8 @@ try {
   await seedCourse(C_SB, 'Snowboard Kids', { discipline: 'snowboard' });
   await seedCourse(C_NOMP, 'Ski Ohne Treffpunkt', { mp: null });
   await seedCourse(C_CONC, 'Ski Parallel');
-  await sql`INSERT INTO products(id,name,type,price,season_id,is_active) VALUES (${LUNCH},'Mittagsbetreuung','lunch',30,${S_OLD},true)`;
+  await sql`INSERT INTO products(id,name,type,price,season_id,is_active) VALUES (${LUNCH},'Mittagsbetreuung','lunch',30,${S},true),(${LUNCH_OLD},'Mittagsbetreuung','lunch',30,${S_OLD},true)`;
+  await seedCourse(C_B09, 'Ski B09 Saison'); await seedCourse(C_B09B, 'Ski B09 Zweit');
   await seedCourse(C_OLD, 'Alt 25/26', { product: P_OLD, variants: [[P_OLD, [5]]] });
 
   await t('options: 14-18 Dec ski lists active 26/27 courses with exact quote, every AM/PM block, no inactive/snowboard/wrong-season', async () => {
@@ -296,6 +297,62 @@ try {
     }
     const ok = await sql.begin(async (tx) => { await tx.unsafe('SET LOCAL ROLE service_role'); return tx.unsafe(`SELECT has_function_privilege('service_role','public.bc_2627_staff_group_book(jsonb,uuid)','EXECUTE') x`); });
     assert.equal(ok[0].x, true);
+  });
+
+  // ---------- B09: season-aware lunch product (two active CHF30 lunch products in different seasons) ----------
+  const lunchItems = (t_) => sql`SELECT ti.product_id, ti.date::text d, ti.unit_price, cp.first_name FROM ticket_items ti JOIN customer_participants cp ON cp.id=ti.participant_id WHERE ticket_id=${t_} AND item_type='lunch' ORDER BY cp.first_name, ti.date`;
+  await t('B09: booked 26/27 course picks its own season lunch, never the other active season product; 2 people x 2 days = 4 items CHF120', async () => {
+    const two = [XMAS[0], XMAS[1]];
+    const r = await book({ submission_key: key(), customer_id: CUST2, lines: ['A', 'B'].map((n) =>
+      line({ course_id: C_B09, dates: two, meeting_point: 'Täli', guest: { guest_key: 'b09-' + n, first_name: 'B09' + n, birth_date: '2018-01-01' }, lunch_dates: two, expected_lunch_unit_price: 30, lunch_product_id: LUNCH })) });
+    assert.ok(r.ok, JSON.stringify(r));
+    const l = await lunchItems(r.ticket_id);
+    assert.deepEqual(l.map((x) => `${x.first_name}:${x.d}:${x.product_id === LUNCH}`), ['B09A:2026-12-21:true', 'B09A:2026-12-22:true', 'B09B:2026-12-21:true', 'B09B:2026-12-22:true']);
+    assert.equal(l.reduce((a, x) => a + Number(x.unit_price), 0), 120);
+    assert.equal(Number(r.total), 2 * 200 + 120, 'two-day tier per person + 4 lunches, no AM/PM double charge');
+  });
+  const g1 = (k) => ({ guest_key: k, first_name: k, birth_date: '2018-01-01' });
+  const lunchLine = (k, extra = {}) => line({ course_id: C_B09B, dates: [XMAS[2]], meeting_point: 'Täli', guest: g1(k), lunch_dates: [XMAS[2]], expected_lunch_unit_price: 30, ...extra });
+  await t('B09: forged/other-season lunch_product_id rejected before any write', async () => {
+    const before = await counts();
+    assert.equal((await book({ submission_key: key(), customer_id: CUST2, lines: [lunchLine('forge', { lunch_product_id: LUNCH_OLD })] })).field, 'lunch_product_mismatch');
+    assert.equal((await book({ submission_key: key(), customer_id: CUST2, lines: [lunchLine('forge2', { lunch_product_id: P4 })] })).field, 'lunch_product_mismatch');
+    assert.deepEqual(await counts(), before);
+  });
+  await t('B09: same-season duplicate or missing lunch product fails closed, no writes, other season unchanged', async () => {
+    const before = await counts(); const DUP = id(0x7);
+    await sql`INSERT INTO products(id,name,type,price,season_id,is_active) VALUES (${DUP},'Mittag Duplikat','lunch',30,${S},true)`;
+    try { assert.equal((await book({ submission_key: key(), customer_id: CUST2, lines: [lunchLine('dup')] })).field, 'lunch_product'); }
+    finally { await sql`DELETE FROM products WHERE id=${DUP}`; }
+    await sql`UPDATE products SET is_active=false WHERE id=${LUNCH}`;
+    try { assert.equal((await book({ submission_key: key(), customer_id: CUST2, lines: [lunchLine('miss')] })).field, 'lunch_product'); }
+    finally { await sql`UPDATE products SET is_active=true WHERE id=${LUNCH}`; }
+    assert.deepEqual(await counts(), before);
+    assert.equal((await sql`SELECT is_active FROM products WHERE id=${LUNCH_OLD}`)[0].is_active, true);
+  });
+  await t('B09: lunch date outside the booked product season rejected (lunch_season), no writes', async () => {
+    const before = await counts();
+    await sql`UPDATE seasons SET end_date='2026-12-22' WHERE id=${S}`;
+    try { assert.equal((await book({ submission_key: key(), customer_id: CUST2, lines: [lunchLine('season')] })).field, 'lunch_season'); }
+    finally { await sql`UPDATE seasons SET end_date='2027-04-15' WHERE id=${S}`; }
+    assert.deepEqual(await counts(), before);
+  });
+  await t('B09: no-lunch booking unaffected even with lunch configuration unavailable', async () => {
+    await sql`UPDATE products SET is_active=false WHERE type='lunch'`;
+    try {
+      const r = await book({ submission_key: key(), customer_id: CUST2, lines: [line({ course_id: C_B09B, dates: [XMAS[3]], meeting_point: 'Täli', guest: g1('nolunch') })] });
+      assert.ok(r.ok, JSON.stringify(r)); assert.equal((await lunchItems(r.ticket_id)).length, 0);
+    } finally { await sql`UPDATE products SET is_active=true WHERE id IN (${LUNCH}, ${LUNCH_OLD})`; }
+  });
+  await t('B09: correct season id accepted; rollback restores previous global body (then refuses two active lunches) and lines stay', async () => {
+    const r = await book({ submission_key: key(), customer_id: CUST2, lines: [lunchLine('okid', { lunch_product_id: LUNCH })] });
+    assert.ok(r.ok, JSON.stringify(r)); const kept = (await lunchItems(r.ticket_id)).length; assert.equal(kept, 1);
+    const rb = psqlFile('supabase/pending/group_lunch_season_rollback.sql'); assert.equal(rb.status, 0, rb.stderr);
+    const body = (await sql`SELECT pg_get_functiondef('public.bc_2627_staff_group_book(jsonb,uuid)'::regprocedure) b`)[0].b;
+    assert.ok(!body.includes('lunch_season') && body.includes('lunch_full_day'));
+    assert.equal((await book({ submission_key: key(), customer_id: CUST2, lines: [lunchLine('afterrb')] })).field, 'lunch_product');
+    assert.equal((await lunchItems(r.ticket_id)).length, kept);
+    const re = psqlFile('supabase/pending/group_lunch_season.sql'); assert.equal(re.status, 0, re.stderr);
   });
   await t('rollback script removes functions and keeps submissions table', async () => {
     const r = psqlFile('supabase/pending/bc_2627_staff_group_booking_rollback.sql'); assert.equal(r.status, 0, r.stderr);
