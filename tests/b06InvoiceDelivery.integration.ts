@@ -113,8 +113,11 @@ try {
     assertEquals(new TextDecoder().decode(Uint8Array.from(atob(mail.attachments![0].content), (c) => c.charCodeAt(0)).slice(0, 5)), "%PDF-");
     assert(mail.html.includes("Müller"));
     assertEquals(await invoiceRow(f.invoice), before); // no financial/status/sent_at mutation
-    assertEquals((await invoke(f.invoice, "status")).outcome, "sent");
-    assertEquals((await invoke(f.invoice, "send")).outcome, "already_sent");
+    const st = await invoke(f.invoice, "status");
+    const re = await invoke(f.invoice, "send");
+    console.log("DEBUG status:", JSON.stringify(st), "resend:", JSON.stringify(re));
+    assertEquals(st.outcome, "sent");
+    assertEquals(re.outcome, "already_sent");
     assertEquals(calls.length, 1);
   });
 
