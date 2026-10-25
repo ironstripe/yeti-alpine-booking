@@ -467,8 +467,8 @@ export function PriceBreakdown({
               <div>
                 <p className="font-medium">{groupCourseCalculation.productName || "Gruppenkurs"}</p>
                 <p className="text-sm text-muted-foreground">
-                  {state.selectedParticipants.length > 1 
-                    ? `${state.selectedParticipants.length} Teilnehmer × ${daysCount} Tag${daysCount > 1 ? "e" : ""}`
+                  {pricingParticipants.length > 1
+                    ? `${pricingParticipants.length} Teilnehmer × ${daysCount} Tag${daysCount > 1 ? "e" : ""}`
                     : `${daysCount} Tag${daysCount > 1 ? "e" : ""}`
                   }
                 </p>
