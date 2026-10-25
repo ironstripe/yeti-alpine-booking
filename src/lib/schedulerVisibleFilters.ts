@@ -35,7 +35,7 @@ export function hiddenAbsentInstructorIds(
       for (const a of rows) {
         // Deployment gates are unavailable-window projections, not confirmed absence records.
         // In particular empty/unknown windows cannot prove absence.
-        if (a.status !== "confirmed" || isGroupReserve(a) || a.type === "office_duty" || a.id.startsWith("deployment-")) continue;
+        if (a.status !== "confirmed" || a.visibilityConfirmed === false || isGroupReserve(a) || a.type === "office_duty" || a.id.startsWith("deployment-")) continue;
         if (!validDate(a.startDate) || !validDate(a.endDate) || a.startDate > a.endDate) continue;
         if (date < a.startDate || date > a.endDate) continue;
         if (a.isFullDay === true) intervals.push([OPERATIONAL_START_MINUTES, OPERATIONAL_END_MINUTES]);

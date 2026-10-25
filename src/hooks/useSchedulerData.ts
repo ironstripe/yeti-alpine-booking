@@ -573,6 +573,7 @@ export function useSchedulerData({ startDate, endDate, instructorId }: UseSchedu
       isFullDay: a.is_full_day ?? true,
       timeStart: a.time_start || undefined,
       timeEnd: a.time_end || undefined,
+      visibilityConfirmed: a.status === "confirmed" && typeof a.is_full_day === "boolean",
     }));
 
   // Combine one-time absences with expanded recurring blocks

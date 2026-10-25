@@ -19,6 +19,7 @@ describe("scheduler displayed-range absence", () => {
   for (const status of ["pending", "rejected"] as const) test(`${status} not evidence`, () => expect(hides([absence({ status })])).toBe(false));
   for (const time of [undefined, "", "wrong", "24:00", "09:60", "16:00"]) test(`invalid/reversed start ${time} stays`, () => expect(hides([absence({ isFullDay: false, timeStart: time, timeEnd: "16:00" })])).toBe(false));
   test("invalid date stays", () => expect(hides([absence({ startDate: "2026-02-30" })])).toBe(false));
+  test("defaulted unknown raw full-day/status facts stay visible", () => expect(hides([absence({ visibilityConfirmed: false })])).toBe(false));
   for (const type of ["private", "group", "office_shift"] as const) test(`${type} assignment protects regardless of booking display filter`, () => expect(hides([absence()], week, [booking(type)])).toBe(false));
   test("on-call stays even with full absence", () => expect(hides([absence()], week, [], "on_call")).toBe(false));
   test("not_available status alone is not absence", () => expect(hides([], week, [], "unavailable")).toBe(false));
