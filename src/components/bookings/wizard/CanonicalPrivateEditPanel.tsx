@@ -66,7 +66,9 @@ export function CanonicalPrivateEditPanel({ snapshot }: { snapshot: CanonicalEdi
     if (quoteRequired && !currentQuote) return;
     setBusy("save");
     try {
-      await paEditApply(buildEditRequest(snapshot, draft, currentQuote)!);
+      const applyRequest = buildEditRequest(snapshot, draft, currentQuote);
+      if (!applyRequest) return;
+      await paEditApply(applyRequest);
       for (const k of ["tickets", "ticket", "ticket-detail", "booking-detail", "scheduler-bookings"]) queryClient.invalidateQueries({ queryKey: [k] });
       toast.success("Buchung wurde aktualisiert");
       resetWizard();
@@ -117,17 +119,19 @@ export function CanonicalPrivateEditPanel({ snapshot }: { snapshot: CanonicalEdi
                   {q && q.participants_changed && <strong className="ml-2">→ {chf(q.new_price)}</strong>}
                 </span>
               </div>
+              <div className="grid gap-3 md:grid-cols-2">
+                <div><Label htmlFor={`ce-int-${a.id}`}>Interne Notiz</Label>
+                  <Textarea id={`ce-int-${a.id}`} value={draft.internalNotes[a.id]} onChange={(e) => update({ internalNotes: { ...draft.internalNotes, [a.id]: e.target.value } })} /></div>
+                <div><Label htmlFor={`ce-ins-${a.id}`}>Notiz für Lehrperson</Label>
+                  <Textarea id={`ce-ins-${a.id}`} value={draft.instructorNotes[a.id]} onChange={(e) => update({ instructorNotes: { ...draft.instructorNotes, [a.id]: e.target.value } })} /></div>
+              </div>
             </CardContent>
           </Card>
         );
       })}
 
       <Card>
-        <CardContent className="grid gap-3 pt-4 md:grid-cols-3">
-          <div><Label htmlFor="ce-int">Interne Notiz</Label>
-            <Textarea id="ce-int" value={draft.internalNotes} onChange={(e) => update({ internalNotes: e.target.value })} /></div>
-          <div><Label htmlFor="ce-ins">Notiz für Lehrperson</Label>
-            <Textarea id="ce-ins" value={draft.instructorNotes} onChange={(e) => update({ instructorNotes: e.target.value })} /></div>
+        <CardContent className="pt-4">
           <div><Label htmlFor="ce-cust">Kundennotiz</Label>
             <Textarea id="ce-cust" value={draft.customerNotes} onChange={(e) => update({ customerNotes: e.target.value })} /></div>
         </CardContent>

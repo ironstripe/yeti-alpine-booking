@@ -10,11 +10,11 @@ TICKET = {"id": T, "ticket_number": "TEST-ONLY-1", "customer_id": "c-syn", "tota
           "customer": {"id": "c-syn", "first_name": "Synth", "last_name": "Kunde", "email": None},
           "ticket_items": [
               {"id": "i1", "date": "2026-12-26", "time_start": "10:00:00", "time_end": "11:00:00", "instructor_id": "x1", "meeting_point": "sammelplatz_gorfion",
-               "participant_id": None, "product_id": "prod", "unit_price": 105, "quantity": 1, "discount_percent": 0, "appointment_id": A1,
-               "internal_notes": None, "instructor_notes": None, "product": {"id": "prod", "name": "Privat", "type": "private"}, "instructor": None, "participant": None},
+               "participant_id": None, "product_id": "prod", "unit_price": 105, "quantity": 1, "line_total": 105, "discount_percent": 0, "appointment_id": A1,
+               "internal_notes": "lesson one", "instructor_notes": "teacher one", "product": {"id": "prod", "name": "Privat", "type": "private"}, "instructor": None, "participant": None},
               {"id": "i2", "date": "2026-12-27", "time_start": "13:00:00", "time_end": "15:00:00", "instructor_id": "x2", "meeting_point": "malbipark",
-               "participant_id": None, "product_id": "prod", "unit_price": 160, "quantity": 1, "discount_percent": 10, "appointment_id": A2,
-               "internal_notes": None, "instructor_notes": None, "product": {"id": "prod", "name": "Privat", "type": "private"}, "instructor": None, "participant": None}]}
+               "participant_id": None, "product_id": "prod", "unit_price": 160, "quantity": 1, "line_total": 144, "discount_percent": 10, "appointment_id": A2,
+               "internal_notes": "lesson two", "instructor_notes": "teacher two", "product": {"id": "prod", "name": "Privat", "type": "private"}, "instructor": None, "participant": None}]}
 LEGACY = {**TICKET, "id": "t-legacy", "ticket_items": [{**TICKET["ticket_items"][0], "id": "li", "appointment_id": None, "participant_id": P1,
           "participant": {"id": P1, "first_name": "Lea", "last_name": "S"}}]}
 APPTS = [{"id": A1, "date": "2026-12-26", "time_start": "10:00:00", "time_end": "11:00:00", "instructor_id": "x1", "meeting_point": "sammelplatz_gorfion", "status": "booked", "price": 105},
@@ -66,6 +66,8 @@ async def main():
                 if url.startswith("http://localhost:8080"): return await route.continue_()
                 if "/functions/v1/private-appointments" in url and req.method == "POST":
                     b = req.post_data_json; sent.append(b)
+                    if mode["edit"] == "stale":
+                        return await route.fulfill(status=409, content_type="application/json", body=json.dumps({"error":"conflict", "conflicts":[{"kind":"stale","ref_id":A1}]}))
                     if mode["edit"] == "old":
                         return await route.fulfill(status=400, content_type="application/json", body=json.dumps({"error": "invalid", "fields": {"action": ["Invalid discriminator value"]}}))
                     q = {"appointments": [{"appointment_id": A1, "old_price": 105, "new_price": 125, "participants_changed": True}], "old_total": 249, "new_total": 269, "changed": True}
@@ -93,6 +95,7 @@ async def main():
             check(r["paymentDueDate"] is None and r["discountPercent"] == 0, f"{tag} no checkout finance defaults carried")
             await page.screenshot(path=str(OUT / f"panel_{width}.png"))
 
+            check(await page.locator(f"#ce-int-{A1}").input_value() == "lesson one" and await page.locator(f"#ce-int-{A2}").input_value() == "lesson two", f"{tag} separate lesson notes hydrated")
             # Unchanged save: no request at all.
             await page.get_by_role("button", name="Änderungen speichern").click(); await page.wait_for_timeout(200)
             check(sent == [], f"{tag} unchanged save sends nothing")
@@ -112,19 +115,31 @@ async def main():
             check(a["mode"] == "apply" and a["acknowledged_total"] == 269 and a["expected_total"] == 105, f"{tag} apply acknowledges quoted total")
             check(len(a["appointments"]) == 1 and a["appointments"][0]["appointment_id"] == A1 and a["appointments"][0]["acknowledged_price"] == 125
                   and sorted(a["appointments"][0]["participant_ids"]) == sorted([P1, P2, P3]), f"{tag} only explicitly changed appointment sent")
+            original=a["appointments"][0]["expected"]
+            check(original["date"] == "2026-12-26" and original["time_start"] == "10:00:00" and original["instructor_id"] == "x1" and original["line"]["internal_notes"] == "lesson one", f"{tag} original schedule/notes/line payload")
             check(not any(k in a for k in ("payment_method", "payment_due_date", "discount_percent")), f"{tag} no finance fields in edit payload")
 
             # Notes-only: one apply, no quote, no participants.
             n0 = len(sent)
             await page.evaluate("window.wiz.loadTicketForEditing('t-syn')"); await panel.wait_for()
-            await page.locator("#ce-int").fill("Synthetische Notiz")
+            await page.locator(f"#ce-int-{A1}").fill("Synthetische Notiz")
             await page.get_by_role("button", name="Änderungen speichern").click(); await page.wait_for_timeout(300)
-            check(len(sent) == n0 + 1 and sent[-1]["mode"] == "apply" and sent[-1]["appointments"] == [] and sent[-1]["internal_notes"] == "Synthetische Notiz", f"{tag} notes-only single apply")
+            check(len(sent) == n0 + 1 and sent[-1]["mode"] == "apply" and len(sent[-1]["appointments"]) == 1 and sent[-1]["appointments"][0]["internal_notes"] == "Synthetische Notiz", f"{tag} notes-only single apply")
 
+            check(sent[-1]["appointments"][0]["expected"]["line"]["internal_notes"] == "lesson one" and not any(x["appointment_id"] == A2 for x in sent[-1]["appointments"]), f"{tag} note edit carries original and leaves other lesson out")
+            # Real controls send ticket-note original too, then surface stale rejection (no fallback).
+            mode["edit"] = "stale"
+            await page.evaluate("window.wiz.loadTicketForEditing('t-syn')"); await panel.wait_for()
+            await page.locator("#ce-cust").fill("my customer note")
+            await page.get_by_role("button", name="Änderungen speichern").click()
+            await page.get_by_role("alert").wait_for()
+            check(sent[-1]["expected_customer_notes"] == "" and sent[-1]["customer_notes"] == "my customer note", f"{tag} customer note original supplied")
+            check("inzwischen geändert" in await page.get_by_role("alert").inner_text() and (await page.evaluate("window.readback"))["canonical"] is not None, f"{tag} stale rejected and edit retained")
+            await page.get_by_role("alert").screenshot(path=str(OUT / f"stale_{width}.png"))
             # Old deployed function: clear unavailability, no fallback.
             mode["edit"] = "old"
             await page.evaluate("window.wiz.loadTicketForEditing('t-syn')"); await panel.wait_for()
-            await page.locator("#ce-ins").fill("x")
+            await page.locator(f"#ce-ins-{A1}").fill("x")
             await page.get_by_role("button", name="Änderungen speichern").click()
             await page.get_by_role("alert").wait_for()
             check("noch nicht freigeschaltet" in (await page.get_by_role("alert").inner_text()), f"{tag} unavailable message")

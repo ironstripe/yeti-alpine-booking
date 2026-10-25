@@ -51,17 +51,95 @@ try {
     assert.equal(r.ok, true, JSON.stringify(r)); return r;
   };
   const slot = (date, ins = I1, s = '10:00', e = '11:00') => ({ date, time_start: s, time_end: e, instructor_id: ins });
-  const edit = async (p, actor = ACTOR) => (await sql`SELECT pa_edit_booking(${sql.json(p)}, ${actor}) r`)[0].r;
+  const edit = async (p, actor = ACTOR) => {
+    // Old regression calls omit total; production builder always supplies it.
+    if (!('expected_total' in p)) { const rows=await sql`SELECT total_amount FROM tickets WHERE id=${p.ticket_id}`; p={...p,expected_total:Number(rows[0]?.total_amount ?? 0)}; }
+    return (await sql`SELECT pa_edit_booking(${sql.json(p)}, ${actor}) r`)[0].r;
+  };
   const state = async (ticket) => {
     const [tk] = await sql`SELECT total_amount::numeric tot, paid_amount::numeric paid, notes, participant_count FROM tickets WHERE id=${ticket}`;
-    const ap = await sql`SELECT a.id, a.price::numeric price, a.meeting_point, ti.unit_price::numeric up, ti.discount_percent::numeric disc, ti.internal_notes,
+    const ap = await sql`SELECT a.id, a.price::numeric price, a.meeting_point, ti.unit_price::numeric up, ti.discount_percent::numeric disc, ti.internal_notes, ti.instructor_notes,
+      jsonb_build_object('date',a.date,'time_start',a.time_start::text,'time_end',a.time_end::text,'instructor_id',a.instructor_id,
+        'meeting_point',a.meeting_point,'status',a.status,'line',jsonb_build_object('id',ti.id,'quantity',ti.quantity,
+          'unit_price',ti.unit_price,'line_total',ti.line_total,'discount_percent',ti.discount_percent,'discount_reason',ti.discount_reason,
+          'internal_notes',ti.internal_notes,'instructor_notes',ti.instructor_notes)) original,
       (SELECT array_agg(participant_id ORDER BY participant_id) FROM private_appointment_participants WHERE appointment_id=a.id) ppl
       FROM private_appointments a JOIN ticket_items ti ON ti.appointment_id=a.id WHERE a.ticket_id=${ticket} ORDER BY a.date`;
     const [{ h }] = await sql`SELECT count(*)::int h FROM ticket_history WHERE ticket_id=${ticket}`;
     const [{ q }] = await sql`SELECT count(*)::int q FROM notification_queue WHERE payload->>'ticket_id'=${ticket}`;
     return JSON.parse(JSON.stringify({ tk, ap, h, q }));
   };
-  const expectAppt = (s, i) => ({ appointment_id: s.ap[i].id, expected_participant_ids: s.ap[i].ppl, expected_price: Number(s.ap[i].price) });
+  const expectAppt = (s, i) => ({ appointment_id: s.ap[i].id, expected_participant_ids: s.ap[i].ppl, expected_price: Number(s.ap[i].price), expected: s.ap[i].original });
+
+  await t('review: per-lesson notes remain distinct and unrelated lesson unchanged', async () => {
+    const b = await create([slot('2027-02-01'), slot('2027-02-02')], [P1, P2]);
+    await sql`UPDATE ticket_items SET internal_notes=date::text, instructor_notes='teacher-'||date::text WHERE ticket_id=${b.ticket_id}`;
+    const before = await state(b.ticket_id);
+    const r = await edit({ mode:'apply', ticket_id:b.ticket_id, expected_total:Number(before.tk.tot), appointments:[{...expectAppt(before,0),internal_notes:'edited-one'}] });
+    assert.equal(r.ok,true); const after=await state(b.ticket_id);
+    assert.equal(after.ap[0].internal_notes,'edited-one'); assert.deepEqual(after.ap[1],before.ap[1]);
+    assert.equal(after.ap[0].instructor_notes,before.ap[0].instructor_notes); assert.equal(after.tk.tot,before.tk.tot);
+  });
+  await t('review: stale notes, meeting point, same-price schedule and discount abort before any writes', async () => {
+    const b=await create([slot('2027-02-03'),slot('2027-02-04')],[P1,P2]);
+    for (const change of ["internal_notes='other editor'", "instructor_notes='other teacher note'", "meeting_point='other point'", "time_start='10:15',time_end='11:15'", `instructor_id='${I2}'`, "date='2027-02-05'", "discount_percent=5"]) {
+      const before=await state(b.ticket_id);
+      // Trigger mirrors scheduler values from the canonical appointment.
+      if (/^(time_start|instructor_id|date|meeting_point)/.test(change)) await sql.begin(async tx => { await tx.unsafe(`UPDATE private_appointments SET ${change} WHERE id='${before.ap[1].id}'`); await tx.unsafe(`UPDATE ticket_items SET ${change} WHERE appointment_id='${before.ap[1].id}'`); });
+      else await sql.unsafe(`UPDATE ticket_items SET ${change} WHERE appointment_id='${before.ap[1].id}'`);
+      const changed=await state(b.ticket_id);
+      const req={mode:'apply',ticket_id:b.ticket_id,expected_total:Number(before.tk.tot),appointments:[
+        {...expectAppt(before,0),meeting_point:'first must not write'}, {...expectAppt(before,1),participant_ids:[P1,P3],acknowledged_price:100}],acknowledged_total:Number(before.tk.tot)};
+      assert.equal((await edit(req)).error,'conflict',change); assert.deepEqual(await state(b.ticket_id),changed,change);
+      assert.equal((await edit({...req,mode:'quote'})).error,'conflict',change+' quote');
+    }
+  });
+  await t('review: stale customer note aborts without overwriting', async () => {
+    const b=await create([slot('2027-02-06')],[P1]); const before=await state(b.ticket_id);
+    await sql`UPDATE tickets SET notes='other editor' WHERE id=${b.ticket_id}`;
+    const changed=await state(b.ticket_id);
+    assert.equal((await edit({mode:'apply',ticket_id:b.ticket_id,expected_total:Number(before.tk.tot),expected_customer_notes:before.tk.notes,customer_notes:'my edit',appointments:[]})).error,'conflict');
+    assert.deepEqual(await state(b.ticket_id),changed);
+  });
+  await t('review: same-price replacement requires ack, quoted/applied totals preserve unrelated discrepancy', async () => {
+    const b=await create([slot('2027-02-07')],[P1,P2],{discount_percent:10,discount_reason:'keep'});
+    await sql`UPDATE tickets SET total_amount=777 WHERE id=${b.ticket_id}`;
+    const before=await state(b.ticket_id);
+    const req={ticket_id:b.ticket_id,expected_total:777,appointments:[{...expectAppt(before,0),participant_ids:[P1,P3]}]};
+    const q=await edit({...req,mode:'quote'}); assert.equal(Number(q.quote.new_total),777);
+    assert.equal((await edit({...req,mode:'apply'})).error,'quote_changed'); assert.deepEqual(await state(b.ticket_id),before);
+    const r=await edit({...req,mode:'apply',appointments:[{...req.appointments[0],acknowledged_price:100}],acknowledged_total:777});
+    assert.equal(r.ok,true); assert.equal(Number(r.total),Number(q.quote.new_total));
+    const after=await state(b.ticket_id); assert.equal(Number(after.tk.tot),777); assert.equal(Number(after.ap[0].disc),10); assert.deepEqual(after.ap[0].ppl,sortIds([P1,P3]));
+  });
+
+  await t('review: missing originals refused; changed-price delta preserves discrepancy and discount', async () => {
+    const b=await create([slot('2027-02-08')],[P1,P2],{discount_percent:10,discount_reason:'keep'});
+    await sql`UPDATE tickets SET total_amount=777 WHERE id=${b.ticket_id}`;
+    const before=await state(b.ticket_id);
+    const incomplete={mode:'apply',ticket_id:b.ticket_id,expected_total:777,appointments:[{appointment_id:before.ap[0].id,expected_price:100,expected_participant_ids:[P1,P2],internal_notes:'no'}]};
+    assert.equal((await edit(incomplete)).error,'invalid'); assert.deepEqual(await state(b.ticket_id),before);
+    const req={ticket_id:b.ticket_id,expected_total:777,appointments:[{...expectAppt(before,0),participant_ids:[P1,P2,P3]}]};
+    const q=await edit({...req,mode:'quote'}); assert.equal(Number(q.quote.new_total),795);
+    const r=await edit({...req,mode:'apply',appointments:[{...req.appointments[0],acknowledged_price:120}],acknowledged_total:795});
+    assert.equal(r.ok,true); assert.equal(Number(r.total),795);
+    assert.equal(Number((await state(b.ticket_id)).ap[0].disc),10);
+  });
+
+  await t('review: mixed ticket group line/notes/discount survive private-only edit', async () => {
+    const b=await create([slot('2027-02-09')],[P1,P2]);
+    await sql`INSERT INTO ticket_items(ticket_id,product_id,item_type,date,time_start,time_end,unit_price,quantity,discount_percent,internal_notes,instructor_notes)
+      VALUES(${b.ticket_id},${PRIV},'group','2027-02-09','13:00','14:00',50,1,10,'group internal','group teacher')`;
+    await sql`UPDATE tickets SET total_amount=145 WHERE id=${b.ticket_id}`;
+    const [groupBefore]=await sql`SELECT to_jsonb(ti) row FROM ticket_items ti WHERE ticket_id=${b.ticket_id} AND appointment_id IS NULL`;
+    const before=await state(b.ticket_id);
+    const req={ticket_id:b.ticket_id,expected_total:145,appointments:[{...expectAppt(before,0),participant_ids:[P1,P2,P3],internal_notes:'private only'}]};
+    const q=await edit({...req,mode:'quote'}); assert.equal(Number(q.quote.new_total),165);
+    const r=await edit({...req,mode:'apply',appointments:[{...req.appointments[0],acknowledged_price:120}],acknowledged_total:165});
+    assert.equal(r.ok,true);
+    const [groupAfter]=await sql`SELECT to_jsonb(ti) row FROM ticket_items ti WHERE ticket_id=${b.ticket_id} AND appointment_id IS NULL`;
+    assert.deepEqual(groupAfter,groupBefore);
+  });
 
   await t('privileges: only service_role executes pa_edit_booking', async () => {
     for (const role of ['anon', 'authenticated']) {
@@ -81,7 +159,7 @@ try {
     const before = await state(two.ticket_id);
     const q = await edit({ mode: 'quote', ticket_id: two.ticket_id, appointments: [expectAppt(before, 0)] });
     assert.equal(q.ok, true); assert.equal(q.quote.changed, false); assert.equal(Number(q.quote.new_total), 100);
-    const r = await edit({ mode: 'apply', ticket_id: two.ticket_id, expected_total: 100, appointments: [{ ...expectAppt(before, 0), participant_ids: [P2, P1] }], internal_notes: before.ap[0].internal_notes ?? '' });
+    const r = await edit({ mode: 'apply', ticket_id: two.ticket_id, expected_total: 100, appointments: [{ ...expectAppt(before, 0), participant_ids: [P2, P1], internal_notes: before.ap[0].internal_notes ?? '' }] });
     assert.equal(r.ok, true); assert.equal(r.changed, false);
     assert.deepEqual(await state(two.ticket_id), before);
   });
@@ -89,7 +167,7 @@ try {
   const disc = await create([slot('2026-12-27')], [P1, P2], { discount_percent: 10, discount_reason: 'Stammkunde' });
   await t('notes + meeting point only on discounted ticket: no repricing, total/discount kept', async () => {
     const before = await state(disc.ticket_id); assert.equal(Number(before.tk.tot), 90);
-    const r = await edit({ mode: 'apply', ticket_id: disc.ticket_id, appointments: [{ ...expectAppt(before, 0), meeting_point: 'malbipark' }], internal_notes: 'neu', customer_notes: 'Kunde' });
+    const r = await edit({ mode: 'apply', ticket_id: disc.ticket_id, appointments: [{ ...expectAppt(before, 0), meeting_point: 'malbipark', internal_notes: 'neu' }], expected_customer_notes:before.tk.notes, customer_notes: 'Kunde' });
     assert.equal(r.ok, true, JSON.stringify(r)); assert.equal(r.changed, true);
     const s = await state(disc.ticket_id);
     assert.equal(Number(s.tk.tot), 90); assert.equal(Number(s.ap[0].price), 100); assert.equal(Number(s.ap[0].disc), 10);
@@ -115,9 +193,9 @@ try {
 
   await t('stale data or concurrent change aborts without writes', async () => {
     const before = await state(disc.ticket_id);
-    const stale = { ticket_id: disc.ticket_id, mode: 'apply', appointments: [{ appointment_id: before.ap[0].id, expected_participant_ids: [P1, P2], expected_price: 100, participant_ids: [P1], acknowledged_price: 80 }], acknowledged_total: 72 };
+    const stale = { ticket_id: disc.ticket_id, mode: 'apply', appointments: [{ ...expectAppt(before,0), expected_participant_ids: [P1, P2], expected_price: 100, participant_ids: [P1], acknowledged_price: 80 }], acknowledged_total: 72 };
     assert.equal((await edit(stale)).error, 'conflict');
-    assert.equal((await edit({ ...stale, appointments: [{ ...expectAppt(before, 0), internal_notes: undefined }].map(({ internal_notes, ...a }) => a), expected_total: 1, internal_notes: 'x' })).error, 'conflict');
+    assert.equal((await edit({ ...stale, appointments: [{ ...expectAppt(before, 0), internal_notes: undefined }].map(({ internal_notes, ...a }) => a), expected_total: 1 })).error, 'conflict');
     assert.deepEqual(await state(disc.ticket_id), before);
   });
 
@@ -165,7 +243,7 @@ try {
     assert.equal(r.error, 'protected'); assert.deepEqual(r.excluded[0].reasons, ['invoiced']);
     assert.equal((await edit({ mode: 'apply', ticket_id: two.ticket_id, appointments: [{ ...expectAppt(before, 0), meeting_point: 'malbipark' }] })).error, 'protected');
     assert.deepEqual(await state(two.ticket_id), before);
-    const n = await edit({ mode: 'apply', ticket_id: two.ticket_id, appointments: [], instructor_notes: 'Helm' });
+    const n = await edit({ mode: 'apply', ticket_id: two.ticket_id, appointments: [{...expectAppt(before,0),instructor_notes:'Helm'}] });
     assert.equal(n.ok, true); const s = await state(two.ticket_id);
     assert.equal(Number(s.tk.tot), 100); assert.equal(Number(s.tk.paid), 100); assert.equal(Number(s.ap[0].price), 100);
   });

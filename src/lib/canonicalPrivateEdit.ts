@@ -16,6 +16,9 @@ export interface CanonicalAppointment {
   price: number;
   discountPercent: number;
   participantIds: string[]; // sorted
+  internalNotes: string;
+  instructorNotes: string;
+  original: { date: string; time_start: string; time_end: string; instructor_id: string | null; meeting_point: string | null; status: string; line: { id: string; quantity: number | null; unit_price: number; line_total: number | null; discount_percent: number | null; discount_reason: string | null; internal_notes: string | null; instructor_notes: string | null } };
 }
 
 export interface CanonicalEditSnapshot {
@@ -25,8 +28,7 @@ export interface CanonicalEditSnapshot {
   totalAmount: number;
   paidAmount: number;
   customerNotes: string;
-  internalNotes: string;
-  instructorNotes: string;
+  originalCustomerNotes: string | null;
   appointments: CanonicalAppointment[];
   /** Persons known from canonical links or the payer's participant list (selection options). */
   participants: CanonicalParticipant[];
@@ -36,8 +38,8 @@ export interface CanonicalEditDraft {
   participantIds: Record<string, string[]>; // appointment id -> selected ids
   meetingPoints: Record<string, string | null>;
   customerNotes: string;
-  internalNotes: string;
-  instructorNotes: string;
+  internalNotes: Record<string, string>;
+  instructorNotes: Record<string, string>;
 }
 
 type Row = Record<string, unknown>;
@@ -56,13 +58,21 @@ export function hydrateCanonicalEdit(input: {
 }): CanonicalEditSnapshot {
   const names = new Map(input.instructors.map((i) => [String(i.id), `${i.first_name ?? ""} ${i.last_name ?? ""}`.trim()]));
   const itemByAppt = new Map(input.items.filter((i) => i.appointment_id).map((i) => [String(i.appointment_id), i]));
-  const linkedItem = input.items.find((i) => i.appointment_id);
+
   const appointments = input.appointments
     .filter((a) => a.status !== "cancelled")
     .map((a): CanonicalAppointment => {
       const id = String(a.id);
+      const item = itemByAppt.get(id);
       return {
         id,
+        internalNotes: String(item?.internal_notes ?? ""),
+        instructorNotes: String(item?.instructor_notes ?? ""),
+        original: { date: String(a.date), time_start: String(a.time_start), time_end: String(a.time_end),
+          instructor_id: (a.instructor_id as string) ?? null, meeting_point: (a.meeting_point as string) ?? null, status: String(a.status),
+          line: { id: String(item?.id), quantity: item?.quantity == null ? null : num(item.quantity), unit_price: num(item?.unit_price),
+            line_total: item?.line_total == null ? null : num(item.line_total), discount_percent: item?.discount_percent == null ? null : num(item.discount_percent),
+            discount_reason: (item?.discount_reason as string) ?? null, internal_notes: (item?.internal_notes as string) ?? null, instructor_notes: (item?.instructor_notes as string) ?? null } },
         date: String(a.date),
         timeStart: hhmm(a.time_start),
         timeEnd: hhmm(a.time_end),
@@ -83,8 +93,7 @@ export function hydrateCanonicalEdit(input: {
     totalAmount: num(input.ticket.total_amount),
     paidAmount: num(input.ticket.paid_amount),
     customerNotes: String(input.ticket.notes ?? ""),
-    internalNotes: String(linkedItem?.internal_notes ?? ""),
-    instructorNotes: String(linkedItem?.instructor_notes ?? ""),
+    originalCustomerNotes: (input.ticket.notes as string) ?? null,
     appointments,
     participants: input.participants.map((p) => ({ id: String(p.id), first_name: String(p.first_name ?? ""), last_name: (p.last_name as string) ?? null })),
   };
@@ -95,8 +104,8 @@ export function draftFromSnapshot(s: CanonicalEditSnapshot): CanonicalEditDraft 
     participantIds: Object.fromEntries(s.appointments.map((a) => [a.id, a.participantIds])),
     meetingPoints: Object.fromEntries(s.appointments.map((a) => [a.id, a.meetingPoint])),
     customerNotes: s.customerNotes,
-    internalNotes: s.internalNotes,
-    instructorNotes: s.instructorNotes,
+    internalNotes: Object.fromEntries(s.appointments.map((a) => [a.id, a.internalNotes])),
+    instructorNotes: Object.fromEntries(s.appointments.map((a) => [a.id, a.instructorNotes])),
   };
 }
 
@@ -110,12 +119,14 @@ export interface EditRequest {
     appointment_id: string;
     expected_participant_ids: string[];
     expected_price: number;
+    expected: CanonicalAppointment["original"];
+    internal_notes?: string;
+    instructor_notes?: string;
     participant_ids?: string[];
     meeting_point?: string;
     acknowledged_price?: number;
   }[];
-  internal_notes?: string;
-  instructor_notes?: string;
+  expected_customer_notes?: string | null;
   customer_notes?: string;
   acknowledged_total?: number;
 }
@@ -128,21 +139,24 @@ export function buildEditRequest(s: CanonicalEditSnapshot, d: CanonicalEditDraft
     const partChanged = next.join() !== a.participantIds.join();
     const mp = d.meetingPoints[a.id] ?? null;
     const mpChanged = mp !== a.meetingPoint && mp !== null;
-    if (!partChanged && !mpChanged) continue;
+    const intChanged = d.internalNotes[a.id] !== a.internalNotes;
+    const insChanged = d.instructorNotes[a.id] !== a.instructorNotes;
+    if (!partChanged && !mpChanged && !intChanged && !insChanged) continue;
     const q = quote?.appointments.find((x) => x.appointment_id === a.id);
     appointments.push({
       appointment_id: a.id,
       expected_participant_ids: a.participantIds,
       expected_price: a.price,
+      expected: a.original,
+      ...(intChanged ? { internal_notes: d.internalNotes[a.id] } : {}),
+      ...(insChanged ? { instructor_notes: d.instructorNotes[a.id] } : {}),
       ...(partChanged ? { participant_ids: next } : {}),
       ...(mpChanged ? { meeting_point: mp as string } : {}),
       ...(partChanged && q ? { acknowledged_price: q.new_price } : {}),
     });
   }
   const notes: Partial<EditRequest> = {};
-  if (d.internalNotes !== s.internalNotes) notes.internal_notes = d.internalNotes;
-  if (d.instructorNotes !== s.instructorNotes) notes.instructor_notes = d.instructorNotes;
-  if (d.customerNotes !== s.customerNotes) notes.customer_notes = d.customerNotes;
+  if (d.customerNotes !== s.customerNotes) { notes.customer_notes = d.customerNotes; notes.expected_customer_notes = s.originalCustomerNotes; }
   if (appointments.length === 0 && Object.keys(notes).length === 0) return null;
   return {
     ticket_id: s.ticketId,

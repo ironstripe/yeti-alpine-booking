@@ -1,5 +1,9 @@
 # Roadmap
 
+## B03a focused review follow-up
+- [x] Reproduced stale originals, flattened notes and same-price total discrepancy; corrected pending contract/hydration/panel only.
+- [x] SQL 17/17, assignment 16/16, unit 330/3 skips, Deno schema 4/4 and Edge check, actual intercepted UI 48 and checkout regression 130 assertions passed. Capabilities/limits and B02 asset corrected in docs/b03a-verification.md; no B02 acceptance claim.
+
 ## Scheduler visible filters — current package
 - [x] Add compact searchable single-teacher selection/reset and default-off hide-absent control; keep search separate and selected teacher inspectable.
 - [x] Verify confirmed full displayed-range absence with no assignment, conservative intervals and mobile actual day; preserve draft/performance/booking paths.
