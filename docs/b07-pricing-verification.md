@@ -1,3 +1,56 @@
+# B07-P2 — authoritative quote + same-day discount + manual override (checkpoint 2)
+
+Base: `b0095b0` (HEAD at start of this checkpoint; final commit SHA is assigned by the platform after this turn).
+Status: **implemented in code + pending SQL, tested locally only.** Not installed, not deployed, not published; switches OFF.
+B07a (atomic multi-item) and B07b (multi-item UI) remain **incomplete**.
+
+## Decisions applied (ivo-brain DECISIONS, 2026-10-25)
+- Exact double lessons 10–12 = 190, 14–16 = 190, 12–14 = 150; exceptions 09–11 / 13–15 = 160 (configured `office_only`, no public expansion); 75/h off-peak; 85/h single-hour office exception in 10–12 / 14–16; +20/h, +40/double per extra person. Values exist only in the PROPOSED seed and test fixtures.
+- Automatic 10 % when the same participant has >= 240 planned clock minutes on the same date (two doubles = 240, not 230). Never pooled across people or dates.
+- Shared lesson: equal share per actual participant for the discount only; e.g. 230 shared, Anna eligible, Ben not → 11.50 off → 218.50. Order-invariant. One appointment + one billing line.
+- Explicit manual discount REPLACES the automatic one for the affected lines (never added). Default 0 = automatic; explicit 0 = `discount_override:{percent:0,reason}`; clearing returns to automatic. Reuses the existing wizard discount field + reason; legacy non-zero `discount_percent` is treated as explicit.
+
+## Model (pending `supabase/pending/product_private_tariff_rules.sql`, extended in place)
+- `private_lesson_discount_rule` (singleton: percent, threshold_minutes, scope, shared_allocation, auto-bumped revision, provenance). Missing → `tariff_unavailable/discount_rule_not_configured` (fail closed).
+- `pa_same_day_discount` (pure), `pa_discount_intent`, `pa_price_request` (single price+discount source), used by `pa_create_quote` and `pa_create_booking`.
+- Create requires `quote_revision` **and** `discount_rule_revision` (both `FOR SHARE`); mismatch → `quote_changed`, nothing written.
+- Line storage: `unit_price` = product tariff; `discount_percent` = discount_amount/price·100 (amount rounded to 0.01 per line); `discount_reason` = automatic text or manual reason. `private_appointment_pricing` stores provenance (revisions, gross, source none/automatic/manual, amount, persons, eligible). History event `created` adds `discount_source`, `discount_total`.
+- Precision: line_total stays the existing generated column. For non-terminating shares (e.g. 3 people) line_total can carry a sub-rappen residue (< 1e-15 CHF); displays round to 0.01. Rounding to 0.05 is not applied (existing policy unchanged).
+
+## Eligibility scope (reported, not invented)
+Only slots of the same request count. Single-item create gives every person every slot, so all-or-none within one booking; partial eligibility (Anna/Ben) arises in B07a per-slot participants and is already supported by `pa_price_request`.
+**Open case for Ivo:** Anna books 10–12 Monday (ticket 1), later 14–16 Monday (ticket 2). Today: no discount on either; ticket 1 is never repriced. Whether ticket 2 should get the discount is undecided.
+
+## L1 controlled transition (move/edit)
+Appointments with a `private_appointment_pricing` row: `pa_apply_slot` keeps the stored price on teacher-only changes; date/time moves, participant insert/delete and line price/discount writes raise SQLSTATE `YT001` (whole transaction rolled back) → Edge 409 `tariff_transition_required` with German message. Notes, meeting point, confirmation, status, teacher stay editable. Legacy appointments keep the old `pa_price` behaviour; unchanged-save no-op and issued-invoice protection untouched. Next: switch move/period_update/B03a edit to `pa_price_request` (requote + acknowledgement), then remove the guard.
+
+## L2 frontend
+Summary (`PrivateServerQuote`) shows only the server quote: per-lesson price, automatic or manual discount, replaced automatic amount, total; submit disabled while quoting/failed; create binds to the shown revisions, never re-quotes silently. `privateTariffsLive()` = `PRODUCT_PRIVATE_TARIFFS_LIVE` (false) or, on the local dev server only, localStorage `yeti.privateTariffPreview=1` (for intercepted tests). Switch OFF → old request unchanged.
+
+## Files (this checkpoint)
+`supabase/pending/product_private_tariff_rules.sql`, `..._seed.PROPOSED.sql`, `supabase/rollback/product_private_tariff_rules_rollback.sql`, `supabase/functions/_shared/privateAppointmentsContract.ts`, `supabase/functions/private-appointments/index.ts` + `contract.test.ts`, `src/lib/serverPrivateSlots.ts` (new), `src/components/bookings/wizard/PrivateServerQuote.tsx` (new), `Step4Summary.tsx`, `DiscountSection.tsx`, `src/hooks/useCreateBooking.ts`, `src/contexts/BookingWizardContext.tsx`, `src/lib/privateAppointmentsApi.ts`, `src/lib/privateTariffRules.ts`; tests `tests/b07DiscountPricing.integration.mjs`, `tests/b07PricingSummaryBrowser.py`, `tests/b07TariffEditorBrowser.py`, `tests/b07DiscountIntent.test.ts`, updated `tests/productPrivateTariffRules.integration.mjs`.
+
+## Tests run (local only)
+- `b07DiscountPricing.integration.mjs` 13/13: grants; decided blocks from config; Anna/Ben 218.50; order invariance; all/none/different dates/240-min doubles; manual lower/higher/0/clear/combined-rejected; create = quote with provenance + history; explicit 0 stored with reason; default single item no discount; rule revision A→B without code, stale → quote_changed, old booking unchanged; product revision; transition guard; legacy move unchanged.
+- `productPrivateTariffRules.integration.mjs` 13/13 (one assertion now expects the automatic discount on a 4h day: gross 500 → 466).
+- Regressions: paAssignLater 16, paEditBooking 17/17, staffFinalize 14/14, b05Intent 7, b11CreatedTotal 5/5, productPrivateTariffs 12/12, birthDateGuard 5/5.
+- Seed + rollback executed on throwaway DB (9 rules, rule rev 1; rollback drops functions, keeps tables).
+- Deno contract schema tests 5/5. bun suite 378 pass, 3 skip, 1 pre-existing Deno-only load error.
+- Browser (real components, all requests intercepted, 1280 + 390): summary 12/12 checks each width; editor 6/6 each width; B01/B02 checkoutPersistenceBrowser unchanged (0 failures).
+- Not run: hosted backend, deployed functions, combined install with B08/B09/B11 pending files in one DB.
+
+## Release order (each step needs explicit approval)
+1. Install `product_private_tariff_rules.sql`. 2. Seed reviewed rules per active private product + discount rule; coverage query empty. 3. Deploy `private-appointments` + `product-private-tariff-rules`. 4. Set `PRODUCT_PRIVATE_TARIFFS_LIVE=true` + publish. Move/edit of new bookings stay limited by the guard until L1 is completed.
+
+## Rollback
+Switch OFF + republish → previous `private-appointments` → 0007 `pa_create_booking`, 0001 `pa_apply_slot` → rollback file (drops triggers/functions; keeps rule, discount and provenance tables). Stored prices/discounts never recalculated.
+
+## Next handoff
+- B07a: one service-only transaction for mixed cart items calling `pa_price_request` once over ALL private slots with per-slot participant ids (aggregates person/day across items); group/lunch lines excluded from hours; same revisions; replay key.
+- B07b: lift the multi-item gate in Step4Summary only after B07a; show one combined server quote.
+
+---
+
 # B07-P — product-configured private tariffs (prerequisite checkpoint)
 
 Base: `932562cb7d6c8e05440e6d2c2f38b168c0cf7510` (HEAD at start; final commit SHA is assigned by the platform after this turn).
