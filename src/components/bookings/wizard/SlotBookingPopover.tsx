@@ -5,6 +5,7 @@ import { format, differenceInYears, parseISO } from "date-fns";
 import { de } from "date-fns/locale";
 
 import { supabase } from "@/integrations/supabase/client";
+import { birthDateChangeError } from "@/lib/birthDate";
 import { useBookingWizard, type LocalParticipant } from "@/contexts/BookingWizardContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -193,8 +194,12 @@ export function SlotBookingPopover({
     setNewParticipant({ first_name: "", last_name: "", birth_date: "", skill_level: "" });
   };
 
+  // R1/B08: typed birth dates follow the school-day rule (real date, not after today in Europe/Zurich).
+  const newBirthDateError = birthDateChangeError(newParticipant.birth_date || null);
+
   // Create local participant (no DB write)
   const handleCreateLocalParticipant = () => {
+    if (newBirthDateError) return;
     if (editingLocalId) {
       const existing = state.localParticipants.find((participant) => participant.id === editingLocalId);
       if (!existing) return;
@@ -502,8 +507,14 @@ export function SlotBookingPopover({
                   onChange={(e) =>
                     setNewParticipant((p) => ({ ...p, birth_date: e.target.value }))
                   }
+                  aria-label="Geburtsdatum"
+                  aria-invalid={!!newBirthDateError}
+                  aria-describedby={newBirthDateError ? "slot-new-dob-error" : undefined}
                   className="h-8 text-sm"
                 />
+                {newBirthDateError && (
+                  <p id="slot-new-dob-error" role="alert" className="text-xs text-destructive">{newBirthDateError}</p>
+                )}
                 <Select
                   value={newParticipant.skill_level}
                   onValueChange={(v) => setNewParticipant((p) => ({ ...p, skill_level: v }))}
@@ -523,7 +534,7 @@ export function SlotBookingPopover({
                   <Button
                     size="sm"
                     className="h-7 text-xs"
-                    disabled={!newParticipant.first_name || createParticipantMutation.isPending}
+                    disabled={!newParticipant.first_name || !!newBirthDateError || createParticipantMutation.isPending}
                     onClick={() => {
                       if (hasCustomer && !state.customer) {
                         createParticipantMutation.mutate(newParticipant);
