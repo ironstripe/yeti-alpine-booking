@@ -54,7 +54,6 @@ const sql = postgres(dbUrl, { onnotice: () => {}, ssl: false, max: 5 });
 let rest: Deno.ChildProcess | null = null;
 try {
   for (const f of ["tests/sql/baseline_prelude.sql", "tests/sql/production_schema_baseline.sql", "supabase/pending/bc_2627_atomic_course_booking.sql",
-    "drizzle/migrations/0016_b04_delivery_compatibility.sql",
     // R1: issueInvoice freezes the content snapshot; its column ships with the same release.
     "supabase/pending/r1_invoice_content_snapshot.sql"]) {
     await psql(dbUrl, ["-f", new URL(f, root).pathname]);
