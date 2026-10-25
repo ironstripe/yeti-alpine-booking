@@ -147,6 +147,9 @@ try {
     assert.equal(n2(rev.total), 218.5); assert.equal(rev.day_context_digest, q.day_context_digest); // order-invariant
     const c = await createFrom(q, [slot(day, '14:00', '16:00', I[1])], [BEN, ANNA]);
     assert.equal(n2(c.total), 218.5);
+    // one canonical shared appointment = one context slot for both people (no fan-out per join)
+    const ctx = (await sql`SELECT pa_private_day_context(${[ANNA, BEN]}::uuid[], ${[day]}::date[]) c`)[0].c;
+    assert.equal(ctx.appointments, 2); assert.deepEqual(ctx.slots.map((x) => x.participants.length).sort(), [1, 2]);
   });
 
   await t('manual override replaces cross-booking automatic discount (5% / explicit 0), never added; reason required', async () => {
@@ -170,9 +173,8 @@ try {
     const day = '2026-12-12';
     const x = (await book([slot(day, '10:00', '12:00', I[0])], [BEN])).c;
     const y = (await book([slot(day, '10:00', '12:00', I[1])], [BEN])).c; // same person, overlapping (source data)
-    // duplicate join row as found in imported source data (guard bypassed only for this synthetic fixture row)
-    await sql.begin(async (tx) => { await tx`SET LOCAL session_replication_role = replica`;
-      await tx`INSERT INTO private_appointment_participants(appointment_id, participant_id) VALUES (${x.appointment_ids[0]}, ${BEN})`; });
+    // duplicate (appointment, participant) joins are impossible by constraint; the helper groups per appointment anyway
+    await assert.rejects(sql`INSERT INTO private_appointment_participants(appointment_id, participant_id) VALUES (${x.appointment_ids[0]}, ${BEN})`, (e) => e.code === '23505' || e.code === 'YT001');
     const ctx = (await sql`SELECT pa_private_day_context(${[BEN]}::uuid[], ${[day]}::date[]) c`)[0].c;
     assert.equal(ctx.appointments, 2); assert.equal(ctx.slots.length, 2);
     const q = await quote([slot(day, '12:00', '13:00', I[2])], [BEN]); // union 2h + 1h = 3h < 4h (a sum would be 5h)
