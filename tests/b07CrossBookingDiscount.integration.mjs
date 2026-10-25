@@ -111,8 +111,8 @@ try {
     assert.equal(await snap(first.c.ticket_id), before);
     const [pr] = await sql`SELECT discount_source, discount_amount, eligible_persons FROM private_appointment_pricing WHERE appointment_id = ${c.appointment_ids[0]}`;
     assert.deepEqual([pr.discount_source, n2(pr.discount_amount), pr.eligible_persons], ['automatic', 19, 1]);
-    const [h] = await sql`SELECT new_value FROM ticket_history WHERE ticket_id = ${c.ticket_id} AND action = 'PRIVATE_APPOINTMENT_CHANGED'`;
-    assert.equal(JSON.parse(JSON.stringify(h.new_value)).existing_same_day_appointments ?? h.new_value?.existing_same_day_appointments, 1);
+    const [h] = await sql`SELECT details FROM ticket_history WHERE ticket_id = ${c.ticket_id} AND event_type = 'PRIVATE_APPOINTMENT_CHANGED'`;
+    assert.equal(h.details.existing_same_day_appointments, 1); assert.equal(h.details.discount_source, 'automatic');
   });
 
   await t('different dates / different people are never summed', async () => {
@@ -170,7 +170,9 @@ try {
     const day = '2026-12-12';
     const x = (await book([slot(day, '10:00', '12:00', I[0])], [BEN])).c;
     const y = (await book([slot(day, '10:00', '12:00', I[1])], [BEN])).c; // same person, overlapping (source data)
-    await sql`INSERT INTO private_appointment_participants(appointment_id, participant_id) VALUES (${x.appointment_ids[0]}, ${BEN})`; // duplicate join
+    // duplicate join row as found in imported source data (guard bypassed only for this synthetic fixture row)
+    await sql.begin(async (tx) => { await tx`SET LOCAL session_replication_role = replica`;
+      await tx`INSERT INTO private_appointment_participants(appointment_id, participant_id) VALUES (${x.appointment_ids[0]}, ${BEN})`; });
     const ctx = (await sql`SELECT pa_private_day_context(${[BEN]}::uuid[], ${[day]}::date[]) c`)[0].c;
     assert.equal(ctx.appointments, 2); assert.equal(ctx.slots.length, 2);
     const q = await quote([slot(day, '12:00', '13:00', I[2])], [BEN]); // union 2h + 1h = 3h < 4h (a sum would be 5h)
