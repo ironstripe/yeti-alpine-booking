@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { discountOverrideFor } from "@/lib/serverPrivateSlots";
+import { describe, expect, it } from "bun:test";
+import { discountOverrideFor } from "../src/lib/serverPrivateSlots";
 
 describe("B07-P2 discount intent (explicit manual override replaces automatic)", () => {
   it("untouched default 0 is not an override", () => {
