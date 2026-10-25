@@ -364,6 +364,7 @@ export function useCreateBooking() {
           created = await paCreate({
             submission_key: submissionKey, ...rest, product_id: state.productId,
             quote_revision: q.revision, discount_rule_revision: q.discount_rule_revision,
+            ...(shown.dayContextDigest ? { day_context_digest: shown.dayContextDigest } : {}),
             ...(override ? { discount_override: override } : {}),
           });
         } else {

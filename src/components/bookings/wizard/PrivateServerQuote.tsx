@@ -14,6 +14,9 @@ const chf = (n: number) => `CHF ${Number(n).toFixed(2)}`;
 export interface PrivateServerQuoteProps {
   productId: string | null;
   persons: number;
+  /** B07-P3: payer + saved participant ids; their already booked same-day private lessons count. */
+  customerId?: string | null;
+  knownParticipantIds?: string[];
   slots: PaSlot[] | null;
   /** Plan problem to show instead of a price (nothing is quoted then). */
   planError: string | null;
@@ -21,13 +24,15 @@ export interface PrivateServerQuoteProps {
   onQuote: (q: CreateQuote | null, busy: boolean) => void;
 }
 
-export function PrivateServerQuote({ productId, persons, slots, planError, override, onQuote }: PrivateServerQuoteProps) {
+export function PrivateServerQuote({ productId, persons, customerId, knownParticipantIds, slots, planError, override, onQuote }: PrivateServerQuoteProps) {
+  const known = (knownParticipantIds ?? []).join(",");
   const request = useMemo(() => (productId && slots && slots.length > 0 && persons > 0 ? {
     product_id: productId,
     persons,
+    ...(customerId && known ? { customer_id: customerId, participant_ids: known.split(",") } : {}),
     appointments: slots.map(({ date, time_start, time_end }) => ({ date, time_start, time_end })),
     ...(override ? { discount_override: { percent: override.percent } } : {}),
-  } : null), [productId, persons, slots, override]);
+  } : null), [productId, persons, customerId, known, slots, override]);
 
   const q = useQuery({
     queryKey: ["pa-create-quote", request],
