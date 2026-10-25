@@ -43,6 +43,15 @@ const MALBUN = [
   r({ rule_kind: 'exact_block', window_start: '13:00', window_end: '15:00', price_chf: 160, extra_person_chf: 40, office_only: true }),
 ];
 
+// B07-P3: creates must name the participant/day context they were quoted on (tests compute the current one).
+const withCtx = async (p) => {
+  if ('day_context_digest' in p) return p;
+  const ids = (p.participants ?? []).filter((x) => x.participant_id).map((x) => x.participant_id);
+  const dates = [...new Set((p.appointments ?? []).map((a) => a.date).filter(Boolean))];
+  const [{ d }] = await sql`SELECT pa_private_day_context(${ids}::uuid[], ${dates}::date[])->>'digest' d`;
+  return { ...p, day_context_digest: d };
+};
+
 try {
   for (const f of ['tests/sql/baseline_prelude.sql', 'tests/sql/production_schema_baseline.sql', 'supabase/pending/pa_assign_later.sql',
     'supabase/pending/course_archive_delete.sql', 'supabase/pending/bc_2627_staff_group_booking.sql',
@@ -190,8 +199,8 @@ try {
   await t('product price revision: tariff edit requotes; old quote_revision rejected', async () => {
     await save(Q, 1, MALBUN.map((x) => (x.rule_kind === 'exact_block' && x.window_start === '10:00' ? { ...x, price_chf: 200 } : x)));
     const q = await quote(Q, [slot('2026-12-22', '10:00', '12:00')]); assert.equal(q.revision, 2); assert.equal(Number(q.total), 200);
-    const c = (await sql`SELECT pa_create_booking(${sql.json({ submission_key: key(), customer_id: CUST, product_id: Q, quote_revision: 1, discount_rule_revision: 3,
-      appointments: [slot('2026-12-22', '10:00', '12:00', I1)], participants: [{ participant_id: ANNA }] })}::jsonb, ${ACTOR}::uuid) r`)[0].r;
+    const c = (await sql`SELECT pa_create_booking(${sql.json(await withCtx({ submission_key: key(), customer_id: CUST, product_id: Q, quote_revision: 1, discount_rule_revision: 3,
+      appointments: [slot('2026-12-22', '10:00', '12:00', I1)], participants: [{ participant_id: ANNA }] }))}::jsonb, ${ACTOR}::uuid) r`)[0].r;
     assert.equal(c.error, 'quote_changed');
   });
 
