@@ -218,6 +218,20 @@
       "when": 1792968137814,
       "tag": "0030_r1_pa_move_keep_unassigned",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1792968157307,
+      "tag": "0031_r1_group_created_total_event",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1792968165635,
+      "tag": "0032_r1_invoice_content_snapshot",
+      "breakpoints": true
     }
   ]
 }

@@ -3333,6 +3333,7 @@ export type Database = {
       }
       invoices: {
         Row: {
+          content_snapshot: Json | null
           created_at: string | null
           created_by: string | null
           currency: string | null
@@ -3364,6 +3365,7 @@ export type Database = {
           total: number
         }
         Insert: {
+          content_snapshot?: Json | null
           created_at?: string | null
           created_by?: string | null
           currency?: string | null
@@ -3395,6 +3397,7 @@ export type Database = {
           total: number
         }
         Update: {
+          content_snapshot?: Json | null
           created_at?: string | null
           created_by?: string | null
           currency?: string | null
