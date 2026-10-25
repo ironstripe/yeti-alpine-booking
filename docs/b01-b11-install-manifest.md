@@ -30,27 +30,8 @@
 3. **After 2:** `public_private_tariff_projection` → `public_private_tariff_display_windows.PROPOSED` + Office verification → deploy `get-website-products`. Not part of this release; no Onepager activation.
 4. B07b UI is done (docs/b07b-verification.md); nothing else in code blocks group 2.
 
-## Deployment manifest (B07 coordinated release, refreshed 2026-10-25 for B07b)
-Nothing below has been run. Order matters; each SQL file is one tracked migration (next number 0016) on the single Lovable Cloud backend.
-
-**Migrations, in this order** (identical to the locally verified 30-file chain):
-1. `b04_delivery_compatibility` 2. `b06_invoice_delivery` 3. `b11_created_total_event` 4. `participant_birth_date_guard` 5. `group_lunch_full_day` 6. `group_lunch_season` 7. `pa_edit_booking` 8. `b05_office_confirmation_intent` — these keep today's create contract (group 1, may go first).
-9. `product_private_tariff_rules` 10. `pa_tariff_l1` 11. `b07a_office_multi_create` 12. `b07_private_activation_guard` 13. data step `b07_private_2627_activation.PROPOSED` (seeds the discount rule row and the two Winter 26/27 private products only, then activates them; old five Winter 25/26 products untouched — they get `tariff_unavailable` on the new paths, never a made-up rate).
-
-**Edge Functions to deploy (all consumers of changed SQL or shared code):**
-- B02 / B04 delivery + invoice consumers: `issue-invoice`, `confirm-booking`, `course-booking`, `retry-course-booking-delivery`, `retry-booking-confirmation` (legacy B04 consumer), `send-invoice` (B06), `staff-booking-confirmation` (B05).
-- Booking writers: `private-appointments` (B03a edit, L1, B07-P, `client_outdated` refusal — deploy only after step 9), `office-booking` (B07a, after step 11), `staff-group-booking` (B08/B09).
-- Public product list: `get-products` (review 991688d9: excludes private products with a tariff revision; must be deployed BEFORE step 13 so activation never adds a public offer; safe before step 9 — missing table means nothing excluded).
-- Tariff management: `product-private-tariff-rules` (after step 9), `product-private-tariffs`, `product-management` (unchanged contract, redeploy only if its bundle changed).
-- Also importing changed shared birth-date/lunch code (redeploy for consistency, no contract change): `create-booking-from-extraction`, `submit-booking-request`, `get-booking-request`, `intake-booking`. Not deployed in this release: `get-website-products`, `public-private-tariff-display` (group 3).
-
-**Client:** set `PRODUCT_PRIVATE_TARIFFS_LIVE = true` and `OFFICE_MULTI_ITEM_LIVE = true` and publish in the same window as steps 9–13 + `private-appointments`/`office-booking` deploy.
-
-**Old clients (explicit decision):** a screen loaded before the publish omits the quote revisions. After steps 9 + `private-appointments` deploy it is refused with `invalid client_outdated` (old screens read "Ungültige Angaben. Es wurde nichts gespeichert."); no booking, no legacy CHF 170-style price. Office must reload. Keep the window between step 9 and the publish short or pause Office private bookings during it. `office-booking` is never called by old clients.
-
-**Activation vs public offer (checked 991688d9):** `get-website-products` ignores `is_active` (already lists both products, `online_bookable: false`), so step 13 does not change it; `get-products` would have listed them from 1.12.2026 with flat CHF 75 — prevented by the redeployed `get-products` above. No `online_bookable` column exists.
-
-**Verify after release:** one synthetic private and one mixed cart on a test customer in Office, with mail OFF; check ticket total = summary total, history amount, no e-mail queued.
+## Deployment manifest (B07 coordinated release)
+Superseded 2026-10-25 by **docs/release-b01-b11.md**: the 13 steps are now tracked migrations 0016–0028, the Edge closure is derived from actual imports, and the rollback order is listed there.
 
 ## Verified combined install (local only)
 `tests/b07aMultiCreate.integration.mjs` installs, in one database and this order, without error: baseline prelude, production baseline, `drizzle/migrations` 0000–0015, `b04_delivery_compatibility`, `b06_invoice_delivery`, `b11_created_total_event`, `participant_birth_date_guard`, `group_lunch_full_day`, `group_lunch_season`, `pa_edit_booking`, `b05_office_confirmation_intent`, `product_private_tariff_rules`, `pa_tariff_l1`, `b07a_office_multi_create` (29 files). Commands and results: docs/b07a-verification.md. Rollbacks rehearsed locally by `tests/paTariffL1Rollback.integration.mjs` (B07a first, then L1).
