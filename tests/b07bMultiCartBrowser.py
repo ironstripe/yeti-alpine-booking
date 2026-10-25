@@ -78,6 +78,8 @@ async def main():
                     return await route.fulfill(content_type="application/json", body=json.dumps({"success": False, "outcome": "failed"}))
                 if "/functions/v1/private-appointments" in url:
                     b = req.post_data_json; single.append(b)
+                    if b.get("action") == "quote":
+                        return await route.fulfill(status=503, content_type="application/json", body=json.dumps({"error": "unavailable"}))
                     if b.get("action") == "move" and not b.get("acknowledged_quote_digest"):
                         return await route.fulfill(status=409, content_type="application/json", body=json.dumps({"error": "quote_changed", "quote": {
                           "quote_digest": "c" * 32, "old_total": 190, "new_total": 150, "items": [{"date": "2026-12-21", "time_start": "12:00", "time_end": "14:00", "old_net": 190, "net": 150, "price_changed": True, "discount_percent": 0}]}}))
