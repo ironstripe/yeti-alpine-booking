@@ -58,6 +58,7 @@ try {
     results.push(`     pre-0007 md5 ${x.proname} ${x.m}`);
   { const r = psqlFile('supabase/pending/staff_guest_level.sql'); if (r.status !== 0) throw new Error(`psql 0007: ${r.stderr}`); }
   { const r = psqlFile('supabase/pending/group_lunch_full_day.sql'); if (r.status !== 0) throw new Error(`psql lunch: ${r.stderr}`); }
+  { const r = psqlFile('supabase/pending/b04_delivery_compatibility.sql'); if (r.status !== 0) throw new Error(`psql b04: ${r.stderr}`); }
   { const r = psqlFile('supabase/pending/b05_office_confirmation_intent.sql'); if (r.status !== 0) throw new Error(`psql b05: ${r.stderr}`); }
   { const r = psqlFile('supabase/pending/participant_birth_date_guard.sql'); if (r.status !== 0) throw new Error(`psql b08: ${r.stderr}`); }
   for (const x of await sql`SELECT proname, md5(prosrc) m FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname IN ('pa_create_booking','bc_2627_staff_group_book','staff_guest_level_ok') ORDER BY 1`)
@@ -82,6 +83,7 @@ try {
   }
   await seedCourse(C_NOMP, 'Ski Ohne Treffpunkt');
   await seedCourse(C_SB, 'Snowboard Kids', { discipline: 'snowboard', mp: 'Täli' });
+  const gline = (o) => ({ course_id: C_NOMP, product_id: P4, dates: WEEK, block: null, sport: 'ski', expected_unit_price: 320, meeting_point: 'malbipark', ...o });
   // Business date pinned to 2026-10-05 above; "tomorrow" = 2026-10-06.
   const err = async (q) => { try { await q; return null; } catch (e) { return e; } };
   const guest = (o) => ({ guest_key: 'guest-' + Math.random().toString(36).slice(2, 10), first_name: 'Neu', birth_date: '2018-01-01', ...o });
@@ -111,8 +113,8 @@ try {
 
   await t('private (tampered request, finalized + B05 wrapper): future guest DOB rolls back person/ticket/appointment/payment/intent', async () => {
     const before = await counts();
-    const intents = async () => (await sql`SELECT count(*)::int n FROM pg_tables WHERE tablename='b05_office_confirmation_intents'`)[0].n
-      ? (await sql`SELECT count(*)::int n FROM b05_office_confirmation_intents`)[0].n : 0;
+    const intents = async () => (await sql`SELECT count(*)::int n FROM pg_tables WHERE tablename='office_booking_confirmation_intents'`)[0].n
+      ? (await sql`SELECT count(*)::int n FROM office_booking_confirmation_intents`)[0].n : 0;
     const i0 = await intents();
     const p = { submission_key: key(), customer_id: CUST, product_id: PRIV, appointments: [pslot],
       participants: [{ participant_id: PA }, guest({ birth_date: '2026-10-06' })], finalization: fin() };
