@@ -104,15 +104,18 @@ async def main():
               w().setAppointments([{{date:'2026-12-21', startTime:'10:00', durationMinutes:120, instructorId:'{T1}'}}]);
               w().setCartItemParticipants(w().state.activeCartItemId, ['{ANNA}']);
             """
-            await page.evaluate(f"() => {{ {setup} }}")
+            for line in [l.strip() for l in setup.strip().splitlines()[1:]]:
+                for cmd in [c.strip() for c in line.split(";") if c.strip()]:
+                    await page.evaluate("() => " + cmd.replace("w()", "window.wiz")); await page.wait_for_timeout(60)
             await page.wait_for_timeout(200)
             check(await page.get_by_text("Im Warenkorb sind mehrere", exact=False).count() == 0, f"{tag} single item: no multi block")
             await page.evaluate("() => window.wiz.addCartItem()")
             await page.wait_for_timeout(200)
-            await page.evaluate(f"""() => {{ const w = window.wiz; w.setProductType('private'); w.setProductId('{SB}'); w.setSelectedDates(['2026-12-21']);
-              w.setAppointments([{{date:'2026-12-21', startTime:'14:00', durationMinutes:120, instructorId:'{T2}'}}]);
-              w.setCartItemParticipants(w.state.activeCartItemId, ['{ANNA}']);
-              w.setCheckoutOptions({{paymentMethod:'cash',settlement:'pay_later',sendCustomerEmail:false}}); }}""")
+            for cmd in ["setProductType('private')", f"setProductId('{SB}')", "setSelectedDates(['2026-12-21'])",
+                        f"setAppointments([{{date:'2026-12-21', startTime:'14:00', durationMinutes:120, instructorId:'{T2}'}}])",
+                        f"setCartItemParticipants(window.wiz.state.activeCartItemId, ['{ANNA}'])",
+                        "setCheckoutOptions({paymentMethod:'cash',settlement:'pay_later',sendCustomerEmail:false})"]:
+                await page.evaluate(f"() => window.wiz.{cmd}"); await page.wait_for_timeout(60)
             await page.wait_for_timeout(300)
             check(await page.get_by_text("Im Warenkorb sind mehrere", exact=False).count() == 1, f"{tag} multi switch OFF: cart stays blocked")
             check(await page.get_by_test_id("office-cart-quote").count() == 0 and not quotes, f"{tag} switch OFF: no office-booking call")
