@@ -33,3 +33,24 @@ export function publicPrivateProjection(row: unknown) {
   return {public_private_time_tariffs:{version:1,purpose:'display_information_only',currency:'CHF',base_persons:1,windows:info.windows},
     public_private_tariff_rules:{version:1,extra_person_basis:'per_window',discount:{percent:info.discount_percent,threshold:info.discount_threshold,unit:info.discount_unit,scope:info.discount_scope},affects_operational_pricing:false}};
 }
+
+// Resolver-derived projection (pending public_private_tariff_projection SQL). Amounts come from the product
+// tariff resolver (public channel), discount from the configured rule; only standard exact windows.
+// Returns null for any error/malformed result: no guessed price, no legacy display amounts.
+const resolvedSchema = z.object({
+  ok: z.literal(true),
+  windows: z.array(publicPrivateWindowSchema).min(1).max(48),
+  discount: z.object({ percent: z.number().positive().max(100), threshold: z.number().int().positive(),
+    unit: z.literal('minutes'), scope: z.literal('same_participant_same_day') }).strict(),
+}).passthrough();
+export function publicPrivateResolvedProjection(result: unknown) {
+  const r = resolvedSchema.safeParse(result);
+  if (!r.success || r.data.windows.some((w) => w.classification !== 'standard' || w.window_kind !== 'exact')) return null;
+  const { windows, discount } = r.data;
+  return {
+    public_private_time_tariffs: { version: 1, purpose: 'display_information_only', currency: 'CHF', base_persons: 1,
+      windows: windows.map(({ start, end, duration_minutes, amount_chf, extra_person_chf, classification, window_kind }) =>
+        ({ start, end, duration_minutes, amount_chf, extra_person_chf, classification, window_kind })) },
+    public_private_tariff_rules: { version: 1, extra_person_basis: 'per_window', discount, affects_operational_pricing: false },
+  };
+}

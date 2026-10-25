@@ -4,7 +4,7 @@
 // web reservations must stay disabled until pricing and concrete dates are verified.
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { seriesDates, type ProductSeries } from '../_shared/productOffering.ts';
-import { publicPrivateProjection } from '../_shared/publicPrivateTariffDisplay.ts';
+import { publicPrivateResolvedProjection } from '../_shared/publicPrivateTariffDisplay.ts';
 import { checkApiKey, corsHeaders, json } from "../_shared/intakeAuth.ts";
 
 const INTERNAL_TYPES = new Set(["office_shift"]);
@@ -52,13 +52,16 @@ Deno.serve(async (req) => {
       : { data: [], error: null };
     if (rateError) throw rateError;
 
-    // Optional information only: installed and explicitly Office-verified rows.
-    // Missing table during staged installation omits fields, never invents prices.
-    const { data: displayRates, error: displayError } = privateIds.length
-      ? await db.from("public_private_tariff_display").select("product_id,season_id,windows,base_persons,discount_percent,discount_threshold,discount_unit,discount_scope,source_note,source_date,verified_by,verified_at")
-        .eq("season_id", season.id).in("product_id", privateIds).not("verified_at", "is", null)
-      : { data: [], error: null };
-    if (displayError && !["42P01", "PGRST205"].includes(displayError.code)) throw displayError;
+    // Optional information only: Office-verified public STANDARD windows, priced by the product tariff
+    // resolver (public channel) and the configured discount rule (pending public_private_tariff_projection).
+    // Not installed / not verified / resolver error => fields omitted; legacy stored display amounts are never published.
+    const projections = new Map<string, unknown>();
+    for (const productId of privateIds) {
+      const { data, error } = await db.rpc("public_private_tariff_projection", { p_product: productId, p_season: season.id });
+      if (error && ["PGRST202", "42883"].includes(error.code)) break; // staged install: omit for all
+      if (error) throw error;
+      projections.set(productId, data);
+    }
 
     // Contract: products only, keyed by products.id. Internal scheduling data
     // (courses, instances, staff) is never queried or exposed here. The raw
@@ -95,7 +98,7 @@ Deno.serve(async (req) => {
         Number.isInteger(r.duration_minutes) && Number.isInteger(r.persons_per_lesson) && positive(r.price_chf))
         .map((r) => ({ duration_minutes: r.duration_minutes, persons: r.persons_per_lesson, price: Number(r.price_chf) }))
         .sort((a, b) => a.duration_minutes - b.duration_minutes || a.persons - b.persons),
-      ...(p.type === "private" ? publicPrivateProjection((displayRates ?? []).find((r) => r.product_id === p.id && r.season_id === season.id)) ?? {} : {}),
+      ...(p.type === "private" ? publicPrivateResolvedProjection(projections.get(p.id)) ?? {} : {}),
       duration_minutes: p.duration_minutes,
       min_age: p.min_age,
       max_age: p.max_age,
