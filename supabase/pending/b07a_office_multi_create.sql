@@ -288,7 +288,6 @@ BEGIN
            AND lower(trim(first_name)) = lower(trim(g->>'first_name'))
            AND lower(trim(coalesce(last_name,''))) = lower(trim(coalesce(g->>'last_name','')))
            AND birth_date = (g->>'birth_date')::date
-           AND id <> ALL(v_known)
          ORDER BY created_at, id LIMIT 1;
         IF v_uid IS NULL THEN
           INSERT INTO public.customer_participants (customer_id, first_name, last_name, birth_date, sport, level_current_season)
@@ -296,10 +295,10 @@ BEGIN
                   coalesce(nullif(g->>'sport',''),'ski'), nullif(trim(coalesce(g->>'level','')),''))
           RETURNING id INTO v_uid;
         END IF;
-        IF v_refof ? v_uid::text THEN -- two guest refs resolved to the same saved person
-          v_err := jsonb_build_object('error','invalid','field','participants','ref',e->>'ref');
-          RAISE EXCEPTION USING ERRCODE = 'B7A01', MESSAGE = 'b07a';
-        END IF;
+      END IF;
+      IF v_refof ? v_uid::text OR (e ? 'guest' AND v_uid = ANY(v_known)) THEN -- one person, one ref
+        v_err := jsonb_build_object('error','invalid','field','participants','ref',e->>'ref');
+        RAISE EXCEPTION USING ERRCODE = 'B7A01', MESSAGE = 'b07a';
       END IF;
       v_pid := v_pid || jsonb_build_object(e->>'ref', v_uid);
       v_refof := v_refof || jsonb_build_object(v_uid::text, e->>'ref');
