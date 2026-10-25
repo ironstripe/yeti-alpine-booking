@@ -6,6 +6,8 @@
 - [x] B07a atomic multi-item server (`b07a_office_multi` + `office-booking`), full pending chain installed together, 19/19 + rollback 4/4; L1 fixes (participant UPDATE guard, period stale locks). docs/b07a-verification.md.
 - [x] B07b UI: whole-cart office-booking quote/create, accessible price dialog, private activation guard + targeted 26/27 seed, old-client refusal, combined delivery suites. docs/b07b-verification.md.
 - [x] B07b review 991688d9: cart-wide due date, attempt lifecycle (no new key after unknown), 26/27 product reachable in real wizard, step-1 new people in cart, B05 flake (fixture), get-products excludes tariff products.
+- [x] Final release prep 8c5b86a: replay keeps unknown attempts blocked except quote_changed; tariff rules editor follows release; migrations 0016–0028 tracked; Edge closure; switches ON in code. docs/release-b01-b11.md.
+- [ ] Execute 0016–0028 + 12 Edge deploys, then Ivo publishes Core (authorized; next action).
 - [ ] Coordinated B01–B11 install/deploy/publish (next, authorized; manifest).
 - [ ] Coordinated install/deploy/publish of B07 server + client per manifest deployment section (awaits the reviewed execution step).
 
