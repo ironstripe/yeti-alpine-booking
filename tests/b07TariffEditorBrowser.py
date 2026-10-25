@@ -14,10 +14,11 @@ FIXTURE = r"""async () => {
   const {default: {createRoot}} = await import('/node_modules/.vite/deps/react-dom_client.js');
   const {QueryClient, QueryClientProvider} = await import(await dep('/src/hooks/usePrivateTariffRules.ts', '@tanstack_react-query'));
   const {PrivateTariffRulesEditor} = await import(src);
+  const {Toaster} = await import('/src/components/ui/sonner.tsx');
   await import('/src/index.css');
   const qc = new QueryClient({defaultOptions: {queries: {retry: false}}});
   createRoot(document.getElementById('fixture')).render(React.createElement(QueryClientProvider, {client: qc},
-    React.createElement(PrivateTariffRulesEditor, {productId: '%s'})));
+    React.createElement(React.Fragment, null, React.createElement(PrivateTariffRulesEditor, {productId: '%s'}), React.createElement(Toaster))));
 }""" % PID
 RULES = [
   {"rule_kind": "hourly", "window_start": "09:00:00", "window_end": "10:00:00", "price_chf": 75, "extra_person_chf": 20, "max_persons": 4, "max_block_minutes": None, "office_only": False, "provenance": "seed"},
