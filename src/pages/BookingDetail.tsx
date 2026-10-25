@@ -78,9 +78,6 @@ const BookingDetail = () => {
   const { data: schoolSettings } = useSchoolSettings();
   const createInvoice = useCreateInvoice();
   const sendInvoice = useSendInvoice();
-  const latestInvoiceId = invoices?.[0]?.id;
-  const latestInvoiceStatus = invoices?.[0]?.status;
-  const invoiceDelivery = useInvoiceDeliveryStatus(latestInvoiceId, latestInvoiceStatus === 'open');
   const confirmation = useBookingConfirmation(id);
   const sendConfirmation = confirmation.send;
   
@@ -116,6 +113,9 @@ const BookingDetail = () => {
   // Fetch invoices for this ticket
   const projection = useBookingReadProjection(id, ticket?.items);
   const { data: invoices = [] } = useInvoicesByTicket(id);
+  const latestInvoiceId = invoices?.[0]?.id;
+  const latestInvoiceStatus = invoices?.[0]?.status;
+  const invoiceDelivery = useInvoiceDeliveryStatus(latestInvoiceId, latestInvoiceStatus === 'open');
   
   // Fetch email log for this ticket
   const { data: emailLogs = [] } = useQuery({
