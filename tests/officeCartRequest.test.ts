@@ -149,3 +149,15 @@ test("due date default uses the earliest date of the WHOLE cart incl. inactive p
   // single item unchanged
   expect(checkoutFirstCourseDate(stateOf([late], late))).toBe("2027-01-11");
 });
+
+test("people newly entered in step 1 (local, not yet saved) resolve as one guest shared by all items", () => {
+  const L = "local-anna";
+  const a = priv("a", SKI, [L], [["2026-12-21", "10:00", 120]]);
+  const b = priv("b", SB, [L], [["2026-12-21", "14:00", 120]]);
+  const st = stateOf([a, b], b, { selectedParticipants: [], localParticipants: [{ id: L, first_name: "Anna", last_name: "Synth", birth_date: "2016-02-02", skill_level: null, sport: "ski" }] } as never);
+  const r = buildOfficeCart(st, lunch);
+  expect(r.kind).toBe("ready");
+  if (r.kind !== "ready") return;
+  expect(r.cart.participants).toEqual([{ ref: "p1", guest: { first_name: "Anna", last_name: "Synth", birth_date: "2016-02-02", sport: "ski" } }]);
+  expect(r.cart.items.map((i) => (i as { participants: string[] }).participants)).toEqual([["p1"], ["p1"]]);
+});
