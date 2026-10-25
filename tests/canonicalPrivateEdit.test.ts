@@ -50,6 +50,12 @@ describe("canonical private edit hydration", () => {
 });
 
 describe("canonical edit request", () => {
+  it("customer note preserves exact empty versus NULL original", () => {
+    const s=base(); const r=buildEditRequest(s,{...draftFromSnapshot(s),customerNotes:'new'});
+    expect(r?.expected_customer_notes).toBe('');
+    const nullOriginal={...s,originalCustomerNotes:null};
+    expect(buildEditRequest(nullOriginal,{...draftFromSnapshot(nullOriginal),customerNotes:'new'})?.expected_customer_notes).toBeNull();
+  });
   it("unchanged save sends nothing", () => { const s = base(); expect(buildEditRequest(s, draftFromSnapshot(s))).toBeNull(); });
   it("notes-only does not need a quote and carries no participants", () => {
     const s = base(); const r = buildEditRequest(s, { ...draftFromSnapshot(s), internalNotes: { [A1]: "neu" } })!;
