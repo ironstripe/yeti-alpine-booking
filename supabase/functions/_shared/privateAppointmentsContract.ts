@@ -118,7 +118,6 @@ export function statusFor(result: Record<string, unknown>): number {
     case "not_found": return 404;
     case "forbidden": return 403;
     case "invalid": return 400;
-    case "birth_date": return 400;
     default: return 500;
   }
 }
