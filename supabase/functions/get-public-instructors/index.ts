@@ -6,6 +6,7 @@ import { corsHeaders, checkApiKey, json } from "../_shared/intakeAuth.ts";
 import { publicInstructorTitle } from "../_shared/publicInstructorTitle.ts";
 import { publicPortraitUrl } from "../_shared/publicPortraitUrl.ts";
 import { placeholderPortraitUrl } from "../_shared/placeholderPortrait.ts";
+import { publicExpertiseByInstructor, publicLanguages } from "../_shared/publicInstructorDetails.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -22,13 +23,37 @@ Deno.serve(async (req) => {
   try {
     const { data, error } = await supabase
       .from("instructors")
-      .select("first_name, last_name, specialization, roles, gender, website_role_title, avatar_url, website_teaser")
+      .select("id, languages, first_name, last_name, specialization, roles, gender, website_role_title, avatar_url, website_teaser")
       .eq("status", "active")
       .eq("show_on_website", true)
       .order("first_name", { ascending: true })
       .order("last_name", { ascending: true });
 
     if (error) throw new Error(error.message);
+
+    // One batched canonical capability join for eligible instructors (no N+1).
+    const eligibleIds = (data ?? [])
+      .filter((r) => (r.website_teaser ?? "").trim() && `${r.first_name ?? ""}${r.last_name ?? ""}`.trim())
+      .map((r) => r.id);
+    let expertise = new Map<string, { category: string; name: string }[]>();
+    if (eligibleIds.length) {
+      // Category filtered in the join; paged so the API row cap never truncates results.
+      const caps: unknown[] = [];
+      const PAGE = 1000;
+      for (let from = 0; ; from += PAGE) {
+        const { data: page, error: capErr } = await supabase
+          .from("instructor_capabilities")
+          .select("instructor_id, capability_id, capabilities!instructor_capabilities_capability_id_fkey!inner(name, category)")
+          .in("instructor_id", eligibleIds)
+          .in("capabilities.category", ["Ski", "Snowboard"])
+          .order("instructor_id").order("capability_id")
+          .range(from, from + PAGE - 1);
+        if (capErr) throw new Error(capErr.message);
+        caps.push(...(page ?? []));
+        if ((page ?? []).length < PAGE) break;
+      }
+      expertise = publicExpertiseByInstructor((caps ?? []) as never);
+    }
 
     const team = (data ?? [])
       .map((r) => {
@@ -49,6 +74,8 @@ Deno.serve(async (req) => {
           // Real photo when available; otherwise the gender-matched illustration
           // hosted by Core, so the Onepager needs no placeholder of its own.
           portrait_url: portraitUrl,
+          languages: publicLanguages(r.languages),
+          expertise: expertise.get(r.id) ?? [],
         };
       })
       .filter(Boolean);
