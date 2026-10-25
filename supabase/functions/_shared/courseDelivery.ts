@@ -309,16 +309,26 @@ async function confirmationContent(sb: Client, ticketId: string, vars?: (sb: Cli
 
 const fmtDate = (d?: string | null) => (d ? d.slice(0, 10).split("-").reverse().join(".") : "");
 
-async function invoiceContent(sb: Client, ticketId: string): Promise<Content> {
+async function invoiceContent(sb: Client, ticketId: string, invoiceId?: string): Promise<Content> {
   const { data: tpl, error: templateError } = await sb.from("email_templates").select("id, subject, body_html, body_text")
     .eq("trigger", INVOICE_TRIGGER).eq("is_active", true).maybeSingle();
   if (templateError) throw new Error("template_read_failed");
   if (!tpl) return { ok: false, code: "template_missing", message: "Vorlage invoice.created fehlt oder ist inaktiv" };
 
-  const { data: invoices, error: invoiceRead } = await sb.from("invoices").select("*").eq("ticket_id", ticketId).eq("status", "open");
-  if (invoiceRead) throw new Error("invoice_read_failed");
-  if ((invoices?.length ?? 0) !== 1) return { ok: false, code: "invoice_missing", message: `${invoices?.length ?? 0} offene Rechnungen` };
-  const inv = invoices[0];
+  let inv: Record<string, any> | null = null;
+  if (invoiceId) {
+    // Office send: the exact persisted invoice, bound to this ticket.
+    const { data: one, error: oneError } = await sb.from("invoices").select("*").eq("id", invoiceId).maybeSingle();
+    if (oneError) throw new Error("invoice_read_failed");
+    if (!one || one.ticket_id !== ticketId) return { ok: false, code: "invoice_missing", message: "Rechnung gehört nicht zu dieser Buchung" };
+    if (one.status !== "open") return { ok: false, code: "invoice_not_open", message: `Rechnung hat Status ${one.status}` };
+    inv = one;
+  } else {
+    const { data: invoices, error: invoiceRead } = await sb.from("invoices").select("*").eq("ticket_id", ticketId).eq("status", "open");
+    if (invoiceRead) throw new Error("invoice_read_failed");
+    if ((invoices?.length ?? 0) !== 1) return { ok: false, code: "invoice_missing", message: `${invoices?.length ?? 0} offene Rechnungen` };
+    inv = invoices[0];
+  }
   const { data: t, error: ticketRead } = await sb.from("tickets").select("ticket_number, customer_id").eq("id", ticketId).maybeSingle();
   const { data: c, error: customerRead } = await sb.from("customers").select("first_name, last_name, street, house_number, zip, city")
     .eq("id", inv.customer_id ?? t?.customer_id).maybeSingle();
@@ -336,7 +346,7 @@ async function invoiceContent(sb: Client, ticketId: string): Promise<Content> {
     return { description: it.product?.name ?? it.group_name ?? "Leistung", details: `${when} · ${time}`, amount: Number(it.line_total) };
   });
 
-  const doc = await renderInvoiceDocument({
+  const doc = await renderInvoicePdf({
     invoice: inv, school: school?.[0] ?? { name: "" }, customer: c ?? { last_name: "" }, ticketNumber: t?.ticket_number ?? "", lines,
   });
   if (!doc.ok) return { ok: false, code: doc.code, message: doc.message, templateId: tpl.id };
@@ -348,5 +358,5 @@ async function invoiceContent(sb: Client, ticketId: string): Promise<Content> {
     "invoice.due_date": fmtDate(inv.due_date), "school.name": school?.[0]?.name ?? "",
   });
   if (!filled.ok) return filled;
-  return { ...filled, invoiceId: inv.id, attachments: [{ filename: doc.filename, content: b64(doc.html), content_type: "text/html" }] };
+  return { ...filled, invoiceId: inv.id, attachments: [{ filename: doc.filename, content: b64(doc.pdf), content_type: "application/pdf" }] };
 }
