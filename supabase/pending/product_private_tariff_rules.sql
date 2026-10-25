@@ -168,20 +168,52 @@ CREATE POLICY "Staff read private appointment pricing" ON public.private_appoint
 -- discount_amount = round(price * eligible / persons * percent / 100, 2); discount_percent = amount/price*100.
 CREATE OR REPLACE FUNCTION public.pa_same_day_discount(p_slots jsonb, p_percent numeric, p_threshold integer) RETURNS jsonb
 LANGUAGE sql IMMUTABLE SET search_path TO 'public' AS $$
+  -- B07-P3: a person's day minutes are the UNION of their intervals (overlaps / duplicate joins never
+  -- inflate eligibility). Context slots (already booked lessons) are passed with price 0, so they
+  -- contribute minutes but never receive a discount.
   WITH s AS (
-    SELECT (o - 1)::int idx, (x->>'date')::date d,
-           (extract(epoch FROM ((x->>'time_end')::time - (x->>'time_start')::time)) / 60)::int mins,
+    SELECT (o - 1)::int idx, (x->>'date')::date d, (x->>'time_start')::time st, (x->>'time_end')::time en,
            (x->>'price')::numeric price, coalesce(x->'participants', '[]'::jsonb) parts
       FROM jsonb_array_elements(p_slots) WITH ORDINALITY t(x, o)),
-  sp AS (SELECT DISTINCT s.idx, s.d, s.mins, v pid FROM s, jsonb_array_elements_text(s.parts) v),
-  pd AS (SELECT pid, d, sum(mins) m FROM sp GROUP BY pid, d),
+  sp AS (SELECT DISTINCT s.idx, s.d, s.st, s.en, v pid FROM s, jsonb_array_elements_text(s.parts) v),
+  iv AS (SELECT DISTINCT pid, d, st, en FROM sp),
+  ov AS (SELECT iv.*, max(en) OVER (PARTITION BY pid, d ORDER BY st, en ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) prev_end FROM iv),
+  gr AS (SELECT ov.*, sum(CASE WHEN prev_end IS NULL OR st > prev_end THEN 1 ELSE 0 END) OVER (PARTITION BY pid, d ORDER BY st, en) g FROM ov),
+  pd AS (SELECT pid, d, sum(m) m FROM (SELECT pid, d, g, extract(epoch FROM (max(en) - min(st))) / 60 m FROM gr GROUP BY pid, d, g) x GROUP BY pid, d),
   per AS (
-    SELECT s.idx, s.price, count(sp.pid)::int n, (count(sp.pid) FILTER (WHERE pd.m >= p_threshold))::int e
+    SELECT s.idx, s.price, count(DISTINCT sp.pid)::int n, (count(DISTINCT sp.pid) FILTER (WHERE pd.m >= p_threshold))::int e
       FROM s LEFT JOIN sp ON sp.idx = s.idx LEFT JOIN pd ON pd.pid = sp.pid AND pd.d = sp.d
      GROUP BY s.idx, s.price),
   z AS (SELECT *, CASE WHEN n = 0 OR price <= 0 THEN 0::numeric ELSE round(price * e * p_percent / (n * 100.0), 2) END amt FROM per)
   SELECT coalesce(jsonb_agg(jsonb_build_object('index', idx, 'persons', n, 'eligible', e, 'discount_amount', amt,
            'discount_percent', CASE WHEN price > 0 THEN amt * 100 / price ELSE 0 END) ORDER BY idx), '[]'::jsonb) FROM z
+$$;
+
+-- B07-P3: already booked PRIVATE teaching intervals of known participants on the given dates (cross-booking
+-- eligibility, Ivo 2026-10-25: "Rabatt gilt für 4 std. pro teilnehmer am gleichen tag"). Counts only real
+-- appointments (scheduled/booked/completed) whose ticket is not draft/cancelled/storno/expired and whose
+-- linked billing line is not cancelled. Group courses and lunch are never private_appointments.
+-- One row per canonical appointment (participants deduplicated). digest binds a quote to this exact state.
+-- Returns no personal data beyond the caller-supplied participant ids.
+CREATE OR REPLACE FUNCTION public.pa_private_day_context(p_participants uuid[], p_dates date[]) RETURNS jsonb
+LANGUAGE sql STABLE SET search_path TO 'public' AS $$
+  WITH a AS (
+    SELECT pa.id, pa.date, pa.time_start, pa.time_end, pap.participant_id pid
+      FROM public.private_appointment_participants pap
+      JOIN public.private_appointments pa ON pa.id = pap.appointment_id
+      JOIN public.tickets t ON t.id = pa.ticket_id
+     WHERE pap.participant_id = ANY(coalesce(p_participants, '{}')) AND pa.date = ANY(coalesce(p_dates, '{}'))
+       AND pa.status IN ('scheduled','booked','completed')
+       AND coalesce(t.status,'') NOT IN ('draft','cancelled','storno','expired')
+       AND NOT EXISTS (SELECT 1 FROM public.ticket_items ti WHERE ti.appointment_id = pa.id AND ti.status = 'cancelled')
+     GROUP BY pa.id, pa.date, pa.time_start, pa.time_end, pap.participant_id),
+  slots AS (SELECT id, date, time_start, time_end, array_agg(pid::text ORDER BY pid) parts FROM a GROUP BY id, date, time_start, time_end)
+  SELECT jsonb_build_object(
+    'slots', coalesce((SELECT jsonb_agg(jsonb_build_object('date', date, 'time_start', time_start, 'time_end', time_end,
+               'price', 0, 'participants', to_jsonb(parts)) ORDER BY date, time_start, id) FROM slots), '[]'::jsonb),
+    'appointments', (SELECT count(*) FROM slots),
+    'digest', md5(coalesce((SELECT string_agg(id || '|' || pid || '|' || date || '|' || time_start || '|' || time_end, ';'
+                 ORDER BY id, pid) FROM a), '')))
 $$;
 
 -- Discount intent of a create/quote request. Explicit manual override (discount_override, or the legacy
@@ -214,6 +246,11 @@ END $$;
 -- p_slots: [{date,time_start,time_end,participants:[key]}]. Returns {ok, items[], gross_total, discount_total,
 -- automatic_discount_total, total, discount_source, revision, discount_rule_revision} or an error object.
 CREATE OR REPLACE FUNCTION public.pa_price_request(p_product uuid, p_slots jsonb, p_intent jsonb, p_office boolean) RETURNS jsonb
+LANGUAGE plpgsql STABLE SET search_path TO 'public' AS $$ BEGIN RETURN public.pa_price_request(p_product, p_slots, p_intent, p_office, '[]'::jsonb); END $$;
+
+-- B07-P3: p_context = already booked slots (pa_private_day_context().slots, price 0): they add minutes to
+-- the same person's day but are never priced, discounted or returned. Only p_slots are new lines.
+CREATE OR REPLACE FUNCTION public.pa_price_request(p_product uuid, p_slots jsonb, p_intent jsonb, p_office boolean, p_context jsonb) RETURNS jsonb
 LANGUAGE plpgsql STABLE SET search_path TO 'public' AS $$
 DECLARE i int; e jsonb; v_q jsonb; v_priced jsonb := '[]'::jsonb; v_rev int; dr record; v_auto jsonb;
   v_items jsonb := '[]'::jsonb; v_gross numeric := 0; v_disc numeric := 0; v_auto_total numeric := 0; v_net numeric := 0;
@@ -231,7 +268,7 @@ BEGIN
   END LOOP;
   SELECT * INTO dr FROM public.private_lesson_discount_rule WHERE id;
   IF NOT FOUND THEN RETURN jsonb_build_object('error','tariff_unavailable','reason','discount_rule_not_configured'); END IF;
-  v_auto := public.pa_same_day_discount(v_priced, dr.percent, dr.threshold_minutes);
+  v_auto := public.pa_same_day_discount(v_priced || coalesce(p_context, '[]'::jsonb), dr.percent, dr.threshold_minutes);
   FOR i IN 0 .. jsonb_array_length(v_priced) - 1 LOOP
     v_price := (v_priced->i->>'price')::numeric;
     v_auto_total := v_auto_total + (v_auto->i->>'discount_amount')::numeric;
@@ -264,7 +301,7 @@ END $$;
 -- Every person attends every appointment (same shape pa_create_booking writes).
 CREATE OR REPLACE FUNCTION public.pa_create_quote(p jsonb) RETURNS jsonb
 LANGUAGE plpgsql STABLE SET search_path TO 'public' AS $$
-DECLARE v_product uuid; v_persons int; v_appts jsonb := p->'appointments'; v_intent jsonb; v_parts jsonb; v_slots jsonb := '[]'::jsonb; i int;
+DECLARE v_product uuid; v_persons int; v_known uuid[] := '{}'; v_cust uuid; v_ctx jsonb; v_res jsonb; v_dates date[]; v_appts jsonb := p->'appointments'; v_intent jsonb; v_parts jsonb; v_slots jsonb := '[]'::jsonb; i int;
 BEGIN
   BEGIN v_product := (p->>'product_id')::uuid; v_persons := (p->>'persons')::int;
   EXCEPTION WHEN others THEN RETURN jsonb_build_object('error','invalid','field','product_id'); END;
@@ -275,15 +312,33 @@ BEGIN
   IF jsonb_typeof(v_appts) <> 'array' OR jsonb_array_length(v_appts) = 0 OR jsonb_array_length(v_appts) > 60 THEN
     RETURN jsonb_build_object('error','invalid','field','appointments');
   END IF;
+  -- B07-P3: known (saved) participants of this customer; their already booked lessons count. Guests have none.
+  IF p ? 'participant_ids' THEN
+    BEGIN
+      v_cust := (p->>'customer_id')::uuid;
+      SELECT coalesce(array_agg(DISTINCT x::uuid), '{}') INTO v_known FROM jsonb_array_elements_text(p->'participant_ids') x;
+    EXCEPTION WHEN others THEN RETURN jsonb_build_object('error','invalid','field','participant_ids'); END;
+    IF cardinality(v_known) <> jsonb_array_length(p->'participant_ids') OR cardinality(v_known) > v_persons
+       OR (cardinality(v_known) > 0 AND (v_cust IS NULL OR (SELECT count(*) FROM public.customer_participants
+            WHERE id = ANY(v_known) AND customer_id = v_cust) <> cardinality(v_known))) THEN
+      RETURN jsonb_build_object('error','invalid','field','participant_ids');
+    END IF;
+  END IF;
   v_intent := public.pa_discount_intent(p, false);
   IF v_intent ? 'error' THEN RETURN v_intent; END IF;
-  SELECT jsonb_agg('p' || g) INTO v_parts FROM generate_series(1, v_persons) g;
+  SELECT to_jsonb(v_known::text[]) || coalesce(jsonb_agg('guest:' || g), '[]'::jsonb) INTO v_parts
+    FROM generate_series(1, v_persons - cardinality(v_known)) g;
   FOR i IN 0 .. jsonb_array_length(v_appts) - 1 LOOP
     IF jsonb_typeof(v_appts->i) <> 'object' THEN RETURN jsonb_build_object('error','invalid','field','appointments','index',i); END IF;
     v_slots := v_slots || jsonb_build_array(jsonb_build_object('date', v_appts->i->'date', 'time_start', v_appts->i->'time_start',
       'time_end', v_appts->i->'time_end', 'participants', v_parts));
   END LOOP;
-  RETURN public.pa_price_request(v_product, v_slots, v_intent, true);
+  BEGIN SELECT array_agg(DISTINCT (x->>'date')::date) INTO v_dates FROM jsonb_array_elements(v_appts) x;
+  EXCEPTION WHEN others THEN RETURN jsonb_build_object('error','invalid','field','appointments'); END;
+  v_ctx := public.pa_private_day_context(v_known, v_dates);
+  v_res := public.pa_price_request(v_product, v_slots, v_intent, true, v_ctx->'slots');
+  IF v_res ? 'error' THEN RETURN v_res; END IF;
+  RETURN v_res || jsonb_build_object('day_context_digest', v_ctx->>'digest', 'existing_appointments', (v_ctx->>'appointments')::int);
 END $$;
 
 -- Atomic, revision-checked replace of one product's rule set (staff via Edge Function only).
@@ -354,6 +409,7 @@ DECLARE
   d date; s time; t time; ins uuid; v_later boolean; v_unassigned date[] := ARRAY[]::date[];
   -- B07-P/P2: product-configured tariff resolver + discount state.
   v_rev int; v_drev int; v_intent jsonb; v_quote jsonb; v_slots jsonb := '[]'::jsonb; v_it jsonb; v_err jsonb;
+  v_known uuid[] := ARRAY[]::uuid[]; v_dates date[]; v_ctx jsonb; r record;
 BEGIN
   IF v_key IS NULL OR length(v_key) < 8 THEN RETURN jsonb_build_object('error','invalid','field','submission_key'); END IF;
   v_intent := public.pa_discount_intent(p, true);
@@ -375,6 +431,8 @@ BEGIN
   -- makes a concurrent tariff save wait until this booking commits or rolls back.
   IF jsonb_typeof(p->'quote_revision') IS DISTINCT FROM 'number' THEN RETURN jsonb_build_object('error','invalid','field','quote_revision'); END IF;
   IF jsonb_typeof(p->'discount_rule_revision') IS DISTINCT FROM 'number' THEN RETURN jsonb_build_object('error','invalid','field','discount_rule_revision'); END IF;
+  -- B07-P3: the quote also binds the participant/day context (already booked lessons) it was computed on.
+  IF jsonb_typeof(p->'day_context_digest') IS DISTINCT FROM 'string' THEN RETURN jsonb_build_object('error','invalid','field','day_context_digest'); END IF;
   SELECT revision INTO v_rev FROM public.product_private_tariff_revisions WHERE product_id = v_product FOR SHARE;
   IF v_rev IS NULL THEN RETURN jsonb_build_object('error','tariff_unavailable','reason','not_configured'); END IF;
   SELECT revision INTO v_drev FROM public.private_lesson_discount_rule WHERE id FOR SHARE;
@@ -416,6 +474,7 @@ BEGIN
     IF e ? 'participant_id' THEN
       SELECT id INTO v_pid FROM public.customer_participants WHERE id = (e->>'participant_id')::uuid AND customer_id = v_customer;
       IF v_pid IS NULL THEN RETURN jsonb_build_object('error','invalid','field','participants','index',i); END IF;
+      IF NOT v_pid = ANY(v_known) THEN v_known := v_known || v_pid; END IF;
     ELSE
       IF coalesce(e->>'guest_key','') = '' OR coalesce(e->>'first_name','') = '' OR (e->>'birth_date') IS NULL THEN
         RETURN jsonb_build_object('error','invalid','field','participants','index',i);
@@ -444,6 +503,24 @@ BEGIN
   END LOOP;
   v_persons := cardinality(v_part_ids);
 
+  -- B07-P3: serialize per known participant and date (sorted => no lock-order deadlock between creates),
+  -- lock the counted appointments against concurrent cancellation, then re-read the day context. If it
+  -- differs from the quoted one, nothing is written (guests rolled back) and a fresh quote is required.
+  -- Guests matched by name in this create are NOT given history (only stable ids count, as in the quote).
+  SELECT array_agg(DISTINCT (x->>'date')::date) INTO v_dates FROM jsonb_array_elements(v_appts) x;
+  FOR r IN SELECT kp, kd FROM unnest(v_known) kp, unnest(v_dates) kd ORDER BY 1, 2 LOOP
+    PERFORM pg_advisory_xact_lock(hashtext('pa_day:' || r.kp || ':' || r.kd));
+  END LOOP;
+  PERFORM 1 FROM public.private_appointments pa
+    WHERE pa.date = ANY(v_dates) AND pa.id IN (SELECT appointment_id FROM public.private_appointment_participants WHERE participant_id = ANY(v_known))
+    ORDER BY pa.id FOR SHARE;
+  v_ctx := public.pa_private_day_context(v_known, v_dates);
+  IF v_ctx->>'digest' <> p->>'day_context_digest' THEN
+    v_err := jsonb_build_object('error','quote_changed','reason','day_context',
+      'quote', jsonb_build_object('revision', v_rev, 'discount_rule_revision', v_drev));
+    RAISE EXCEPTION USING ERRCODE = 'PT001', MESSAGE = 'day_context_changed';
+  END IF;
+
   -- B07-P/P2: one authoritative product price + discount per appointment, before any booking write.
   -- All persons attend every appointment of this request (canonical single-item create); eligibility is
   -- aggregated per real participant and date over all slots of THIS request only.
@@ -452,7 +529,7 @@ BEGIN
     v_slots := v_slots || jsonb_build_array(jsonb_build_object('date', e->'date', 'time_start', e->'time_start',
       'time_end', e->'time_end', 'participants', to_jsonb(v_part_ids::text[])));
   END LOOP;
-  v_quote := public.pa_price_request(v_product, v_slots, v_intent, true);
+  v_quote := public.pa_price_request(v_product, v_slots, v_intent, true, v_ctx->'slots');
   IF v_quote ? 'error' THEN
     v_err := v_quote;
     RAISE EXCEPTION USING ERRCODE = 'PT001', MESSAGE = 'tariff_unavailable';
@@ -499,7 +576,8 @@ BEGIN
                        'discount_percent', CASE WHEN v_intent->>'mode' = 'manual' THEN (v_intent->>'percent')::numeric ELSE 0 END,
                        'discount_reason', CASE WHEN v_intent->>'mode' = 'manual' THEN v_intent->>'reason' END,
                        'discount_source', v_quote->>'discount_source', 'discount_total', v_quote->'discount_total',
-                       'unassigned', cardinality(v_unassigned)));
+                       'unassigned', cardinality(v_unassigned),
+                       'existing_same_day_appointments', (v_ctx->>'appointments')::int));
   RETURN jsonb_build_object('ok', true, 'ticket_id', v_ticket, 'ticket_number', v_number,
     'appointment_ids', to_jsonb(v_ids), 'total', (SELECT total_amount FROM public.tickets WHERE id = v_ticket),
     'tariff_revision', v_rev, 'discount_rule_revision', v_drev, 'discount_source', v_quote->>'discount_source');
@@ -522,6 +600,10 @@ REVOKE ALL ON FUNCTION public.pa_discount_intent(jsonb, boolean) FROM PUBLIC, an
 GRANT EXECUTE ON FUNCTION public.pa_discount_intent(jsonb, boolean) TO service_role;
 REVOKE ALL ON FUNCTION public.pa_price_request(uuid, jsonb, jsonb, boolean) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.pa_price_request(uuid, jsonb, jsonb, boolean) TO service_role;
+REVOKE ALL ON FUNCTION public.pa_price_request(uuid, jsonb, jsonb, boolean, jsonb) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.pa_price_request(uuid, jsonb, jsonb, boolean, jsonb) TO service_role;
+REVOKE ALL ON FUNCTION public.pa_private_day_context(uuid[], date[]) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.pa_private_day_context(uuid[], date[]) TO service_role;
 REVOKE ALL ON FUNCTION public.pldr_bump_revision() FROM PUBLIC, anon, authenticated;
 
 -- B07-P2 controlled transition (L1): move/period_update/edit still price with legacy pa_price.

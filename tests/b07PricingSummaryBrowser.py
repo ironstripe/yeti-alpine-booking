@@ -51,7 +51,8 @@ def quote_for(body):
     disc = sum(x["discount_amount"] for x in items)
     return {"revision": 7, "discount_rule_revision": 3, "gross_total": 190 * len(items), "discount_total": disc,
       "automatic_discount_total": 19 * len(items), "total": 190 * len(items) - disc,
-      "discount_source": "manual" if ov else "automatic", "discount_rule": {"percent": 10, "threshold_minutes": 240}, "items": items}
+      "discount_source": "manual" if ov else "automatic", "discount_rule": {"percent": 10, "threshold_minutes": 240}, "items": items,
+      "day_context_digest": "0123456789abcdef0123456789abcdef", "existing_appointments": 1 if body.get("participant_ids") else 0}
 
 async def main():
     async with async_playwright() as p:
@@ -98,6 +99,8 @@ async def main():
             check(await qbox.get_by_test_id("quote-line").count() == 2, f"{tag} one line per lesson")
             check(quotes and "discount_override" not in quotes[-1], f"{tag} default 0 is NOT sent as override")
             await page.screenshot(path=str(OUT / f"auto_{width}.png"))
+            check(bool(quotes) and "participant_ids" not in quotes[-1], f"{tag} new guest has no stable id: no same-day history requested")
+            check(await qbox.get_by_test_id("quote-existing-lessons").count() == 0, f"{tag} no counted-earlier-lessons note without history")
 
             # explicit manual 5% replaces automatic, shows the replaced amount
             await page.get_by_label("Manueller Rabatt in Prozent").fill("5")
@@ -118,6 +121,7 @@ async def main():
             if creates:
                 c = creates[0]
                 check(c.get("quote_revision") == 7 and c.get("discount_rule_revision") == 3, f"{tag} create bound to shown revisions")
+                check(c.get("day_context_digest") == "0123456789abcdef0123456789abcdef", f"{tag} create bound to shown same-day context")
                 check(c.get("discount_override") == {"percent": 0, "reason": "Stammkunde"} and "discount_percent" not in c, f"{tag} create carries explicit override only")
             # clear override returns automatic
             await page.evaluate("window.wiz.setCheckoutOptions({discountPercent:0, discountReason:'', discountExplicit:false})")

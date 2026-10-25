@@ -120,6 +120,7 @@ export const paCreate = (p: {
   quote_revision?: number;
   discount_rule_revision?: number;
   discount_override?: DiscountOverride;
+  day_context_digest?: string;
 }) => call<{ ticket_id: string; ticket_number: string; appointment_ids: string[]; total: number; replayed?: boolean }>(
   { action: "create", ...p },
 );
@@ -149,10 +150,14 @@ export interface CreateQuote {
   discount_total: number; automatic_discount_total: number; discount_source: DiscountSource;
   discount_rule: { percent: number; threshold_minutes: number };
   items: CreateQuoteItem[];
+  /** B07-P3: binds create to the already booked same-day lessons this quote counted. */
+  day_context_digest: string;
+  existing_appointments: number;
 }
 export interface DiscountOverride { percent: number; reason?: string }
 export const paCreateQuote = (p: {
   product_id: string; persons: number;
+  customer_id?: string; participant_ids?: string[];
   appointments: { date: string; time_start: string; time_end: string }[];
   discount_override?: DiscountOverride;
 }) => call<CreateQuote>({ action: "quote", ...p });

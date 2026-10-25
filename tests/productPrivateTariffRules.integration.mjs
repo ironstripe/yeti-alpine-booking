@@ -39,6 +39,15 @@ const CONFIG_A = [
 ];
 const CONFIG_B = [rule({ rule_kind: 'hourly', window_start: '08:00', window_end: '17:00', price_chf: 99 })];
 
+// B07-P3: creates must name the participant/day context they were quoted on (tests compute the current one).
+const withCtx = async (p) => {
+  if ('day_context_digest' in p) return p;
+  const ids = (p.participants ?? []).filter((x) => x.participant_id).map((x) => x.participant_id);
+  const dates = [...new Set((p.appointments ?? []).map((a) => a.date).filter(Boolean))];
+  const [{ d }] = await sql`SELECT pa_private_day_context(${ids}::uuid[], ${dates}::date[])->>'digest' d`;
+  return { ...p, day_context_digest: d };
+};
+
 try {
   for (const f of ['tests/sql/baseline_prelude.sql', 'tests/sql/production_schema_baseline.sql', 'supabase/pending/pa_assign_later.sql',
     'supabase/pending/course_archive_delete.sql', 'supabase/pending/bc_2627_staff_group_booking.sql',
@@ -66,10 +75,10 @@ try {
   const quote = async (product, appts, persons = 1) => (await sql`SELECT pa_create_quote(${sql.json({ product_id: product, persons, appointments: appts })}::jsonb) r`)[0].r;
   let k = 0; const key = () => `b07p-${++k}-${Date.now()}`;
   const slot = (date, s, e, ins = I1) => ({ date, time_start: s, time_end: e, instructor_id: ins });
-  const create = async (product, appts, extra = {}) => (await sql`SELECT pa_create_booking_finalized(${sql.json({
+  const create = async (product, appts, extra = {}) => (await sql`SELECT pa_create_booking_finalized(${sql.json(await withCtx({
     submission_key: extra.submission_key ?? key(), customer_id: CUST, product_id: product, appointments: appts,
     participants: extra.participants ?? [{ participant_id: P1 }], discount_rule_revision: 1, ...extra.more,
-  })}::jsonb, ${ACTOR}::uuid) r`)[0].r;
+  }))}::jsonb, ${ACTOR}::uuid) r`)[0].r;
   const counts = async () => (await sql`SELECT (SELECT count(*)::int FROM tickets) t, (SELECT count(*)::int FROM ticket_items) i,
     (SELECT count(*)::int FROM private_appointments) a, (SELECT count(*)::int FROM customer_participants) p`)[0];
 
@@ -167,8 +176,8 @@ try {
 
   await t('tariff failure after guest mapping rolls back guests/ticket (plain pa_create_booking too)', async () => {
     const before = await counts();
-    const r = (await sql`SELECT pa_create_booking(${sql.json({ submission_key: key(), customer_id: CUST, product_id: A, quote_revision: 1, discount_rule_revision: 1,
-      appointments: [slot(D1, '14:00', '16:00', I2)], participants: [{ guest_key: 'guest-rollback1', first_name: 'Weg', birth_date: '2015-01-01' }] })}::jsonb, ${ACTOR}::uuid) r`)[0].r;
+    const r = (await sql`SELECT pa_create_booking(${sql.json(await withCtx({ submission_key: key(), customer_id: CUST, product_id: A, quote_revision: 1, discount_rule_revision: 1,
+      appointments: [slot(D1, '14:00', '16:00', I2)], participants: [{ guest_key: 'guest-rollback1', first_name: 'Weg', birth_date: '2015-01-01' }] }))}::jsonb, ${ACTOR}::uuid) r`)[0].r;
     assert.equal(r.error, 'tariff_unavailable'); assert.equal(r.reason, 'block_not_allowed'); assert.equal(r.index, 0);
     assert.deepEqual(await counts(), before);
   });
@@ -207,8 +216,8 @@ try {
 
   await t('concurrent config save waits for an in-flight create (FOR SHARE) and bumps revision after it', async () => {
     const res = await sql.begin(async (tx) => {
-      const r = (await tx`SELECT pa_create_booking(${sql.json({ submission_key: key(), customer_id: CUST, product_id: A, quote_revision: 2, discount_rule_revision: 1,
-        appointments: [slot('2026-12-17', '09:00', '10:00', I1)], participants: [{ participant_id: P2 }] })}::jsonb, ${ACTOR}::uuid) r`)[0].r;
+      const r = (await tx`SELECT pa_create_booking(${sql.json(await withCtx({ submission_key: key(), customer_id: CUST, product_id: A, quote_revision: 2, discount_rule_revision: 1,
+        appointments: [slot('2026-12-17', '09:00', '10:00', I1)], participants: [{ participant_id: P2 }] }))}::jsonb, ${ACTOR}::uuid) r`)[0].r;
       const pending = save(A, 2, CONFIG_A); // separate connection; must block on the revision row
       const raced = await Promise.race([pending.then(() => 'done'), new Promise((ok) => setTimeout(() => ok('blocked'), 400))]);
       return { r, raced, pending };

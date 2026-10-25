@@ -1,3 +1,44 @@
+# B07-P3 — cross-booking same-participant/same-day discount (checkpoint 3)
+
+Base: `1f4e112` (HEAD at start). Final SHA is assigned by the platform after this turn; it is not available inside the turn.
+Status: **implemented in code + pending SQL, tested locally only.** Not installed, not deployed, not published; `PRODUCT_PRIVATE_TARIFFS_LIVE` stays OFF.
+B07 is **not done**: L1 move/edit resolver transition, B07a atomic multi-item and B07b UI remain open.
+
+## Decision applied (Ivo, 2026-10-25)
+"Rabatt gilt für 4 std. pro teilnehmer am gleichen tag." A new booking counts the same participant's already booked private lessons on the same date; only the NEW lesson shares are discounted. Earlier bookings, invoices and payments are never repriced; corrections stay the existing manual workflow (no automatic credits/refunds).
+
+## Model (extends `supabase/pending/product_private_tariff_rules.sql` in place; same resolver, no second engine)
+- `pa_private_day_context(participant_ids uuid[], dates date[])` (service-only, STABLE): one entry per canonical appointment with its counted participants, plus an md5 `digest`. Counts only `private_appointments.status IN (scheduled, booked, completed)`, ticket status not `draft/cancelled/storno/expired`, linked billing line not `cancelled`. Group courses/lunch are never private appointments, so never counted. Indexed via `idx_pap_participant` + date filter; returns no PII beyond the supplied ids.
+- `pa_price_request(..., p_context jsonb)` (new 5-arg overload; the 4-arg form delegates with empty context): context slots carry price 0 → they add minutes but are never priced, discounted or returned.
+- `pa_same_day_discount`: day minutes are now the **union** of a person's intervals (overlaps/duplicate rows cannot inflate eligibility; adjacent blocks still add up: 10–12 + 14–16 = 240).
+- `pa_create_quote`: optional `customer_id` + `participant_ids` (must all belong to that customer, no duplicates, ≤ persons). Returns `day_context_digest`, `existing_appointments`.
+- `pa_create_booking`: requires `day_context_digest`. After participant resolution it takes sorted advisory locks per (participant, date), locks the counted appointments `FOR SHARE` (blocks a concurrent cancellation until commit), re-reads the context; mismatch → `quote_changed` / `reason: day_context`, everything (incl. guests) rolled back. Replay by submission key is checked first and returns the first result unchanged. History event `created` adds `existing_same_day_appointments`.
+- Identity: only stable participant ids count. A guest that the create matches to an existing person by name/birth date gets **no** history credit (the quote could not have known it) — this keeps quote and create identical and avoids inventing identity matches.
+- Frontend: summary sends payer + saved participant ids, shows "bereits gebuchte Privatlektion(en) mitgezählt", create sends the shown digest; on `quote_changed` the quote is refetched and the office must submit again. Edge contract accepts the new optional fields (hex digest).
+
+## Tests (local throwaway PostgreSQL from production baseline; no live data)
+- New `tests/b07CrossBookingDiscount.integration.mjs` 12/12: grants; separate 2h + new 2h → 19.00 on the new line only, ticket 1 byte-identical (ticket, lines, appointments, pricing, history, payments, invoices); different dates / different people not summed; cancelled appointment, cancelled line, draft and cancelled ticket not counted (and counted again when confirmed); shared 230 with Anna 2h elsewhere → 11.50 off, 218.50, order-invariant, one context slot per shared appointment; manual 5 % and explicit 0 replace cross-booking automatic, reason required; overlapping existing lessons counted as union (3h, not 5h); duplicate joins impossible by constraint; stale quote after another booking or a cancellation → `quote_changed`, no rows; stale attempt rolls back new guests; replay unchanged after context change; competing creates: second blocks, then `quote_changed`, first never mutated; foreign/duplicate ids rejected, name-matched guest gets no credit.
+- Updated helpers (compute current digest) in `b07DiscountPricing.integration.mjs` 13/13 and `productPrivateTariffRules.integration.mjs` 13/13.
+- Regressions: paEditBooking 17/17, b11CreatedTotal 5/5, b05Intent 7/0, birthDateGuard 5/5, staffFinalize 14/14. Rollback file executed after install: new functions removed.
+- Edge contract (Deno) offline schema tests pass. Bun `src tests`: all pass except the pre-existing Deno-only load error; typecheck clean.
+- Browser `b07PricingSummaryBrowser.py` (intercepted, 1280 + 390): 0 failures; create carries the shown digest; guest-only booking sends no participant ids and shows no note. **Not browser-tested:** a saved participant with real earlier lessons (covered only in SQL tests).
+
+## Limits (technical, not business questions)
+- Advisory day locks serialize creates only. Legacy (non-tariff) `pa_move_appointment` / `pa_edit_booking` participant additions do not take the day lock; a concurrent legacy change can land between quote and commit of another booking without being serialized (it is still seen by any later quote). Tariff-priced appointments cannot be moved/re-personed at all (YT001 guard) until L1.
+- Cancelling an earlier lesson after a discounted later booking committed does not reprice the later booking (decided: no retroactive mutation).
+- Guests matched by name are not credited (see Identity). If Office wants credit, the person must be selected as saved participant.
+- `attendance = 'absent'` on a booked lesson still counts (booked planning hours, existing semantics).
+
+## Release / rollback
+Unchanged order (each step needs approval): install pending file → seed reviewed rules → deploy `private-appointments` + `product-private-tariff-rules` → switch ON + publish. Rollback file now also drops `pa_private_day_context` and the 5-arg `pa_price_request`; stored prices/discounts/history are never recalculated.
+
+## Next handoff
+- L1: move/period_update/B03a edit through `pa_price_request` with day context + acknowledgement, then remove YT001 guard; those paths must take the same (participant, date) locks.
+- B07a: one service-only transaction for mixed cart items; call `pa_price_request` once over all proposed private slots with per-slot participant ids **plus** `pa_private_day_context` for all known ids/dates; same revision + digest binding and lock order (key → teacher slots → participant/day).
+- B07b: lift the multi-item gate only after B07a; one combined server quote.
+
+---
+
 # B07-P2 — authoritative quote + same-day discount + manual override (checkpoint 2)
 
 Base: `b0095b0` (HEAD at start of this checkpoint; final commit SHA is assigned by the platform after this turn).
