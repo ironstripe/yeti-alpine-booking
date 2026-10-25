@@ -14,8 +14,8 @@
  *   - provider_message_id known          -> sent (reconciled)
  *   - first claim < 24h ago              -> resend with the SAME provider key
  *                                           (provider dedupes for 24h)
- *   - first claim >= 24h ago             -> failed/unknown_outcome; only an
- *                                           review is required; force cannot
+ *   - first claim >= 24h ago             -> unknown_outcome; review required;
+ *                                           force cannot
  *                                           bypass this outcome in this batch.
  * Only a definitive provider rejection (4xx except 408/409/429, or 0 = not
  * attempted) is known not-sent and rotates the key on manual retry. Network,
@@ -254,7 +254,7 @@ export async function attemptDelivery(
     }).eq("id", row.id).eq("attempts", row.attempts + 1).eq("status", "sending").select("id").maybeSingle();
     if (de || !done) {
       // Keep the row leased in `sending`; record the provider id as evidence for recovery.
-      if (r.id) await sb.from("booking_email_deliveries").update({ provider_message_id: r.id }).eq("id", row.id).eq("status", "sending");
+      if (r.id) await sb.from("booking_email_deliveries").update({ provider_message_id: r.id }).eq("id", row.id).eq("attempts", row.attempts + 1).eq("status", "sending");
       return { outcome: "unknown", code: "sent_state_unpersisted" };
     }
     return { outcome: "sent" };

@@ -17,5 +17,5 @@ ALTER TABLE public.booking_email_deliveries
   CHECK (kind IN ('booking_confirmation', 'invoice'));
 -- Preserve all existing grants, RLS, FKs, unique constraints and logs unchanged.
 COMMENT ON COLUMN public.booking_email_deliveries.delivery_protocol IS
-  'Explicit new-row provenance: leased_v1. NULL remains legacy/review-required; never backfill from timestamps/status.';
+  'Explicit new-row provenance: leased_v1 course sender, legacy_v1 old confirmation sender. NULL remains legacy/review-required; never backfill from timestamps/status.';
 COMMIT;
