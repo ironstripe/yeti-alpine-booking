@@ -124,6 +124,7 @@ try {
   await sql`ALTER TABLE booking_email_deliveries RENAME COLUMN delivery_protocol TO hidden_protocol`;await sql.unsafe("NOTIFY pgrst,'reload schema';NOTIFY pgrst,'reload config'");await new Promise(r=>setTimeout(r,300));const n=calls.length;const[id]=await sql`SELECT id FROM booking_email_deliveries LIMIT 1`;assertEquals((await attempt(id.id)).code,"schema_incompatible");let rejected=false;try{await ensureDelivery(sb,ticket,"invoice","x@example.invalid");}catch{rejected=true;}assert(rejected);assertEquals(calls.length,n);
  }); await psql(url,["-f",new URL("supabase/pending/b05_office_confirmation_intent.sql",root).pathname]);
  await sql`ALTER TABLE booking_email_deliveries RENAME COLUMN hidden_protocol TO delivery_protocol`;await sql.unsafe("NOTIFY pgrst,'reload schema';NOTIFY pgrst,'reload config'");await new Promise(r=>setTimeout(r,300));
+ await psql(url,["-f",new URL("drizzle/migrations/0009_customers_email_optional.sql",root).pathname]);
  await sql`INSERT INTO seasons(name,start_date,end_date) VALUES ('Synthetic','2026-12-01','2027-04-15')`;
  await sql.unsafe("NOTIFY pgrst,'reload schema';NOTIFY pgrst,'reload config'");await new Promise(r=>setTimeout(r,300));
  const staff=createConfirmationHandler(sb,{transport,authorize:async()=>({userId:"synthetic-office"}),now:()=>clock});
