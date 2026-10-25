@@ -32,6 +32,8 @@ import { MobileSlotContext, type MobileSlotTapPayload } from "./mobile/MobileSlo
 import { MobileSlotSheet } from "./mobile/MobileSlotSheet";
 import { MobileSchedulerAgenda } from "./mobile/MobileSchedulerAgenda";
 import { SchedulerLegend } from "./SchedulerLegend";
+import { applyTeacherVisibility, hiddenAbsentInstructorIds } from "@/lib/schedulerVisibleFilters";
+import { Button } from "@/components/ui/button";
 
 const MOBILE_VIEW_KEY = "scheduler.mobileView";
 
@@ -75,6 +77,8 @@ function SchedulerGridContent() {
   const [selectedDate, setSelectedDate] = useState(initialDate);
   const [viewMode, setViewMode] = useState<ViewMode>("daily"); // Default to daily view
   const [highlightedInstructorId, setHighlightedInstructorId] = useState<string | null>(null);
+  const [selectedTeacherId, setSelectedTeacherId] = useState<string | null>(null);
+  const [hideAbsent, setHideAbsent] = useState(false);
   
   // Consolidated filter state for settings menu
   const [filters, setFilters] = useState({
@@ -337,6 +341,19 @@ function SchedulerGridContent() {
     total: instructors.length,
   }), [filteredInstructors.length, instructors.length]);
 
+  const displayDateKeys = useMemo(() =>
+    (isMobileScheduler && mobileView === "list" ? [selectedDate] : visibleDates).map(d => format(d, "yyyy-MM-dd")),
+    [isMobileScheduler, mobileView, selectedDate, visibleDates]);
+  const hiddenAbsentIds = useMemo(() => hiddenAbsentInstructorIds(instructors, displayDateKeys, bookings, absences),
+    [instructors, displayDateKeys, bookings, absences]);
+  const visibleInstructors = useMemo(() => applyTeacherVisibility(instructors, filteredInstructors, selectedTeacherId, hideAbsent, hiddenAbsentIds),
+    [instructors, filteredInstructors, selectedTeacherId, hideAbsent, hiddenAbsentIds]);
+
+  const handleTeacherChange = (id: string | null) => {
+    setSelectedTeacherId(id);
+    scrollContainerRef.current?.scrollTo({ top: 0 });
+  };
+
   // Filter bookings by type (private/group)
   const filteredBookings = useMemo(() => {
     if (!bookingTypeFilter) return bookings;
@@ -345,10 +362,16 @@ function SchedulerGridContent() {
 
   // Scroll to instructor and highlight
   const scrollToInstructor = useCallback((instructorId: string) => {
+    // Search remains a find/scroll action, not a single-teacher filter.
+    setSelectedTeacherId(null);
+    setHideAbsent(false);
+    setFilters(prev => ({ ...prev, roleFilter: null, compactMode: false }));
+    setHighlightedInstructorId(instructorId);
     requestAnimationFrame(() => {
       const element = instructorRefs.current.get(instructorId);
-      if (element) {
-        element.scrollIntoView({ behavior: "smooth", block: "center" });
+      const mobileElement = scrollContainerRef.current?.querySelector(`[data-agenda-teacher="${instructorId}"]`);
+      if (element || mobileElement) {
+        (element ?? mobileElement)?.scrollIntoView({ behavior: "smooth", block: "center" });
         setHighlightedInstructorId(instructorId);
         setTimeout(() => {
           setHighlightedInstructorId(null);
@@ -601,6 +624,10 @@ function SchedulerGridContent() {
             onViewModeChange={setViewMode}
             instructorOptions={instructorOptions}
             onInstructorSelect={scrollToInstructor}
+            selectedTeacherId={selectedTeacherId}
+            onTeacherChange={handleTeacherChange}
+            hideAbsent={hideAbsent}
+            onHideAbsentChange={setHideAbsent}
             filters={filters}
             onFiltersChange={handleFiltersChange}
             compactStats={compactStats}
@@ -633,9 +660,14 @@ function SchedulerGridContent() {
             touchAction: "pan-x pan-y",
           }}
         >
-          {isMobileScheduler && mobileView === "list" ? (
+          {!isLoading && visibleInstructors.length === 0 ? (
+            <div className="flex flex-col items-center gap-2 p-8 text-center text-sm text-muted-foreground">
+              <p>Keine Lehrpersonen für die aktuellen Filter.</p>
+              <Button variant="outline" size="sm" onClick={() => { handleTeacherChange(null); setHideAbsent(false); handleFiltersChange({ roleFilter: null, compactMode: false }); }}>Ansichtsfilter zurücksetzen</Button>
+            </div>
+          ) : isMobileScheduler && mobileView === "list" ? (
             <MobileSchedulerAgenda
-              instructors={filteredInstructors}
+              instructors={visibleInstructors}
               date={selectedDate}
               bookings={filteredBookings}
               absences={absences}
@@ -656,7 +688,7 @@ function SchedulerGridContent() {
 
           {/* Instructor Focus View - Each instructor with day sub-rows */}
           <InstructorFocusView
-            instructors={filteredInstructors}
+            instructors={visibleInstructors}
             dates={visibleDates}
             bookings={filteredBookings}
             absences={absences}
@@ -664,8 +696,8 @@ function SchedulerGridContent() {
             onSlotClick={handleSlotClick}
             isLoading={isLoading}
             highlightedInstructorId={highlightedInstructorId}
-            capabilityFilter={capabilityFilter}
-            compactMode={compactMode}
+            capabilityFilter={selectedTeacherId ? null : capabilityFilter}
+            compactMode={selectedTeacherId ? false : compactMode}
             instructorRefs={instructorRefs}
             scrollContainerRef={scrollContainerRef}
             isPlanningMode={isPlanningMode}

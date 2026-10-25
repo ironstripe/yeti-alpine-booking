@@ -23,7 +23,7 @@ import {
   HoverCardContent,
   HoverCardTrigger,
 } from "@/components/ui/hover-card";
-import { Languages, Award, GraduationCap, Building } from "lucide-react";
+import { Languages, Award, GraduationCap, Building, Phone } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
@@ -164,6 +164,7 @@ export const SingleDayInstructorRow = forwardRef<HTMLDivElement, SingleDayInstru
 
           {/* Inline: Discipline Badges or Office Icon + Count */}
           <div className="flex items-center gap-0.5 shrink-0">
+            {instructor.real_time_status === "on_call" && <Tooltip><TooltipTrigger asChild><span aria-label="Auf Abruf"><Phone className="h-3 w-3 text-muted-foreground" /></span></TooltipTrigger><TooltipContent>Auf Abruf · aktueller operativer Status</TooltipContent></Tooltip>}
             {isOfficeStaff ? (
               <Tooltip>
                 <TooltipTrigger asChild>

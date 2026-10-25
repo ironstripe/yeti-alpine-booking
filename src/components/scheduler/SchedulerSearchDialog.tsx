@@ -77,6 +77,7 @@ export function SchedulerSearchDialog({
               <CommandItem
                 key={instructor.id}
                 value={`instructor-${instructor.id}`}
+                keywords={[instructor.name]}
                 onSelect={() => handleInstructorSelect(instructor)}
               >
                 <span>🎿</span>

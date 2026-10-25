@@ -67,6 +67,8 @@ export interface SchedulerAbsence {
   timeEnd?: string;   // e.g., "14:00"
   /** Kind of recurring block this absence originates from (preset_type) */
   blockKind?: string | null;
+  /** Display-filter evidence only; false when raw status/full-day facts were defaulted. */
+  visibilityConfirmed?: boolean;
 }
 
 /** Preset type used for "Gruppenkurs Reserve" recurring blocks */

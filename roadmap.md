@@ -1,5 +1,10 @@
 # Roadmap
 
+## Scheduler visible filters — current package
+- [x] Add compact searchable single-teacher selection/reset and default-off hide-absent control; keep search separate and selected teacher inspectable.
+- [x] Verify confirmed full displayed-range absence with no assignment, conservative intervals and mobile actual day; preserve draft/performance/booking paths.
+- [x] Actual grid/header synthetic browser: 28 checks; unit suite 328 pass/3 existing skips; checkout browser 0 failures; automatic build OK. Evidence/rollback and old performance-harness mount failure in docs/scheduler-filters-verification.md. No publication/backend/data writes.
+
 ## B03a — safe editing of existing canonical private bookings
 - [x] Canonical hydration (per-lesson people/prices/teachers), dedicated edit screen, legacy save refused for canonical bookings.
 - [x] Pending atomic `pa_edit_booking` (quote + acknowledged apply, Ivo rule: person change reprices only that lesson, discount kept, invoiced protected); `edit` action in private-appointments (not deployed).
