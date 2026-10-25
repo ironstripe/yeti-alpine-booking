@@ -3,7 +3,8 @@
 -- Additive: new tables/functions; replaces pa_create_booking so that NEW private bookings are priced
 -- only by the product's configured rules. Existing appointments, ticket items, invoices, payments and
 -- frozen delivery payloads are not read or changed. pa_price/private_lesson_rates stay in place for
--- existing move/edit paths (see docs/b07-pricing-verification.md, limitation L1).
+-- legacy appointments; B07-P2 adds the same-day discount rule, explicit manual override and a guard that
+-- refuses repricing moves/edits of tariff-priced appointments (docs/b07-pricing-verification.md, L1).
 -- No price value lives in this file: rates are data (product_private_tariff_rules).
 
 CREATE TABLE public.product_private_tariff_rules (
