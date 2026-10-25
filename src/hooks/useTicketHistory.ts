@@ -55,7 +55,8 @@ export function useUnifiedTimeline(ticketId: string | undefined) {
       type: historyEventLabel(e),
       content: historyEventText(e),
       eventType: e.event_type,
-      rank: e.event_type === "BOOKING_CREATED" ? 0 : 1,
+      // R1: same-transaction ties: ticket created, then final group value, then payment/other events.
+      rank: e.event_type === "BOOKING_CREATED" ? 0 : e.event_type === "GROUP_BOOKING_CREATED" ? 0.5 : 1,
       details: e.details,
       actorName: (e.details?.actor_email as string) || null,
     })),

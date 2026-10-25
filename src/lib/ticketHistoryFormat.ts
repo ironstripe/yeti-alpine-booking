@@ -10,6 +10,7 @@ export interface HistoryEventLike {
 
 const EVENT_LABELS: Record<string, string> = {
   BOOKING_CREATED: "Buchung erstellt",
+  GROUP_BOOKING_CREATED: "Gruppenbuchung angelegt",
   STATUS_CHANGED: "Status geändert",
   INSTRUCTOR_CHANGED: "Lehrer geändert",
   BOOKING_CANCELLED: "Stornierung",
@@ -121,6 +122,15 @@ export function historyEventText(e: HistoryEventLike): string {
     case "BOOKING_CREATED": {
       const total = storedAmount(d.total_amount);
       return `Ticket ${d.ticket_number || ""} erstellt · Betrag bei Anlage des Tickets: ${total !== null ? chf(total) : "nicht protokolliert"}`;
+    }
+    case "GROUP_BOOKING_CREATED": {
+      // R1: final value of the group booking from this event's own payload.
+      const total = storedAmount(d.ticket_total_after_create);
+      const parts: string[] = [];
+      if (typeof d.persons === "number") parts.push(plural(d.persons, "Person", "Personen"));
+      if (typeof d.lines === "number") parts.push(plural(d.lines, "Position", "Positionen"));
+      parts.push(total !== null ? `Buchungsbetrag nach Anlage: ${chf(total)}` : "Buchungsbetrag nicht protokolliert");
+      return parts.join(" · ");
     }
     case "STATUS_CHANGED":
       return `${d.old_status || "–"} → ${d.new_status || "–"}`;
