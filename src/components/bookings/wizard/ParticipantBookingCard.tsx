@@ -29,7 +29,7 @@ interface ParticipantBookingCardProps {
 
 export function ParticipantBookingCard({ participant, booking, sport, onBookingChange, onCopyToAll, isFirst, showDifferenceWarning }: ParticipantBookingCardProps) {
   const { data: courses = [], isLoading, isError, server } = useBookableGroupCourses(booking.dates, sport);
-  const { data: lunchProduct } = useLunchProduct();
+  const { data: lunchProduct } = useLunchProduct({ productId: booking.groupServer?.productId, dates: booking.dates });
   const selected = useMemo(() => courses.find((course) => course.id === booking.groupCourseId) ?? null, [booking.groupCourseId, courses]);
 
   useEffect(() => {

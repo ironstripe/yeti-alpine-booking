@@ -16,7 +16,7 @@ import { buildEffectivePrivatePlan } from "@/lib/effectivePrivatePlan";
 import { swissVatPercent, includedVat, formatVatPercent } from "@/lib/vat";
 import { usePrivateLessonRates, useHighSeasonPeriods } from "@/hooks/usePrivateLessonRates";
 import { useProducts, ProductWithTiers } from "@/hooks/useProducts";
-import { useLunchProduct } from "@/hooks/useLunchProduct";
+import { useLunchProducts } from "@/hooks/useLunchProduct";
 import { calculatePrice, formatPriceCHF } from "@/lib/pricing-utils";
 import {
   calculatePrivateLessonPrice,
@@ -289,8 +289,17 @@ export function PriceBreakdown({
   }
 
   // Calculate lunch from lunchSelections (for group courses) or includeLunch (for private)
-  const { data: lunchProduct = null } = useLunchProduct();
-  // No fallback: without the unique authoritative lunch product, lunch is not priced (save is refused).
+  // B09: lunch priced per booked course season + dates; no fallback (unresolved => CHF 0 shown, save refused).
+  const lunchParticipantMode = state.useParticipantSpecificBooking && Object.keys(state.participantBookings).length > 0;
+  const lunchContexts = useMemo(() => productType !== "group" ? [] : lunchParticipantMode
+    ? pricingParticipants.map((p) => state.participantBookings[p.id]).filter(Boolean).map((b) => ({ productId: b!.groupServer?.productId, dates: b!.dates }))
+    : [{ productId: state.groupPlan?.server?.productId, dates: state.selectedDates }],
+  [productType, lunchParticipantMode, pricingParticipants, state.participantBookings, state.groupPlan, state.selectedDates]);
+  const lunchResolved = useLunchProducts(lunchContexts);
+  const lunchPriceFor = (productId: string | null | undefined, dates: string[]) =>
+    lunchResolved.find((r) => r.ctx.productId === productId && r.ctx.dates.join() === dates.join())?.data?.price ?? 0;
+  const lunchProduct = lunchParticipantMode ? null : lunchResolved[0]?.data ?? null;
+  const lunchPriceKey = lunchResolved.map((r) => r.data?.id ?? "-").join();
   const lunchPricePerDay = lunchProduct?.price ?? 0;
   
   // Build per-participant lunch data
@@ -309,7 +318,7 @@ export function PriceBreakdown({
               participantName: `${participant.first_name} ${participant.last_name || ""}`.trim(),
               days: lunchDays.length,
               isVegetarian: booking.isVegetarian,
-              price: lunchDays.length * lunchPricePerDay,
+              price: lunchDays.length * lunchPriceFor(booking.groupServer?.productId, booking.dates),
             });
           }
         }
@@ -331,7 +340,7 @@ export function PriceBreakdown({
     }
     
     return items;
-  }, [productType, state.useParticipantSpecificBooking, state.participantBookings, pricingParticipants, state.selectedDates, state.lunchSelections, state.vegetarianSelections, state.groupPlan, lunchPricePerDay]);
+  }, [productType, state.useParticipantSpecificBooking, state.participantBookings, pricingParticipants, state.selectedDates, state.lunchSelections, state.vegetarianSelections, state.groupPlan, lunchPricePerDay, lunchPriceKey]);
   
   let lunchTotal = 0;
   let lunchDaysCount = 0;
