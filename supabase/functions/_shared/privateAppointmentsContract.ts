@@ -80,7 +80,9 @@ export const RequestSchema = z.discriminatedUnion("action", [
   z.object({
     action: z.literal("move"),
     appointment_id: uuid,
-    date, time_start: time, time_end: time, instructor_id: uuid,
+    date, time_start: time, time_end: time,
+    // R1: a teacher, or the explicit "Später zuweisen" intent (only valid on an already unassigned lesson).
+    instructor_id: uuid.optional(), assign_later: z.literal(true).optional(),
     // L1: digest of the server quote the user confirmed after a price-changing move (quote_changed).
     acknowledged_quote_digest: md5.optional(),
   }),

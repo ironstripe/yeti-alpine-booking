@@ -45,8 +45,11 @@ Deno.serve(async (req) => {
     // L1: p_ack only when the user confirmed a server quote (7-arg overload); otherwise the legacy signature.
     rpc = await db.rpc("pa_move_appointment", {
       p_id: p.appointment_id, p_date: p.date, p_start: p.time_start, p_end: p.time_end,
-      p_instr: p.instructor_id, p_actor: auth.userId,
-      ...(p.acknowledged_quote_digest ? { p_ack: { quote_digest: p.acknowledged_quote_digest } } : {}),
+      p_instr: p.instructor_id ?? null, p_actor: auth.userId,
+      // R1: explicit keep-unassigned intent travels in p_ack (7-arg overload) next to an acknowledged digest.
+      ...(p.acknowledged_quote_digest || p.assign_later
+        ? { p_ack: { ...(p.acknowledged_quote_digest ? { quote_digest: p.acknowledged_quote_digest } : {}), ...(p.assign_later ? { assign_later: true } : {}) } }
+        : {}),
     });
   } else if (p.action === "period_update") {
     rpc = await db.rpc("pa_period_update", {
