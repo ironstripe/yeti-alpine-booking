@@ -28,6 +28,7 @@ export interface CanonicalEditSnapshot {
   totalAmount: number;
   paidAmount: number;
   customerNotes: string;
+  originalCustomerNotes: string | null;
   appointments: CanonicalAppointment[];
   /** Persons known from canonical links or the payer's participant list (selection options). */
   participants: CanonicalParticipant[];
@@ -92,6 +93,7 @@ export function hydrateCanonicalEdit(input: {
     totalAmount: num(input.ticket.total_amount),
     paidAmount: num(input.ticket.paid_amount),
     customerNotes: String(input.ticket.notes ?? ""),
+    originalCustomerNotes: (input.ticket.notes as string) ?? null,
     appointments,
     participants: input.participants.map((p) => ({ id: String(p.id), first_name: String(p.first_name ?? ""), last_name: (p.last_name as string) ?? null })),
   };
@@ -154,7 +156,7 @@ export function buildEditRequest(s: CanonicalEditSnapshot, d: CanonicalEditDraft
     });
   }
   const notes: Partial<EditRequest> = {};
-  if (d.customerNotes !== s.customerNotes) { notes.customer_notes = d.customerNotes; notes.expected_customer_notes = s.customerNotes || null; }
+  if (d.customerNotes !== s.customerNotes) { notes.customer_notes = d.customerNotes; notes.expected_customer_notes = s.originalCustomerNotes; }
   if (appointments.length === 0 && Object.keys(notes).length === 0) return null;
   return {
     ticket_id: s.ticketId,
