@@ -1,0 +1,105 @@
+{
+  "customer_id": "00000000-0000-4000-8000-000000000193",
+  "participants": [
+    {
+      "ref": "p1",
+      "participant_id": "00000000-0000-4000-8000-000000000225"
+    },
+    {
+      "ref": "p2",
+      "guest": {
+        "first_name": "Gast",
+        "last_name": "Neu",
+        "birth_date": "2016-01-01"
+      }
+    },
+    {
+      "ref": "p3",
+      "participant_id": "00000000-0000-4000-8000-000000000226"
+    }
+  ],
+  "items": [
+    {
+      "kind": "private",
+      "product_id": "3646f155-8a66-53e3-b512-749f3a42c1ae",
+      "participants": [
+        "p1",
+        "p2"
+      ],
+      "appointments": [
+        {
+          "date": "2026-12-21",
+          "time_start": "10:00",
+          "time_end": "12:00",
+          "instructor_id": "00000000-0000-4000-8000-000000061441",
+          "meeting_point": "malbipark"
+        }
+      ]
+    },
+    {
+      "kind": "private",
+      "product_id": "0e8e8669-d8f4-5b19-8e6d-36ff588fdee1",
+      "participants": [
+        "p1"
+      ],
+      "appointments": [
+        {
+          "date": "2026-12-21",
+          "time_start": "14:00",
+          "time_end": "16:00",
+          "instructor_id": "00000000-0000-4000-8000-000000061442",
+          "meeting_point": "malbipark"
+        }
+      ]
+    },
+    {
+      "kind": "group",
+      "lines": [
+        {
+          "participant": "p2",
+          "course_id": "00000000-0000-4000-8000-000000000336",
+          "product_id": "00000000-0000-4000-8000-000000000164",
+          "dates": [
+            "2026-12-14",
+            "2026-12-15",
+            "2026-12-16",
+            "2026-12-17",
+            "2026-12-18"
+          ],
+          "block": null,
+          "sport": "ski",
+          "expected_unit_price": 320,
+          "meeting_point": "malbipark"
+        },
+        {
+          "participant": "p3",
+          "course_id": "00000000-0000-4000-8000-000000000336",
+          "product_id": "00000000-0000-4000-8000-000000000164",
+          "dates": [
+            "2026-12-14",
+            "2026-12-15",
+            "2026-12-16",
+            "2026-12-17",
+            "2026-12-18"
+          ],
+          "block": null,
+          "sport": "ski",
+          "expected_unit_price": 320,
+          "meeting_point": "malbipark",
+          "lunch_dates": [
+            "2026-12-14"
+          ],
+          "vegetarian": false,
+          "expected_lunch_unit_price": 30,
+          "lunch_product_id": "00000000-0000-4000-8000-000000000165"
+        }
+      ]
+    }
+  ],
+  "finalization": {
+    "payment_method": "invoice",
+    "settlement": "pay_later",
+    "billing_partner_id": null,
+    "payment_due_date": "2026-12-01"
+  }
+}

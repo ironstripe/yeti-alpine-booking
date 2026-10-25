@@ -89,7 +89,7 @@ async function runGroupPreflight(lines: GroupLineRequest[]): Promise<Map<string,
 
 
 /** Office settlement/notes sent with the booking; the server applies them in the same transaction. */
-function buildFinalization(state: BookingWizardState) {
+export function buildFinalization(state: BookingWizardState) {
   return {
     payment_method: state.paymentMethod ?? null,
     settlement: state.settlement === "paid_now" ? ("paid_now" as const) : ("pay_later" as const),
@@ -240,8 +240,9 @@ export function useCreateBooking() {
       // ============ PRIVATE LESSON PRICING ============
       if (state.productType === "private") {
         
-        // Get any private product as reference for ticket_items
-        if (!productId) {
+        // Legacy only: any private product as reference for ticket_items. On the product-tariff path the
+        // office must pick the concrete product (never a generic/0 fallback); create refuses otherwise.
+        if (!productId && !privateTariffsLive()) {
           const privateProduct = products?.find(p => p.type === "private");
           if (!privateProduct) {
             throw new Error("Kein Privatstunden-Produkt konfiguriert");
