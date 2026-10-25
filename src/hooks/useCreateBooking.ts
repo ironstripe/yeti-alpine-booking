@@ -89,7 +89,7 @@ async function runGroupPreflight(lines: GroupLineRequest[]): Promise<Map<string,
 
 
 /** Office settlement/notes sent with the booking; the server applies them in the same transaction. */
-function buildFinalization(state: BookingWizardState) {
+export function buildFinalization(state: BookingWizardState) {
   return {
     payment_method: state.paymentMethod ?? null,
     settlement: state.settlement === "paid_now" ? ("paid_now" as const) : ("pay_later" as const),
