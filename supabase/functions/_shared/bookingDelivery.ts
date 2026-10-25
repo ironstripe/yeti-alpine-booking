@@ -53,41 +53,45 @@ const fmtTime = (t?: string | null) => (t ? t.slice(0, 5) : "");
 
 export async function ensureConfirmationDelivery(sb: Client, ticketId: string, email: string) {
   const key = confirmationKey(ticketId);
-  await sb.from("booking_email_deliveries").upsert(
-    { ticket_id: ticketId, kind: "booking_confirmation", idempotency_key: key, recipient_email: email },
+  const { error: insertError } = await sb.from("booking_email_deliveries").upsert(
+    { ticket_id: ticketId, kind: "booking_confirmation", idempotency_key: key, recipient_email: email, delivery_protocol: "legacy_v1" },
     { onConflict: "idempotency_key", ignoreDuplicates: true },
   );
-  const { data } = await sb
+  if (insertError) throw new Error("confirmation_schema_or_insert_failed");
+  const { data, error: readError } = await sb
     .from("booking_email_deliveries")
     .select("id, status")
     .eq("idempotency_key", key)
     .maybeSingle();
+  if (readError) throw new Error("confirmation_read_failed");
   return data as { id: string; status: string } | null;
 }
 
 export async function activeConfirmationTemplate(sb: Client) {
-  const { data } = await sb
+  const { data, error } = await sb
     .from("email_templates")
     .select("id, subject, body_html, body_text")
     .eq("trigger", CONFIRMATION_TRIGGER)
     .eq("is_active", true)
     .maybeSingle();
+  if (error) throw new Error("template_read_failed");
   return data as { id: string; subject: string; body_html: string; body_text: string | null } | null;
 }
 
 export async function buildVars(sb: Client, ticketId: string, salutation: string) {
-  const { data: t } = await sb
+  const { data: t, error: ticketError } = await sb
     .from("tickets")
     .select("ticket_number, customer:customers(last_name)")
     .eq("id", ticketId)
     .maybeSingle();
-  const { data: items } = await sb
+  const { data: items, error: itemError } = await sb
     .from("ticket_items")
     .select("date, time_start, time_end, meeting_point, product:products(name)")
     .eq("ticket_id", ticketId)
     .order("date", { ascending: true })
     .order("time_start", { ascending: true })
     .limit(1);
+  if (ticketError || itemError) throw new Error("confirmation_content_read_failed");
   const first = items?.[0];
   return {
     ticket_number: t?.ticket_number ?? "",
@@ -110,27 +114,36 @@ export async function attemptConfirmation(
   const allowed = opts.manual ? ["failed"] : ["pending"];
 
   // Atomic claim: only one caller moves the row into 'sending'.
-  const { data: current } = await sb
+  const { data: current, error: readError } = await sb
     .from("booking_email_deliveries")
-    .select("attempts")
+    .select("*")
     .eq("id", deliveryId)
     .maybeSingle();
+  if (readError) return "needs_review";
   if (!current) return "not_found";
-  const { data: claimed } = await sb
+  // Staged coexistence: this legacy sender must never claim a leased course row
+  // (including invoice rows). New protocol has its own frozen bytes and lease.
+  if (current.delivery_protocol === "leased_v1" || current.kind !== "booking_confirmation") return "not_claimed";
+  // Old failed rows do not record whether a provider handoff occurred.
+  if (opts.manual) return "needs_review";
+  if (current.delivery_protocol !== "legacy_v1" || current.attempts !== 0) return "needs_review";
+  const claimedAttempt = current.attempts + 1;
+  const { data: claimed, error: claimError } = await sb
     .from("booking_email_deliveries")
-    .update({ status: "sending", attempts: current.attempts + 1 })
+    .update({ status: "sending", attempts: claimedAttempt })
     .eq("id", deliveryId)
     .eq("attempts", current.attempts)
     .in("status", allowed)
     .select("id, ticket_id, recipient_email, idempotency_key")
     .maybeSingle();
+  if (claimError) return "needs_review";
   if (!claimed) return "not_claimed";
 
   const fail = async (code: string, message: string, extra: Record<string, unknown> = {}) => {
-    await sb.from("booking_email_deliveries")
+    const { error } = await sb.from("booking_email_deliveries")
       .update({ status: "failed", last_error_code: code, last_error: message.slice(0, 500), ...extra })
-      .eq("id", deliveryId);
-    return "failed";
+      .eq("id", deliveryId).eq("attempts", claimedAttempt).eq("status", "sending");
+    return error ? "unknown" : "failed";
   };
 
   try {
@@ -147,7 +160,7 @@ export async function attemptConfirmation(
     }
     const subject = subj.text.replace(/[\r\n]+/g, " ");
 
-    const { data: log } = await sb.from("email_logs").insert({
+    const { data: log, error: auditError } = await sb.from("email_logs").insert({
       template_id: tpl.id,
       recipient_email: claimed.recipient_email,
       subject,
@@ -155,6 +168,7 @@ export async function attemptConfirmation(
       delivery_id: deliveryId,
       metadata: { ticket_id: claimed.ticket_id, kind: "booking_confirmation" },
     }).select("id").single();
+    if (auditError || !log?.id) return await fail("audit_write_failed", "Versandprotokoll konnte nicht gespeichert werden");
 
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
@@ -173,11 +187,11 @@ export async function attemptConfirmation(
     }
     const now = new Date().toISOString();
     if (log?.id) await sb.from("email_logs").update({ status: "sent", sent_at: now, provider_message_id: out.id }).eq("id", log.id);
-    await sb.from("booking_email_deliveries").update({
+    const { data: saved, error: saveError } = await sb.from("booking_email_deliveries").update({
       status: "sent", sent_at: now, provider_message_id: out.id ?? null, template_id: tpl.id,
       email_log_id: log?.id ?? null, last_error_code: null, last_error: null,
-    }).eq("id", deliveryId);
-    return "sent";
+    }).eq("id", deliveryId).eq("attempts", claimedAttempt).eq("status", "sending").select("id").maybeSingle();
+    return saveError || !saved ? "unknown" : "sent";
   } catch (e) {
     return await fail("exception", e instanceof Error ? e.message : String(e));
   }

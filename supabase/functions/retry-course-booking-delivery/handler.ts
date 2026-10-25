@@ -1,8 +1,7 @@
 // Office/admin-only resend and stuck-delivery recovery for 26/27 website
 // booking e-mails (booking_confirmation + invoice). NOT deployed.
 //   { action: "retry", delivery_id, force? }  failed row -> resend
-//       force is required only when the outcome is unknown AND the provider's
-//       24h dedupe window has passed (could otherwise duplicate an e-mail).
+//       force is accepted for request compatibility but NEVER bypasses review.
 //   { action: "recover_stuck" }               rows stuck in 'sending' past the lease
 import { z } from "https://esm.sh/zod@3.23.8";
 import { attemptDelivery, LEASE_MS, type Transport } from "../_shared/courseDelivery.ts";
@@ -37,21 +36,25 @@ export function createRetryHandler(
     if (!parsed.success) return json({ error: "Validation failed", details: parsed.error.flatten().fieldErrors }, 400);
 
     if (parsed.data.action === "retry") {
-      const { data: d } = await sb.from("booking_email_deliveries").select("id, status, kind")
+      const { data: d, error: readError } = await sb.from("booking_email_deliveries").select("id, status, kind, ticket_id")
         .eq("id", parsed.data.delivery_id).in("kind", ["invoice", "booking_confirmation"]).maybeSingle();
+      if (readError) return json({ error: "delivery_read_failed" }, 503);
       if (!d) return json({ error: "not_found" }, 404);
       if (d.status !== "failed") return json({ error: "not_failed", status: d.status }, 409);
       const r = await attemptDelivery(sb, d.id, deps.transport, { mode: "manual", force: parsed.data.force, now: deps.now });
       if (r.outcome === "not_claimed") return json({ error: "already_in_progress" }, 409);
-      if (r.outcome === "needs_review") return json({ error: "unknown_outcome_requires_force", code: r.code }, 409);
-      await sb.from("ticket_history").insert({ ticket_id: (await ticketOf(sb, d.id)), event_type: "email_resend",
+      if (r.outcome === "needs_review") return json({ error: "delivery_requires_review", code: r.code }, 409);
+      const { error: auditError } = await sb.from("ticket_history").insert({ ticket_id: d.ticket_id, event_type: "email_resend",
         created_by_user_id: auth.userId, details: { delivery_id: d.id, kind: d.kind, outcome: r.outcome, code: r.code ?? null, force: !!parsed.data.force } });
+      if (auditError) return json({ success: false, status: r.outcome, error: "retry_audit_failed" }, 503);
       return json({ success: r.outcome === "sent", status: r.outcome, code: r.code ?? null });
     }
 
     const cutoff = new Date((deps.now ?? Date.now)() - LEASE_MS).toISOString();
-    const { data: stuck } = await sb.from("booking_email_deliveries").select("id")
-      .eq("status", "sending").in("kind", ["invoice", "booking_confirmation"]).lt("claimed_at", cutoff).limit(100);
+    const { data: stuck, error: stuckError } = await sb.from("booking_email_deliveries").select("id")
+      .eq("status", "sending").in("kind", ["invoice", "booking_confirmation"])
+      .or(`claimed_at.lt.${cutoff},claimed_at.is.null`).limit(100);
+    if (stuckError) return json({ error: "schema_or_delivery_read_failed" }, 503);
     const results: Array<{ id: string; outcome: string; code?: string }> = [];
     for (const s of stuck ?? []) {
       const r = await attemptDelivery(sb, s.id, deps.transport, { mode: "recover", now: deps.now });
@@ -61,7 +64,3 @@ export function createRetryHandler(
   };
 }
 
-async function ticketOf(sb: Client, deliveryId: string) {
-  const { data } = await sb.from("booking_email_deliveries").select("ticket_id").eq("id", deliveryId).maybeSingle();
-  return data?.ticket_id ?? null;
-}

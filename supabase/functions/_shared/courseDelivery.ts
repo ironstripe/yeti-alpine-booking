@@ -14,9 +14,9 @@
  *   - provider_message_id known          -> sent (reconciled)
  *   - first claim < 24h ago              -> resend with the SAME provider key
  *                                           (provider dedupes for 24h)
- *   - first claim >= 24h ago             -> failed/unknown_outcome; only an
- *                                           explicit staff `force` resends,
- *                                           under a NEW key.
+ *   - first claim >= 24h ago             -> unknown_outcome; review required;
+ *                                           force cannot
+ *                                           bypass this outcome in this batch.
  * Only a definitive provider rejection (4xx except 408/409/429, or 0 = not
  * attempted) is known not-sent and rotates the key on manual retry. Network,
  * 5xx, 408/409/429 are `transport_unknown`: same key AND the frozen payload
@@ -75,7 +75,8 @@ export const resendTransport: Transport = async (mail) => {
 };
 
 export async function resolveSender(sb: Client): Promise<string | null> {
-  const { data } = await sb.from("school_settings").select("name, email").order("created_at", { ascending: true }).limit(1);
+  const { data, error } = await sb.from("school_settings").select("name, email").order("created_at", { ascending: true }).limit(1);
+  if (error) throw new Error("sender_read_failed");
   const s = data?.[0];
   const email = s?.email?.trim();
   if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return null;
@@ -84,13 +85,15 @@ export async function resolveSender(sb: Client): Promise<string | null> {
 }
 
 export async function ensureDelivery(sb: Client, ticketId: string, kind: DeliveryKind, email: string) {
+  await assertDeliverySchema(sb);
   const key = deliveryKey(ticketId, kind);
   const { error } = await sb.from("booking_email_deliveries").upsert(
-    { ticket_id: ticketId, kind, idempotency_key: key, recipient_email: email },
+    { ticket_id: ticketId, kind, idempotency_key: key, recipient_email: email, delivery_protocol: "leased_v1" },
     { onConflict: "idempotency_key", ignoreDuplicates: true },
   );
   if (error) throw new Error(`delivery upsert failed: ${error.message}`);
-  const { data } = await sb.from("booking_email_deliveries").select("*").eq("idempotency_key", key).maybeSingle();
+  const { data, error: readError } = await sb.from("booking_email_deliveries").select("*").eq("idempotency_key", key).maybeSingle();
+  if (readError) throw new Error("delivery_read_failed");
   return data as DeliveryRow | null;
 }
 
@@ -98,6 +101,7 @@ export interface DeliveryRow {
   id: string; ticket_id: string; kind: DeliveryKind; idempotency_key: string; recipient_email: string;
   status: string; attempts: number; claimed_at: string | null; first_claimed_at: string | null;
   provider_idempotency_key: string | null; provider_message_id: string | null; last_error_code: string | null;
+  delivery_protocol: string | null; frozen_payload: FrozenPayload | null; payload_digest: string | null;
 }
 
 export type AttemptMode = "auto" | "manual" | "recover";
@@ -111,45 +115,58 @@ export async function attemptDelivery(
   opts: { mode: AttemptMode; force?: boolean; now?: () => number } = { mode: "auto" },
 ): Promise<{ outcome: AttemptOutcome; code?: string }> {
   const now = opts.now ?? Date.now;
-  const { data: cur } = await sb.from("booking_email_deliveries").select("*").eq("id", deliveryId).maybeSingle();
+  try { await assertDeliverySchema(sb); } catch { return { outcome: "needs_review", code: "schema_incompatible" }; }
+  const { data: cur, error: readError } = await sb.from("booking_email_deliveries").select("*").eq("id", deliveryId).maybeSingle();
+  if (readError) return { outcome: "needs_review", code: "delivery_read_failed" };
   if (!cur) return { outcome: "not_found" };
   const row = cur as DeliveryRow;
   if (row.status === "sent") return { outcome: "already_sent" };
+  // NULL provenance cannot distinguish a never-attempted old row from a legacy handoff.
+  // Never assign invented lease timestamps, rotate keys or reconcile legacy logs automatically.
+  if (row.delivery_protocol !== "leased_v1") return { outcome: "needs_review", code: "legacy_delivery_review" };
+  if (!["booking_confirmation", "invoice"].includes(row.kind)) return { outcome: "needs_review", code: "unsupported_kind" };
+  if (opts.mode === "auto" && row.status !== "pending") return { outcome: "not_claimed" };
+  if (opts.mode === "manual" && row.status !== "failed") return { outcome: "not_claimed" };
+  if (opts.mode === "recover" && row.status !== "sending") return { outcome: "not_claimed" };
 
   const t = now();
-  const firstAge = row.first_claimed_at ? t - Date.parse(row.first_claimed_at) : 0;
+  const fresh = row.status === "pending" && row.attempts === 0 && !row.first_claimed_at && !row.claimed_at &&
+    !row.provider_idempotency_key && !row.frozen_payload && !row.payload_digest && !row.provider_message_id;
+  const first = row.first_claimed_at ? Date.parse(row.first_claimed_at) : NaN;
+  const lease = row.claimed_at ? Date.parse(row.claimed_at) : NaN;
+  if (!fresh && (!Number.isFinite(first) || !Number.isFinite(lease) || first > t || lease > t ||
+    !row.provider_idempotency_key || row.attempts < 1)) return { outcome: "needs_review", code: "invalid_delivery_history" };
+  if (opts.mode === "auto" && !fresh) return { outcome: "needs_review", code: "invalid_delivery_history" };
+  if (opts.mode === "recover" && t - lease < LEASE_MS) return { outcome: "not_claimed" };
+
   let providerKey = row.provider_idempotency_key ?? row.idempotency_key;
   let firstClaimed = row.first_claimed_at;
-
-  if (opts.mode === "auto" && row.status !== "pending") return { outcome: "not_claimed" };
-  if (opts.mode === "recover") {
-    if (row.status !== "sending" || !row.claimed_at || t - Date.parse(row.claimed_at) < LEASE_MS) return { outcome: "not_claimed" };
-    let evidence = row.provider_message_id;
-    if (!evidence) {
-      const { data: logs } = await sb.from("email_logs").select("id, provider_message_id").eq("delivery_id", row.id)
-        .eq("status", "sent").not("provider_message_id", "is", null).limit(1);
-      evidence = logs?.[0]?.provider_message_id ?? null;
-    }
-    if (evidence) {
-      const { data } = await sb.from("booking_email_deliveries").update({ status: "sent", sent_at: new Date(t).toISOString(), provider_message_id: evidence })
-        .eq("id", row.id).eq("attempts", row.attempts).eq("status", "sending").select("id").maybeSingle();
-      return { outcome: data ? "reconciled_sent" : "not_claimed" };
-    }
-    if (firstAge >= PROVIDER_DEDUPE_MS) {
-      await sb.from("booking_email_deliveries").update({
-        status: "failed", last_error_code: "unknown_outcome",
-        last_error: "Versandstatus unbekannt und Anbieter-Deduplizierung (24h) abgelaufen – manuelle Prüfung nötig",
-      }).eq("id", row.id).eq("attempts", row.attempts).eq("status", "sending");
-      return { outcome: "needs_review", code: "unknown_outcome" };
-    }
-    // same provider key within the dedupe window
+  const retryKnownNotSent = opts.mode === "manual" && DEFINITELY_NOT_SENT.has(row.last_error_code ?? "");
+  // Corruption stays review-required even on repeated manual retry or force=true.
+  if (row.last_error_code === "payload_digest_mismatch" || row.last_error_code === "frozen_payload_missing") {
+    return { outcome: "needs_review", code: row.last_error_code };
   }
-  if (opts.mode === "manual") {
-    if (row.status !== "failed") return { outcome: "not_claimed" };
-    const unknown = row.last_error_code === "unknown_outcome" || row.last_error_code === "transport_unknown";
-    if (unknown && firstAge >= PROVIDER_DEDUPE_MS && !opts.force) return { outcome: "needs_review", code: "unknown_outcome" };
-    if (!unknown || firstAge >= PROVIDER_DEDUPE_MS) {
-      // Known not-sent (or explicitly forced after the window): new provider key.
+  if (!fresh) {
+    const { data: logs, error: logError } = await sb.from("email_logs").select("id, provider_message_id")
+      .eq("delivery_id", row.id).eq("status", "sent").not("provider_message_id", "is", null);
+    if (logError) return { outcome: "needs_review", code: "evidence_read_failed" };
+    const evidence = row.provider_message_id ?? logs?.[0]?.provider_message_id;
+    if (evidence) {
+      const { data, error } = await sb.from("booking_email_deliveries").update({ status: "sent", sent_at: new Date(t).toISOString(), provider_message_id: evidence })
+        .eq("id", row.id).eq("attempts", row.attempts).eq("status", row.status).select("id").maybeSingle();
+      return error ? { outcome: "unknown", code: "sent_state_unpersisted" } : { outcome: data ? "reconciled_sent" : "not_claimed" };
+    }
+    if (!retryKnownNotSent) {
+      if (!row.frozen_payload || row.frozen_payload.mail?.idempotencyKey !== providerKey || !row.payload_digest) {
+        return { outcome: "needs_review", code: "frozen_payload_missing" };
+      }
+      if (await payloadDigest(row.frozen_payload.mail) !== row.payload_digest) return { outcome: "needs_review", code: "payload_digest_mismatch" };
+      if (t - first >= PROVIDER_DEDUPE_MS) return { outcome: "needs_review", code: "unknown_outcome" };
+      if (opts.mode === "manual" && !["transport_unknown", "unknown_outcome"].includes(row.last_error_code ?? "")) {
+        return { outcome: "needs_review", code: "ambiguous_failure" };
+      }
+    } else {
+      // Only a durably recorded pre-handoff failure/definite rejection permits a new request.
       providerKey = `${row.idempotency_key}:a${row.attempts + 1}`;
       firstClaimed = null;
     }
@@ -157,10 +174,11 @@ export async function attemptDelivery(
 
   const fromStatus = opts.mode === "auto" ? "pending" : opts.mode === "manual" ? "failed" : "sending";
   const stamp = new Date(t).toISOString();
-  const { data: claimed } = await sb.from("booking_email_deliveries").update({
+  const { data: claimed, error: claimError } = await sb.from("booking_email_deliveries").update({
     status: "sending", attempts: row.attempts + 1, claimed_at: stamp,
     first_claimed_at: firstClaimed ?? stamp, provider_idempotency_key: providerKey,
   }).eq("id", row.id).eq("attempts", row.attempts).eq("status", fromStatus).select("*").maybeSingle();
+  if (claimError) return { outcome: "needs_review", code: "claim_write_failed" };
   if (!claimed) return { outcome: "not_claimed" };
 
   const fail = async (code: string, message: string, extra: Record<string, unknown> = {}) => {
@@ -186,6 +204,7 @@ export async function attemptDelivery(
       }
       mail = frozen.mail; templateId = frozen.template_id; invoiceId = frozen.invoice_id;
     } else {
+      if (!fresh && !retryKnownNotSent) return await fail("frozen_payload_missing", "Versandinhalt fehlt – manuelle Prüfung nötig");
       const sender = await resolveSender(sb);
       if (!sender) return await fail("sender_not_configured", "Absender (Schul-E-Mail in den Einstellungen) fehlt");
       const content = row.kind === "invoice" ? await invoiceContent(sb, row.ticket_id) : await confirmationContent(sb, row.ticket_id);
@@ -201,11 +220,12 @@ export async function attemptDelivery(
       if (fe || !fz) return await fail("payload_freeze_failed", fe?.message ?? "Versandinhalt konnte nicht gespeichert werden");
     }
 
-    const { data: log } = await sb.from("email_logs").insert({
+    const { data: log, error: logError } = await sb.from("email_logs").insert({
       template_id: templateId, recipient_email: mail.to, subject: mail.subject, status: "queued",
       delivery_id: row.id, metadata: { ticket_id: row.ticket_id, kind: row.kind, invoice_id: invoiceId, provider_idempotency_key: providerKey },
     }).select("id").single();
-    logId = log?.id ?? null;
+    if (logError || !log?.id) return await fail("audit_write_failed", "Versandprotokoll konnte nicht gespeichert werden");
+    logId = log.id;
 
     // 2) Transport.
     handedOver = true;
@@ -223,6 +243,8 @@ export async function attemptDelivery(
       return await fail(definitive ? "provider_error" : "transport_unknown", `${r.status ?? "?"}: ${r.error}`, { email_log_id: logId });
     }
 
+    if (!r.id) return await fail("transport_unknown", "Anbieterantwort ohne Nachrichten-ID", { email_log_id: logId });
+
     // 3) Durable sent state. Provider accepted: never report `sent` unless it is persisted.
     const sentAt = new Date(now()).toISOString();
     if (logId) await sb.from("email_logs").update({ status: "sent", sent_at: sentAt, provider_message_id: r.id }).eq("id", logId);
@@ -232,7 +254,7 @@ export async function attemptDelivery(
     }).eq("id", row.id).eq("attempts", row.attempts + 1).eq("status", "sending").select("id").maybeSingle();
     if (de || !done) {
       // Keep the row leased in `sending`; record the provider id as evidence for recovery.
-      if (r.id) await sb.from("booking_email_deliveries").update({ provider_message_id: r.id }).eq("id", row.id).eq("status", "sending");
+      if (r.id) await sb.from("booking_email_deliveries").update({ provider_message_id: r.id }).eq("id", row.id).eq("attempts", row.attempts + 1).eq("status", "sending");
       return { outcome: "unknown", code: "sent_state_unpersisted" };
     }
     return { outcome: "sent" };
@@ -241,6 +263,17 @@ export async function attemptDelivery(
     return await fail("exception", e instanceof Error ? e.message : String(e), { email_log_id: logId });
   }
 }
+
+/** Explicit columns: select("*") alone does not detect an incompatible old schema. */
+export async function assertDeliverySchema(sb: Client): Promise<void> {
+  const { error } = await sb.from("booking_email_deliveries")
+    .select("id, claimed_at, first_claimed_at, provider_idempotency_key, frozen_payload, payload_digest, delivery_protocol").limit(0);
+  if (error) throw new Error("schema_incompatible");
+}
+const DEFINITELY_NOT_SENT = new Set([
+  "sender_not_configured", "template_missing", "template_unknown_variable", "invoice_missing",
+  "payment_details_missing", "payload_freeze_failed", "audit_write_failed", "provider_error",
+]);
 
 interface FrozenPayload { mail: Mail; template_id: string | null; invoice_id: string | null }
 
@@ -277,22 +310,25 @@ async function confirmationContent(sb: Client, ticketId: string): Promise<Conten
 const fmtDate = (d?: string | null) => (d ? d.slice(0, 10).split("-").reverse().join(".") : "");
 
 async function invoiceContent(sb: Client, ticketId: string): Promise<Content> {
-  const { data: tpl } = await sb.from("email_templates").select("id, subject, body_html, body_text")
+  const { data: tpl, error: templateError } = await sb.from("email_templates").select("id, subject, body_html, body_text")
     .eq("trigger", INVOICE_TRIGGER).eq("is_active", true).maybeSingle();
+  if (templateError) throw new Error("template_read_failed");
   if (!tpl) return { ok: false, code: "template_missing", message: "Vorlage invoice.created fehlt oder ist inaktiv" };
 
-  const { data: invoices } = await sb.from("invoices").select("*").eq("ticket_id", ticketId).eq("status", "open");
+  const { data: invoices, error: invoiceRead } = await sb.from("invoices").select("*").eq("ticket_id", ticketId).eq("status", "open");
+  if (invoiceRead) throw new Error("invoice_read_failed");
   if ((invoices?.length ?? 0) !== 1) return { ok: false, code: "invoice_missing", message: `${invoices?.length ?? 0} offene Rechnungen` };
   const inv = invoices[0];
-  const { data: t } = await sb.from("tickets").select("ticket_number, customer_id").eq("id", ticketId).maybeSingle();
-  const { data: c } = await sb.from("customers").select("first_name, last_name, street, house_number, zip, city")
+  const { data: t, error: ticketRead } = await sb.from("tickets").select("ticket_number, customer_id").eq("id", ticketId).maybeSingle();
+  const { data: c, error: customerRead } = await sb.from("customers").select("first_name, last_name, street, house_number, zip, city")
     .eq("id", inv.customer_id ?? t?.customer_id).maybeSingle();
-  const { data: school } = await sb.from("school_settings").select("name, phone, email, website, vat_number")
+  const { data: school, error: schoolRead } = await sb.from("school_settings").select("name, phone, email, website, vat_number")
     .order("created_at", { ascending: true }).limit(1);
-  const { data: items } = await sb.from("ticket_items")
+  const { data: items, error: itemsRead } = await sb.from("ticket_items")
     .select("id, date, end_date, time_start, time_end, line_total, group_name, item_type, product:products(name)")
     .eq("ticket_id", ticketId).neq("status", "cancelled").order("date").order("time_start");
-  const { data: resv } = await sb.from("bc_2627_reservations").select("quote_snapshot").eq("ticket_id", ticketId).maybeSingle();
+  const { data: resv, error: reservationRead } = await sb.from("bc_2627_reservations").select("quote_snapshot").eq("ticket_id", ticketId).maybeSingle();
+  if (ticketRead || customerRead || schoolRead || itemsRead || reservationRead) throw new Error("content_read_failed");
   const lines = (items ?? []).map((it: Record<string, any>) => {
     const qline = (resv?.quote_snapshot?.lines ?? []).find((l: any) => (l.ticket_item_ids ?? []).includes(it.id));
     const when = qline?.dates ? (qline.dates as string[]).map(fmtDate).join(", ") : fmtDate(it.date);
