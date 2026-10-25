@@ -285,3 +285,8 @@ All real business writes intercepted (any non-GET to the backend fails with 403 
 ## B06 (Rechnungsversand)
 - [x] PDF-Renderer + send-invoice Function + BookingDetail UI (lokal getestet: 10/10 Integration, 3/3 PDF)
 - [ ] Ausstehend: B04+B06 SQL installieren, send-invoice deployen, HB057/086/093 UI-Retest, kein Release ohne Freigabe
+
+## B07-P (Produkt-Tarife privat, Vorstufe B07a)
+- [x] Pending SQL, Resolver, Vorschau/Create-Bindung, Editor, Edge-Vertrag; lokal getestet (docs/b07-pricing-verification.md)
+- [ ] Wartet auf Ivo: Personenzuschlag im neuen Modell, Doppelstunde 14–16, Abdeckung aller aktiven Privatprodukte; danach Installation/Deploy/Schalter nur mit Freigabe
+- [ ] B07b: Zusammenfassung zeigt Server-Vorschau (Voraussetzung für Schalter); Verschieben/Bearbeiten nutzt noch altes Preismodell

@@ -49,7 +49,16 @@ export const RequestSchema = z.discriminatedUnion("action", [
     discount_reason: z.string().trim().max(500).optional(),
     finalization: Finalization.optional(),
     confirmation_requested: z.boolean().optional(),
+    // B07-P: tariff revision shown in the preview; required once product tariffs are installed.
+    quote_revision: z.number().int().min(0).optional(),
   }),
+  // B07-P: server preview of a new office private booking (same resolver as create).
+  z.object({
+    action: z.literal("quote"),
+    product_id: uuid,
+    persons: z.number().int().min(1).max(4),
+    appointments: z.array(z.object({ date, time_start: time, time_end: time })).min(1).max(60),
+  }).strict(),
   z.object({
     action: z.literal("move"),
     appointment_id: uuid,
@@ -102,6 +111,7 @@ export function statusFor(result: Record<string, unknown>): number {
   switch (result.error) {
     case "conflict": return 409;
     case "quote_changed": return 409;
+    case "tariff_unavailable": return 422;
     case "protected": return 423;
     case "not_found": return 404;
     case "forbidden": return 403;
@@ -115,6 +125,7 @@ export function publicBody(result: Record<string, unknown>): Record<string, unkn
   const status = statusFor(result);
   if (status === 200) { const { ok: _ok, ...rest } = result; return rest; }
   if (result.error === "quote_changed") return { error: "quote_changed", quote: result.quote };
+  if (status === 422) return { error: "tariff_unavailable", reason: result.reason ?? null, index: result.index ?? null };
   if (status === 409) return { error: "conflict", conflicts: result.conflicts };
   if (status === 423) return { error: "protected", excluded: result.excluded };
   if (status === 404) return { error: "not_found" };
