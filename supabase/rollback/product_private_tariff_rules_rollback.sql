@@ -16,6 +16,7 @@ DROP FUNCTION IF EXISTS public.pa_create_quote(jsonb);
 DROP FUNCTION IF EXISTS public.pa_price_request(uuid, jsonb, jsonb, boolean);
 DROP FUNCTION IF EXISTS public.pa_price_request(uuid, jsonb, jsonb, boolean, jsonb);
 DROP FUNCTION IF EXISTS public.pa_private_day_context(uuid[], date[]);
+DROP FUNCTION IF EXISTS public.pa_private_day_context(uuid[], date[], uuid[]);
 DROP FUNCTION IF EXISTS public.pa_discount_intent(jsonb, boolean);
 DROP FUNCTION IF EXISTS public.pa_same_day_discount(jsonb, numeric, integer);
 DROP FUNCTION IF EXISTS public.save_product_private_tariff_rules(uuid, integer, jsonb, uuid);
