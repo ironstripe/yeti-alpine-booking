@@ -1,61 +1,83 @@
-# B03a – Safe editing of existing canonical private bookings
+# B07 Vorbereitung: mehrere Positionen in einer Office-Buchung, atomar gespeichert (nur Diagnose und Entwurf)
 
-## Confirmed causes (read-only evidence, 2026-10-24)
-- T-2026-998114 live: 1 `private_appointments` row (price 105, 2026-12-26 10–11, status booked, no invoice), 2 `private_appointment_participants` rows, 1 mirrored `ticket_items` line with `participant_id = NULL`, unit_price 105, ticket total 105.
-- `loadTicketForEditing` (BookingWizardContext.tsx:1677) builds participants only from `ticket_items.participant_id` → canonical bookings load 0 participants; the wizard then reprices live for 1 person (85). Display bug confirmed.
-- Edit save (Step4Summary.tsx:176) calls `useUpdateBooking`: per-row direct writes (not atomic), sends instructor/meeting point/notes to every line, and `recalculateBookingTotal` rewrites `tickets.total_amount` as sum(unit_price*quantity), ignoring `line_total`/discounts. Canonical server formula `pa_recalc_ticket_total` uses `coalesce(line_total, unit_price*qty*(1-discount))`.
-- Hypothesis (not executed): saving T-2026-998114 would either be rejected by `trg_pa_ticket_item_guard` (instructor change) or silently overwrite a discounted total; participant add/remove would insert/delete lines with `unit_price 0` and bypass canonical participants entirely.
-- `pa_is_protected` already defines lock rules: past, completed, invoiced (issued/non-draft invoice).
+Basis-SHA: `4986bc9a6e7725af94bc93a2724faa2ab13c75e8`. Läuft nach B06. Keine Code-, Schema-, Deploy-, Versand- oder Live-Änderungen. Umsetzung erst, wenn die Preisentscheidungen D01 vorliegen.
 
-## Scope of this package
-Only bookings whose lines carry `appointment_id` (canonical private). Group and legacy private edits keep today's path, except one financial guard (below).
+## Ist-Zustand (geprüft)
 
-### 1. Hydration (frontend only)
-- In `loadTicketForEditing`, also select `appointment_id`, `quantity`, `discount_percent`, `line_total`. If any line has `appointment_id`, load `private_appointments` + `private_appointment_participants` (with participant rows) for the ticket and set:
-  - `selectedParticipants` = distinct canonical participants; per-appointment participant ids kept in a new `editCanonical` state slice (appointment id → date/time/instructor/meeting point/participant ids/stored price, protected flag).
-  - Summary in edit mode shows stored prices and stored ticket total; no live repricing, no checkout finance defaults (payment, due date, discount stay as stored; existing `checkoutDefaults()` reset remains only to prevent leakage, not written back).
-- Multiday: dates/times/instructor come per appointment, not from the "first item".
+- `Step4Summary.tsx:142` `multiItemBlocked` sperrt das Speichern bei `cartItems.length > 1`. Zusätzlich `staffGroupPayload.ts:37` (Winter-26/27-Gruppe nur einzeln), Hinweise in `Step1ProductCart.tsx:90`, `Step2AssignCustomer.tsx:69`, `BookingWizard.tsx:618`.
+- `useCreateBooking.ts` kennt zwei getrennte Wege: privat `paCreate` (Z. 378, Edge `private-appointments`, danach `pa_create_booking(p, actor)` / `pa_create_booking_finalized`) und quellgebundene Gruppe `createStaffGroupBooking` (Z. 155, Edge `staff-group-booking`, danach `bc_2627_staff_group_book(p, actor)`). Jeder Weg legt sein eigenes Ticket an und hat einen eigenen Wiederholschutz (`private_appointment_submissions` bzw. `bc_2627_staff_group_submissions`) mit Lock auf `submission_key`.
+- Abschluss: `staff_booking_finalize(p_ticket, f, actor)` (0006), B05 `b05_office_create` steht als ausstehendes SQL bereit (nicht installiert); B04/B06 SQL ebenfalls ausstehend.
+- Preis heute: `pa_price(date,start,end,persons)` summiert pro voller Stunde den Satz aus `private_lesson_rates` (4 Zeilen: 09–10 75, 10–12 85, 12–14 75, 14–16 85) plus `(Personen−1) × Stunden × 20`, Personen auf 4 begrenzt, Minuten werden ignoriert. Rabatt in `pa_create_booking` ist ein manueller `discount_percent` mit Begründung. Eine automatische 10%-Regel ist dort nicht eingebaut.
+- `public_private_tariff_display`: 2 Produkte, nur zur Anzeige. Sie enthalten Zeitfenster (z. B. 09–10 CHF 75 + 20 pro Person) und die Rabattregel `same_participant_same_day`, 10%, Schwelle 4 (Einheit `lessons`). Für Buchungen gelten sie nicht.
+- Gruppe: `quote_bc_2627_product(product, items, participants)` mit Preisstufen und Mittagessen (CHF 30 pro Person und Tag, eigene Rechnungszeile).
 
-### 2. Editable fields and save path for canonical bookings
-| Change | Path | Atomic? |
-|---|---|---|
-| Date/time/instructor of one appointment | existing `paMove` (one transaction, conflict + protection checks) | yes, reuse |
-| Same time/instructor change for a whole period | existing `paPeriodUpdate` | yes, reuse |
-| Meeting point, internal/instructor notes, customer notes | NEW narrow action `update_details` | needs backend |
-| Add/remove participant | blocked in UI and server for canonical bookings in B03a (see question) | — |
+## Abhängigkeiten
 
-- Edit save for canonical bookings never calls `useUpdateBooking`. Only one server call per save: if several schedule changes are pending, the UI allows saving one kind at a time (scheduler/detail already use move/period_update); no client-side multi-call sequences → no partial commits.
-- NEW `private-appointments` action `update_details` → service_role SQL `pa_update_details(p_ticket, p_changes, p_actor)`: one transaction, row locks on ticket + appointments, `pa_is_protected` check (fail closed `protected`), updates only `meeting_point` (appointment + mirrored lines) and notes fields, audit via existing `pa_emit_change`/ticket_history, never touches prices, totals, payments, invoices, participants or confirmation. Optional `expected_updated_at` to refuse stale edits (`conflict`).
-- Unchanged save = no-op (client sends nothing; server returns ok with no writes).
+```text
+Wizard state (cartItems, participantBookings, groupPlan, B01 checkout)
+  -> Step4Summary.handleCreateBooking
+     -> useCreateBooking
+        private   -> paCreate -> private-appointments fn -> pa_create_booking(_finalized) -> pa_price, pa_slot_conflicts, pa_lock_slots
+        BC group  -> staff-group-booking fn -> groupBookingPreflight -> bc_2627_staff_group_book -> quote_bc_2627_product, lunch
+        finalize  -> staff_booking_finalize (+ B05 intent: b05_office_create, pending)
+  post-commit -> staff-booking-confirmation (B05) / send-invoice (B06) via courseDelivery (B04)
+```
 
-### 3. Legacy guard (non-canonical tickets)
-- `useUpdateBooking`: only recompute `total_amount` when participants were added/removed; when recomputing, use `coalesce(line_total, unit_price*qty*(1-discount/100))` matching `pa_recalc_ticket_total`. Unchanged/notes-only saves no longer rewrite the total. Everything else in the legacy path unchanged (known non-atomic limitation, recorded separately).
+Für einen echten atomaren Ablauf taugen die bestehenden Helfer so nicht: Beide RPCs erstellen Ticket und Wiederholschutz selbst. Zwei Aufrufe nacheinander wären nicht atomar, und gegenseitig löschen (Kompensation) ist ausdrücklich ausgeschlossen.
 
-## Essential open question (Ivo)
-When Office intentionally adds or removes a participant on an existing canonical private booking, should the appointment price be recalculated with the current tariff for the new person count (`pa_price`), or keep the stored price and require a manual adjustment? Until answered, participant changes on canonical bookings are blocked with a clear German message ("Teilnehmer bei Privatlektionen bitte neu buchen oder Büro-Leitung fragen").
+## B07a: atomarer Server-Abschluss (nach D01)
 
-## Technical details
-Files
-- `src/contexts/BookingWizardContext.tsx` – canonical hydration, `editCanonical` slice.
-- `src/components/bookings/wizard/Step4Summary.tsx` – route canonical edits; stored price display.
-- `src/components/bookings/wizard/Step1CustomerParticipant.tsx` / `BookingSummaryCards.tsx` – disable participant add/remove for canonical edit; show per-appointment people.
-- `src/lib/privateAppointmentsApi.ts` – `paUpdateDetails`.
-- `supabase/functions/_shared/privateAppointmentsContract.ts`, `supabase/functions/private-appointments/index.ts` – `update_details` schema/branch.
-- `drizzle/migrations/0015_pa_update_details.sql` + `supabase/rollback/pa_update_details_rollback.sql` – new service_role-only function (REVOKE from anon/authenticated).
-- `src/hooks/useUpdateBooking.ts` – total guard.
-- `AGENTS.md` – one rule: canonical private edits go only through `private-appointments` (move/period_update/update_details).
+1. Neues, ausstehendes SQL ohne Nummer: `b07_office_multi_create(p jsonb, actor)`, nur für service_role. Ablauf:
+   - ein Wiederholschutz `b07_office_submissions(submission_key, ticket_id)`, Lock auf den Schlüssel;
+   - ein Ticket für einen Zahler;
+   - `draft_participants` werden einmal angelegt, jede Entwurfs-ID genau einmal einer echten ID zugeordnet und in allen Positionen weiterverwendet;
+   - pro Position den bestehenden internen Baustein aufrufen.
+2. Dafür werden die bestehenden RPCs aufgeteilt (Refactor ohne Verhaltensänderung): `pa_create_booking_core(ticket, …)` und `bc_2627_staff_group_book_core(ticket, …)` arbeiten auf einem vorgegebenen Ticket ohne eigenen Wiederholschutz. Die heutigen Einzel-RPCs werden zu dünnen Hüllen darum. Wächter, Konflikte, Später zuweisen, Rollen und Besitzrechte bleiben im Baustein.
+3. Konflikte: Alle Slots aller Positionen werden vor dem ersten Schreiben in fester Reihenfolge gesperrt (`pa_lock_slots`). Verschiedene Personen zur selben Zeit sind erlaubt. Dieselbe Person doppelt zur selben Zeit: Es gilt die bestehende Regel von `pa_slot_conflicts`, ohne Lockerung.
+4. Ein Gesamtbetrag = Summe der gespeicherten Zeilen. Danach `staff_booking_finalize` einmal und die B05-Absicht einmal pro Ticket. Kein Anbieteraufruf innerhalb der Transaktion.
+5. Ausdrücklich nicht unterstützt (Fehler mit Begründung, nie stilles Weglassen): Altpositionen ohne kanonischen Pfad, nicht quellgebundene Gruppen, Mischungen aus Bearbeiten und Neu, Trainings/interne Kurse, unbekannte Positionsarten, Position ohne Teilnehmer.
+6. Edge: neuer Modus `multi_create` in `private-appointments` oder eine neue Staff-Funktion `office-booking` mit `requireRole(["admin","office"])` und Serverangebot. Das wird beim Umsetzen entschieden; bevorzugt eine neue, kleine Funktion.
 
-Regression fixtures (synthetic only, never T-2026-998114 or other existing tickets)
-- Unit: hydration helper with 1 appointment/2 participants/NULL line participant → 2 names, stored 105 shown; 3-day booking with differing participants per appointment.
-- Unit: legacy total helper – discounted lines, notes-only save keeps total.
-- SQL (`tests/sql` baseline + psql fixture): `pa_update_details` updates meeting point/notes only; price/total/participants unchanged; protected (past/invoiced) refused with no writes; concurrent stale `expected_updated_at` refused; anon/authenticated cannot execute.
-- Contract test: `update_details` schema accepts/rejects.
-- Browser (intercepted network): canonical edit opens with 2 names/105, unchanged save sends no write, notes save sends exactly one `update_details` call, participant controls disabled; legacy and create flows (B01/B02 checkout persistence) still pass; scheduler performance browser checks re-run.
+## B07b: Oberfläche und isolierte Abnahme
 
-Release needs
-- Frontend preview after implementation; migration 0015 install and `private-appointments` redeploy each require separate authorization. Until both are live, the frontend hides `update_details` edits (feature flag) and canonical bookings stay read-only for notes/meeting point; move/period_update keep working.
-- Rollback: revert frontend commit; drop `pa_update_details` via rollback SQL; redeploy previous `private-appointments`. No data repair involved.
+- `useCreateBooking`: Bei mehr als einer Position wird ein Datensatz aus den Positionen gebaut und an den neuen Endpunkt geschickt. Der Pfad mit genau einer Position bleibt unverändert.
+- `multiItemBlocked` und die Gruppen-Sperre werden nur für unterstützte Kombinationen aufgehoben. Für alles Übrige bleibt der Hinweis.
+- Vor dem Speichern zeigt die Zusammenfassung das Serverangebot pro Position und den Gesamtbetrag und verlangt eine Bestätigung. Bei abweichendem Angebot wird gestoppt.
+- Erfolg zeigt das gespeicherte Ticket. Der Versandstatus (B05/B06) wird getrennt angezeigt.
 
-## Separate, not in B03a
-- B02 retest note: default due date persisted NULL while manual worked, on asset `index-CkC-hCqh.js` not bound to a commit. To be reproduced on an identified build first; no speculative fix here.
-- Legacy edit path remains non-atomic (separate item).
+## D01: offene Preisfragen (Entscheid Ivo)
+
+Was der Code heute tut, ist eine Sache. Was davon geschäftlich gelten soll, muss entschieden werden.
+
+1. Welcher Tarif gilt für operative Buchungen? Heute rechnet `pa_price` 2h zwischen 10 und 12 mit 170 CHF (85+85), 1 Person. Die Website zeigt dafür 190 CHF für 2h. Frage: Bleibt `private_lesson_rates` die Quelle (nichts ändert sich) oder wird es die Anzeigetabelle? Ohne Antwort ändert B07 keine Preise.
+2. 10%-Regel, automatisch oder nicht: Heute gibt es nur einen manuellen Rabatt. Soll B07 die bestätigte Regel automatisch anwenden? Beispiel: Anna 09–11 und 14–16 am 2.1. = 4h, also 10% auf Annas Lektionen an diesem Tag. Ben 3h am selben Tag: kein Rabatt. Anna 2h am 2.1. und 2h am 3.1.: kein Rabatt.
+3. Geteilte Lektion: Anna und Ben zusammen 10–14 (4h, 2 Personen). Haben beide je 4h? Und gilt der Rabatt auf den ganzen Zeilenpreis (Grundpreis + Zuschlag)? Eine Aufteilung pro Person wird nicht erfunden. Wir brauchen eine Antwort.
+4. Zählweise: Zählen Stunden des Stundenplans (10–12 = 2h) oder Lehrminuten (115 min)? Bei Lehrminuten erreicht 2×2h nur 230 und nicht 240.
+5. Zusammenspiel: Werden automatische 10% und manueller Rabatt kombiniert, ersetzt einer den anderen, oder ist das gesperrt? Und zählen Gruppenkurse oder Mittagessen zur 4h-Schwelle (Vorschlag: nein)?
+6. Wird die Personengrenze von 4 in `pa_price` bestätigt (5. Person ohne Zuschlag)?
+
+## Versand B05/B06
+
+Erst wird die Buchung gespeichert, dann eine Absicht pro Ticket festgehalten. Bestätigung und Rechnung laufen danach über die B04-Zustellung (Ticket + Art + `invoice_id`). Ein Wiederholaufruf liefert dasselbe Ticket und keine zweite Zustellung. Ein Fehler beim Versand macht die Buchung nie rückgängig. Bestehende Rechnungen, Zahlungen und gefrorene Inhalte bleiben unberührt.
+
+## Tests (lokal, synthetisch)
+
+- Baseline + B04/B05/B06 + B07-SQL in lokalem Postgres/PostgREST.
+- Fehler bei Position 2: Nichts wird gespeichert (kein Ticket, keine Teilnehmer, keine Zeilen).
+- Wiederholung oder verlorene Antwort: genau ein Ticket.
+- Zwei gleichzeitige Anfragen mit demselben Schlüssel oder demselben Slot: Eine gewinnt.
+- Verschiedene Personen zur gleichen Zeit: OK. Gleiche Person: Konflikt.
+- Eine Entwurfsperson in zwei Positionen: genau eine Teilnehmer-ID.
+- Später zuweisen, Mittagessen und Preisstufen unverändert.
+- Regression für eine einzelne Position, B01–B06.
+- Browser mit abgefangenen Anfragen auf Desktop und Mobil.
+
+## Rückbau
+
+Zuerst die Nutzer zurückbauen: Oberflächen-Schalter aus, dann die Edge-Funktion entfernen, dann die B07-SQL-Funktion entfernen. Die Wiederholschutz-Tabelle und Protokolle bleiben erhalten. Die `_core`-Aufteilung lässt die Einzel-RPCs gleich; der Rückbau stellt die alten Definitionen wieder her.
+
+## Blocker
+
+- D01-Fragen 1–6.
+- B04/B05/B06 SQL und Funktionen noch nicht installiert. Sie sind die Voraussetzung für das Release.
+- B02-Retest auf der gehosteten Version ist weiterhin nicht abgenommen.
