@@ -1,4 +1,5 @@
-// R1 S2c: step-1 private price comes only from the server quote request (no legacy 170, no client math).
+// R1 S2c: step-1 private price comes only from the server quote request (authoritative-server parity, no client math).
+// Since the 2026-10-25 correction the server prices 14-16 at 170 and 10-12 at 190; the step shows whatever the server returns.
 // Renders the real StepOnePrivateServerQuote + PrivateServerQuote with a stubbed wizard context and a
 // controlled query result; captures the exact quote request each render would send.
 import { describe, expect, mock, test } from "bun:test";
@@ -33,10 +34,14 @@ const render = () => { keys.length = 0; return renderToStaticMarkup(<StepOnePriv
 const lastReq = () => keys.filter(Boolean).at(-1) as Record<string, any>;
 
 describe("step-1 private price = server quote", () => {
-  test("14-16, 1 person: shows the server 190, never 170; request carries product/date/time/persons", () => {
-    state = base(); result = { data: quote(190), isFetching: false, error: null };
+  test("10-12, 1 person: shows the server 190 (not a legacy client 170)", () => {
+    state = base({ timeSelections: [{ date: D, startTime: "10:00", endTime: "12:00" }], timeSlot: "10:00 - 12:00" }); result = { data: quote(190), isFetching: false, error: null };
+    const out = render(); expect(out).toContain("CHF 190.00"); expect(out).not.toContain("170");
+  });
+  test("14-16, 1 person: shows the server 170; request carries product/date/time/persons", () => {
+    state = base(); result = { data: quote(170), isFetching: false, error: null };
     const out = render();
-    expect(out).toContain("CHF 190.00"); expect(out).not.toContain("170");
+    expect(out).toContain("CHF 170.00"); expect(out).not.toContain("190");
     expect(lastReq()).toMatchObject({ product_id: "prod-ski", persons: 1, appointments: [{ date: D, time_start: "14:00", time_end: "16:00" }] });
   });
   test("while loading (or refetching after an edit) no old price is shown", () => {
