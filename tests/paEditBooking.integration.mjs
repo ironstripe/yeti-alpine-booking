@@ -85,7 +85,7 @@ try {
     for (const change of ["internal_notes='other editor'", "instructor_notes='other teacher note'", "meeting_point='other point'", "time_start='10:15',time_end='11:15'", `instructor_id='${I2}'`, "date='2027-02-05'", "discount_percent=5"]) {
       const before=await state(b.ticket_id);
       // Trigger mirrors scheduler values from the canonical appointment.
-      if (/^(time_start|instructor_id|date|meeting_point)/.test(change)) await sql.unsafe(`UPDATE private_appointments SET ${change} WHERE id='${before.ap[1].id}'`);
+      if (/^(time_start|instructor_id|date|meeting_point)/.test(change)) await sql.begin(async tx => { await tx.unsafe(`UPDATE private_appointments SET ${change} WHERE id='${before.ap[1].id}'`); await tx.unsafe(`UPDATE ticket_items SET ${change} WHERE appointment_id='${before.ap[1].id}'`); });
       else await sql.unsafe(`UPDATE ticket_items SET ${change} WHERE appointment_id='${before.ap[1].id}'`);
       const changed=await state(b.ticket_id);
       const req={mode:'apply',ticket_id:b.ticket_id,expected_total:Number(before.tk.tot),appointments:[
