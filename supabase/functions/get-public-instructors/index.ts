@@ -37,11 +37,21 @@ Deno.serve(async (req) => {
       .map((r) => r.id);
     let expertise = new Map<string, { category: string; name: string }[]>();
     if (eligibleIds.length) {
-      const { data: caps, error: capErr } = await supabase
-        .from("instructor_capabilities")
-        .select("instructor_id, capabilities!instructor_capabilities_capability_id_fkey(name, category)")
-        .in("instructor_id", eligibleIds);
-      if (capErr) throw new Error(capErr.message);
+      // Category filtered in the join; paged so the API row cap never truncates results.
+      const caps: unknown[] = [];
+      const PAGE = 1000;
+      for (let from = 0; ; from += PAGE) {
+        const { data: page, error: capErr } = await supabase
+          .from("instructor_capabilities")
+          .select("instructor_id, capability_id, capabilities!instructor_capabilities_capability_id_fkey!inner(name, category)")
+          .in("instructor_id", eligibleIds)
+          .in("capabilities.category", ["Ski", "Snowboard"])
+          .order("instructor_id").order("capability_id")
+          .range(from, from + PAGE - 1);
+        if (capErr) throw new Error(capErr.message);
+        caps.push(...(page ?? []));
+        if ((page ?? []).length < PAGE) break;
+      }
       expertise = publicExpertiseByInstructor((caps ?? []) as never);
     }
 
