@@ -16,6 +16,8 @@ import { getLevelLabel as getInstructorLevel } from "@/lib/instructor-utils";
 import { getSpecializationLabel } from "@/hooks/useInstructors";
 import { useInstructors } from "@/hooks/useInstructors";
 import { PriceBreakdown } from "./PriceBreakdown";
+import { StepOnePrivateServerQuote } from "./StepOnePrivateServerQuote";
+import { privateTariffsLive } from "@/lib/privateTariffRules";
 
 // Helper to format dates as short day names
 const formatDayNames = (dates: string[]): string => {
@@ -449,7 +451,13 @@ export function BookingSummaryCards({
         </CardContent>
       </Card>}
 
-      {isStepOne && hasCourseDraft && (
+      {/* R1: tariff-priced ordinary private lessons preview the server quote, never the legacy hourly rate. */}
+      {isStepOne && hasCourseDraft && isOrdinaryPrivate && !state.isEditMode
+        && !(state.useParticipantSpecificBooking && Object.keys(state.participantBookings).length > 0) && privateTariffsLive() && (
+        <StepOnePrivateServerQuote />
+      )}
+      {isStepOne && hasCourseDraft && !(isOrdinaryPrivate && !state.isEditMode
+        && !(state.useParticipantSpecificBooking && Object.keys(state.participantBookings).length > 0) && privateTariffsLive()) && (
         <PriceBreakdown
           discountPercent={0}
           presentation="compact-draft"

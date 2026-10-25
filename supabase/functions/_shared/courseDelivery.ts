@@ -29,6 +29,7 @@
  */
 import { activeConfirmationTemplate, buildVars, fillTemplate } from "./bookingDelivery.ts";
 import { renderInvoicePdf } from "./invoicePdf.ts";
+import { snapshotLines } from "./invoiceContent.ts";
 
 // deno-lint-ignore no-explicit-any
 type Client = any;
@@ -340,7 +341,8 @@ async function invoiceContent(sb: Client, ticketId: string, invoiceId?: string):
     .eq("ticket_id", ticketId).neq("status", "cancelled").order("date").order("time_start");
   const { data: resv, error: reservationRead } = await sb.from("bc_2627_reservations").select("quote_snapshot").eq("ticket_id", ticketId).maybeSingle();
   if (ticketRead || customerRead || schoolRead || itemsRead || reservationRead) throw new Error("content_read_failed");
-  const lines = (items ?? []).map((it: Record<string, any>) => {
+  // R1: a v1 content snapshot is rendered exactly as frozen at issuance; legacy invoices keep the lines below.
+  const lines = snapshotLines(inv.content_snapshot) ?? (items ?? []).map((it: Record<string, any>) => {
     const qline = (resv?.quote_snapshot?.lines ?? []).find((l: any) => (l.ticket_item_ids ?? []).includes(it.id));
     const when = qline?.dates ? (qline.dates as string[]).map(fmtDate).join(", ") : fmtDate(it.date);
     const time = qline?.blocks ? (qline.blocks as string[]).join(" + ") : `${String(it.time_start ?? "").slice(0, 5)}–${String(it.time_end ?? "").slice(0, 5)}`;

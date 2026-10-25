@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { isBookingEditable } from "@/lib/booking-utils";
 import { paMove } from "@/lib/privateAppointmentsApi";
+import { planCanonicalMove } from "@/lib/ticketItemEditPlan";
 
 interface UpdateTicketItemParams {
   ticketItemId: string;
@@ -50,17 +51,11 @@ export function useUpdateTicketItem() {
         throw new Error("Vergangene Buchungen können nicht bearbeitet werden.");
       }
 
-      const hasScheduleChange = instructorId !== undefined || timeStart !== undefined || timeEnd !== undefined || date !== undefined;
-      if (currentItem.appointment_id && hasScheduleChange) {
-        const targetInstructor = instructorId !== undefined ? instructorId : currentItem.instructor_id;
-        if (!targetInstructor) throw new Error("Bitte eine Lehrperson wählen.");
-        await paMove({
-          appointment_id: currentItem.appointment_id,
-          date: date ?? currentItem.date,
-          time_start: (timeStart ?? currentItem.time_start ?? "").slice(0, 5),
-          time_end: (timeEnd ?? currentItem.time_end ?? "").slice(0, 5),
-          instructor_id: targetInstructor,
-        });
+      if (currentItem.appointment_id) {
+        // R1: only real slot/teacher differences go through the canonical move transaction.
+        const plan = planCanonicalMove(currentItem, { date, timeStart, timeEnd, instructorId });
+        if (plan.kind === "error") throw new Error(plan.message);
+        if (plan.kind === "move") await paMove({ appointment_id: currentItem.appointment_id, ...plan.body });
       }
 
       const updates: Record<string, unknown> = {};

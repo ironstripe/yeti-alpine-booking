@@ -1,3 +1,4 @@
+import { birthDateChangeError } from "@/lib/birthDate";
 import { customerEmailRecipient } from "@/lib/customerEmail";
 import { checkoutSubmitFlags } from "@/lib/checkoutSubmitFlags";
 import { checkoutFirstCourseDate, checkoutPaymentDueDate } from "@/lib/checkoutDueDate";
@@ -138,6 +139,8 @@ export function Step4Summary({ onEditStep }: Step4SummaryProps) {
   const savesParticipants = state.productType === "private" || state.productType === "group";
   const { foreign, isLoading: ownershipLoading } = useParticipantOwnership(savesParticipants ? linkedIds : [], state.customerId);
   const missingBirth = linkedParticipants.filter((p) => (p.isGuest || p.id.startsWith("guest-")) && !p.birth_date);
+  // R1/B08 final check: new (unsaved) people must carry a valid, non-future birth date; saved people are never re-judged.
+  const badBirth = linkedParticipants.filter((p) => (p.isGuest || p.id.startsWith("guest-") || p.id.startsWith("local-")) && !!p.birth_date && birthDateChangeError(p.birth_date) !== null);
   const participantIssue: string | null = !savesParticipants || state.isEditMode
     ? null
     : linkedParticipants.length !== linkedIds.length
@@ -146,7 +149,9 @@ export function Step4Summary({ onEditStep }: Step4SummaryProps) {
         ? `${foreign.map((f) => f.name).join(", ")} gehör${foreign.length === 1 ? "t" : "en"} zu einem anderen Kunden. Bitte im Kunden-Schritt den passenden Kunden wählen oder die Teilnehmer neu zuweisen.`
         : missingBirth.length > 0
           ? `Geburtsdatum fehlt für ${missingBirth.map((p) => p.first_name).join(", ")}. Bitte in Schritt 1 ergänzen.`
-          : null;
+          : badBirth.length > 0
+            ? `Ungültiges oder zukünftiges Geburtsdatum für ${badBirth.map((p) => p.first_name).join(", ")}. Bitte in Schritt 1 korrigieren.`
+            : null;
   const participantsUnresolved = !!participantIssue || ownershipLoading;
   const [submitError, setSubmitError] = useState<{ message: string; unknown: boolean } | null>(null);
   // The create path saves the active lesson only; never drop further cart items silently.

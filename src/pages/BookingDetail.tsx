@@ -49,6 +49,7 @@ import { useCreateInvoice, useInvoicesByTicket, useSendInvoice, useInvoiceDelive
 import { useBookingConfirmation } from "@/hooks/useBookingConfirmation";
 import { confirmationLabel } from "@/lib/bookingConfirmationApi";
 import { InvoicePrintTemplate } from "@/components/invoices/InvoicePrintTemplate";
+import { snapshotLines } from "@/lib/invoiceContent";
 import { TicketItemEditCard } from "@/components/bookings/TicketItemEditCard";
 import { SharedLessonWizard } from "@/components/bookings/SharedLessonWizard";
 import { useSharedLessonData } from "@/hooks/useSharedLesson";
@@ -248,9 +249,10 @@ const BookingDetail = () => {
   }
   
   const latestInvoice = invoices[0];
-  // Historical invoice preview/print inputs deliberately stay unchanged: no persisted
-  // document-version boundary exists. This projection is for ordinary detail cards only.
-  const lineItems = ticket.items?.map((item: any) => ({
+  // R1: an invoice with a frozen v1 content snapshot is shown exactly as issued (same as PDF/e-mail).
+  // Invoices without one (legacy) keep the historical preview/print lines below unchanged.
+  const frozenLines = snapshotLines((latestInvoice as { content_snapshot?: unknown } | undefined)?.content_snapshot);
+  const lineItems = frozenLines ?? (ticket.items?.map((item: any) => ({
     description: `${item.participant?.first_name || 'Teilnehmer'} - ${item.product?.name || 'Produkt'}`,
     details: item.instructor
       ? `Lehrer: ${item.instructor.first_name} ${item.instructor.last_name}`
@@ -260,7 +262,7 @@ const BookingDetail = () => {
           ? `Mittagsbetreuung ${format(new Date(item.date), 'dd.MM.yyyy', { locale: de })}${item.is_vegetarian ? ' · vegetarisch' : ''}`
           : undefined,
     amount: item.line_total || item.unit_price || 0,
-  })) || [];
+  })) || []);
 
   // Compute payment status for BookingStatusBadge
   const totalAmount = ticket.total_amount || 0;
