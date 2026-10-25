@@ -45,7 +45,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useSchoolSettings } from "@/hooks/useSchoolSettings";
-import { useCreateInvoice, useInvoicesByTicket, useSendInvoice } from "@/hooks/useInvoices";
+import { useCreateInvoice, useInvoicesByTicket, useSendInvoice, useInvoiceDeliveryStatus, invoiceDeliveryLabel } from "@/hooks/useInvoices";
 import { useBookingConfirmation } from "@/hooks/useBookingConfirmation";
 import { confirmationLabel } from "@/lib/bookingConfirmationApi";
 import { InvoicePrintTemplate } from "@/components/invoices/InvoicePrintTemplate";
@@ -113,6 +113,9 @@ const BookingDetail = () => {
   // Fetch invoices for this ticket
   const projection = useBookingReadProjection(id, ticket?.items);
   const { data: invoices = [] } = useInvoicesByTicket(id);
+  const latestInvoiceId = invoices?.[0]?.id;
+  const latestInvoiceStatus = invoices?.[0]?.status;
+  const invoiceDelivery = useInvoiceDeliveryStatus(latestInvoiceId, latestInvoiceStatus === 'open');
   
   // Fetch email log for this ticket
   const { data: emailLogs = [] } = useQuery({
@@ -175,16 +178,8 @@ const BookingDetail = () => {
   };
   
   const handleSendInvoice = async (invoiceId: string) => {
-    if (!ticket?.customer?.email) {
-      toast.error("Keine E-Mail-Adresse vorhanden");
-      return;
-    }
-    
     try {
-      await sendInvoice.mutateAsync({
-        invoiceId,
-        recipientEmail: ticket.customer.email,
-      });
+      await sendInvoice.mutateAsync({ invoiceId });
     } catch (error) {
       console.error("Failed to send invoice:", error);
     }
@@ -417,7 +412,7 @@ const BookingDetail = () => {
                       Erstellt am {format(new Date(latestInvoice.created_at), 'dd.MM.yyyy', { locale: de })}
                     </p>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <Badge variant={latestInvoice.status === 'paid' ? 'default' : 'secondary'}>
                       {latestInvoice.status === 'paid' ? 'Bezahlt' : 
                        latestInvoice.status === 'sent' ? 'Gesendet' : 
@@ -443,19 +438,24 @@ const BookingDetail = () => {
                       <Printer className="h-4 w-4 mr-1" />
                       Drucken
                     </Button>
-                    {latestInvoice.status === 'draft' && (
+                    {latestInvoice.status === 'open' && (
                       <Button 
                         size="sm"
                         onClick={() => handleSendInvoice(latestInvoice.id)}
-                        disabled={sendInvoice.isPending}
+                        disabled={sendInvoice.isPending || ["sent", "already_sent", "reconciled_sent", "in_progress", "needs_review"].includes(invoiceDelivery.data?.outcome ?? "")}
                       >
                         {sendInvoice.isPending ? (
                           <Loader2 className="h-4 w-4 mr-1 animate-spin" />
                         ) : (
                           <Send className="h-4 w-4 mr-1" />
                         )}
-                        Senden
+                        Per E-Mail senden
                       </Button>
+                    )}
+                    {latestInvoice.status === 'open' && invoiceDelivery.data && (
+                      <p className="text-xs text-muted-foreground w-full" data-testid="invoice-delivery-state">
+                        {invoiceDeliveryLabel(invoiceDelivery.data)}
+                      </p>
                     )}
                   </div>
                 </div>

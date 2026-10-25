@@ -28,7 +28,7 @@
  * Transport is injected; tests never send real e-mail.
  */
 import { activeConfirmationTemplate, buildVars, fillTemplate } from "./bookingDelivery.ts";
-import { renderInvoiceDocument } from "./invoiceDocument.ts";
+import { renderInvoicePdf } from "./invoicePdf.ts";
 
 // deno-lint-ignore no-explicit-any
 type Client = any;
@@ -52,8 +52,8 @@ export type Transport = (mail: Mail) => Promise<TransportResult>;
 
 export const deliveryKey = (ticketId: string, kind: DeliveryKind) => `ticket:${ticketId}:${kind}`;
 
-const b64 = (s: string) => {
-  const bytes = new TextEncoder().encode(s);
+const b64 = (s: string | Uint8Array) => {
+  const bytes = typeof s === "string" ? new TextEncoder().encode(s) : s;
   let bin = "";
   for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
   return btoa(bin);
@@ -84,11 +84,11 @@ export async function resolveSender(sb: Client): Promise<string | null> {
   return name ? `${name} <${email}>` : email;
 }
 
-export async function ensureDelivery(sb: Client, ticketId: string, kind: DeliveryKind, email: string) {
+export async function ensureDelivery(sb: Client, ticketId: string, kind: DeliveryKind, email: string, invoiceId?: string) {
   await assertDeliverySchema(sb);
   const key = deliveryKey(ticketId, kind);
   const { error } = await sb.from("booking_email_deliveries").upsert(
-    { ticket_id: ticketId, kind, idempotency_key: key, recipient_email: email, delivery_protocol: "leased_v1" },
+    { ticket_id: ticketId, kind, idempotency_key: key, recipient_email: email, delivery_protocol: "leased_v1", ...(invoiceId ? { invoice_id: invoiceId } : {}) },
     { onConflict: "idempotency_key", ignoreDuplicates: true },
   );
   if (error) throw new Error(`delivery upsert failed: ${error.message}`);
@@ -98,7 +98,7 @@ export async function ensureDelivery(sb: Client, ticketId: string, kind: Deliver
 }
 
 export interface DeliveryRow {
-  id: string; ticket_id: string; kind: DeliveryKind; idempotency_key: string; recipient_email: string;
+  id: string; ticket_id: string; kind: DeliveryKind; idempotency_key: string; recipient_email: string; invoice_id?: string | null;
   status: string; attempts: number; claimed_at: string | null; first_claimed_at: string | null;
   provider_idempotency_key: string | null; provider_message_id: string | null; last_error_code: string | null;
   delivery_protocol: string | null; frozen_payload: FrozenPayload | null; payload_digest: string | null;
@@ -207,7 +207,7 @@ export async function attemptDelivery(
       if (!fresh && !retryKnownNotSent) return await fail("frozen_payload_missing", "Versandinhalt fehlt – manuelle Prüfung nötig");
       const sender = await resolveSender(sb);
       if (!sender) return await fail("sender_not_configured", "Absender (Schul-E-Mail in den Einstellungen) fehlt");
-      const content = row.kind === "invoice" ? await invoiceContent(sb, row.ticket_id) : await confirmationContent(sb, row.ticket_id, opts.confirmationVars);
+      const content = row.kind === "invoice" ? await invoiceContent(sb, row.ticket_id, row.invoice_id ?? undefined) : await confirmationContent(sb, row.ticket_id, opts.confirmationVars);
       if (!content.ok) return await fail(content.code, content.message, content.templateId ? { template_id: content.templateId } : {});
       mail = { from: sender, to: row.recipient_email, subject: content.subject, html: content.html, text: content.text ?? null,
         attachments: content.attachments ?? [], idempotencyKey: providerKey };
@@ -309,16 +309,27 @@ async function confirmationContent(sb: Client, ticketId: string, vars?: (sb: Cli
 
 const fmtDate = (d?: string | null) => (d ? d.slice(0, 10).split("-").reverse().join(".") : "");
 
-async function invoiceContent(sb: Client, ticketId: string): Promise<Content> {
+async function invoiceContent(sb: Client, ticketId: string, invoiceId?: string): Promise<Content> {
   const { data: tpl, error: templateError } = await sb.from("email_templates").select("id, subject, body_html, body_text")
     .eq("trigger", INVOICE_TRIGGER).eq("is_active", true).maybeSingle();
   if (templateError) throw new Error("template_read_failed");
   if (!tpl) return { ok: false, code: "template_missing", message: "Vorlage invoice.created fehlt oder ist inaktiv" };
 
-  const { data: invoices, error: invoiceRead } = await sb.from("invoices").select("*").eq("ticket_id", ticketId).eq("status", "open");
-  if (invoiceRead) throw new Error("invoice_read_failed");
-  if ((invoices?.length ?? 0) !== 1) return { ok: false, code: "invoice_missing", message: `${invoices?.length ?? 0} offene Rechnungen` };
-  const inv = invoices[0];
+  let inv: Record<string, any> | null = null;
+  if (invoiceId) {
+    // Office send: the exact persisted invoice, bound to this ticket.
+    const { data: one, error: oneError } = await sb.from("invoices").select("*").eq("id", invoiceId).maybeSingle();
+    if (oneError) throw new Error("invoice_read_failed");
+    if (!one || one.ticket_id !== ticketId) return { ok: false, code: "invoice_missing", message: "Rechnung gehört nicht zu dieser Buchung" };
+    if (one.status !== "open") return { ok: false, code: "invoice_not_open", message: `Rechnung hat Status ${one.status}` };
+    inv = one;
+  } else {
+    const { data: invoices, error: invoiceRead } = await sb.from("invoices").select("*").eq("ticket_id", ticketId).eq("status", "open");
+    if (invoiceRead) throw new Error("invoice_read_failed");
+    if ((invoices?.length ?? 0) !== 1) return { ok: false, code: "invoice_missing", message: `${invoices?.length ?? 0} offene Rechnungen` };
+    inv = invoices[0];
+  }
+  if (!inv) return { ok: false, code: "invoice_missing", message: "Rechnung nicht gefunden" };
   const { data: t, error: ticketRead } = await sb.from("tickets").select("ticket_number, customer_id").eq("id", ticketId).maybeSingle();
   const { data: c, error: customerRead } = await sb.from("customers").select("first_name, last_name, street, house_number, zip, city")
     .eq("id", inv.customer_id ?? t?.customer_id).maybeSingle();
@@ -336,8 +347,8 @@ async function invoiceContent(sb: Client, ticketId: string): Promise<Content> {
     return { description: it.product?.name ?? it.group_name ?? "Leistung", details: `${when} · ${time}`, amount: Number(it.line_total) };
   });
 
-  const doc = await renderInvoiceDocument({
-    invoice: inv, school: school?.[0] ?? { name: "" }, customer: c ?? { last_name: "" }, ticketNumber: t?.ticket_number ?? "", lines,
+  const doc = await renderInvoicePdf({
+    invoice: inv as Parameters<typeof renderInvoicePdf>[0]["invoice"], school: school?.[0] ?? { name: "" }, customer: c ?? { last_name: "" }, ticketNumber: t?.ticket_number ?? "", lines,
   });
   if (!doc.ok) return { ok: false, code: doc.code, message: doc.message, templateId: tpl.id };
 
@@ -348,5 +359,5 @@ async function invoiceContent(sb: Client, ticketId: string): Promise<Content> {
     "invoice.due_date": fmtDate(inv.due_date), "school.name": school?.[0]?.name ?? "",
   });
   if (!filled.ok) return filled;
-  return { ...filled, invoiceId: inv.id, attachments: [{ filename: doc.filename, content: b64(doc.html), content_type: "text/html" }] };
+  return { ...filled, invoiceId: inv.id, attachments: [{ filename: doc.filename, content: b64(doc.pdf), content_type: "application/pdf" }] };
 }

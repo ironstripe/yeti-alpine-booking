@@ -281,3 +281,7 @@ All real business writes intercepted (any non-GET to the backend fails with 403 
 ## Skilehrer list — Saisonstatus default filter (24 Oct 2026)
 - [x] Default status filter "Aktive" (`instructors.status === "active"`), choices Aktive/Inaktive/Alle; search, sort, real-time filter unchanged; Saisonstatus stays independent of Operativer Status and Homepage toggle. No schema/record changes.
 - [x] Verified in preview (signed in as ivo@ivo.ch): default "Aktive" 98/98 (no inactive instructors exist yet), Inaktive → empty state, Alle 98, Aktive+Suche 72, reload returns to "Aktive", mobile 390px OK, no console errors, build OK.
+
+## B06 (Rechnungsversand)
+- [x] PDF-Renderer + send-invoice Function + BookingDetail UI (lokal getestet: 10/10 Integration, 3/3 PDF)
+- [ ] Ausstehend: B04+B06 SQL installieren, send-invoice deployen, HB057/086/093 UI-Retest, kein Release ohne Freigabe
