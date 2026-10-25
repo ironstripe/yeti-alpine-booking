@@ -283,7 +283,9 @@ BEGIN
     RETURN jsonb_build_object('error','invalid','field','changes');
   END IF;
   -- Unlocked read only to know which locks to take; re-validated under lock.
-  SELECT array_agg(id ORDER BY id), array_agg(DISTINCT date), min(ticket_id::text)::uuid INTO v_ids0, v_dates0, v_ticket
+  SELECT array_agg(id ORDER BY id), array_agg(DISTINCT date), min(ticket_id::text)::uuid,
+         string_agg(id || '|' || date || '|' || coalesce(instructor_id::text, ''), ';' ORDER BY id)
+    INTO v_ids0, v_dates0, v_ticket, v_sig0
     FROM public.private_appointments WHERE period_group_id = p_group AND status <> 'cancelled';
   IF v_ticket IS NULL THEN RETURN jsonb_build_object('error','not_found'); END IF;
   v_pids0 := ARRAY(SELECT DISTINCT participant_id FROM public.private_appointment_participants WHERE appointment_id = ANY(v_ids0) ORDER BY 1);
@@ -307,7 +309,11 @@ BEGIN
   END LOOP;
   v_ids := ARRAY(SELECT id FROM public.private_appointments WHERE period_group_id = p_group AND status <> 'cancelled' ORDER BY id);
   v_pids := ARRAY(SELECT DISTINCT participant_id FROM public.private_appointment_participants WHERE appointment_id = ANY(v_ids) ORDER BY 1);
-  IF v_ids IS DISTINCT FROM v_ids0 OR v_pids IS DISTINCT FROM v_pids0 THEN
+  -- The slot/day locks were taken for the unlocked dates/teachers: if a concurrent move changed any of
+  -- them, those locks do not cover the target state => stale, nothing written.
+  IF v_ids IS DISTINCT FROM v_ids0 OR v_pids IS DISTINCT FROM v_pids0
+     OR v_sig0 IS DISTINCT FROM (SELECT string_agg(id || '|' || date || '|' || coalesce(instructor_id::text, ''), ';' ORDER BY id)
+                                   FROM public.private_appointments WHERE id = ANY(v_ids)) THEN
     RETURN jsonb_build_object('error','conflict','conflicts', jsonb_build_array(jsonb_build_object('kind','stale','ref_id',p_group)));
   END IF;
   FOR a IN SELECT * FROM public.private_appointments WHERE id = ANY(v_todo) ORDER BY date, time_start, id LOOP
