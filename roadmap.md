@@ -1,9 +1,10 @@
 # Roadmap
 
 ## B05 — Office booking confirmation (authorised after B03b)
-- [ ] Verify final B03b/B04 contracts; persist explicit intent atomically for canonical create/replay without changing finance.
-- [ ] Integrate saved-ticket staff confirmation with B04 guards, complete saved lesson content and separate UI delivery outcomes.
-- [ ] Run isolated SQL/Deno and intercepted desktop/mobile plus targeted regression checks; document release order, rollback and HB084–086/093 limits. No release/live writes/provider calls.
+- [x] Verify final B03b/B04 contracts; persist explicit intent atomically for canonical create/replay without changing finance.
+- [x] Integrate saved-ticket staff confirmation with B04 guards, complete saved lesson content and separate UI delivery outcomes.
+- [x] Run isolated SQL/Deno and intercepted desktop/mobile plus targeted regression checks; docs/b05-verification.md records release order, rollback and HB084–086/093 limits. No release/live writes/provider calls.
+- [ ] B05 operational retests/release await separate backend install/deploy/frontend/send authorization; legacy non-atomic/ambiguous period limits documented.
 
 ## B04 — existing delivery schema compatibility
 - [x] Prepare additive pending SQL against current production-schema baseline; preserve historical fields, grants/RLS and both uniqueness constraints.
