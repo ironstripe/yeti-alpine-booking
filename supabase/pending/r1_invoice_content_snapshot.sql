@@ -8,7 +8,9 @@ COMMENT ON COLUMN public.invoices.content_snapshot IS
   'R1: frozen invoice content {version:1, lines:[{description, details, amount, ticket_item_ids}]}; NULL = legacy rendering.';
 ALTER TABLE public.invoices DROP CONSTRAINT IF EXISTS invoices_content_snapshot_shape;
 ALTER TABLE public.invoices ADD CONSTRAINT invoices_content_snapshot_shape CHECK (
-  content_snapshot IS NULL OR ((content_snapshot->>'version') = '1' AND jsonb_typeof(content_snapshot->'lines') = 'array'));
+  content_snapshot IS NULL OR (jsonb_typeof(content_snapshot) = 'object'
+    AND coalesce(content_snapshot->'version' = '1'::jsonb, false)
+    AND coalesce(jsonb_typeof(content_snapshot->'lines') = 'array', false)));
 
 CREATE OR REPLACE FUNCTION public.invoice_content_snapshot_immutable() RETURNS trigger
 LANGUAGE plpgsql SET search_path TO 'public' AS $$
