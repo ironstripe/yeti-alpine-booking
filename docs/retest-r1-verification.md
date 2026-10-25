@@ -73,3 +73,8 @@ Gehostet, read-only geprüft:
 
 Minimal fehlend für Privatpreise: (a) Projektion-SQL installieren, (b) Fenster-Metadaten auf die sechs Standardfenster
 korrigieren und neu verifizieren, (c) Repo-`get-website-products` deployen, (d) Onepager liest die Projektion. Keine Preisänderung nötig.
+
+### Vorher-Fingerabdrücke (read-only, 2026-10-25 ~22:40 UTC, vor jeder R1-Installation)
+- invoices: 19, md5 ohne content_snapshot `ef69b758b53d1eb1b7f93f317fd9964f`
+- tickets: **1424** (Ihre Angabe 1423 – ein Ticket mehr; nicht von Lovable angelegt, vor Installation prüfen), md5 `93502a0629d36b2b8171e584fa042fb2`
+- payments: 11, md5 `eac18fe59c47f6dc6dff22673ba12585`
