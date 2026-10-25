@@ -186,10 +186,10 @@ try {
   await t('same-person overlap inside the cart is rejected (private/private and private/group); adjacent ok; nothing written', async () => {
     const before = await counts();
     const a = await multi(base([known('a', ANNA)], [priv(PSKI, ['a'], [ap('2026-12-29', '10:00', '12:00', I[0])]),
-      priv(PSB, ['a'], [ap('2026-12-29', '11:00', '13:00', I[1])])]), 'quote');
+      priv(PSB, ['a'], [ap('2026-12-29', '10:00', '12:00', I[1])])]), 'quote');
     assert.equal(a.field, 'participant_overlap', JSON.stringify(a)); assert.equal(a.ref, 'a');
     const g = await multi(base([known('a', ANNA)], [{ kind: 'group', lines: [gline({ participant: 'a' })] },
-      priv(PSKI, ['a'], [ap(WEEK[0], '11:00', '13:00', I[0])])]), 'quote');
+      priv(PSKI, ['a'], [ap(WEEK[0], '10:00', '12:00', I[0])])]), 'quote');
     assert.equal(g.field, 'participant_overlap', JSON.stringify(g));
     assert.deepEqual(await counts(), before);
   });
@@ -209,8 +209,8 @@ try {
   });
 
   await t('group+group: one call, same tier prices as the single-item group path for the same lines', async () => {
-    const twoLines = [gline({ participant: 'a', dates: WEEK.slice(0, 3) }), gline({ participant: 'b', course_id: C_SB, sport: 'snowboard', meeting_point: null, dates: WEEK.slice(0, 3) })];
-    const c = await book(base([known('a', ANNA), known('b', BEN)], [{ kind: 'group', lines: [twoLines[0]] }, { kind: 'group', lines: [twoLines[1]] }],
+    const twoLines = [gline({ participant: 'a', dates: WEEK.slice(3) }), gline({ participant: 'b', course_id: C_SB, sport: 'snowboard', meeting_point: null, dates: WEEK.slice(3) })];
+    const c = await book(base([known('a', CARL), known('b', BEN)], [{ kind: 'group', lines: [twoLines[0]] }, { kind: 'group', lines: [twoLines[1]] }],
       { group_discount: { percent: 5, reason: 'Familie' } }));
     const single = await sql.begin(async (tx) => {
       await tx`INSERT INTO customer_participants(id,customer_id,first_name,birth_date) VALUES (${id(0xe9)},${CUST2},'Eva','2016-01-01'),(${id(0xea)},${CUST2},'Finn','2016-01-01')`;
