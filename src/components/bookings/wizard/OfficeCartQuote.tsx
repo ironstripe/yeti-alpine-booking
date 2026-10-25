@@ -38,7 +38,7 @@ export function OfficeCartQuote({ state, onReady }: { state: BookingWizardState;
     return buildOfficeCart(state, (productId, dates) => map[lunchContextKey({ productId, dates }).join("|")] ?? null, buildFinalization(state));
   }, [state, lunch.isLoading, lunch.data]);
   const cart = built?.kind === "ready" ? built.cart : null;
-  const key = useMemo(() => officeSubmissionKey(state), [state.cartItems[0]?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  const key = useMemo(() => officeSubmissionKey(), []);
 
   const q = useQuery({
     queryKey: ["office-cart-quote", key, cart],
