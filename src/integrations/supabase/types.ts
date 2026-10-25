@@ -3333,6 +3333,7 @@ export type Database = {
       }
       invoices: {
         Row: {
+          content_snapshot: Json | null
           created_at: string | null
           created_by: string | null
           currency: string | null
@@ -3364,6 +3365,7 @@ export type Database = {
           total: number
         }
         Insert: {
+          content_snapshot?: Json | null
           created_at?: string | null
           created_by?: string | null
           currency?: string | null
@@ -3395,6 +3397,7 @@ export type Database = {
           total: number
         }
         Update: {
+          content_snapshot?: Json | null
           created_at?: string | null
           created_by?: string | null
           currency?: string | null
@@ -6686,6 +6689,10 @@ export type Database = {
         Returns: string[]
       }
       public_private_display_shape: { Args: { w: Json }; Returns: boolean }
+      public_private_tariff_projection: {
+        Args: { p_product: string; p_season: string }
+        Returns: Json
+      }
       queue_confirmation_reminders: { Args: never; Returns: number }
       quote_bc_2627_product: {
         Args: { p_items: Json; p_participants: number; p_product_id: string }
