@@ -1,3 +1,4 @@
+-- Promoted 2026-10-25 from supabase/pending/participant_birth_date_guard.sql (B01-B11 + B07 coordinated release step 4). Do not re-run the pending copy: it was removed.
 -- B08 (PENDING, NOT INSTALLED): authoritative guard against future birth dates on participants.
 -- Fires only on INSERT with a non-NULL birth date and on UPDATEs that actually change birth_date.
 -- Existing rows (incl. historic/imported values) are not checked, repaired or blocked: unrelated

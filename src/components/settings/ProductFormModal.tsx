@@ -37,7 +37,7 @@ import { PrivateTariffMatrixEditor, PrivateTariffMatrixHandle } from "@/componen
 import { PrivateTariffRulesEditor } from "@/components/settings/PrivateTariffRulesEditor";
 
 // Temporary release gate: the private tariff table is not installed yet. Flip to true after its migration.
-const PRIVATE_TARIFF_EDITOR_ENABLED = false;
+import { privateTariffEditors } from "@/lib/privateTariffEditors";
 import { cn } from "@/lib/utils";
 import { calculateSavingsPercent, formatPriceCHF, getDefaultPriceTiers } from "@/lib/pricing-utils";
 import { UnsavedChangesDialog } from "@/components/ui/unsaved-changes-dialog";
@@ -570,7 +570,7 @@ export function ProductFormModal({ open, onOpenChange, product, seasonId }: Prod
                 </div>
               )}
               {/* Editable private tariff matrix — gated off until its backend table is installed */}
-              {PRIVATE_TARIFF_EDITOR_ENABLED && isEditing && product?.type === "private" && (
+              {privateTariffEditors(isEditing, product?.type).matrix && (
                 <div className="space-y-2">
                   <FormLabel className="text-base font-medium">Tarife</FormLabel>
                   <PrivateTariffMatrixEditor
@@ -580,8 +580,8 @@ export function ProductFormModal({ open, onOpenChange, product, seasonId }: Prod
                   />
                 </div>
               )}
-              {/* B07-P product-configured tariff rules — same gate; schema pending */}
-              {PRIVATE_TARIFF_EDITOR_ENABLED && isEditing && product?.type === "private" && (
+              {/* B07-P product-configured tariff rules — follows the B07 release switch */}
+              {privateTariffEditors(isEditing, product?.type).rules && product && (
                 <div className="space-y-2">
                   <FormLabel className="text-base font-medium">Tarifregeln (Zeitfenster)</FormLabel>
                   <PrivateTariffRulesEditor productId={product.id} />

@@ -21,7 +21,7 @@ describe("validateTariffRules", () => {
   test("max duration only for hourly rules", () => {
     expect(validateTariffRules([r({ rule_kind: "exact_block", max_block_minutes: 60 })]).size).toBe(1);
   });
-  test("release switch stays off in this checkpoint", () => {
-    expect(PRODUCT_PRIVATE_TARIFFS_LIVE).toBe(false);
+  test("release switch is on for the coordinated B07 release", () => {
+    expect(PRODUCT_PRIVATE_TARIFFS_LIVE).toBe(true);
   });
 });

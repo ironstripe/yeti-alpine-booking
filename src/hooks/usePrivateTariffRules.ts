@@ -22,7 +22,7 @@ export function usePrivateTariffRules(productId: string | undefined) {
     queryKey: ["product-private-tariff-rules", productId],
     enabled: !!productId,
     queryFn: async (): Promise<TariffRuleSet> => {
-      // Tables come from supabase/pending/product_private_tariff_rules.sql (not installed yet).
+      // Tables come from drizzle/migrations/0024_product_private_tariff_rules.sql (not installed yet).
       const db = supabase as any;
       const [rules, rev] = await Promise.all([
         db.from("product_private_tariff_rules").select("*").eq("product_id", productId!).order("window_start"),

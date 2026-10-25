@@ -1,4 +1,4 @@
--- Rollback for supabase/pending/product_private_tariff_rules.sql (B07-P + B07-P2), consumer-first:
+-- Rollback for drizzle/migrations/0024_product_private_tariff_rules.sql (B07-P + B07-P2), consumer-first:
 -- set PRODUCT_PRIVATE_TARIFFS_LIVE=false + republish and redeploy the previous private-appointments
 -- function BEFORE running this.
 -- 1. Restore pa_create_booking: re-run the pa_create_booking block of supabase/pending/staff_guest_level.sql (0007).

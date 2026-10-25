@@ -1,3 +1,4 @@
+-- Promoted 2026-10-25 from supabase/pending/group_lunch_season.sql (B01-B11 + B07 coordinated release step 6). Do not re-run the pending copy: it was removed.
 -- B09 PREPARATION ONLY (not installed): season-aware lunch product for bc_2627_staff_group_book.
 -- Requires group_lunch_full_day.sql first (fails closed on any other function body).
 -- Replaces the GLOBAL "exactly one active lunch product" lookup with a per-line lookup:

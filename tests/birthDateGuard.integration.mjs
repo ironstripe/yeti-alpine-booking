@@ -1,5 +1,5 @@
 // B08: future/invalid birth dates rejected by the authoritative participant trigger
-// (supabase/pending/participant_birth_date_guard.sql) on top of the 0001-0007 + lunch + B05 lineage.
+// (drizzle/migrations/0019_participant_birth_date_guard.sql) on top of the 0001-0007 + lunch + B05 lineage.
 // Throwaway local PostgreSQL only, synthetic data. Setup mirrors staffFinalize.integration.mjs.
 //   BC_TEST_DATABASE_URL=postgres://postgres@127.0.0.1:55432/postgres bun ./tests/birthDateGuard.integration.mjs
 import postgres from 'postgres';
@@ -57,10 +57,10 @@ try {
   for (const x of await sql`SELECT proname, md5(prosrc) m FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname IN ('pa_create_booking','bc_2627_staff_group_book') ORDER BY 1`)
     results.push(`     pre-0007 md5 ${x.proname} ${x.m}`);
   { const r = psqlFile('supabase/pending/staff_guest_level.sql'); if (r.status !== 0) throw new Error(`psql 0007: ${r.stderr}`); }
-  { const r = psqlFile('supabase/pending/group_lunch_full_day.sql'); if (r.status !== 0) throw new Error(`psql lunch: ${r.stderr}`); }
-  { const r = psqlFile('supabase/pending/b04_delivery_compatibility.sql'); if (r.status !== 0) throw new Error(`psql b04: ${r.stderr}`); }
-  { const r = psqlFile('supabase/pending/b05_office_confirmation_intent.sql'); if (r.status !== 0) throw new Error(`psql b05: ${r.stderr}`); }
-  { const r = psqlFile('supabase/pending/participant_birth_date_guard.sql'); if (r.status !== 0) throw new Error(`psql b08: ${r.stderr}`); }
+  { const r = psqlFile('drizzle/migrations/0020_group_lunch_full_day.sql'); if (r.status !== 0) throw new Error(`psql lunch: ${r.stderr}`); }
+  { const r = psqlFile('drizzle/migrations/0016_b04_delivery_compatibility.sql'); if (r.status !== 0) throw new Error(`psql b04: ${r.stderr}`); }
+  { const r = psqlFile('drizzle/migrations/0023_b05_office_confirmation_intent.sql'); if (r.status !== 0) throw new Error(`psql b05: ${r.stderr}`); }
+  { const r = psqlFile('drizzle/migrations/0019_participant_birth_date_guard.sql'); if (r.status !== 0) throw new Error(`psql b08: ${r.stderr}`); }
   for (const x of await sql`SELECT proname, md5(prosrc) m FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname IN ('pa_create_booking','bc_2627_staff_group_book','staff_guest_level_ok') ORDER BY 1`)
     results.push(`     0007 md5 ${x.proname} ${x.m}`);
   await sql.unsafe(`CREATE OR REPLACE FUNCTION public.pa_business_today() RETURNS date LANGUAGE sql STABLE AS $$ SELECT DATE '2026-10-05' $$;`);

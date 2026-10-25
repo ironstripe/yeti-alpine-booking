@@ -113,6 +113,97 @@
       "when": 1792341631903,
       "tag": "0015_product_delete_bc_sources",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1792946655310,
+      "tag": "0016_b04_delivery_compatibility",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1792946656310,
+      "tag": "0017_b06_invoice_delivery",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1792946657310,
+      "tag": "0018_b11_created_total_event",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1792946658310,
+      "tag": "0019_participant_birth_date_guard",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1792946659310,
+      "tag": "0020_group_lunch_full_day",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1792946660310,
+      "tag": "0021_group_lunch_season",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1792946661310,
+      "tag": "0022_pa_edit_booking",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1792946662310,
+      "tag": "0023_b05_office_confirmation_intent",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1792946663310,
+      "tag": "0024_product_private_tariff_rules",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1792946664310,
+      "tag": "0025_pa_tariff_l1",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1792946665310,
+      "tag": "0026_b07a_office_multi_create",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1792946666310,
+      "tag": "0027_b07_private_activation_guard",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1792946667310,
+      "tag": "0028_b07_private_2627_activation",
+      "breakpoints": true
     }
   ]
 }

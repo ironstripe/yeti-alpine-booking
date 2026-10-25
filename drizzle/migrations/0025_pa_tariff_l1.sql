@@ -1,3 +1,4 @@
+-- Promoted 2026-10-25 from supabase/pending/pa_tariff_l1.sql (B01-B11 + B07 coordinated release step 10). Do not re-run the pending copy: it was removed.
 -- B07 L1 (PENDING, NOT INSTALLED): move / period_update / B03a edit of product-tariff-priced private lessons.
 -- Requires, in this order: production baseline, 0001 (pa_assign_later), pa_edit_booking.sql (B03a),
 -- product_private_tariff_rules.sql (B07-P/P2/P3). Install in the SAME release as the B07 client.

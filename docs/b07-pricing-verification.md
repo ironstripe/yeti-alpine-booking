@@ -3,7 +3,7 @@
 Base: `fbf40eb`. Status: **implemented in code + pending SQL, tested only on a private local test database.** Nothing was installed, deployed or published; `PRODUCT_PRIVATE_TARIFFS_LIVE` stays OFF. B07a (atomic multi-item) and B07b (UI) are still open.
 
 ## What changed
-- New `supabase/pending/pa_tariff_l1.sql`. It needs `pa_edit_booking.sql` and `product_private_tariff_rules.sql` installed first, and replaces `pa_apply_slot`, `pa_tariff_transition_guard`, `pa_edit_booking`, `pa_move_appointment` and `pa_period_update`. The old signatures stay as wrappers. New overloads take `p_ack jsonb`. New helpers: `pa_lock_days`, `pa_l1_requote`, `pa_l1_write_pricing`, `pa_l1_line_net`. All are service-role only.
+- New `drizzle/migrations/0025_pa_tariff_l1.sql`. It needs `pa_edit_booking.sql` and `product_private_tariff_rules.sql` installed first, and replaces `pa_apply_slot`, `pa_tariff_transition_guard`, `pa_edit_booking`, `pa_move_appointment` and `pa_period_update`. The old signatures stay as wrappers. New overloads take `p_ack jsonb`. New helpers: `pa_lock_days`, `pa_l1_requote`, `pa_l1_write_pricing`, `pa_l1_line_net`. All are service-role only.
 - `product_private_tariff_rules.sql`, edited in place (still uninstalled):
   - `private_appointment_pricing` gains `priced_date/time_start/time_end`, `participant_ids`, `discount_reason` and `updated_at`;
   - create writes them;
@@ -63,7 +63,7 @@ B07 is **not done**: L1 move/edit resolver transition, B07a atomic multi-item an
 ## Decision applied (Ivo, 2026-10-25)
 "Rabatt gilt für 4 std. pro teilnehmer am gleichen tag." A new booking counts the same participant's already booked private lessons on the same date; only the NEW lesson shares are discounted. Earlier bookings, invoices and payments are never repriced; corrections stay the existing manual workflow (no automatic credits/refunds).
 
-## Model (extends `supabase/pending/product_private_tariff_rules.sql` in place; same resolver, no second engine)
+## Model (extends `drizzle/migrations/0024_product_private_tariff_rules.sql` in place; same resolver, no second engine)
 - `pa_private_day_context(participant_ids uuid[], dates date[])` (service-only, STABLE): one entry per canonical appointment with its counted participants, plus an md5 `digest`. Counts only `private_appointments.status IN (scheduled, booked, completed)`, ticket status not `draft/cancelled/storno/expired`, linked billing line not `cancelled`. Group courses/lunch are never private appointments, so never counted. Indexed via `idx_pap_participant` + date filter; returns no PII beyond the supplied ids.
 - `pa_price_request(..., p_context jsonb)` (new 5-arg overload; the 4-arg form delegates with empty context): context slots carry price 0 → they add minutes but are never priced, discounted or returned.
 - `pa_same_day_discount`: day minutes are now the **union** of a person's intervals (overlaps/duplicate rows cannot inflate eligibility; adjacent blocks still add up: 10–12 + 14–16 = 240).
@@ -107,7 +107,7 @@ B07a (atomic multi-item) and B07b (multi-item UI) remain **incomplete**.
 - Shared lesson: equal share per actual participant for the discount only; e.g. 230 shared, Anna eligible, Ben not → 11.50 off → 218.50. Order-invariant. One appointment + one billing line.
 - Explicit manual discount REPLACES the automatic one for the affected lines (never added). Default 0 = automatic; explicit 0 = `discount_override:{percent:0,reason}`; clearing returns to automatic. Reuses the existing wizard discount field + reason; legacy non-zero `discount_percent` is treated as explicit.
 
-## Model (pending `supabase/pending/product_private_tariff_rules.sql`, extended in place)
+## Model (pending `drizzle/migrations/0024_product_private_tariff_rules.sql`, extended in place)
 - `private_lesson_discount_rule` (singleton: percent, threshold_minutes, scope, shared_allocation, auto-bumped revision, provenance). Missing → `tariff_unavailable/discount_rule_not_configured` (fail closed).
 - `pa_same_day_discount` (pure), `pa_discount_intent`, `pa_price_request` (single price+discount source), used by `pa_create_quote` and `pa_create_booking`.
 - Create requires `quote_revision` **and** `discount_rule_revision` (both `FOR SHARE`); mismatch → `quote_changed`, nothing written.
@@ -125,7 +125,7 @@ Appointments with a `private_appointment_pricing` row: `pa_apply_slot` keeps the
 Summary (`PrivateServerQuote`) shows only the server quote: per-lesson price, automatic or manual discount, replaced automatic amount, total; submit disabled while quoting/failed; create binds to the shown revisions, never re-quotes silently. `privateTariffsLive()` = `PRODUCT_PRIVATE_TARIFFS_LIVE` (false) or, on the local dev server only, localStorage `yeti.privateTariffPreview=1` (for intercepted tests). Switch OFF → old request unchanged.
 
 ## Files (this checkpoint)
-`supabase/pending/product_private_tariff_rules.sql`, `..._seed.PROPOSED.sql`, `supabase/rollback/product_private_tariff_rules_rollback.sql`, `supabase/functions/_shared/privateAppointmentsContract.ts`, `supabase/functions/private-appointments/index.ts` + `contract.test.ts`, `src/lib/serverPrivateSlots.ts` (new), `src/components/bookings/wizard/PrivateServerQuote.tsx` (new), `Step4Summary.tsx`, `DiscountSection.tsx`, `src/hooks/useCreateBooking.ts`, `src/contexts/BookingWizardContext.tsx`, `src/lib/privateAppointmentsApi.ts`, `src/lib/privateTariffRules.ts`; tests `tests/b07DiscountPricing.integration.mjs`, `tests/b07PricingSummaryBrowser.py`, `tests/b07TariffEditorBrowser.py`, `tests/b07DiscountIntent.test.ts`, updated `tests/productPrivateTariffRules.integration.mjs`.
+`drizzle/migrations/0024_product_private_tariff_rules.sql`, `..._seed.PROPOSED.sql`, `supabase/rollback/product_private_tariff_rules_rollback.sql`, `supabase/functions/_shared/privateAppointmentsContract.ts`, `supabase/functions/private-appointments/index.ts` + `contract.test.ts`, `src/lib/serverPrivateSlots.ts` (new), `src/components/bookings/wizard/PrivateServerQuote.tsx` (new), `Step4Summary.tsx`, `DiscountSection.tsx`, `src/hooks/useCreateBooking.ts`, `src/contexts/BookingWizardContext.tsx`, `src/lib/privateAppointmentsApi.ts`, `src/lib/privateTariffRules.ts`; tests `tests/b07DiscountPricing.integration.mjs`, `tests/b07PricingSummaryBrowser.py`, `tests/b07TariffEditorBrowser.py`, `tests/b07DiscountIntent.test.ts`, updated `tests/productPrivateTariffRules.integration.mjs`.
 
 ## Tests run (local only)
 - `b07DiscountPricing.integration.mjs` 13/13: grants; decided blocks from config; Anna/Ben 218.50; order invariance; all/none/different dates/240-min doubles; manual lower/higher/0/clear/combined-rejected; create = quote with provenance + history; explicit 0 stored with reason; default single item no discount; rule revision A→B without code, stale → quote_changed, old booking unchanged; product revision; transition guard; legacy move unchanged.
@@ -169,7 +169,7 @@ Resolver `pa_product_quote` (single source): exact match wins; otherwise each ho
 - Save: `save_product_private_tariff_rules` (service-only, revision-checked, replace-all, overlap/duplicate rejection) via new Edge Function `product-private-tariff-rules` (office/admin).
 
 ## Changed / added files
-- `supabase/pending/product_private_tariff_rules.sql` (new, NOT installed)
+- `drizzle/migrations/0024_product_private_tariff_rules.sql` (new, NOT installed)
 - `supabase/pending/product_private_tariff_rules_seed.PROPOSED.sql` (new, NOT installed; requires reviewed product id + extra-person values, no defaults)
 - `supabase/rollback/product_private_tariff_rules_rollback.sql` (new)
 - `supabase/functions/_shared/privateAppointmentsContract.ts` (`quote` action, `quote_revision`, 422 mapping)

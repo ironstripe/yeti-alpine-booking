@@ -17,7 +17,7 @@ Booked course → `group_courses.product_id` → `products.season_id` → `seaso
 - `src/lib/staffGroupBookingApi.ts` – type field + German messages `lunch_season`, `lunch_product_mismatch`.
 - `src/hooks/useCreateBooking.ts` – staff path resolves per booked context; legacy path resolves for its booked product instead of a global filter.
 - `Step2ProductAllocation.tsx`, `ParticipantBookingCard.tsx`, `PriceBreakdown.tsx` – pass booked product + dates (per-participant contexts in mixed mode).
-- Pending SQL: `supabase/pending/group_lunch_season.sql` (body patch, fails closed unless `group_lunch_full_day.sql` is installed), `group_lunch_season_rollback.sql`. No table/grant/signature/data change.
+- Pending SQL: `drizzle/migrations/0021_group_lunch_season.sql` (body patch, fails closed unless `group_lunch_full_day.sql` is installed), `group_lunch_season_rollback.sql`. No table/grant/signature/data change.
 - Tests: `tests/lunchSeason.test.ts`, `tests/lunchSeasonBrowser.py`, B09 cases in `tests/staffGroupBooking.integration.mjs` (fixture lunch moved to the 26/27 season + second active 25/26 row), mock update in `tests/priceBreakdownGroup.test.tsx`.
 
 ## Checks actually run

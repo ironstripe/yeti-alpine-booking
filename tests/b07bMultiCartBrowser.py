@@ -34,6 +34,8 @@ FIXTURE = r"""async () => {
 }"""
 
 fails = []
+RELEASE_ON = "OFFICE_MULTI_ITEM_LIVE = true" in (Path(__file__).parent.parent / "src/lib/officeBookingApi.ts").read_text()
+
 def check(cond, msg):
     print(("OK   " if cond else "FAIL ") + msg)
     if not cond: fails.append(msg)
@@ -56,7 +58,7 @@ async def main():
             ctx = await browser.new_context(viewport={"width": width, "height": height})
             page = await ctx.new_page()
             errors, writes, quotes, creates, confirms, single = [], [], [], [], [], []
-            plan = {"create": ["stale", "unknown", "ok"]}
+            plan = {"create": ["stale", "unknown", "r401", "r403", "r404", "r503", "rnet", "ok"]}
             page.on("pageerror", lambda e: errors.append(str(e)))
             async def intercept(route):
                 req = route.request; url = req.url
@@ -71,6 +73,10 @@ async def main():
                         return await route.fulfill(content_type="application/json", body=json.dumps(quote(D2 if creates else D1, 361 if creates else 342)))
                     creates.append(b); step = plan["create"].pop(0)
                     if step == "unknown": return await route.fulfill(status=502, content_type="application/json", body=json.dumps({"error": "internal_error"}))
+                    if step == "rnet": return await route.abort()
+                    if step in ("r401", "r403", "r404", "r503"):
+                        st = int(step[1:]); code = {401: "unauthorized", 403: "forbidden", 404: "not_found", 503: "unavailable"}[st]
+                        return await route.fulfill(status=st, content_type="application/json", body=json.dumps({"error": code}))
                     if step == "stale": return await route.fulfill(status=409, content_type="application/json", body=json.dumps({"error": "quote_changed", "quote": None}))
                     return await route.fulfill(content_type="application/json", body=json.dumps({"ticket_id": "synthetic-ticket", "ticket_number": "TEST-ONLY", "total": 361, "quote_digest": D2, "replayed": True}))
                 if "/functions/v1/staff-booking-confirmation" in url:
@@ -121,8 +127,9 @@ async def main():
                         "setCheckoutOptions({paymentMethod:'cash',settlement:'pay_later',sendCustomerEmail:false})"]:
                 await page.evaluate(f"() => window.wiz.{cmd}"); await page.wait_for_timeout(60)
             await page.wait_for_timeout(300)
-            check(await page.get_by_text("Im Warenkorb sind mehrere", exact=False).count() == 1, f"{tag} multi switch OFF: cart stays blocked")
-            check(await page.get_by_test_id("office-cart-quote").count() == 0 and not quotes, f"{tag} switch OFF: no office-booking call")
+            if not RELEASE_ON:  # pre-release builds only; with the shipped switch ON the OFF state no longer exists
+                check(await page.get_by_text("Im Warenkorb sind mehrere", exact=False).count() == 1, f"{tag} multi switch OFF: cart stays blocked")
+                check(await page.get_by_test_id("office-cart-quote").count() == 0 and not quotes, f"{tag} switch OFF: no office-booking call")
             await page.evaluate("localStorage.setItem('yeti.officeMultiPreview','1'); window.wiz.setCheckoutOptions({createAnother:false})")
             # re-render via harmless state change
             await page.evaluate("window.wiz.setCustomerNotes('')"); await page.wait_for_timeout(100)
@@ -167,10 +174,22 @@ async def main():
             await page.get_by_role("button", name="Buchung erstellen", exact=True).click(force=True); await page.wait_for_timeout(300)
             check(len(creates) == 2 and not [b for b in single if b.get("action") == "create"], f"{tag} no new office or single-item create while unresolved")
             await page.screenshot(path=str(OUT / f"pending_{width}.png"))
-            # 4) explicit replay of the frozen original
+            # 4a) replays failing with auth/permission/missing/unavailable/network prove nothing -> stay blocked
+            for n, lbl in enumerate(["401", "403", "404", "503", "network"]):
+                await page.get_by_test_id("pending-attempt-replay").click(); await page.wait_for_timeout(900)
+                check(len(creates) == 3 + n and creates[-1] == original, f"{tag} replay {lbl}: exact original resent")
+                check(await page.get_by_test_id("pending-attempt").count() == 1, f"{tag} replay {lbl}: still unresolved")
+                check(await page.get_by_role("button", name="Buchung erstellen", exact=True).is_disabled(), f"{tag} replay {lbl}: single-path submit still blocked")
+                check(await page.get_by_test_id("pending-attempt-result").get_by_text("weiterhin unbekannt", exact=False).count() == 1, f"{tag} replay {lbl}: honest unknown text")
+            await page.evaluate("() => window.unmountSummary()"); await page.wait_for_timeout(200)
+            await page.evaluate("() => window.mountSummary()"); await page.wait_for_timeout(600)
+            check(await page.get_by_test_id("pending-attempt").count() == 1, f"{tag} still blocked after failed replays + remount")
+            await page.get_by_role("button", name="Buchung erstellen", exact=True).click(force=True); await page.wait_for_timeout(300)
+            check(len(creates) == 7 and not [b for b in single if b.get("action") == "create"], f"{tag} no new create after failed replays")
+            # 4b) explicit successful replay of the frozen original
             await page.get_by_test_id("pending-attempt-replay").click(); await page.wait_for_timeout(1200)
-            check(len(creates) == 3 and creates[2] == original, f"{tag} replay sends exactly the original request (key, 2 items, digest, mail OFF)")
-            check(len(creates[2]["items"]) == 2 and creates[2]["confirmation_requested"] is False, f"{tag} discarded first item / later mail choice not altered in replay")
+            check(len(creates) == 8 and creates[7] == original, f"{tag} replay sends exactly the original request (key, 2 items, digest, mail OFF)")
+            check(len(creates[7]["items"]) == 2 and creates[7]["confirmation_requested"] is False, f"{tag} discarded first item / later mail choice not altered in replay")
             check(await page.get_by_test_id("pending-attempt-result").get_by_text("TEST-ONLY", exact=False).count() == 1, f"{tag} replay result: original booking shown once")
             check(await page.get_by_test_id("pending-attempt").count() == 0, f"{tag} recovery panel resolved after replay")
             check(len(confirms) == 1 and confirms[0].get("ticket_id") == "synthetic-ticket", f"{tag} one B05 post-success call")

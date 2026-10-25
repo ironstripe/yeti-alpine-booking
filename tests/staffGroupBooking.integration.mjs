@@ -54,7 +54,7 @@ async function seedCourse(cid, name, { mp = 'Täli', discipline = 'ski', active 
 }
 
 try {
-  for (const f of ['tests/sql/baseline_prelude.sql', 'tests/sql/production_schema_baseline.sql', 'supabase/pending/course_archive_delete.sql', 'supabase/pending/bc_2627_staff_group_booking.sql', 'supabase/pending/bc_2627_staff_group_booking_v2.sql', 'supabase/pending/staff_booking_finalize.sql', 'supabase/pending/staff_guest_level.sql', 'supabase/pending/group_lunch_full_day.sql', 'supabase/pending/group_lunch_season.sql']) {
+  for (const f of ['tests/sql/baseline_prelude.sql', 'tests/sql/production_schema_baseline.sql', 'supabase/pending/course_archive_delete.sql', 'supabase/pending/bc_2627_staff_group_booking.sql', 'supabase/pending/bc_2627_staff_group_booking_v2.sql', 'supabase/pending/staff_booking_finalize.sql', 'supabase/pending/staff_guest_level.sql', 'drizzle/migrations/0020_group_lunch_full_day.sql', 'drizzle/migrations/0021_group_lunch_season.sql']) {
     const r = psqlFile(f); if (r.status !== 0) throw new Error(`psql ${f}: ${r.stderr}`);
   }
   await sql.unsafe(`
@@ -352,7 +352,7 @@ try {
     assert.ok(!body.includes('lunch_season') && body.includes('lunch_full_day'));
     assert.equal((await book({ submission_key: key(), customer_id: CUST2, lines: [lunchLine('afterrb')] })).field, 'lunch_product');
     assert.equal((await lunchItems(r.ticket_id)).length, kept);
-    const re = psqlFile('supabase/pending/group_lunch_season.sql'); assert.equal(re.status, 0, re.stderr);
+    const re = psqlFile('drizzle/migrations/0021_group_lunch_season.sql'); assert.equal(re.status, 0, re.stderr);
   });
   await t('rollback script removes functions and keeps submissions table', async () => {
     const r = psqlFile('supabase/pending/bc_2627_staff_group_booking_rollback.sql'); assert.equal(r.status, 0, r.stderr);

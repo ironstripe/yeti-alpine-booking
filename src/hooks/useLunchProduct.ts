@@ -1,5 +1,5 @@
 // B09: lunch-supervision product resolved for the BOOKED course product's season and dates — the same
-// rule bc_2627_staff_group_book applies per line (supabase/pending/group_lunch_season.sql):
+// rule bc_2627_staff_group_book applies per line (drizzle/migrations/0021_group_lunch_season.sql):
 // booked product -> products.season_id -> seasons (all dates inside) -> exactly one active
 // products(type='lunch', same season) at CHF 30. Never today's season, labels, first row or a global singleton.
 // Preview only: the server re-resolves and rejects a mismatching lunch_product_id.

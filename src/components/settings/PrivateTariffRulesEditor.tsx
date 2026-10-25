@@ -1,5 +1,5 @@
 // B07-P: editor for product-configured private tariffs (exact blocks + hourly windows).
-// Shown only behind PRIVATE_TARIFF_EDITOR_ENABLED until the pending schema is installed.
+// Shown when privateTariffsLive() (B07 release); saves only via product-private-tariff-rules.
 import { useEffect, useMemo, useState } from "react";
 import { Plus, Trash2, Loader2 } from "lucide-react";
 import { toast } from "sonner";

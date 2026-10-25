@@ -24,12 +24,12 @@ const psqlFile = (f) => spawnSync('psql', [u.toString(), '-q', '-v', 'ON_ERROR_S
   { encoding: 'utf8', env: { ...process.env, PGSSLMODE: 'disable' } });
 
 const CHAIN = ['tests/sql/baseline_prelude.sql', 'tests/sql/production_schema_baseline.sql',
-  ...readdirSync(fileURLToPath(new URL('drizzle/migrations/', root))).filter((f) => /^\d{4}_.*\.sql$/.test(f)).sort().map((f) => `drizzle/migrations/${f}`),
-  'supabase/pending/b04_delivery_compatibility.sql', 'supabase/pending/b06_invoice_delivery.sql', 'supabase/pending/b11_created_total_event.sql',
-  'supabase/pending/participant_birth_date_guard.sql', 'supabase/pending/group_lunch_full_day.sql', 'supabase/pending/group_lunch_season.sql',
-  'supabase/pending/pa_edit_booking.sql', 'supabase/pending/b05_office_confirmation_intent.sql',
-  'supabase/pending/product_private_tariff_rules.sql', 'supabase/pending/pa_tariff_l1.sql', 'supabase/pending/b07a_office_multi_create.sql',
-  'supabase/pending/b07_private_activation_guard.sql'];
+  ...readdirSync(fileURLToPath(new URL('drizzle/migrations/', root))).filter((f) => /^\d{4}_.*\.sql$/.test(f) && Number(f.slice(0, 4)) < 16 /* promoted release steps listed explicitly below */).sort().map((f) => `drizzle/migrations/${f}`),
+  'drizzle/migrations/0016_b04_delivery_compatibility.sql', 'drizzle/migrations/0017_b06_invoice_delivery.sql', 'drizzle/migrations/0018_b11_created_total_event.sql',
+  'drizzle/migrations/0019_participant_birth_date_guard.sql', 'drizzle/migrations/0020_group_lunch_full_day.sql', 'drizzle/migrations/0021_group_lunch_season.sql',
+  'drizzle/migrations/0022_pa_edit_booking.sql', 'drizzle/migrations/0023_b05_office_confirmation_intent.sql',
+  'drizzle/migrations/0024_product_private_tariff_rules.sql', 'drizzle/migrations/0025_pa_tariff_l1.sql', 'drizzle/migrations/0026_b07a_office_multi_create.sql',
+  'drizzle/migrations/0027_b07_private_activation_guard.sql'];
 
 let passed = 0; const results = [];
 async function t(name, fn) { try { await fn(); passed++; results.push(`ok   ${name}`); } catch (e) { results.push(`FAIL ${name}: ${e.message}`); } }
@@ -111,7 +111,7 @@ try {
   });
 
   await t('targeted PROPOSED script: seeds + activates exactly the two 26/27 products; old five and BC sources unchanged', async () => {
-    const res = psqlFile('supabase/pending/b07_private_2627_activation.PROPOSED.sql');
+    const res = psqlFile('drizzle/migrations/0028_b07_private_2627_activation.sql');
     assert.equal(res.status, 0, res.stderr);
     const act = await sql`SELECT id, is_active, private_tariff_activation_ok(id) ok FROM products WHERE id IN (${SKI}, ${SB}) ORDER BY id`;
     assert.deepEqual(act.map((r) => [r.is_active, r.ok]), [[true, true], [true, true]]);
@@ -121,7 +121,7 @@ try {
 
   await t('targeted script refuses a second run (no reseed), nothing changes', async () => {
     const rev = await sql`SELECT product_id, revision FROM product_private_tariff_revisions ORDER BY product_id`;
-    const res = psqlFile('supabase/pending/b07_private_2627_activation.PROPOSED.sql');
+    const res = psqlFile('drizzle/migrations/0028_b07_private_2627_activation.sql');
     assert.notEqual(res.status, 0); assert.match(res.stderr, /already has a tariff revision/);
     assert.deepEqual(await sql`SELECT product_id, revision FROM product_private_tariff_revisions ORDER BY product_id`, rev);
   });
