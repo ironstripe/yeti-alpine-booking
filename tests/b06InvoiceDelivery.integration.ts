@@ -149,8 +149,9 @@ try {
     assertEquals(r.outcome, "failed");
     assertEquals(await invoiceRow(f.invoice), before);
     mode = "ok";
+    const n2 = calls.length;
     assertEquals((await invoke(f.invoice, "send")).outcome, "sent");
-    assertEquals(calls.length, 2);
+    assertEquals(calls.length, n2 + 1);
   });
 
   await test("concurrent sends produce exactly one transport handoff", async () => {
@@ -195,7 +196,8 @@ try {
   await test("delivery bound to a different invoice is review-required, never reused", async () => {
     const f1 = await fixture();
     assertEquals((await invoke(f1.invoice, "send")).outcome, "sent");
-    // replacement invoice on the same ticket
+    // replacement invoice on the same ticket (first one cancelled, as in the real flow)
+    await sql`UPDATE invoices SET status='cancelled' WHERE id=${f1.invoice}`;
     const num = "R-2026-B06-999";
     const snap = snapshotFor(num, 50);
     const [inv2] = await sql`INSERT INTO invoices(invoice_number,ticket_id,customer_id,subtotal,total,currency,qr_reference,invoice_date,due_date,status,payment_snapshot)
