@@ -209,9 +209,9 @@ try {
 
   await t('legacy appointment (no pricing row) keeps legacy pa_price move behaviour', async () => {
     const [tk] = await sql`INSERT INTO tickets(ticket_number,customer_id,status,total_amount,paid_amount) VALUES ('T-LEG-1',${CUST},'confirmed',160,0) RETURNING id`;
-    const [ap] = await sql`INSERT INTO private_appointments(ticket_id,date,time_start,time_end,instructor_id,status,price) VALUES (${tk.id},'2026-12-23','09:00','11:00',${I1},'booked',160) RETURNING id`;
+    const [ap] = await sql`INSERT INTO private_appointments(ticket_id,date,time_start,time_end,instructor_id,status,instructor_confirmation,price) VALUES (${tk.id},'2026-12-23','09:00','11:00',${I1},'booked','pending',160) RETURNING id`;
     await sql`INSERT INTO private_appointment_participants(appointment_id,participant_id) VALUES (${ap.id},${ANNA})`;
-    await sql`INSERT INTO ticket_items(ticket_id,product_id,date,time_start,time_end,instructor_id,unit_price,quantity,item_type,appointment_id) VALUES (${tk.id},${P},'2026-12-23','09:00','11:00',${I1},160,1,'private',${ap.id})`;
+    await sql`INSERT INTO ticket_items(ticket_id,product_id,date,time_start,time_end,instructor_id,instructor_confirmation,unit_price,quantity,item_type,appointment_id) VALUES (${tk.id},${P},'2026-12-23','09:00','11:00',${I1},'pending',160,1,'private',${ap.id})`;
     const mv = (await sql`SELECT pa_move_appointment(${ap.id}::uuid, '2026-12-23'::date, '13:00'::time, '14:00'::time, ${I1}::uuid, ${ACTOR}::uuid) r`)[0].r;
     assert.equal(mv.ok, true, JSON.stringify(mv)); assert.equal(Number(mv.price), 80); // legacy global rate, unchanged path
   });
