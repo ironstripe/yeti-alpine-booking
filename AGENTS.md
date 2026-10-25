@@ -30,3 +30,4 @@
 
 - Office confirmation uses service-only b05_office_create for explicit intent in the existing canonical transaction; post-success staff-booking-confirmation owns saved recipient/content and B04 claims, never invoices or test-mail fallback. Why: booking replay survives mail failure without recreating bookings or widening send authority.
 - Dependency-free bookingReadProjection is shared from functions/_shared and re-exported to frontend; office confirmation injects complete saved vars only when B04 needs a fresh payload. Why: reuse canonical identity rules without changing already frozen bytes or other delivery consumers.
+- `get-public-instructors` exposes only allowlisted public fields; optional `languages`/`expertise` come from `_shared/publicInstructorDetails.ts` (stored languages, canonical Ski/Snowboard capability names), loaded in one paged batch join. Why: no inference, no IDs/HR leakage, no row-cap truncation.
