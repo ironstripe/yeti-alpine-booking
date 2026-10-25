@@ -508,8 +508,8 @@ BEGIN
   -- differs from the quoted one, nothing is written (guests rolled back) and a fresh quote is required.
   -- Guests matched by name in this create are NOT given history (only stable ids count, as in the quote).
   SELECT array_agg(DISTINCT (x->>'date')::date) INTO v_dates FROM jsonb_array_elements(v_appts) x;
-  FOR r IN SELECT pid, d FROM unnest(v_known) pid, unnest(v_dates) d ORDER BY 1, 2 LOOP
-    PERFORM pg_advisory_xact_lock(hashtext('pa_day:' || r.pid || ':' || r.d));
+  FOR r IN SELECT kp, kd FROM unnest(v_known) kp, unnest(v_dates) kd ORDER BY 1, 2 LOOP
+    PERFORM pg_advisory_xact_lock(hashtext('pa_day:' || r.kp || ':' || r.kd));
   END LOOP;
   PERFORM 1 FROM public.private_appointments pa
     WHERE pa.date = ANY(v_dates) AND pa.id IN (SELECT appointment_id FROM public.private_appointment_participants WHERE participant_id = ANY(v_known))
