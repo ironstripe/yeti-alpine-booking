@@ -98,7 +98,8 @@ export async function renderInvoicePdf(input: InvoiceDocInput): Promise<InvoiceP
       return { ok: false, code: "qr_mismatch", message: "QR-Zahlteil passt nicht zu Betrag/Währung der Rechnung" };
     }
     const dataUrl = await QRCode.toDataURL(s.qr_payload, { errorCorrectionLevel: "M", margin: 0, width: 512 });
-    qrPng = new Uint8Array(Buffer.from(dataUrl.split(",")[1], "base64"));
+    const bin = atob(dataUrl.split(",")[1]);
+    qrPng = Uint8Array.from(bin, (ch) => ch.charCodeAt(0));
   }
 
   const a = s.account_holder_address;
