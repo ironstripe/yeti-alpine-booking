@@ -34,6 +34,8 @@ FIXTURE = r"""async () => {
 }"""
 
 fails = []
+RELEASE_ON = "OFFICE_MULTI_ITEM_LIVE = true" in (Path(__file__).parent.parent / "src/lib/officeBookingApi.ts").read_text()
+
 def check(cond, msg):
     print(("OK   " if cond else "FAIL ") + msg)
     if not cond: fails.append(msg)
@@ -125,8 +127,9 @@ async def main():
                         "setCheckoutOptions({paymentMethod:'cash',settlement:'pay_later',sendCustomerEmail:false})"]:
                 await page.evaluate(f"() => window.wiz.{cmd}"); await page.wait_for_timeout(60)
             await page.wait_for_timeout(300)
-            check(await page.get_by_text("Im Warenkorb sind mehrere", exact=False).count() == 1, f"{tag} multi switch OFF: cart stays blocked")
-            check(await page.get_by_test_id("office-cart-quote").count() == 0 and not quotes, f"{tag} switch OFF: no office-booking call")
+            if not RELEASE_ON:  # pre-release builds only; with the shipped switch ON the OFF state no longer exists
+                check(await page.get_by_text("Im Warenkorb sind mehrere", exact=False).count() == 1, f"{tag} multi switch OFF: cart stays blocked")
+                check(await page.get_by_test_id("office-cart-quote").count() == 0 and not quotes, f"{tag} switch OFF: no office-booking call")
             await page.evaluate("localStorage.setItem('yeti.officeMultiPreview','1'); window.wiz.setCheckoutOptions({createAnother:false})")
             # re-render via harmless state change
             await page.evaluate("window.wiz.setCustomerNotes('')"); await page.wait_for_timeout(100)
