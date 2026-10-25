@@ -87,6 +87,8 @@ async def main():
                 if "/functions/v1/" in url:
                     return await route.fulfill(content_type="application/json", body=json.dumps({}))
                 if req.method not in ("GET", "HEAD", "OPTIONS"): writes.append(url); return await route.abort()
+                if "/rest/v1/customer_participants" in url:
+                    return await route.fulfill(content_type="application/json", body=json.dumps([{"id": ANNA, "customer_id": "00000000-0000-4000-8000-0000000000c1", "first_name": "Anna", "last_name": "Synth"}]))
                 await route.fulfill(content_type="application/json", body="[]")
             await page.route("**/*", intercept)
             await page.goto("http://localhost:8080/checkout-fixture")
