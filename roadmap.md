@@ -6,8 +6,11 @@
 - [x] Record staged release, consumer-first rollback and HB081/082/086/093 limits in docs/b04-verification.md; no release, provider requests or business writes. Frontend Workbox issue remains separate.
 - [ ] B04 release and HB081/082/086/093 operational retests await separate authorisation and original issue acceptance criteria; not part of implemented preview checks.
 
-## B03b — canonical read projection (authorised, queued)
-- [ ] Implement booking-detail canonical people/schedule projection and zero-preserving amounts; verify new-only document boundary and R1–R8. Blocked before dependent edits: current HEAD `4e6b9b7b41da50e851a358c97ab405deb559d144` automatic preview build fails at Workbox precache (bundle 3,148.17 kB exceeds configured 3 MiB); B03a focused SQL/unit checks passed. See docs/b03b-verification.md. No implementation or release performed.
+## B03b — canonical read projection (authorised)
+- [x] Resolve only Workbox 3-MiB blocker by bounded 4-MiB precache ceiling; automatic preview build OK at 10:47:18Z, before B03b implementation.
+- [x] Batch-load canonical people/schedule for booking-detail cards; preserve zero amounts, per-lesson identities, group/lunch/legacy and all edit paths. Unit 63/63; real detail desktop/mobile and 48 B03a/130 checkout checks passed; B04 isolated 19/19 and invoice regressions 11/11.
+- [ ] New local/server invoice projection blocked: no persisted trustworthy new-versus-historical document version; requires separately authorised boundary/schema decision. Existing invoice/frozen output retained. See docs/b03b-verification.md.
+- [ ] Publication and operational acceptance await separate authorisation; no release, migrations, live writes or real messages performed. B02 remains unaccepted.
 
 ## B03a focused review follow-up
 - [x] Reproduced stale originals, flattened notes and same-price total discrepancy; corrected pending contract/hydration/panel only.

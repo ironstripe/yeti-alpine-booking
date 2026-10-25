@@ -54,6 +54,7 @@ import { useSharedLessonData } from "@/hooks/useSharedLesson";
 import { formatCurrency } from "@/lib/swiss-qr-utils";
 import { BookingEmailDeliveryCard } from "@/components/bookings/BookingEmailDeliveryCard";
 import { ENROLLMENT_BLOCKS_SELECT, isPackageGroupItem, itemLastDate, scheduleByDay } from "@/lib/ticketItemSchedule";
+import { useBookingReadProjection } from "@/hooks/useBookingReadProjection";
 
 const BookingDetail = () => {
   const { id } = useParams<{ id: string }>();
@@ -108,6 +109,7 @@ const BookingDetail = () => {
   });
   
   // Fetch invoices for this ticket
+  const projection = useBookingReadProjection(id, ticket?.items);
   const { data: invoices = [] } = useInvoicesByTicket(id);
   
   // Fetch email log for this ticket
@@ -264,6 +266,8 @@ const BookingDetail = () => {
   }
   
   const latestInvoice = invoices[0];
+  // Historical invoice preview/print inputs deliberately stay unchanged: no persisted
+  // document-version boundary exists. This projection is for ordinary detail cards only.
   const lineItems = ticket.items?.map((item: any) => ({
     description: `${item.participant?.first_name || 'Teilnehmer'} - ${item.product?.name || 'Produkt'}`,
     details: item.instructor
@@ -396,6 +400,8 @@ const BookingDetail = () => {
                         <TicketItemEditCard 
                           key={item.id} 
                           item={item}
+                          projection={projection.data?.[item.id]}
+                          projectionState={item.appointment_id ? projection.isError ? "error" : projection.isPending ? "loading" : undefined : undefined}
                         />
                       ))}
                     </div>

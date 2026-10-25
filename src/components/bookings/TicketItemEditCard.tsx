@@ -45,6 +45,7 @@ import {
 } from "@/lib/booking-utils";
 import { MEETING_POINTS } from "@/lib/meeting-point-utils";
 import { isPackageGroupItem, meetingPointLabel, scheduleByDay, type ScheduledItem } from "@/lib/ticketItemSchedule";
+import { storedLineAmount, type LessonReadProjection } from "@/lib/bookingReadProjection";
 
 interface TicketItem {
   id: string;
@@ -84,13 +85,20 @@ interface TicketItem {
 interface TicketItemEditCardProps {
   item: TicketItem;
   onUpdate?: () => void;
+  projection?: LessonReadProjection;
+  projectionState?: "loading" | "error";
 }
 
-export function TicketItemEditCard({ item, onUpdate }: TicketItemEditCardProps) {
+export function TicketItemEditCard({ item, onUpdate, projection, projectionState }: TicketItemEditCardProps) {
   const { data: instructors = [] } = useInstructors();
   const updateTicketItem = useUpdateTicketItem();
   
   const [isEditing, setIsEditing] = useState(false);
+  const names = projectionState === "error" ? "Teilnehmerdaten nicht verfügbar"
+    : projectionState === "loading" ? "Teilnehmerdaten werden geladen"
+    : projection ? projection.people.map(p => p.name).join(", ") || "Teilnehmer nicht hinterlegt"
+    : [item.participant?.first_name, item.participant?.last_name].filter(Boolean).join(" ") || "Teilnehmer nicht hinterlegt";
+  const displayed = projection?.appointment ?? item;
   
   // Form state
   const [date, setDate] = useState<Date | undefined>(item.date ? new Date(item.date) : undefined);
@@ -180,12 +188,12 @@ export function TicketItemEditCard({ item, onUpdate }: TicketItemEditCardProps) 
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <span className="font-medium">
-                {item.participant?.first_name} {item.participant?.last_name || ""} 
+                {names}
               </span>
               <span className="text-muted-foreground">-</span>
               <span>{item.product?.name || "Produkt"}</span>
             </div>
-            <span className="font-medium">CHF {formatCurrency(item.line_total || item.unit_price || 0)}</span>
+            <span className="font-medium">CHF {formatCurrency(storedLineAmount(item))}</span>
           </div>
 
           {/* Date */}
@@ -352,10 +360,10 @@ export function TicketItemEditCard({ item, onUpdate }: TicketItemEditCardProps) 
         ? "bg-muted/50 hover:bg-muted/80 cursor-pointer group" 
         : "bg-muted/30"
     )}>
-      <div className="flex-1">
+      <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
-          <p className="font-medium">
-            {item.participant?.first_name} {item.participant?.last_name || ""} - {item.product?.name}
+          <p className="font-medium break-words">
+            {names} - {item.product?.name}
           </p>
           {!editableStatus.editable && (
             <Badge variant="secondary" className="text-xs">
@@ -364,6 +372,9 @@ export function TicketItemEditCard({ item, onUpdate }: TicketItemEditCardProps) 
             </Badge>
           )}
         </div>
+        {(projectionState === "error" || projection?.problem) && (
+          <p role="alert" className="text-sm text-destructive">{projection?.problem ?? "Unterrichts- und Teilnehmerdaten konnten nicht geladen werden"}</p>
+        )}
         {packageItem ? (
           <div className="text-sm text-muted-foreground" data-testid="package-schedule">
             {item.group_name && <p>{item.group_name}</p>}
@@ -376,28 +387,28 @@ export function TicketItemEditCard({ item, onUpdate }: TicketItemEditCardProps) 
           </div>
         ) : (
           <p className="text-sm text-muted-foreground">
-            {format(new Date(item.date), 'dd.MM.yyyy', { locale: de })}
+            {format(new Date(displayed.date), 'dd.MM.yyyy', { locale: de })}
             {item.item_type === "lunch" ? " · Mittagsbetreuung" : ""}
             {item.item_type === "lunch" && item.is_vegetarian ? " (vegetarisch)" : ""}
-            {item.time_start && ` · ${item.time_start.substring(0, 5)}`}
-            {item.time_end && ` - ${item.time_end.substring(0, 5)}`}
+            {displayed.time_start && ` · ${displayed.time_start.substring(0, 5)}`}
+            {displayed.time_end && ` - ${displayed.time_end.substring(0, 5)}`}
           </p>
         )}
-        {item.instructor && (
+        {(projection?.instructorName || (!projection?.appointment && item.instructor)) && (
           <p className="text-sm text-muted-foreground">
             <Users className="h-3 w-3 inline mr-1" />
-            {item.instructor.first_name} {item.instructor.last_name}
+            {projection?.instructorName ?? `${item.instructor?.first_name ?? ""} ${item.instructor?.last_name ?? ""}`}
           </p>
         )}
-        {item.meeting_point && (
+        {displayed.meeting_point && (
           <p className="text-sm text-muted-foreground">
             <MapPin className="h-3 w-3 inline mr-1" />
-            {meetingPointLabel(item.meeting_point)}
+            {meetingPointLabel(displayed.meeting_point)}
           </p>
         )}
       </div>
-      <div className="flex items-center gap-2">
-        <p className="font-medium">CHF {formatCurrency(item.line_total || item.unit_price || 0)}</p>
+      <div className="flex items-center gap-2 shrink-0">
+        <p className="font-medium">CHF {formatCurrency(storedLineAmount(item))}</p>
         {editableStatus.editable && lessonEditable && (
           <TooltipProvider>
             <Tooltip>
