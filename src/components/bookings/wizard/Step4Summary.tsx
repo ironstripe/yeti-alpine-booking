@@ -35,7 +35,7 @@ import { buildServerPrivateSlots, discountOverrideFor } from "@/lib/serverPrivat
 import type { CreateQuote, PaSlot } from "@/lib/privateAppointmentsApi";
 import { OfficeCartQuote, type OfficeCartReady } from "./OfficeCartQuote";
 import { officeCreate, officeMultiItemLive, OfficeBookingError } from "@/lib/officeBookingApi";
-import { clearOfficeSubmissionKey } from "@/lib/officeCartRequest";
+import { beginOfficeAttempt, readPendingOfficeAttempt, settleOfficeAttempt, type PendingOfficeAttempt } from "@/lib/officeCartRequest";
 
 interface Step4SummaryProps {
   onEditStep: (step: WizardStep) => void;
@@ -154,6 +154,12 @@ export function Step4Summary({ onEditStep }: Step4SummaryProps) {
   const multiCart = !state.isEditMode && state.cartItems.length > 1 && officeMultiItemLive();
   const multiItemBlocked = !state.isEditMode && state.cartItems.length > 1 && !multiCart;
   const [officeReady, setOfficeReady] = useState<{ ready: OfficeCartReady | null; busy: boolean }>({ ready: null, busy: false });
+  // B07b attempt lifecycle: an unresolved (unknown-outcome) office create blocks every other submit
+  // until the frozen original is replayed under its key and settles (success or definite rejection).
+  const [pendingAttempt, setPendingAttempt] = useState<PendingOfficeAttempt | null>(() => readPendingOfficeAttempt());
+  const [recovered, setRecovered] = useState<{ ok: boolean; text: string; ticketId?: string } | null>(null);
+  const [replaying, setReplaying] = useState(false);
+  const attemptBlocked = !state.isEditMode && !!pendingAttempt;
   const handleOfficeReady = useCallback((ready: OfficeCartReady | null, busy: boolean) => setOfficeReady({ ready, busy }), []);
 
   // B07-P2 (switch OFF until release): the summary shows the server quote and the create binds to it.
@@ -172,8 +178,37 @@ export function Step4Summary({ onEditStep }: Step4SummaryProps) {
   const handleQuote = useCallback((quote: CreateQuote | null, busy: boolean) => setShownQuote({ quote, busy }), []);
   const quoteBlocked = serverQuoteActive && (!shownQuote.quote || shownQuote.busy);
 
+  const handleReplayAttempt = async () => {
+    const p = readPendingOfficeAttempt();
+    if (!p || replaying) return;
+    setReplaying(true);
+    try {
+      const created = await officeCreate(p.key, p.cart, p.quoteDigest, p.confirmationRequested);
+      settleOfficeAttempt("success");
+      setPendingAttempt(null);
+      setSubmitError(null);
+      setRecovered({ ok: true, ticketId: created.ticket_id,
+        text: `Die ursprüngliche Anfrage ist gespeichert: Buchung ${created.ticket_number} (CHF ${Number(created.total).toFixed(2)}). Ihre aktuellen Eingaben bleiben erhalten; ein erneutes Speichern erstellt eine zusätzliche Buchung.` });
+      void bookingConfirmation(created.ticket_id, "process");
+      void queryClient.invalidateQueries({ queryKey: ["office-cart-quote"] });
+    } catch (e) {
+      const unknown = !(e instanceof OfficeBookingError) || e.unknown;
+      if (unknown) {
+        setRecovered({ ok: false, text: "Ergebnis weiterhin unbekannt. Bitte später erneut prüfen; es wird keine doppelte Buchung erzeugt." });
+      } else {
+        settleOfficeAttempt("rejected");
+        setPendingAttempt(null);
+        setRecovered({ ok: true, text: `Die ursprüngliche Anfrage wurde nicht gespeichert (${(e as Error).message}) Sie können die aktuellen Angaben jetzt speichern.` });
+      }
+    } finally { setReplaying(false); }
+  };
+
   const handleCreateBooking = async () => {
     if (submitLock.current || showSuccess) return;
+    if (attemptBlocked) {
+      toast.error("Eine frühere Speicherung hat ein unbekanntes Ergebnis. Bitte zuerst die ursprüngliche Anfrage prüfen.");
+      return;
+    }
     if (!state.isEditMode && multiItemBlocked) {
       toast.error("Mehrere Unterrichte können noch nicht gemeinsam gespeichert werden.");
       return;
@@ -270,8 +305,18 @@ export function Step4Summary({ onEditStep }: Step4SummaryProps) {
       } else if (multiCart && officeReady.ready) {
         // B07b: the whole cart in ONE server transaction, bound to exactly the quote shown above.
         const { cart, key, quote } = officeReady.ready;
-        const created = await officeCreate(key, cart, quote.quote_digest, sendCustomerEmail);
-        clearOfficeSubmissionKey(state);
+        const frozen = beginOfficeAttempt({ key, cart, quoteDigest: quote.quote_digest, confirmationRequested: sendCustomerEmail,
+          total: Number(quote.total), positions: cart.items.length });
+        let created;
+        try { created = await officeCreate(frozen.key, frozen.cart, frozen.quoteDigest, frozen.confirmationRequested); }
+        catch (e) {
+          const unknown = !(e instanceof OfficeBookingError) || e.unknown;
+          settleOfficeAttempt(unknown ? "unknown" : "rejected");
+          setPendingAttempt(readPendingOfficeAttempt());
+          throw e;
+        }
+        settleOfficeAttempt("success");
+        setPendingAttempt(null);
         try { sessionStorage.removeItem("yeti.scheduler.planningDraft.v1"); } catch { /* ignore */ }
         setCreatedTicket({ id: created.ticket_id, number: created.ticket_number });
         setShowSuccess(true);
@@ -438,6 +483,24 @@ export function Step4Summary({ onEditStep }: Step4SummaryProps) {
             : participantIssue ?? "Teilnehmer werden geprüft …"}
         </p>
       )}
+      {attemptBlocked && pendingAttempt && (
+        <div role="alert" data-testid="pending-attempt" className="space-y-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-foreground">
+          <p>
+            Eine frühere Speicherung ({pendingAttempt.positions} Positionen, CHF {pendingAttempt.total.toFixed(2)}) hat ein unbekanntes Ergebnis.
+            Bevor geänderte Angaben gespeichert werden können, muss die ursprüngliche Anfrage geprüft werden. Sie wird unverändert erneut gesendet;
+            war sie bereits gespeichert, entsteht keine zweite Buchung.
+          </p>
+          <Button type="button" size="sm" variant="outline" onClick={() => void handleReplayAttempt()} disabled={replaying} data-testid="pending-attempt-replay">
+            {replaying ? "Wird geprüft …" : "Ursprüngliche Anfrage prüfen"}
+          </Button>
+        </div>
+      )}
+      {recovered && (
+        <p role="status" data-testid="pending-attempt-result" className="rounded-md border px-3 py-2 text-sm">
+          {recovered.text}
+          {recovered.ticketId && <> <a className="underline" href={`/bookings/${recovered.ticketId}`}>Buchung öffnen</a></>}
+        </p>
+      )}
       {submitError && (
         <p role="alert" data-testid="submit-error" className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-foreground">
           {submitError.message}
@@ -458,7 +521,7 @@ export function Step4Summary({ onEditStep }: Step4SummaryProps) {
 
           <Button 
             onClick={handleCreateBooking} 
-            disabled={createBooking.isPending || updateBooking.isPending || (!state.isEditMode && (multiItemBlocked || participantsUnresolved || quoteBlocked || (multiCart && (!officeReady.ready || officeReady.busy))))}
+            disabled={createBooking.isPending || updateBooking.isPending || (!state.isEditMode && (attemptBlocked || multiItemBlocked || participantsUnresolved || quoteBlocked || (multiCart && (!officeReady.ready || officeReady.busy))))}
             className="min-w-[180px]"
           >
             {(createBooking.isPending || updateBooking.isPending) ? (
