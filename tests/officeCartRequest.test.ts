@@ -3,7 +3,9 @@
 import { expect, test } from "bun:test";
 import { writeFileSync } from "node:fs";
 import { createEmptyCartItem, type BookingWizardState, type CartItem } from "../src/contexts/BookingWizardContext";
-import { buildOfficeCart, currentCartItems, officeSubmissionKey, clearOfficeSubmissionKey } from "../src/lib/officeCartRequest";
+import { buildOfficeCart, currentCartItems, officeSubmissionKey, beginOfficeAttempt, readPendingOfficeAttempt, settleOfficeAttempt }
+import { checkoutFirstCourseDate, checkoutPaymentDueDate } from "../src/lib/checkoutDueDate";
+import { buildFinalization } from "../src/hooks/useCreateBooking"; from "../src/lib/officeCartRequest";
 
 const id = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
 export const SKI = "3646f155-8a66-53e3-b512-749f3a42c1ae", SB = "0e8e8669-d8f4-5b19-8e6d-36ff588fdee1";
@@ -101,10 +103,49 @@ test("explicit assign-later per item is the only way to omit a teacher", () => {
   expect(r.kind === "ready" && (r.cart.items[0] as { appointments: Array<Record<string, unknown>> }).appointments[0]).toMatchObject({ assign_later: true });
 });
 
-test("submission key: stable per cart across payload changes, cleared only after success", () => {
-  const m = new Map<string, string>();
-  const s = { getItem: (k: string) => m.get(k) ?? null, setItem: (k: string, v: string) => void m.set(k, v), removeItem: (k: string) => void m.delete(k) };
-  const st = { cartItems: [{ id: "x" }] } as never;
-  const k1 = officeSubmissionKey(st, s); expect(officeSubmissionKey(st, s)).toBe(k1);
-  clearOfficeSubmissionKey(st, s); expect(officeSubmissionKey(st, s)).not.toBe(k1);
+const mem = () => { const m = new Map<string, string>();
+  return { getItem: (k: string) => m.get(k) ?? null, setItem: (k: string, v: string) => void m.set(k, v), removeItem: (k: string) => void m.delete(k) }; };
+const fakeCart = (n: string) => ({ customer_id: CUST, participants: [], items: [{ kind: "group", lines: [{ participant: n }] }] } as never);
+
+test("submission key does not depend on item ids/order; consumed only by success", () => {
+  const s = mem();
+  const k1 = officeSubmissionKey(s); expect(officeSubmissionKey(s)).toBe(k1);
+  settleOfficeAttempt("rejected", s); expect(officeSubmissionKey(s)).toBe(k1);
+  settleOfficeAttempt("success", s); expect(officeSubmissionKey(s)).not.toBe(k1);
+});
+
+test("unknown outcome freezes the original request; changed cart, remount, item removal or mail change cannot replace it", () => {
+  const s = mem();
+  const key = officeSubmissionKey(s);
+  beginOfficeAttempt({ key, cart: fakeCart("p1"), quoteDigest: "d1", confirmationRequested: false, total: 500, positions: 2 }, s);
+  settleOfficeAttempt("unknown", s);
+  // "remount": fresh read from storage
+  const p = readPendingOfficeAttempt(s)!;
+  expect(p.key).toBe(key); expect(p.cart).toEqual(fakeCart("p1")); expect(p.confirmationRequested).toBe(false);
+  expect(officeSubmissionKey(s)).toBe(key);
+  // first item removed / single item left / reordered / mail switched on => different request: refused
+  expect(() => beginOfficeAttempt({ key, cart: fakeCart("p2"), quoteDigest: "d2", confirmationRequested: false, total: 300, positions: 1 }, s)).toThrow("pending_attempt");
+  expect(() => beginOfficeAttempt({ key, cart: fakeCart("p1"), quoteDigest: "d1", confirmationRequested: true, total: 500, positions: 2 }, s)).toThrow("pending_attempt");
+  // exact replay is allowed and keeps the frozen record
+  expect(beginOfficeAttempt({ key, cart: fakeCart("p1"), quoteDigest: "d1", confirmationRequested: false, total: 500, positions: 2 }, s).key).toBe(key);
+  settleOfficeAttempt("success", s);
+  expect(readPendingOfficeAttempt(s)).toBeNull(); expect(officeSubmissionKey(s)).not.toBe(key);
+});
+
+test("due date default uses the earliest date of the WHOLE cart incl. inactive positions; explicit and paid-now unchanged", () => {
+  const early = priv("a", SKI, [ANNA], [["2026-12-21", "10:00", 120]]);
+  const late = priv("b", SB, [BEN], [["2027-01-11", "10:00", 120]]);
+  const st = { ...stateOf([early, late], late), paymentMethod: "invoice", settlement: "pay_later", paymentDueDate: null } as BookingWizardState;
+  expect(checkoutFirstCourseDate(st)).toBe("2026-12-21");
+  expect(checkoutPaymentDueDate(st)).toBe("2026-12-14");
+  expect(buildFinalization(st).payment_due_date).toBe("2026-12-14");
+  const r = buildOfficeCart(st, lunch, buildFinalization(st));
+  expect(r.kind === "ready" && r.cart.finalization?.payment_due_date).toBe("2026-12-14");
+  // unsaved active edits count: active item moved before the inactive one
+  const st2 = { ...st, appointments: [{ date: "2026-12-18", startTime: "10:00", durationMinutes: 120 }], selectedDates: ["2026-12-18"] } as BookingWizardState;
+  expect(checkoutFirstCourseDate(st2)).toBe("2026-12-18");
+  expect(checkoutPaymentDueDate({ ...st, paymentDueDate: "2026-11-30" })).toBe("2026-11-30");
+  expect(checkoutPaymentDueDate({ ...st, settlement: "paid_now" } as BookingWizardState)).toBeNull();
+  // single item unchanged
+  expect(checkoutFirstCourseDate(stateOf([late], late))).toBe("2027-01-11");
 });
