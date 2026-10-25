@@ -40,6 +40,23 @@ const base = (o: Record<string, unknown>) => ({ productType: "group", sport: "sk
   activeCartItemId: "i", lunchSelections: {}, vegetarianSelections: {}, participantBookings: {}, useParticipantSpecificBooking: false,
   privateGroupProposal: null, appointments: null, timeSlot: null, numberOfPersons: 1, ...o });
 
+const renderHtml = () => { const qc = new QueryClient(); qc.setQueryData(["group-courses-for-pricing"], []);
+  return renderToStaticMarkup(<QueryClientProvider client={qc}><PriceBreakdown discountPercent={0} /></QueryClientProvider>).replace(/<[^>]+>/g, " ").replace(/\s+/g, " "); };
+
+describe("B10 group caption counts assigned people only", () => {
+  test("customer has 3 selected people, only 1 assigned: caption without '3 Teilnehmer', price unchanged", () => {
+    state = base({ selectedParticipants: people.slice(0, 3), selectedDates: WEEK.slice(0, 2), selectedGroupId: "c-kid", cartItems: [{ id: "i", assignedParticipantIds: ["k"] }],
+      groupPlan: { courseId: "c-kid", courseName: "Kids 4h", server: ref("c-kid", 200), blocks: blocks(WEEK.slice(0, 2)) } });
+    const out = renderHtml();
+    expect(out).not.toContain("3 Teilnehmer"); expect(out).toContain("2 Tage"); expect(render()).toBe("CHF 200.00");
+  });
+  test("2 of 3 assigned: caption '2 Teilnehmer × 2 Tage', price = 2 × 200", () => {
+    state = base({ selectedParticipants: people.slice(0, 3), selectedDates: WEEK.slice(0, 2), selectedGroupId: "c-kid", cartItems: [{ id: "i", assignedParticipantIds: ["k", "w"] }],
+      groupPlan: { courseId: "c-kid", courseName: "Kids 4h", server: ref("c-kid", 200), blocks: blocks(WEEK.slice(0, 2)) } });
+    expect(renderHtml()).toContain("2 Teilnehmer × 2 Tage"); expect(render()).toBe("CHF 400.00");
+  });
+});
+
 describe("PriceBreakdown 26/27 group preview", () => {
   test("shared: kids 4h 320/person x 2 linked people + 2 lunch days at 30; unlinked person and decoy ignored", () => {
     state = base({ selectedDates: WEEK, selectedGroupId: "c-kid", cartItems: [{ id: "i", assignedParticipantIds: ["k", "w"] }],
