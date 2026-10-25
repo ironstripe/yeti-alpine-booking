@@ -118,6 +118,8 @@ export const paCreate = (p: {
   finalization?: StaffFinalization;
   confirmation_requested?: boolean;
   quote_revision?: number;
+  discount_rule_revision?: number;
+  discount_override?: DiscountOverride;
 }) => call<{ ticket_id: string; ticket_number: string; appointment_ids: string[]; total: number; replayed?: boolean }>(
   { action: "create", ...p },
 );
