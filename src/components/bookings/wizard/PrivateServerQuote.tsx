@@ -73,7 +73,7 @@ function QuoteBody({ quote, slots }: { quote: CreateQuote; slots: PaSlot[] }) {
           return (
             <li key={it.index} className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-0.5" data-testid="quote-line">
               <span className="min-w-0">{label} · {it.persons} Person(en)</span>
-              <span className="tabular-nums">{chf(it.price)}</span>
+              <span className="tabular-nums whitespace-nowrap">{chf(it.price)}</span>
               {Number(it.discount_amount) > 0 && (
                 <span className="w-full text-xs text-muted-foreground">
                   {it.discount_source === "manual"
@@ -86,17 +86,17 @@ function QuoteBody({ quote, slots }: { quote: CreateQuote; slots: PaSlot[] }) {
         })}
       </ul>
       <div className="space-y-1 border-t pt-2">
-        <div className="flex justify-between"><span>Zwischensumme</span><span className="tabular-nums">{chf(quote.gross_total)}</span></div>
+        <div className="flex justify-between"><span>Zwischensumme</span><span className="tabular-nums whitespace-nowrap">{chf(quote.gross_total)}</span></div>
         {quote.discount_source === "automatic" && (
           <div className="flex justify-between text-muted-foreground">
             <span>Automatischer Tagesrabatt {Number(rule.percent)} % (ab {rule.threshold_minutes / 60} Std. pro Person und Tag)</span>
-            <span className="tabular-nums">−{chf(quote.discount_total)}</span>
+            <span className="tabular-nums whitespace-nowrap">−{chf(quote.discount_total)}</span>
           </div>
         )}
         {quote.discount_source === "manual" && (
           <div className="flex justify-between text-muted-foreground">
             <span>Manueller Rabatt (ersetzt den automatischen Tagesrabatt)</span>
-            <span className="tabular-nums">−{chf(quote.discount_total)}</span>
+            <span className="tabular-nums whitespace-nowrap">−{chf(quote.discount_total)}</span>
           </div>
         )}
         {quote.discount_source === "manual" && Number(quote.automatic_discount_total) > 0 && (
@@ -104,7 +104,7 @@ function QuoteBody({ quote, slots }: { quote: CreateQuote; slots: PaSlot[] }) {
             Ohne manuellen Rabatt gälte der Tagesrabatt von −{chf(quote.automatic_discount_total)}. Rabatte werden nicht addiert.
           </p>
         )}
-        <div className="flex justify-between font-semibold"><span>Total</span><span className="tabular-nums" data-testid="quote-total">{chf(quote.total)}</span></div>
+        <div className="flex justify-between font-semibold"><span>Total</span><span className="tabular-nums whitespace-nowrap" data-testid="quote-total">{chf(quote.total)}</span></div>
       </div>
     </>
   );
