@@ -7,8 +7,10 @@ import { routePayment, type PaymentProfile, type PaymentSnapshot } from "./payme
 const profile: PaymentProfile = {
   id: "p1", name: "CHF QR", currency: "CHF", presentation_type: "swiss_qr",
   iban: "CH4431999123000889012", account_holder: "Schneesportschule Malbun",
-  account_holder_address: { street: "Talstation", houseNumber: "1", zip: "9497", city: "Malbun", country: "LI" },
-  reference_type: "QRR", is_active: true, is_archived: false,
+  account_holder_street: "Talstation", account_holder_house_number: "1", account_holder_zip: "9497",
+  account_holder_city: "Malbun", account_holder_country: "LI",
+  reference_type: "QRR", country_scope: "CH_LI", account_type: "qr_iban",
+  is_active: true, is_archived: false, validation_status: "valid",
 } as unknown as PaymentProfile;
 
 function snapshotFor(total: number): PaymentSnapshot {
@@ -94,9 +96,11 @@ Deno.test("PDF: fails closed for draft, missing snapshot and QR amount mismatch"
 });
 
 Deno.test("PDF: non-QR route renders bank transfer section without QR", async () => {
-  const sepa = { ...profile, id: "p2", presentation_type: "sepa_transfer", reference_type: "SCOR", bic_swift: "TESTCHZZ", bank_name: "Testbank" } as unknown as PaymentProfile;
+  const sepa = { ...profile, id: "p2", presentation_type: "sepa_transfer", reference_type: "SCOR",
+    currency: "EUR", country_scope: "SEPA", account_type: "iban", iban: "DE89370400440532013000",
+    bic_swift: "COBADEFFXXX", bank_name: "Testbank" } as unknown as PaymentProfile;
   const r = routePayment({
-    billingCountry: "DE", currency: "CHF", invoiceIdentifier: "T-2", invoiceNumber: "R-2026-0002",
+    billingCountry: "DE", currency: "EUR", invoiceIdentifier: "T-2", invoiceNumber: "R-2026-0002",
     dueDate: "2026-12-31", amount: 50,
     debtor: { name: "Gast", street: "Weg 1", zip: "12345", city: "Berlin", country: "DE" },
     profiles: [sepa],
