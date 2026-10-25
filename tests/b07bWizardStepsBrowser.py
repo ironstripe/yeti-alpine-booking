@@ -124,6 +124,8 @@ async def main():
      q2 = [o for o in office if o["action"] == "quote"][-1]
      check(q2["items"] == req["items"] and q2["submission_key"] == req["submission_key"], f"{tag} same request + key after navigation")
      await page.get_by_test_id("office-quote-total").wait_for(timeout=8000)
+     await page.get_by_text("Rechnung", exact=True).first.click(); await page.wait_for_timeout(800)
+     await page.get_by_test_id("office-quote-total").wait_for(timeout=8000)
      btn = page.get_by_role("button", name="Buchung erstellen", exact=True)
      await btn.scroll_into_view_if_needed(); await btn.click(); await page.wait_for_timeout(1500)
      c = [o for o in office if o["action"] == "create"]
