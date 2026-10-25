@@ -34,6 +34,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { ProductWithTiers, useCreateProduct, useUpdateProduct } from "@/hooks/useProducts";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { PrivateTariffMatrixEditor, PrivateTariffMatrixHandle } from "@/components/settings/PrivateTariffMatrixEditor";
+import { PrivateTariffRulesEditor } from "@/components/settings/PrivateTariffRulesEditor";
 
 // Temporary release gate: the private tariff table is not installed yet. Flip to true after its migration.
 const PRIVATE_TARIFF_EDITOR_ENABLED = false;
@@ -577,6 +578,13 @@ export function ProductFormModal({ open, onOpenChange, product, seasonId }: Prod
                     productId={product.id}
                     onDirtyChange={setTariffDirty}
                   />
+                </div>
+              )}
+              {/* B07-P product-configured tariff rules — same gate; schema pending */}
+              {PRIVATE_TARIFF_EDITOR_ENABLED && isEditing && product?.type === "private" && (
+                <div className="space-y-2">
+                  <FormLabel className="text-base font-medium">Tarifregeln (Zeitfenster)</FormLabel>
+                  <PrivateTariffRulesEditor productId={product.id} />
                 </div>
               )}
 
