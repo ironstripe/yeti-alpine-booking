@@ -56,7 +56,7 @@ try {
     INSERT INTO products(id,name,type,duration_minutes,price,season_id,is_active) VALUES ('${P}','Privat Ski','private',120,0,'${S}',true);
     INSERT INTO instructors(id,first_name,last_name,status,roles) VALUES
       ${I.map((x, n) => `('${x}','L${n}','Synth','active','{ski}')`).join(',')};
-    INSERT INTO customers(id,last_name,first_name,email) VALUES ('${CUST}','Synth','Kunde','k@example.invalid'),('${CUST2}','Andere','Familie',NULL);
+    INSERT INTO customers(id,last_name,first_name,email) VALUES ('${CUST}','Synth','Kunde','k@example.invalid'),('${CUST2}','Andere','Familie','f@example.invalid');
     INSERT INTO customer_participants(id,customer_id,first_name,last_name,birth_date) VALUES
       ('${ANNA}','${CUST}','Anna','Synth','2010-02-02'),('${BEN}','${CUST}','Ben','Synth','2012-03-03'),
       ('${CARL}','${CUST}','Carl','Synth','2011-04-04'),('${FOREIGN}','${CUST2}','Fremd','Andere','2011-01-01');
