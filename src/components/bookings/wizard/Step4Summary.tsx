@@ -192,13 +192,15 @@ export function Step4Summary({ onEditStep }: Step4SummaryProps) {
       void bookingConfirmation(created.ticket_id, "process");
       void queryClient.invalidateQueries({ queryKey: ["office-cart-quote"] });
     } catch (e) {
-      const unknown = !(e instanceof OfficeBookingError) || e.unknown;
-      if (unknown) {
-        setRecovered({ ok: false, text: "Ergebnis weiterhin unbekannt. Bitte später erneut prüfen; es wird keine doppelte Buchung erzeugt." });
-      } else {
+      // Only `quote_changed` proves the original was not stored: the server returns it only after the
+      // key-serialized submission lookup found nothing, inside the rolled-back create. Every other failure
+      // (auth, permission, missing service/schema, network, unrecognized) proves nothing → stay blocked.
+      if (replayProvesNotStored(e)) {
         settleOfficeAttempt("rejected");
         setPendingAttempt(null);
-        setRecovered({ ok: true, text: `Die ursprüngliche Anfrage wurde nicht gespeichert (${(e as Error).message}) Sie können die aktuellen Angaben jetzt speichern.` });
+        setRecovered({ ok: true, text: "Die ursprüngliche Anfrage wurde nicht gespeichert, weil sich der Preis inzwischen geändert hat. Sie können die aktuellen Angaben jetzt neu berechnen und speichern." });
+      } else {
+        setRecovered({ ok: false, text: `Die Prüfung ist fehlgeschlagen (${(e as Error)?.message ?? "unbekannter Fehler"}). Ob die ursprüngliche Anfrage gespeichert wurde, ist weiterhin unbekannt. Bitte neu anmelden bzw. später erneut prüfen; bis dahin kann nichts Neues gespeichert werden.` });
       }
     } finally { setReplaying(false); }
   };

@@ -75,3 +75,8 @@ export const officeQuote = (submission_key: string, cart: OfficeCart) =>
   call<{ quote: OfficeQuote }>({ action: "quote", submission_key, ...cart });
 export const officeCreate = (submission_key: string, cart: OfficeCart, acknowledged_quote_digest: string, confirmation_requested: boolean) =>
   call<OfficeCreateResult>({ action: "create", submission_key, ...cart, acknowledged_quote_digest, confirmation_requested });
+
+/** Replay of a frozen unknown attempt: true only when the error proves the original was not stored. */
+export function replayProvesNotStored(e: unknown): boolean {
+  return e instanceof OfficeBookingError && !e.unknown && e.code === "quote_changed";
+}
