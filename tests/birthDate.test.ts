@@ -18,7 +18,7 @@ describe("birthDateIssue", () => {
     expect(birthDateIssue("01.02.2015", noonZurich)).toBe("invalid");
     expect(birthDateIssue(null, noonZurich)).toBe("invalid");
   });
-  test("day boundary follows Zurich, not UTC: 22:30 UTC on 25 Oct is already 26 Oct in Zurich (winter time)", () => {
+  test("day boundary follows Zurich, not UTC: 23:30 UTC on 25 Oct is already 26 Oct in Zurich (winter time)", () => {
     const late = new Date("2026-10-25T23:30:00Z");
     expect(schoolToday(late)).toBe("2026-10-26");
     expect(birthDateIssue("2026-10-26", late)).toBeNull();
