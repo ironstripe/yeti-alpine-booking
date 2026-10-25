@@ -28,6 +28,8 @@ import { useAssignedTeacherNames } from "@/hooks/useAssignedTeacherNames";
 import { BookingSuccessModal } from "./BookingSuccessModal";
 import { BookingWarnings, type BookingWarning } from "./BookingWarnings";
 import { PrivateServerQuote } from "./PrivateServerQuote";
+import { useQueryClient } from "@tanstack/react-query";
+import { PrivateAppointmentError } from "@/lib/privateAppointmentsApi";
 import { privateTariffsLive } from "@/lib/privateTariffRules";
 import { buildServerPrivateSlots, discountOverrideFor } from "@/lib/serverPrivateSlots";
 import type { CreateQuote, PaSlot } from "@/lib/privateAppointmentsApi";
@@ -158,6 +160,7 @@ export function Step4Summary({ onEditStep }: Step4SummaryProps) {
     try { return { slots: buildServerPrivateSlots(state), error: null }; }
     catch (e) { return { slots: null, error: e instanceof Error ? e.message : "Termine unvollständig." }; }
   }, [serverQuoteActive, state]);
+  const queryClient = useQueryClient();
   const [shownQuote, setShownQuote] = useState<{ quote: CreateQuote | null; busy: boolean }>({ quote: null, busy: false });
   const handleQuote = useCallback((quote: CreateQuote | null, busy: boolean) => setShownQuote({ quote, busy }), []);
   const quoteBlocked = serverQuoteActive && (!shownQuote.quote || shownQuote.busy);
@@ -283,6 +286,11 @@ export function Step4Summary({ onEditStep }: Step4SummaryProps) {
       }
     } catch (error) {
       console.error("Failed to save booking:", error);
+      // B07-P3: price basis changed (tariff, rule or same-day lessons) => fetch a fresh quote; the office
+      // must look at the new price and submit again. Nothing was saved.
+      if (error instanceof PrivateAppointmentError && error.code === "quote_changed") {
+        void queryClient.invalidateQueries({ queryKey: ["pa-create-quote"] });
+      }
       // Show the service's own safe domain message (incl. "Ergebnis unbekannt"); entered data stays.
       const message = error instanceof Error && error.message && !/^(Failed to fetch|NetworkError|TypeError)/i.test(error.message)
         ? error.message
