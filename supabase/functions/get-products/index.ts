@@ -3,7 +3,7 @@
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders, checkApiKey, json } from "../_shared/intakeAuth.ts";
-import { eligibleProducts, resolveCurrentSeason } from "./logic.ts";
+import { eligibleProducts, resolveCurrentSeason, tariffPricedIds } from "./logic.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -43,7 +43,13 @@ Deno.serve(async (req) => {
     if (error) throw new Error(error.message);
 
     // Preserve the previous output shape (no visibility flags in the payload).
-    const products = eligibleProducts(rawProducts, season.id)
+    const privateIds = (rawProducts ?? []).filter((p) => p.type === "private").map((p) => p.id);
+    const tariffRows = privateIds.length
+      ? await supabase.from("product_private_tariff_revisions").select("product_id").in("product_id", privateIds)
+      : { data: [], error: null };
+    const tariffs = tariffPricedIds(tariffRows.data, tariffRows.error);
+    if (!tariffs.ok) return json({ success: false, code: "tariff_state_unavailable", error: "Produkte derzeit nicht verfügbar" }, 503);
+    const products = eligibleProducts(rawProducts, season.id, tariffs.ids)
       .map(({ is_active: _a, show_on_website: _w, ...p }) => p);
 
     // Attach price tiers

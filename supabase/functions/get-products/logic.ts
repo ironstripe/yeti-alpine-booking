@@ -30,7 +30,21 @@ export type ProductRow = {
   [k: string]: unknown;
 };
 
-/** Defence in depth: re-filter even though the query already filters. */
-export function eligibleProducts<T extends ProductRow>(rows: T[] | null | undefined, seasonId: string): T[] {
-  return (rows ?? []).filter((p) => p.season_id === seasonId && p.is_active === true && p.show_on_website === true && p.type !== "office_shift");
+/** Defence in depth: re-filter even though the query already filters.
+ *  B07: private products priced by product tariffs (they have a tariff revision) are never listed
+ *  here: their flat `price` is not their price and activating them for the office must not add a
+ *  public offer. The website catalog (`get-website-products`) is their only public projection. */
+export function eligibleProducts<T extends ProductRow>(
+  rows: T[] | null | undefined, seasonId: string, tariffPriced: ReadonlySet<string> = new Set(),
+): T[] {
+  return (rows ?? []).filter((p) => p.season_id === seasonId && p.is_active === true && p.show_on_website === true
+    && p.type !== "office_shift" && !(p.type === "private" && tariffPriced.has(p.id)));
+}
+
+/** Tariff table not installed yet => no tariff-priced products exist. Any other error => fail closed. */
+export function tariffPricedIds(
+  rows: Array<{ product_id: string }> | null | undefined, error: { code?: string } | null | undefined,
+): { ok: true; ids: Set<string> } | { ok: false } {
+  if (error) return ["42P01", "PGRST205"].includes(error.code ?? "") ? { ok: true, ids: new Set() } : { ok: false };
+  return { ok: true, ids: new Set((rows ?? []).map((r) => r.product_id)) };
 }
