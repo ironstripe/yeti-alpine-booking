@@ -142,7 +142,7 @@ try {
   });
 } finally {
   console.log(results.join('\n'));
-  console.log(`${passed}/${results.length} passed`);
+  console.log(`${passed}/${results.filter((r) => !r.startsWith('     ')).length} passed`);
   await sql.end(); await admin.unsafe(`DROP DATABASE IF EXISTS ${dbName} WITH (FORCE)`); await admin.end();
-  process.exitCode = passed === results.length && passed > 0 ? 0 : 1;
+  process.exitCode = passed === results.filter((r) => !r.startsWith('     ')).length && passed > 0 ? 0 : 1;
 }
