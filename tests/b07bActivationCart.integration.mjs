@@ -24,7 +24,7 @@ const psqlFile = (f) => spawnSync('psql', [u.toString(), '-q', '-v', 'ON_ERROR_S
   { encoding: 'utf8', env: { ...process.env, PGSSLMODE: 'disable' } });
 
 const CHAIN = ['tests/sql/baseline_prelude.sql', 'tests/sql/production_schema_baseline.sql',
-  ...readdirSync(fileURLToPath(new URL('drizzle/migrations/', root))).filter((f) => /^\d{4}_.*\.sql$/.test(f)).sort().map((f) => `drizzle/migrations/${f}`),
+  ...readdirSync(fileURLToPath(new URL('drizzle/migrations/', root))).filter((f) => /^\d{4}_.*\.sql$/.test(f) && Number(f.slice(0, 4)) < 16 /* promoted release steps listed explicitly below */).sort().map((f) => `drizzle/migrations/${f}`),
   'drizzle/migrations/0016_b04_delivery_compatibility.sql', 'drizzle/migrations/0017_b06_invoice_delivery.sql', 'drizzle/migrations/0018_b11_created_total_event.sql',
   'drizzle/migrations/0019_participant_birth_date_guard.sql', 'drizzle/migrations/0020_group_lunch_full_day.sql', 'drizzle/migrations/0021_group_lunch_season.sql',
   'drizzle/migrations/0022_pa_edit_booking.sql', 'drizzle/migrations/0023_b05_office_confirmation_intent.sql',

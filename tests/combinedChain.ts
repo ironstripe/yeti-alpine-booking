@@ -9,13 +9,16 @@ export const PENDING_ORDER = [
   "pa_edit_booking.sql", "b05_office_confirmation_intent.sql",
   "product_private_tariff_rules.sql", "pa_tariff_l1.sql", "b07a_office_multi_create.sql", "b07_private_activation_guard.sql",
 ];
+/** Release steps 1-12 were promoted to tracked migrations 0016-0027 (0028 = targeted activation data step). */
+export const PROMOTED_FROM = 16;
+/** Already-installed tracked migrations (0000-0015) only; the promoted release steps come via segment(). */
 export function migrations(root: URL): string[] {
   const dir = new URL("drizzle/migrations/", root);
-  return [...Deno.readDirSync(dir)].map((e) => e.name).filter((n) => /^\d{4}_.*\.sql$/.test(n)).sort().map((n) => new URL(n, dir).pathname);
+  return [...Deno.readDirSync(dir)].map((e) => e.name).filter((n) => /^\d{4}_.*\.sql$/.test(n) && Number(n.slice(0, 4)) < PROMOTED_FROM).sort().map((n) => new URL(n, dir).pathname);
 }
 /** Pending files strictly after `after` and strictly before `until` (exclusive), as absolute paths. */
 export function segment(root: URL, after: string, until?: string): string[] {
   const a = PENDING_ORDER.indexOf(after), b = until ? PENDING_ORDER.indexOf(until) : PENDING_ORDER.length;
   if (a < 0 || b < 0) throw new Error("unknown pending file");
-  return PENDING_ORDER.slice(a + 1, b).map((f) => new URL(`supabase/pending/${f}`, root).pathname);
+  return PENDING_ORDER.slice(a + 1, b).map((f) => new URL(`drizzle/migrations/${String(PENDING_ORDER.indexOf(f) + PROMOTED_FROM).padStart(4, "0")}_${f}`, root).pathname);
 }
