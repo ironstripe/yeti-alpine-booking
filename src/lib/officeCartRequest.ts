@@ -5,6 +5,7 @@ import {
   applyCartItemToState, extractCartItemFromState,
   type BookingWizardState, type CartItem, type SelectedParticipant,
 } from "@/contexts/BookingWizardContext";
+import { participantPool } from "@/lib/linkedParticipants";
 import { buildServerPrivateSlots, discountOverrideFor } from "@/lib/serverPrivateSlots";
 import { buildStaffGroupLines, type LunchLookup } from "@/lib/staffGroupPayload";
 import type { StaffFinalization } from "@/lib/privateAppointmentsApi";
@@ -59,9 +60,10 @@ export function buildOfficeCart(
   // One stable ref per person for the whole cart (first appearance order).
   const refs: Record<string, string> = {};
   const participants: OfficeParticipant[] = [];
+  const pool = participantPool({ selectedParticipants: state.selectedParticipants, localParticipants: state.localParticipants ?? [] });
   const refFor = (id: string): string | { error: string } => {
     if (refs[id]) return refs[id];
-    const p = state.selectedParticipants.find((x) => x.id === id);
+    const p = pool.find((x) => x.id === id);
     if (!p) return { error: "Ein zugewiesener Teilnehmer ist nicht mehr vorhanden. Bitte Teilnehmer neu zuweisen." };
     const ref = `p${participants.length + 1}`;
     if (isGuest(p)) {
@@ -136,15 +138,50 @@ export function buildOfficeCart(
   };
 }
 
-/** One submission key per wizard cart (first item id); kept until success/reset so an unknown outcome
- *  is replayed, and a changed payload under the same key is rejected by the server (no duplicate). */
-export function officeSubmissionKey(state: Pick<BookingWizardState, "cartItems">, storage: Pick<Storage, "getItem" | "setItem"> = sessionStorage): string {
-  const anchor = state.cartItems[0]?.id ?? "none";
-  const k = `yeti.office.submit.${anchor}`;
-  let v = storage.getItem(k);
-  if (!v) { v = crypto.randomUUID(); storage.setItem(k, v); }
+// Attempt lifecycle (per browser tab, survives remount/navigation): ONE draft key for the wizard
+// session, independent of item ids/order. Before create, the exact request is frozen as the pending
+// attempt (write-ahead). Only a confirmed success or a definite rejection settles it; while an
+// outcome is unknown no other submission (changed cart, single-item path) is allowed, only the
+// explicit replay of the frozen original under its original key.
+const DRAFT_KEY = "yeti.office.submit.draft";
+const PENDING_KEY = "yeti.office.submit.pending";
+type KV = Pick<Storage, "getItem" | "setItem" | "removeItem">;
+const store = (): KV => sessionStorage;
+
+export interface PendingOfficeAttempt {
+  key: string; cart: OfficeCart; quoteDigest: string; confirmationRequested: boolean;
+  total: number; positions: number; startedAt: string;
+}
+
+export function readPendingOfficeAttempt(storage: KV = store()): PendingOfficeAttempt | null {
+  try { const v = storage.getItem(PENDING_KEY); return v ? (JSON.parse(v) as PendingOfficeAttempt) : null; } catch { return null; }
+}
+
+export function officeSubmissionKey(storage: KV = store()): string {
+  const pending = readPendingOfficeAttempt(storage);
+  if (pending) return pending.key;
+  let v = storage.getItem(DRAFT_KEY);
+  if (!v) { v = crypto.randomUUID(); storage.setItem(DRAFT_KEY, v); }
   return v;
 }
-export function clearOfficeSubmissionKey(state: Pick<BookingWizardState, "cartItems">, storage: Pick<Storage, "removeItem"> = sessionStorage) {
-  storage.removeItem(`yeti.office.submit.${state.cartItems[0]?.id ?? "none"}`);
+
+/** Freeze the exact request before sending. Refuses to replace a different unresolved attempt. */
+export function beginOfficeAttempt(a: Omit<PendingOfficeAttempt, "startedAt">, storage: KV = store()): PendingOfficeAttempt {
+  const prev = readPendingOfficeAttempt(storage);
+  if (prev) {
+    if (prev.key !== a.key || JSON.stringify(prev.cart) !== JSON.stringify(a.cart) || prev.quoteDigest !== a.quoteDigest
+      || prev.confirmationRequested !== a.confirmationRequested) throw new Error("pending_attempt");
+    return prev;
+  }
+  const rec = { ...a, startedAt: new Date().toISOString() };
+  storage.setItem(PENDING_KEY, JSON.stringify(rec));
+  return rec;
+}
+
+/** success: the key is consumed -> next booking gets a fresh key. rejected: nothing was saved under the
+ *  key (server rolls back), the draft key stays. unknown: keep the frozen attempt. */
+export function settleOfficeAttempt(outcome: "success" | "rejected" | "unknown", storage: KV = store()) {
+  if (outcome === "unknown") return;
+  storage.removeItem(PENDING_KEY);
+  if (outcome === "success") storage.removeItem(DRAFT_KEY);
 }

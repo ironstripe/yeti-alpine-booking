@@ -1,4 +1,4 @@
-import type { BookingWizardState } from "@/contexts/BookingWizardContext";
+import { applyCartItemToState, type BookingWizardState } from "@/contexts/BookingWizardContext";
 import { buildEffectivePrivatePlan } from "@/lib/effectivePrivatePlan";
 
 /** Calendar arithmetic on date-only values, never parsing them as local instants. */
@@ -8,7 +8,7 @@ export function checkoutDefaultDueDate(firstCourseDate: string | null, today = n
   return new Date(Date.UTC(year, month - 1, date + (firstCourseDate ? -7 : 7))).toISOString().slice(0, 10);
 }
 
-export function checkoutFirstCourseDate(state: BookingWizardState): string | null {
+function itemFirstCourseDate(state: BookingWizardState): string | null {
   let dates = state.selectedDates;
   if (state.useParticipantSpecificBooking && Object.keys(state.participantBookings).length > 0) {
     const active = state.cartItems.find((item) => item.id === state.activeCartItemId);
@@ -18,6 +18,17 @@ export function checkoutFirstCourseDate(state: BookingWizardState): string | nul
     if (plan.status === "ready") dates = plan.intervals.map((interval) => interval.date);
   }
   return [...dates].sort()[0] ?? null;
+}
+
+/** First lesson/course date of the whole effective cart: the active item from the live wizard fields,
+ *  every other position from its stored cart item (same projection as the office-booking request). */
+export function checkoutFirstCourseDate(state: BookingWizardState): string | null {
+  const items = state.cartItems ?? [];
+  if (items.length <= 1) return itemFirstCourseDate(state);
+  const firsts = items.map((it) => (it.id === state.activeCartItemId
+    ? itemFirstCourseDate(state)
+    : itemFirstCourseDate({ ...state, ...applyCartItemToState(it), cartItems: [it], activeCartItemId: it.id } as BookingWizardState)));
+  return firsts.filter((d): d is string => !!d).sort()[0] ?? null;
 }
 
 export function checkoutPaymentDueDate(state: BookingWizardState, today = new Date()): string | null {

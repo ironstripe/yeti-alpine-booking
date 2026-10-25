@@ -4,8 +4,8 @@
 // lunch and vegetarian data keyed by those IDs remain attached.
 import type { BookingWizardState, SelectedParticipant } from "@/contexts/BookingWizardContext";
 
-export function resolveLinkedParticipants(state: Pick<BookingWizardState, "cartItems" | "activeCartItemId" | "selectedParticipants" | "localParticipants">) {
-  const linkedIds = state.cartItems.find((item) => item.id === state.activeCartItemId)?.assignedParticipantIds ?? [];
+/** Saved participants plus people newly entered in step 1 (local, created by the server on save). */
+export function participantPool(state: Pick<BookingWizardState, "selectedParticipants" | "localParticipants">): SelectedParticipant[] {
   const localAsGuests: SelectedParticipant[] = state.localParticipants.map((lp) => ({
     id: lp.id,
     first_name: lp.first_name,
@@ -16,7 +16,12 @@ export function resolveLinkedParticipants(state: Pick<BookingWizardState, "cartI
     sport: lp.sport,
     isGuest: true,
   }) as SelectedParticipant);
-  const pool = [...state.selectedParticipants, ...localAsGuests];
+  return [...state.selectedParticipants, ...localAsGuests];
+}
+
+export function resolveLinkedParticipants(state: Pick<BookingWizardState, "cartItems" | "activeCartItemId" | "selectedParticipants" | "localParticipants">) {
+  const linkedIds = state.cartItems.find((item) => item.id === state.activeCartItemId)?.assignedParticipantIds ?? [];
+  const pool = participantPool(state);
   const linked = linkedIds.map((id) => pool.find((p) => p.id === id)).filter((p): p is SelectedParticipant => !!p);
   return { linkedIds, linked, unresolved: linked.length !== linkedIds.length };
 }

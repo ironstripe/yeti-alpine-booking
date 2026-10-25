@@ -144,6 +144,9 @@ try {
  }
  await sql`GRANT ALL ON office_booking_confirmation_intents,private_appointments,private_appointment_participants,customer_participants,group_course_enrollments,group_course_instances,ticket_item_overrides TO service_role`;
  for(let i=0;i<40;i++){await sql`NOTIFY pgrst,'reload schema'`;await new Promise(r=>setTimeout(r,250));const probe=await sb.from("office_booking_confirmation_intents").select("requested").limit(1);if(!probe.error)break;}
+ // PostgREST reloads its schema cache asynchronously: wait until it actually reflects the rename
+ // (a fixed sleep raced the reload and made the following test see "unavailable").
+ const waitIntents=async(visible:boolean)=>{for(let i=0;i<80;i++){await sql.unsafe("NOTIFY pgrst,'reload schema'");await new Promise(r=>setTimeout(r,100));const probe=await sb.from("office_booking_confirmation_intents").select("requested").limit(1);if(!probe.error===visible)return;}throw new Error(`schema cache did not settle (intents visible=${visible})`);};
  await test("B05 ON/OFF/NULL recipient authoritative; explicit later send only",async()=>{
   for(const group of [false,true])for(const choice of [true,false])for(const email of ["saved@example.invalid",null]){
    const f=await fixture(choice,email,group),n=calls.length;const result=await invoke(f.ticket,"process");
@@ -163,8 +166,8 @@ try {
  await test("B05 denies force/recipient/payload, anon/teacher and unavailable intent schema",async()=>{
   const f=await fixture(true),n=calls.length;assertEquals((await invoke(f.ticket,"send",{force:true})).status,400);assertEquals((await invoke(f.ticket,"send",{recipient_email:"evil@example.invalid"})).status,400);
   for(const status of [401,403]){const denied=createConfirmationHandler(sb,{transport,authorize:async()=>new Response("denied",{status})});assertEquals((await denied(new Request("http://localhost/c",{method:"POST",body:JSON.stringify({ticket_id:f.ticket,action:"send"})}))).status,status);}
-  await sql`ALTER TABLE office_booking_confirmation_intents RENAME TO b05_missing`;await sql.unsafe("NOTIFY pgrst,'reload schema';NOTIFY pgrst,'reload config'");await new Promise(r=>setTimeout(r,300));
-  assertEquals((await invoke(f.ticket,"send")).outcome,"unavailable");assertEquals(calls.length,n);await sql`ALTER TABLE b05_missing RENAME TO office_booking_confirmation_intents`;await sql.unsafe("NOTIFY pgrst,'reload schema';NOTIFY pgrst,'reload config'");await new Promise(r=>setTimeout(r,300));
+  await sql`ALTER TABLE office_booking_confirmation_intents RENAME TO b05_missing`;await waitIntents(false);
+  assertEquals((await invoke(f.ticket,"send")).outcome,"unavailable");assertEquals(calls.length,n);await sql`ALTER TABLE b05_missing RENAME TO office_booking_confirmation_intents`;await waitIntents(true);
  });
  await test("B05 unknown/expired/digest mismatch obey existing B04 guards",async()=>{
   for(const corrupt of [false,true]){const f=await fixture(true);mode="timeout";assertEquals((await invoke(f.ticket,"process")).code,"transport_unknown");mode="ok";

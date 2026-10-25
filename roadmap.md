@@ -5,6 +5,8 @@
 - [x] Backend target verified (single Lovable Cloud project) and combined install manifest: docs/b01-b11-install-manifest.md.
 - [x] B07a atomic multi-item server (`b07a_office_multi` + `office-booking`), full pending chain installed together, 19/19 + rollback 4/4; L1 fixes (participant UPDATE guard, period stale locks). docs/b07a-verification.md.
 - [x] B07b UI: whole-cart office-booking quote/create, accessible price dialog, private activation guard + targeted 26/27 seed, old-client refusal, combined delivery suites. docs/b07b-verification.md.
+- [x] B07b review 991688d9: cart-wide due date, attempt lifecycle (no new key after unknown), 26/27 product reachable in real wizard, step-1 new people in cart, B05 flake (fixture), get-products excludes tariff products.
+- [ ] Coordinated B01–B11 install/deploy/publish (next, authorized; manifest).
 - [ ] Coordinated install/deploy/publish of B07 server + client per manifest deployment section (awaits the reviewed execution step).
 
 ## B05 — Office booking confirmation (authorised after B03b)
