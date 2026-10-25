@@ -2,7 +2,7 @@ import { customerEmailRecipient } from "@/lib/customerEmail";
 import { checkoutSubmitFlags } from "@/lib/checkoutSubmitFlags";
 import { checkoutFirstCourseDate, checkoutPaymentDueDate } from "@/lib/checkoutDueDate";
 import { bookingConfirmation, type ConfirmationResult } from "@/lib/bookingConfirmationApi";
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo, useRef, useCallback } from "react";
 import { toast } from "sonner";
 import { useParticipantOwnership } from "@/hooks/useParticipantOwnership";
 import { resolveLinkedParticipants } from "@/lib/linkedParticipants";
@@ -27,6 +27,10 @@ import { ConfirmationOptions } from "./ConfirmationOptions";
 import { useAssignedTeacherNames } from "@/hooks/useAssignedTeacherNames";
 import { BookingSuccessModal } from "./BookingSuccessModal";
 import { BookingWarnings, type BookingWarning } from "./BookingWarnings";
+import { PrivateServerQuote } from "./PrivateServerQuote";
+import { privateTariffsLive } from "@/lib/privateTariffRules";
+import { buildServerPrivateSlots, discountOverrideFor } from "@/lib/serverPrivateSlots";
+import type { CreateQuote, PaSlot } from "@/lib/privateAppointmentsApi";
 
 interface Step4SummaryProps {
   onEditStep: (step: WizardStep) => void;
@@ -65,7 +69,7 @@ export function Step4Summary({ onEditStep }: Step4SummaryProps) {
 
   // Checkout choices live in the wizard context so they survive step navigation (this step unmounts).
   const {
-    paymentMethod, settlement, billingPartnerId, paymentDueDate, discountPercent, discountReason,
+    paymentMethod, settlement, billingPartnerId, paymentDueDate, discountPercent, discountReason, discountExplicit,
     sendCustomerEmail, sendCustomerWhatsApp, notifyInstructor, createAnother,
   } = state;
   const setPaymentMethod = (v: PaymentMethod) => setCheckoutOptions({ paymentMethod: v });
@@ -116,8 +120,8 @@ export function Step4Summary({ onEditStep }: Step4SummaryProps) {
     return result;
   }, [autoDiscountPercent]);
 
-  const handleDiscountChange = (percent: number, reason: string) => {
-    setCheckoutOptions({ discountPercent: percent, discountReason: reason });
+  const handleDiscountChange = (percent: number, reason: string, explicit = true) => {
+    setCheckoutOptions({ discountPercent: percent, discountReason: reason, discountExplicit: explicit });
   };
 
   // Private submit links exactly the participants applied to the active lesson in step 1.
@@ -143,6 +147,21 @@ export function Step4Summary({ onEditStep }: Step4SummaryProps) {
   // The create path saves the active lesson only; never drop further cart items silently.
   const multiItemBlocked = !state.isEditMode && state.cartItems.length > 1;
 
+  // B07-P2 (switch OFF until release): the summary shows the server quote and the create binds to it.
+  const serverQuoteActive = usesServerPrivatePath && privateTariffsLive();
+  const quoteOverride = useMemo(() => discountOverrideFor({ discountExplicit, discountPercent, discountReason }),
+    // reason does not change the price; only percent/explicitness requote
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [discountExplicit, discountPercent]);
+  const quoteSlots = useMemo<{ slots: PaSlot[] | null; error: string | null }>(() => {
+    if (!serverQuoteActive) return { slots: null, error: null };
+    try { return { slots: buildServerPrivateSlots(state), error: null }; }
+    catch (e) { return { slots: null, error: e instanceof Error ? e.message : "Termine unvollständig." }; }
+  }, [serverQuoteActive, state]);
+  const [shownQuote, setShownQuote] = useState<{ quote: CreateQuote | null; busy: boolean }>({ quote: null, busy: false });
+  const handleQuote = useCallback((quote: CreateQuote | null, busy: boolean) => setShownQuote({ quote, busy }), []);
+  const quoteBlocked = serverQuoteActive && (!shownQuote.quote || shownQuote.busy);
+
   const handleCreateBooking = async () => {
     if (submitLock.current || showSuccess) return;
     if (!state.isEditMode && multiItemBlocked) {
@@ -166,7 +185,11 @@ export function Step4Summary({ onEditStep }: Step4SummaryProps) {
     }
 
 
-    if (discountPercent > 0 && !discountReason.trim()) {
+    if (quoteBlocked) {
+      toast.error("Der Serverpreis wird noch berechnet oder ist nicht verfügbar.");
+      return;
+    }
+    if ((discountPercent > 0 || (serverQuoteActive && discountExplicit)) && !discountReason.trim()) {
       toast.error("Bitte gib einen Grund für den Rabatt an");
       return;
     }
@@ -241,6 +264,9 @@ export function Step4Summary({ onEditStep }: Step4SummaryProps) {
           paymentDueDate: checkoutPaymentDueDate(state),
           discountPercent: totalDiscount,
           discountReason: combinedReason,
+          ...(serverQuoteActive && shownQuote.quote ? { privateQuoteShown: {
+            revision: shownQuote.quote.revision, discountRuleRevision: shownQuote.quote.discount_rule_revision, total: Number(shownQuote.quote.total),
+          } } : {}),
           ...checkoutSubmitFlags(state),
         });
 
@@ -297,17 +323,30 @@ export function Step4Summary({ onEditStep }: Step4SummaryProps) {
         <div className="min-w-0 space-y-6 lg:col-start-1 lg:row-start-1">
           <Separator />
 
-          {/* Price Breakdown */}
-          <PriceBreakdown
-            discountPercent={discountPercent}
-            autoDiscountPercent={autoDiscountPercent}
-            autoDiscountReason={autoDiscountReason}
-          />
+          {/* Price: server quote on the released product-tariff path, legacy breakdown otherwise */}
+          {serverQuoteActive ? (
+            <PrivateServerQuote
+              productId={state.productId}
+              persons={linkedParticipants.length}
+              slots={quoteSlots.slots}
+              planError={quoteSlots.error}
+              override={quoteOverride}
+              onQuote={handleQuote}
+            />
+          ) : (
+            <PriceBreakdown
+              discountPercent={discountPercent}
+              autoDiscountPercent={autoDiscountPercent}
+              autoDiscountReason={autoDiscountReason}
+            />
+          )}
 
           {/* Manual discount — on the private server path the server applies it to every appointment line */}
           <DiscountSection
             discountPercent={discountPercent}
             discountReason={discountReason}
+            discountExplicit={serverQuoteActive ? discountExplicit : false}
+            overrideNote={serverQuoteActive ? "Ersetzt den automatischen Tagesrabatt für diese Lektionen (wird nicht addiert)." : undefined}
             onDiscountChange={handleDiscountChange}
           />
 
@@ -379,7 +418,7 @@ export function Step4Summary({ onEditStep }: Step4SummaryProps) {
 
           <Button 
             onClick={handleCreateBooking} 
-            disabled={createBooking.isPending || updateBooking.isPending || (!state.isEditMode && (multiItemBlocked || participantsUnresolved))}
+            disabled={createBooking.isPending || updateBooking.isPending || (!state.isEditMode && (multiItemBlocked || participantsUnresolved || quoteBlocked))}
             className="min-w-[180px]"
           >
             {(createBooking.isPending || updateBooking.isPending) ? (
