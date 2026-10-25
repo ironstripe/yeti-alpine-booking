@@ -65,21 +65,29 @@ export const RequestSchema = z.discriminatedUnion("action", [
     action: z.literal("edit"),
     mode: z.enum(["quote", "apply"]),
     ticket_id: uuid,
-    expected_total: z.number().finite().optional(),
+    expected_total: z.number().finite(),
     appointments: z.array(z.object({
       appointment_id: uuid,
-      expected_participant_ids: z.array(uuid).max(4).optional(),
-      expected_price: z.number().finite().optional(),
+      expected_participant_ids: z.array(uuid).max(4),
+      expected_price: z.number().finite(),
+      expected: z.object({ date, time_start: time, time_end: time, instructor_id: uuid.nullable(), meeting_point: z.string().nullable(), status: z.string(),
+        line: z.object({ id: uuid, quantity: z.number().nullable(), unit_price: z.number().finite(), line_total: z.number().nullable(),
+          discount_percent: z.number().nullable(), discount_reason: z.string().nullable(), internal_notes: z.string().nullable(), instructor_notes: z.string().nullable() }).strict(),
+      }).strict(),
+      internal_notes: z.string().max(5000).optional(),
+      instructor_notes: z.string().max(5000).optional(),
       participant_ids: z.array(uuid).min(1).max(4).optional(),
       meeting_point: z.string().max(200).optional(),
       acknowledged_price: z.number().finite().optional(),
     }).strict()).max(60),
     acknowledged_total: z.number().finite().optional(),
-    internal_notes: z.string().max(5000).optional(),
-    instructor_notes: z.string().max(5000).optional(),
+    expected_customer_notes: z.string().nullable().optional(),
     customer_notes: z.string().max(2000).optional(),
   }).strict(),
 ]).superRefine((v, ctx) => {
+  if (v.action === "edit" && v.customer_notes !== undefined && !("expected_customer_notes" in v)) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["expected_customer_notes"], message: "original required" });
+  }
   // A non-zero manual discount always needs a reason.
   if (v.action === "create" && (v.discount_percent ?? 0) > 0 && !v.discount_reason) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["discount_reason"], message: "required when discount_percent > 0" });
