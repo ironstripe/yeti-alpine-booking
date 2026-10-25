@@ -10,7 +10,7 @@ const profile: PaymentProfile = { id: "p", name: "Synthetic", presentation_type:
 function fixture(date: string | null = "2026-12-14", invoices: Row[] = [], failTicket = false) {
   const tables: Record<string, Row[]> = { tickets: [{ id: "t", customer_id: "c", payment_due_date: date }],
     customers: [{ id: "c", first_name: "Synthetic", last_name: "Payer", country: "LI", zip: "9490", city: "Vaduz" }],
-    invoices, payment_profiles: [profile], ticket_history: [] };
+    invoices, payment_profiles: [profile], ticket_history: [], ticket_items: [], bc_2627_reservations: [] };
   const writes: string[] = [];
   const from = (name: string) => {
     const filters: ((r: Row) => boolean)[] = []; let op = "read", patch: Row = {};
@@ -23,7 +23,8 @@ function fixture(date: string | null = "2026-12-14", invoices: Row[] = [], failT
       return { data: rows, error: null };
     };
     const b: any = { select: () => b, eq: (k: string, v: unknown) => (filters.push(r => r[k] === v), b),
-      not: () => b, order: () => b, insert: (p: Row) => (op = "insert", patch = p, b),
+      not: () => b, order: () => b, neq: (k: string, v: unknown) => (filters.push(r => r[k] !== v), b),
+      in: (k: string, v: unknown[]) => (filters.push(r => v.includes(r[k])), b), insert: (p: Row) => (op = "insert", patch = p, b),
       update: (p: Row) => (op = "update", patch = p, b),
       maybeSingle: async () => { const r = run(); return { ...r, data: r.data?.[0] ?? null }; },
       single: async () => { const r = run(); return { ...r, data: r.data?.[0] ?? null }; },
