@@ -153,10 +153,18 @@ CREATE TABLE public.private_appointment_pricing (
   discount_amount numeric(10,2) NOT NULL,
   persons integer NOT NULL,
   eligible_persons integer NOT NULL,
-  created_at timestamptz NOT NULL DEFAULT now()
+  created_at timestamptz NOT NULL DEFAULT now(),
+  -- L1: the exact priced state. The transition guard accepts a price/time/participant write on a
+  -- tariff-priced appointment only when it matches this server-written row (service_role only).
+  priced_date date NOT NULL,
+  priced_time_start time NOT NULL,
+  priced_time_end time NOT NULL,
+  participant_ids uuid[] NOT NULL,
+  discount_reason text,
+  updated_at timestamptz NOT NULL DEFAULT now()
 );
 COMMENT ON TABLE public.private_appointment_pricing IS
-  'B07-P2: immutable price/discount provenance per product-tariff-priced appointment (written by pa_create_booking only).';
+  'B07-P2/L1: price/discount provenance per product-tariff-priced appointment. Written by pa_create_booking and replaced only by the L1 requote paths (move/period_update/edit) after acknowledgement; each replacement is recorded with before/after values in the PRIVATE_APPOINTMENT_CHANGED event.';
 GRANT SELECT ON public.private_appointment_pricing TO authenticated;
 GRANT ALL ON public.private_appointment_pricing TO service_role;
 ALTER TABLE public.private_appointment_pricing ENABLE ROW LEVEL SECURITY;
@@ -195,7 +203,8 @@ $$;
 -- linked billing line is not cancelled. Group courses and lunch are never private_appointments.
 -- One row per canonical appointment (participants deduplicated). digest binds a quote to this exact state.
 -- Returns no personal data beyond the caller-supplied participant ids.
-CREATE OR REPLACE FUNCTION public.pa_private_day_context(p_participants uuid[], p_dates date[]) RETURNS jsonb
+-- L1: p_exclude = appointments being changed by the same request (their OLD state must not count).
+CREATE OR REPLACE FUNCTION public.pa_private_day_context(p_participants uuid[], p_dates date[], p_exclude uuid[]) RETURNS jsonb
 LANGUAGE sql STABLE SET search_path TO 'public' AS $$
   WITH a AS (
     SELECT pa.id, pa.date, pa.time_start, pa.time_end, pap.participant_id pid
@@ -206,6 +215,7 @@ LANGUAGE sql STABLE SET search_path TO 'public' AS $$
        AND pa.status IN ('scheduled','booked','completed')
        AND coalesce(t.status,'') NOT IN ('draft','cancelled','storno','expired')
        AND NOT EXISTS (SELECT 1 FROM public.ticket_items ti WHERE ti.appointment_id = pa.id AND ti.status = 'cancelled')
+       AND pa.id <> ALL(coalesce(p_exclude, '{}'))
      GROUP BY pa.id, pa.date, pa.time_start, pa.time_end, pap.participant_id),
   slots AS (SELECT id, date, time_start, time_end, array_agg(pid::text ORDER BY pid) parts FROM a GROUP BY id, date, time_start, time_end)
   SELECT jsonb_build_object(
@@ -215,6 +225,10 @@ LANGUAGE sql STABLE SET search_path TO 'public' AS $$
     'digest', md5(coalesce((SELECT string_agg(id || '|' || pid || '|' || date || '|' || time_start || '|' || time_end, ';'
                  ORDER BY id, pid) FROM a), '')))
 $$;
+
+CREATE OR REPLACE FUNCTION public.pa_private_day_context(p_participants uuid[], p_dates date[]) RETURNS jsonb
+LANGUAGE sql STABLE SET search_path TO 'public' AS $$ SELECT public.pa_private_day_context(p_participants, p_dates, '{}'::uuid[]) $$;
+
 
 -- Discount intent of a create/quote request. Explicit manual override (discount_override, or the legacy
 -- non-zero discount_percent) REPLACES the automatic discount for every line of the request; it is never
@@ -556,9 +570,11 @@ BEGIN
     VALUES (v_ticket, v_product, NULL, ins, d, s, t, e->>'meeting_point', v_price, 1, (v_it->>'discount_percent')::numeric, v_it->>'discount_reason',
       'booked', CASE WHEN ins IS NULL THEN NULL ELSE 'pending' END, 'private', v_persons, v_group, v_aid);
     INSERT INTO public.private_appointment_pricing (appointment_id, product_id, tariff_revision, discount_rule_revision, gross_price,
-      discount_source, discount_percent, discount_amount, persons, eligible_persons)
+      discount_source, discount_percent, discount_amount, persons, eligible_persons,
+      priced_date, priced_time_start, priced_time_end, participant_ids, discount_reason)
     VALUES (v_aid, v_product, v_rev, v_drev, v_price, v_it->>'discount_source', (v_it->>'discount_percent')::numeric,
-      (v_it->>'discount_amount')::numeric, (v_it->>'persons')::int, (v_it->>'eligible')::int);
+      (v_it->>'discount_amount')::numeric, (v_it->>'persons')::int, (v_it->>'eligible')::int,
+      d, s, t, (SELECT array_agg(x ORDER BY x) FROM unnest(v_part_ids) x), v_it->>'discount_reason');
     v_ids := v_ids || v_aid;
     IF ins IS NULL THEN v_unassigned := v_unassigned || d; END IF;
   END LOOP;
@@ -604,6 +620,8 @@ REVOKE ALL ON FUNCTION public.pa_price_request(uuid, jsonb, jsonb, boolean, json
 GRANT EXECUTE ON FUNCTION public.pa_price_request(uuid, jsonb, jsonb, boolean, jsonb) TO service_role;
 REVOKE ALL ON FUNCTION public.pa_private_day_context(uuid[], date[]) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.pa_private_day_context(uuid[], date[]) TO service_role;
+REVOKE ALL ON FUNCTION public.pa_private_day_context(uuid[], date[], uuid[]) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.pa_private_day_context(uuid[], date[], uuid[]) TO service_role;
 REVOKE ALL ON FUNCTION public.pldr_bump_revision() FROM PUBLIC, anon, authenticated;
 
 -- B07-P2 controlled transition (L1): move/period_update/edit still price with legacy pa_price.
