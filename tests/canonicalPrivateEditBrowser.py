@@ -66,6 +66,8 @@ async def main():
                 if url.startswith("http://localhost:8080"): return await route.continue_()
                 if "/functions/v1/private-appointments" in url and req.method == "POST":
                     b = req.post_data_json; sent.append(b)
+                    if mode["edit"] == "stale":
+                        return await route.fulfill(status=409, content_type="application/json", body=json.dumps({"error":"conflict", "conflicts":[{"kind":"stale","ref_id":A1}]}))
                     if mode["edit"] == "old":
                         return await route.fulfill(status=400, content_type="application/json", body=json.dumps({"error": "invalid", "fields": {"action": ["Invalid discriminator value"]}}))
                     q = {"appointments": [{"appointment_id": A1, "old_price": 105, "new_price": 125, "participants_changed": True}], "old_total": 249, "new_total": 269, "changed": True}
@@ -125,6 +127,15 @@ async def main():
             check(len(sent) == n0 + 1 and sent[-1]["mode"] == "apply" and len(sent[-1]["appointments"]) == 1 and sent[-1]["appointments"][0]["internal_notes"] == "Synthetische Notiz", f"{tag} notes-only single apply")
 
             check(sent[-1]["appointments"][0]["expected"]["line"]["internal_notes"] == "lesson one" and not any(x["appointment_id"] == A2 for x in sent[-1]["appointments"]), f"{tag} note edit carries original and leaves other lesson out")
+            # Real controls send ticket-note original too, then surface stale rejection (no fallback).
+            mode["edit"] = "stale"
+            await page.evaluate("window.wiz.loadTicketForEditing('t-syn')"); await panel.wait_for()
+            await page.locator("#ce-cust").fill("my customer note")
+            await page.get_by_role("button", name="Änderungen speichern").click()
+            await page.get_by_role("alert").wait_for()
+            check(sent[-1]["expected_customer_notes"] is None and sent[-1]["customer_notes"] == "my customer note", f"{tag} customer note original supplied")
+            check("inzwischen geändert" in await page.get_by_role("alert").inner_text() and (await page.evaluate("window.readback"))["canonical"] is not None, f"{tag} stale rejected and edit retained")
+            await page.get_by_role("alert").screenshot(path=str(OUT / f"stale_{width}.png"))
             # Old deployed function: clear unavailability, no fallback.
             mode["edit"] = "old"
             await page.evaluate("window.wiz.loadTicketForEditing('t-syn')"); await panel.wait_for()

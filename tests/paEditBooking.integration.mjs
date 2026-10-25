@@ -113,6 +113,19 @@ try {
     const after=await state(b.ticket_id); assert.equal(Number(after.tk.tot),777); assert.equal(Number(after.ap[0].disc),10); assert.deepEqual(after.ap[0].ppl,sortIds([P1,P3]));
   });
 
+  await t('review: missing originals refused; changed-price delta preserves discrepancy and discount', async () => {
+    const b=await create([slot('2027-02-08')],[P1,P2],{discount_percent:10,discount_reason:'keep'});
+    await sql`UPDATE tickets SET total_amount=777 WHERE id=${b.ticket_id}`;
+    const before=await state(b.ticket_id);
+    const incomplete={mode:'apply',ticket_id:b.ticket_id,expected_total:777,appointments:[{appointment_id:before.ap[0].id,expected_price:100,expected_participant_ids:[P1,P2],internal_notes:'no'}]};
+    assert.equal((await edit(incomplete)).error,'invalid'); assert.deepEqual(await state(b.ticket_id),before);
+    const req={ticket_id:b.ticket_id,expected_total:777,appointments:[{...expectAppt(before,0),participant_ids:[P1,P2,P3]}]};
+    const q=await edit({...req,mode:'quote'}); assert.equal(Number(q.quote.new_total),795);
+    const r=await edit({...req,mode:'apply',appointments:[{...req.appointments[0],acknowledged_price:120}],acknowledged_total:795});
+    assert.equal(r.ok,true); assert.equal(Number(r.total),795);
+    assert.equal(Number((await state(b.ticket_id)).ap[0].disc),10);
+  });
+
   await t('privileges: only service_role executes pa_edit_booking', async () => {
     for (const role of ['anon', 'authenticated']) {
       const [{ ok }] = await sql`SELECT has_function_privilege(${role}, 'public.pa_edit_booking(jsonb, uuid)', 'EXECUTE') ok`; assert.equal(ok, false, role);
