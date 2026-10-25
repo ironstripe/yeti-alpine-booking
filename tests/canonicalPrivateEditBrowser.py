@@ -133,7 +133,7 @@ async def main():
             await page.locator("#ce-cust").fill("my customer note")
             await page.get_by_role("button", name="Änderungen speichern").click()
             await page.get_by_role("alert").wait_for()
-            check(sent[-1]["expected_customer_notes"] is None and sent[-1]["customer_notes"] == "my customer note", f"{tag} customer note original supplied")
+            check(sent[-1]["expected_customer_notes"] == "" and sent[-1]["customer_notes"] == "my customer note", f"{tag} customer note original supplied")
             check("inzwischen geändert" in await page.get_by_role("alert").inner_text() and (await page.evaluate("window.readback"))["canonical"] is not None, f"{tag} stale rejected and edit retained")
             await page.get_by_role("alert").screenshot(path=str(OUT / f"stale_{width}.png"))
             # Old deployed function: clear unavailability, no fallback.
