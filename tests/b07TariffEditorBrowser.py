@@ -71,8 +71,9 @@ async def main():
                 check(r3["rule_kind"] == "exact_block" and r3["window_start"] == "14:00" and r3["price_chf"] == 190 and r3["extra_person_chf"] == 40, f"{tag} 14-16 block sent as configuration")
             stale["on"] = True
             await page.get_by_role("button", name="Tarife speichern").click(force=True)
-            await page.get_by_text("Tarife wurden inzwischen geändert", exact=False).wait_for(timeout=3000)
-            check(True, f"{tag} stale save shows reload message")
+            await page.wait_for_timeout(800)
+            toasts = await page.locator("[data-sonner-toast]").all_inner_texts()
+            check(len(saves) == 2 and any("Tarife wurden inzwischen geändert" in x for x in toasts), f"{tag} stale save shows reload message {toasts}")
             check(not writes, f"{tag} no other backend writes {writes[:2]}")
             check(not errors, f"{tag} no runtime errors {errors[:2]}")
             await ctx.close()
