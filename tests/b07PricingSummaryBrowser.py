@@ -99,8 +99,8 @@ async def main():
             check(await qbox.get_by_test_id("quote-line").count() == 2, f"{tag} one line per lesson")
             check(quotes and "discount_override" not in quotes[-1], f"{tag} default 0 is NOT sent as override")
             await page.screenshot(path=str(OUT / f"auto_{width}.png"))
-            check(bool(quotes) and quotes[-1].get("participant_ids") and quotes[-1].get("customer_id"), f"{tag} quote sends saved participant ids + payer (no client history load)")
-            check(await qbox.get_by_test_id("quote-existing-lessons").count() == 1, f"{tag} counted earlier same-day lessons are shown")
+            check(bool(quotes) and "participant_ids" not in quotes[-1], f"{tag} new guest has no stable id: no same-day history requested")
+            check(await qbox.get_by_test_id("quote-existing-lessons").count() == 0, f"{tag} no counted-earlier-lessons note without history")
 
             # explicit manual 5% replaces automatic, shows the replaced amount
             await page.get_by_label("Manueller Rabatt in Prozent").fill("5")
