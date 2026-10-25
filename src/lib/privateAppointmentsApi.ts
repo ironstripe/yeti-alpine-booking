@@ -127,16 +127,19 @@ export const paCreate = (p: {
   { action: "create", ...p },
 );
 
-export type ConfirmPrice = (text: string) => boolean;
-const browserConfirm: ConfirmPrice = (text) => typeof window !== "undefined" && window.confirm(text);
+export type ConfirmPrice = (text: string) => boolean | Promise<boolean>;
+/** Registered by <PriceAckDialogHost/> (accessible app dialog). Without a host: fail closed (declined). */
+let priceAckHost: ConfirmPrice | null = null;
+export function registerPriceAckHost(fn: ConfirmPrice | null) { priceAckHost = fn; }
+const appConfirm: ConfirmPrice = (text) => (priceAckHost ? priceAckHost(text) : false);
 
 /** L1: if the server requotes the price, ask once and re-send bound to exactly that quote. */
-export async function withPriceAck<T>(body: Record<string, unknown>, confirm: ConfirmPrice = browserConfirm): Promise<T> {
+export async function withPriceAck<T>(body: Record<string, unknown>, confirm: ConfirmPrice = appConfirm): Promise<T> {
   try {
     return await call<T>(body);
   } catch (e) {
     if (!(e instanceof PrivateAppointmentError) || e.code !== "quote_changed" || !isMoveQuote(e.quote)) throw e;
-    if (!confirm(describeMoveQuote(e.quote))) throw new PrivateAppointmentError(409, "price_declined");
+    if (!(await confirm(describeMoveQuote(e.quote)))) throw new PrivateAppointmentError(409, "price_declined");
     return await call<T>({ ...body, acknowledged_quote_digest: e.quote.quote_digest });
   }
 }
