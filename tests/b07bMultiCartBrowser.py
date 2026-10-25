@@ -172,7 +172,7 @@ async def main():
             check(len(creates) == 3 and creates[2] == original, f"{tag} replay sends exactly the original request (key, 2 items, digest, mail OFF)")
             check(len(creates[2]["items"]) == 2 and creates[2]["confirmation_requested"] is False, f"{tag} discarded first item / later mail choice not altered in replay")
             check(await page.get_by_test_id("pending-attempt-result").get_by_text("TEST-ONLY", exact=False).count() == 1, f"{tag} replay result: original booking shown once")
-            check(await page.get_by_test_id("pending-attempt").count() == 0 and not await page.get_by_role("button", name="Buchung erstellen", exact=True).is_disabled() or True, f"{tag} panel resolved")
+            check(await page.get_by_test_id("pending-attempt").count() == 0, f"{tag} recovery panel resolved after replay")
             check(len(confirms) == 1 and confirms[0].get("ticket_id") == "synthetic-ticket", f"{tag} one B05 post-success call")
             check(await page.evaluate("() => window.wiz.state.cartItems.length") == 1, f"{tag} edited cart preserved")
             nk = await page.evaluate("() => sessionStorage.getItem('yeti.office.submit.draft')")
