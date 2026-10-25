@@ -5,6 +5,7 @@
  * split invoices for shared private lessons, corrections/reissues).
  */
 import {
+import { loadInvoiceContent } from "./invoiceContentLoad.ts";
   routePayment,
   type PaymentProfile,
   type RoutingResult,
@@ -267,10 +268,21 @@ export async function issueInvoice(
     }
   }
 
+  // R1: immutable versioned content snapshot, frozen once at issuance (a resumed draft keeps its own).
+  let contentSnapshot: unknown = resumeDraft?.content_snapshot ?? null;
+  if (contentSnapshot == null) {
+    try { contentSnapshot = await loadInvoiceContent(supabase, input.ticketId); }
+    catch (_e) {
+      if (!resumeDraft) await supabase.from("invoices").delete().eq("id", created.id).eq("status", "draft");
+      return { ok: false, error_code: "CONTENT_FAILED", error: "Rechnungspositionen konnten nicht vollständig gelesen werden. Es wurde keine Rechnung ausgestellt." };
+    }
+  }
+
   const { data: issued, error: updateError } = await supabase
     .from("invoices")
     .update({
       ...paymentFields,
+      content_snapshot: contentSnapshot,
       payment_snapshot: resumeDraft?.payment_snapshot ?? snapshot,
       issued_at: new Date().toISOString(),
       status: "open",
