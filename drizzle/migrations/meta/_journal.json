@@ -211,6 +211,13 @@
       "when": 1792953262994,
       "tag": "0029_b01_b11_release_install_verification",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1792968137814,
+      "tag": "0030_r1_pa_move_keep_unassigned",
+      "breakpoints": true
     }
   ]
 }
