@@ -49,7 +49,7 @@ try {
     'supabase/pending/course_archive_delete.sql', 'supabase/pending/bc_2627_staff_group_booking.sql',
     'supabase/pending/bc_2627_staff_group_booking_v2.sql', 'supabase/pending/staff_booking_finalize.sql',
     'supabase/pending/staff_guest_level.sql', 'drizzle/migrations/0022_pa_edit_booking.sql',
-    'drizzle/migrations/0024_product_private_tariff_rules.sql', 'drizzle/migrations/0025_pa_tariff_l1.sql', 'drizzle/migrations/0030_r1_pa_move_keep_unassigned.sql']) {
+    'drizzle/migrations/0024_product_private_tariff_rules.sql', 'drizzle/migrations/0025_pa_tariff_l1.sql', 'supabase/pending/r1_pa_move_keep_unassigned.sql']) {
     const res = psqlFile(f); if (res.status !== 0) throw new Error(`psql ${f}: ${res.stderr}`);
   }
   await sql.unsafe(`CREATE OR REPLACE FUNCTION public.pa_business_today() RETURNS date LANGUAGE sql STABLE AS $$ SELECT DATE '2026-10-25' $$;`);
