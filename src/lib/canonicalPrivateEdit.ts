@@ -109,8 +109,16 @@ export function draftFromSnapshot(s: CanonicalEditSnapshot): CanonicalEditDraft 
   };
 }
 
-export interface EditQuoteAppointment { appointment_id: string; old_price: number; new_price: number; participants_changed: boolean }
-export interface EditQuote { appointments: EditQuoteAppointment[]; old_total: number; new_total: number; changed: boolean }
+export interface EditQuoteAppointment {
+  appointment_id: string; old_price: number; new_price: number; participants_changed: boolean;
+  /** L1: set for tariff-priced lessons (server-requoted discount). */
+  new_discount_percent?: number; new_net?: number;
+}
+export interface EditQuote {
+  appointments: EditQuoteAppointment[]; old_total: number; new_total: number; changed: boolean;
+  /** L1: binds apply to this exact server quote (revisions + same-day context). */
+  quote_digest?: string;
+}
 
 export interface EditRequest {
   ticket_id: string;
@@ -129,6 +137,7 @@ export interface EditRequest {
   expected_customer_notes?: string | null;
   customer_notes?: string;
   acknowledged_total?: number;
+  acknowledged_quote_digest?: string;
 }
 
 /** Only explicitly changed fields are sent; returns null when nothing changed (no request, no writes). */
@@ -164,6 +173,7 @@ export function buildEditRequest(s: CanonicalEditSnapshot, d: CanonicalEditDraft
     appointments,
     ...notes,
     ...(quote && appointments.some((a) => a.participant_ids) ? { acknowledged_total: quote.new_total } : {}),
+    ...(quote?.quote_digest && appointments.some((a) => a.participant_ids) ? { acknowledged_quote_digest: quote.quote_digest } : {}),
   };
 }
 
