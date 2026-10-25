@@ -66,7 +66,7 @@ export function BookingSuccessModal({
           {instructorName && (
             <p className="flex items-center justify-center gap-2">
               <MessageCircle className="h-4 w-4" />
-              {instructorName} wird per WhatsApp informiert
+              Skilehrer-Information für {instructorName} gewünscht – kein automatischer Versand
             </p>
           )}
         </div>

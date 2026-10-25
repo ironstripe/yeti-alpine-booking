@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
 import { buildEffectivePrivatePlan } from "@/lib/effectivePrivatePlan";
+import { blockTeacherId, blocksWithPeople, summarizeTeachers, teacherLabel } from "@/lib/summaryAssignments";
 import { useBookingWizard, WizardStep } from "@/contexts/BookingWizardContext";
 import { calculateAge, getAgeDisplay, getLevelLabel } from "@/lib/participant-utils";
 import { formatPhoneDisplay } from "@/lib/phone-utils";
@@ -97,14 +98,20 @@ export function BookingSummaryCards({
         id: `plan-${date}-${i}`,
         startTime: iv.startTime,
         endTime: iv.endTime,
-        instructorId: state.assignLater ? null : iv.fixedInstructorId ?? state.instructorId,
+        instructorId: blockTeacherId(iv, state.instructorId),
       }));
   };
 
-  const getInstructorName = (instructorId: string | null | undefined) => {
-    const instructor = instructors.find((item) => item.id === instructorId);
-    return instructor ? `${instructor.first_name} ${instructor.last_name}` : "Wird später zugewiesen";
+  const nameOf = (id: string) => {
+    const instructor = instructors.find((item) => item.id === id)
+      ?? (state.instructor?.id === id ? state.instructor : null);
+    return instructor ? `${instructor.first_name} ${instructor.last_name}` : null;
   };
+  const getInstructorName = (instructorId: string | null | undefined) => teacherLabel(instructorId ?? null, state.assignLater, nameOf);
+  // B10: teacher summary from the same per-lesson ids the save sends (not the global teacher alone).
+  const teacherSummary = effectivePlan?.status === "ready"
+    ? summarizeTeachers(effectivePlan.intervals.map((iv) => blockTeacherId(iv, state.instructorId)), state.assignLater)
+    : { kind: "none" as const };
 
   return (
     <div className="space-y-4">
@@ -253,10 +260,11 @@ export function BookingSummaryCards({
                       </div>
                     ) : (
                       <div className="ml-6 space-y-1 text-sm text-muted-foreground">
-                        {(state.useParticipantSpecificBooking
-                          ? linkedParticipants.flatMap((participant) => state.participantBookings[participant.id]?.groupBlocks ?? []).filter((block) => block.date === dateStr)
-                          : state.groupPlan?.blocks.filter((block) => block.date === dateStr) ?? []
-                        ).map((block, index) => <div key={`${dateStr}-${block.startTime}-${index}`}>{block.startTime}–{block.endTime}</div>)}
+                        {state.useParticipantSpecificBooking
+                          ? blocksWithPeople(linkedParticipants.map((p) => ({ participantId: p.id, blocks: state.participantBookings[p.id]?.groupBlocks ?? [] })), dateStr)
+                              .map((row) => <div key={`${dateStr}-${row.startTime}`}>{row.startTime}–{row.endTime} · {resolveParticipants(row.participantIds).map((p) => p.first_name).join(", ")}</div>)
+                          : (state.groupPlan?.blocks.filter((block) => block.date === dateStr) ?? [])
+                              .map((block, index) => <div key={`${dateStr}-${block.startTime}-${index}`}>{block.startTime}–{block.endTime}</div>)}
                         {state.productType === "group" && !state.selectedGroupId && !state.useParticipantSpecificBooking && <span>Kurs noch offen</span>}
                       </div>
                     )}
@@ -375,7 +383,20 @@ export function BookingSummaryCards({
               <div className="flex items-start gap-2">
                 <GraduationCap className="mt-0.5 h-4 w-4 text-muted-foreground" />
                 <div>
-                  {state.instructor ? (
+                  {teacherSummary.kind === "mixed" ? (
+                    <>
+                      <p className="font-medium">Mehrere Lehrpersonen: {teacherSummary.ids.map((id) => teacherLabel(id, state.assignLater, nameOf)).join(", ")}</p>
+                      {teacherSummary.later > 0 && <p className="text-sm text-muted-foreground">{teacherSummary.later} Lektion{teacherSummary.later > 1 ? "en" : ""} wird später zugewiesen</p>}
+                      {teacherSummary.missing > 0 && <p className="text-sm text-destructive">{teacherSummary.missing} Lektion{teacherSummary.missing > 1 ? "en" : ""} ohne Lehrperson</p>}
+                      <p className="text-xs text-muted-foreground">Zuordnung pro Termin siehe oben.</p>
+                    </>
+                  ) : teacherSummary.kind === "single" && teacherSummary.id !== state.instructor?.id ? (
+                    <p className="font-medium">{teacherLabel(teacherSummary.id, state.assignLater, nameOf)}</p>
+                  ) : teacherSummary.kind === "later" ? (
+                    <p className="text-muted-foreground">Wird später zugewiesen</p>
+                  ) : teacherSummary.kind === "missing" ? (
+                    <p className="text-muted-foreground">Kein Skilehrer ausgewählt</p>
+                  ) : state.instructor ? (
                     <>
                       <p className="font-medium">
                         {state.instructor.first_name} {state.instructor.last_name}
