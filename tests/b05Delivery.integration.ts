@@ -1,6 +1,7 @@
 // B04: actual legacy schema + ONLY pending B04 SQL, local PostgREST, fake transport.
 // Never reads env database credentials. Refuses all non-local HTTP traffic.
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { COMBINED, migrations, segment } from "./combinedChain.ts";
 import postgres from "npm:postgres@3.4.5";
 import { assert, assertEquals } from "jsr:@std/assert@1";
 import { attemptDelivery, ensureDelivery, payloadDigest, type Mail, type Transport } from "../supabase/functions/_shared/courseDelivery.ts";
@@ -29,6 +30,7 @@ let pass=0, fail=0;
 async function test(name:string,fn:()=>Promise<void>) {try {await fn();pass++;console.log("ok "+name);}catch(e){fail++;console.log("FAIL "+name+": "+String(e));}}
 try {
  for (const file of ["tests/sql/baseline_prelude.sql","tests/sql/production_schema_baseline.sql"]) await psql(url,["-f",new URL(file,root).pathname]);
+ if (COMBINED) for (const m of migrations(root)) await psql(url,["-f",m]);
  await sql.unsafe(`INSERT INTO customers(id,email,last_name) VALUES ('00000000-0000-4000-8000-000000000002','synthetic@example.invalid','Test');
  INSERT INTO tickets(id,ticket_number,total_amount,customer_id) VALUES ('00000000-0000-4000-8000-000000000001','B04 synthetic',105,'00000000-0000-4000-8000-000000000002');
  INSERT INTO school_settings(name,email) VALUES ('Test','test@example.invalid');
@@ -41,6 +43,7 @@ try {
   let rejected=false;try{await sql`UPDATE booking_email_deliveries SET kind='invoice'`;}catch{rejected=true;}assert(rejected);
  });
  await psql(url,["-f",new URL("supabase/pending/b04_delivery_compatibility.sql",root).pathname]);
+ if (COMBINED) for (const f of segment(root,"b04_delivery_compatibility.sql","b05_office_confirmation_intent.sql")) await psql(url,["-f",f]);
  await test("only additive B04 SQL preserves existing row bytes, ACL/RLS and uniques",async()=>{
   const after=await sql`SELECT to_jsonb(d)-ARRAY['claimed_at','first_claimed_at','provider_idempotency_key','frozen_payload','payload_digest','delivery_protocol'] AS row FROM booking_email_deliveries d`;
   assertEquals(JSON.stringify(after),JSON.stringify(before));assertEquals(await sql`SELECT relname,relacl::text,relrowsecurity FROM pg_class WHERE oid IN ('booking_email_deliveries'::regclass,'email_logs'::regclass) ORDER BY relname`,acl);
@@ -123,8 +126,9 @@ try {
  await test("schema incompatible fails closed before insert/transport",async()=>{
   await sql`ALTER TABLE booking_email_deliveries RENAME COLUMN delivery_protocol TO hidden_protocol`;await sql.unsafe("NOTIFY pgrst,'reload schema';NOTIFY pgrst,'reload config'");await new Promise(r=>setTimeout(r,300));const n=calls.length;const[id]=await sql`SELECT id FROM booking_email_deliveries LIMIT 1`;assertEquals((await attempt(id.id)).code,"schema_incompatible");let rejected=false;try{await ensureDelivery(sb,ticket,"invoice","x@example.invalid");}catch{rejected=true;}assert(rejected);assertEquals(calls.length,n);
  }); await psql(url,["-f",new URL("supabase/pending/b05_office_confirmation_intent.sql",root).pathname]);
+ if (COMBINED) for (const f of segment(root,"b05_office_confirmation_intent.sql")) await psql(url,["-f",f]);
  await sql`ALTER TABLE booking_email_deliveries RENAME COLUMN hidden_protocol TO delivery_protocol`;await sql.unsafe("NOTIFY pgrst,'reload schema';NOTIFY pgrst,'reload config'");await new Promise(r=>setTimeout(r,300));
- await psql(url,["-f",new URL("drizzle/migrations/0009_customers_email_optional.sql",root).pathname]);
+ if (!COMBINED) await psql(url,["-f",new URL("drizzle/migrations/0009_customers_email_optional.sql",root).pathname]);
  await sql`INSERT INTO seasons(name,start_date,end_date) VALUES ('Synthetic','2026-12-01','2027-04-15')`;
  await sql.unsafe("NOTIFY pgrst,'reload schema';NOTIFY pgrst,'reload config'");await new Promise(r=>setTimeout(r,300));
  await sql`UPDATE email_templates SET body_html='<p>{{customer_last_name}}</p><div>{{booking_time}}</div>',subject='Booking {{ticket_number}}'`;

@@ -2,6 +2,7 @@
 // local PostgREST, fake transport. Never reads env database credentials.
 // Refuses all non-local HTTP traffic. Asserts invoice financial immutability.
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { COMBINED, migrations, segment } from "./combinedChain.ts";
 import postgres from "npm:postgres@3.4.5";
 import { assert, assertEquals } from "jsr:@std/assert@1";
 import { routePayment } from "../supabase/functions/_shared/payment-domain.ts";
@@ -47,9 +48,11 @@ function snapshotFor(invoiceNumber: string, total: number) {
 
 try {
   for (const file of ["tests/sql/baseline_prelude.sql", "tests/sql/production_schema_baseline.sql"]) await psql(url, ["-f", new URL(file, root).pathname]);
+  if (COMBINED) for (const m of migrations(root)) await psql(url, ["-f", m]);
   await psql(url, ["-f", new URL("supabase/pending/b04_delivery_compatibility.sql", root).pathname]);
   await psql(url, ["-f", new URL("supabase/pending/b06_invoice_delivery.sql", root).pathname]);
-  await psql(url, ["-f", new URL("drizzle/migrations/0009_customers_email_optional.sql", root).pathname]);
+  if (COMBINED) for (const f of segment(root, "b06_invoice_delivery.sql")) await psql(url, ["-f", f]);
+  if (!COMBINED) await psql(url, ["-f", new URL("drizzle/migrations/0009_customers_email_optional.sql", root).pathname]);
   // Synthetic stub for the website reservation table invoiceContent reads.
   await sql.unsafe(`CREATE TABLE bc_2627_reservations(ticket_id uuid, quote_snapshot jsonb)`);
   await sql.unsafe(`INSERT INTO school_settings(name,email) VALUES ('Test','test@example.invalid');
