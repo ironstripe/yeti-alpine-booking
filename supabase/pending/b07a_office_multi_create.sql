@@ -241,9 +241,9 @@ BEGIN
     END LOOP;
     SELECT revision INTO v_drev FROM public.private_lesson_discount_rule WHERE id FOR SHARE;
     IF v_drev IS NULL THEN RETURN jsonb_build_object('error','tariff_unavailable','reason','discount_rule_not_configured'); END IF;
-    PERFORM public.pa_lock_slots((SELECT coalesce(jsonb_agg(jsonb_build_object('instructor_id', x->>'instructor_id', 'date', x->>'date')), '[]'::jsonb)
-                                    FROM jsonb_array_elements(v_slots) x));
-    v_dates := ARRAY(SELECT DISTINCT (x->>'date')::date FROM jsonb_array_elements(v_slots) x ORDER BY 1);
+    PERFORM public.pa_lock_slots((SELECT coalesce(jsonb_agg(jsonb_build_object('instructor_id', jx->>'instructor_id', 'date', jx->>'date')), '[]'::jsonb)
+                                    FROM jsonb_array_elements(v_slots) jx));
+    v_dates := ARRAY(SELECT DISTINCT (jx->>'date')::date FROM jsonb_array_elements(v_slots) jx ORDER BY 1);
     PERFORM public.pa_lock_days(v_priv_known, v_dates);
     PERFORM 1 FROM public.private_appointments pa
       WHERE pa.date = ANY(v_dates) AND pa.id IN (SELECT appointment_id FROM public.private_appointment_participants WHERE participant_id = ANY(v_priv_known))
@@ -262,11 +262,11 @@ BEGIN
     FOR i IN 0 .. jsonb_array_length(v_items) - 1 LOOP
       it := v_items->i;
       CONTINUE WHEN it->>'kind' <> 'private';
-      v_other := coalesce(v_ctx->'slots', '[]'::jsonb) || coalesce((SELECT jsonb_agg(jsonb_build_object('date', x->'date', 'time_start', x->'time_start',
-          'time_end', x->'time_end', 'price', 0, 'participants', x->'participants')) FROM jsonb_array_elements(v_slots) x WHERE (x->>'item')::int <> i), '[]'::jsonb);
+      v_other := coalesce(v_ctx->'slots', '[]'::jsonb) || coalesce((SELECT jsonb_agg(jsonb_build_object('date', jx->'date', 'time_start', jx->'time_start',
+          'time_end', jx->'time_end', 'price', 0, 'participants', jx->'participants')) FROM jsonb_array_elements(v_slots) jx WHERE (jx->>'item')::int <> i), '[]'::jsonb);
       v_pq := public.pa_price_request((it->>'product_id')::uuid,
-        (SELECT jsonb_agg(jsonb_build_object('date', x->'date', 'time_start', x->'time_start', 'time_end', x->'time_end', 'participants', x->'participants')
-            ORDER BY (x->>'index')::int) FROM jsonb_array_elements(v_slots) x WHERE (x->>'item')::int = i),
+        (SELECT jsonb_agg(jsonb_build_object('date', jx->'date', 'time_start', jx->'time_start', 'time_end', jx->'time_end', 'participants', jx->'participants')
+            ORDER BY (jx->>'index')::int) FROM jsonb_array_elements(v_slots) jx WHERE (jx->>'item')::int = i),
         public.pa_discount_intent(it, true), true, v_other);
       IF v_pq ? 'error' THEN RETURN v_pq || jsonb_build_object('item', i); END IF;
       IF (v_pq->>'revision')::int IS DISTINCT FROM (v_revs->>(it->>'product_id'))::int OR (v_pq->>'discount_rule_revision')::int IS DISTINCT FROM v_drev THEN
