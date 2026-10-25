@@ -48,7 +48,7 @@ try {
  await sql.unsafe(`DO $$ BEGIN IF NOT EXISTS(SELECT FROM pg_roles WHERE rolname='authenticator') THEN CREATE ROLE authenticator LOGIN NOINHERIT; END IF; END $$;
  GRANT anon,authenticated,service_role TO authenticator; ALTER ROLE service_role BYPASSRLS;
  GRANT USAGE ON SCHEMA public TO service_role,authenticated,anon;
- GRANT ALL ON booking_email_deliveries,email_logs,email_templates,tickets,school_settings,ticket_items,customers,ticket_history TO service_role;
+ GRANT ALL ON booking_email_deliveries,email_logs,email_templates,tickets,school_settings,ticket_items,customers,ticket_history,products TO service_role;
  GRANT SELECT ON booking_email_deliveries,email_logs TO authenticated;`);
  const port=40000+Math.floor(Math.random()*1000),base=`http://127.0.0.1:${port}`;
  rest=new Deno.Command("postgrest",{env:{PGRST_DB_URI:url.replace("postgres@","authenticator@"),PGRST_DB_SCHEMAS:"public",PGRST_DB_ANON_ROLE:"anon",PGRST_JWT_SECRET:secret,PGRST_SERVER_PORT:String(port),PGRST_SERVER_HOST:"127.0.0.1",PGRST_LOG_LEVEL:"crit",PGSSLMODE:"disable"},stdout:"null",stderr:"null"}).spawn();
@@ -76,13 +76,13 @@ try {
   const id=await fresh();assertEquals(await attemptConfirmation(sb,id),"not_claimed");const[d]=await sql`SELECT id FROM booking_email_deliveries WHERE idempotency_key='legacy'`;assertEquals(await attemptConfirmation(sb,d.id,{manual:true}),"needs_review");
  });
  await test("timeout within 24h reuses exact bytes/key despite changed template",async()=>{
-  const id=await fresh();mode="timeout";await attempt(id);mode="ok";const original=(await row(id)).frozen_payload.mail;await sql`UPDATE email_templates SET subject='changed'`;assertEquals((await attempt(id,"manual")).outcome,"sent");assertEquals(calls.at(-1),original);
+  const id=await fresh();mode="timeout";const timed=await attempt(id);assertEquals(timed.code,"transport_unknown");mode="ok";const original=(await row(id)).frozen_payload.mail;await sql`UPDATE email_templates SET subject='changed'`;assertEquals((await attempt(id,"manual")).outcome,"sent");assertEquals(calls.at(-1),original);
  });
  await test("at 24h unknown remains review even force and repeated attempts",async()=>{
-  const id=await fresh();mode="timeout";await attempt(id);mode="ok";const old=await row(id);clock=new Date(old.first_claimed_at).getTime()+24*60*60*1000;const n=calls.length;for(let i=0;i<2;i++)assertEquals((await attempt(id,"manual",true)).outcome,"needs_review");assertEquals(calls.length,n);assertEquals(await row(id),old);clock=Date.now();
+  const id=await fresh();mode="timeout";const timed=await attempt(id);assertEquals(timed.code,"transport_unknown");mode="ok";const old=await row(id);clock=new Date(old.first_claimed_at).getTime()+24*60*60*1000;const n=calls.length;for(let i=0;i<2;i++)assertEquals((await attempt(id,"manual",true)).outcome,"needs_review");assertEquals(calls.length,n);assertEquals(await row(id),old);clock=Date.now();
  });
  await test("digest corruption and missing frozen payload never rebuild",async()=>{
-  for(const corrupt of ["digest","missing"]){const id=await fresh();mode="timeout";await attempt(id);mode="ok";if(corrupt==="digest")await sql`UPDATE booking_email_deliveries SET frozen_payload=jsonb_set(frozen_payload,'{mail,to}','"changed@example.invalid"') WHERE id=${id}`;else await sql`UPDATE booking_email_deliveries SET frozen_payload=NULL WHERE id=${id}`;const n=calls.length;for(let i=0;i<2;i++)assertEquals((await attempt(id,"manual",true)).outcome,"needs_review");assertEquals(calls.length,n);}
+  for(const corrupt of ["digest","missing"]){const id=await fresh();mode="timeout";const timed=await attempt(id);assertEquals(timed.code,"transport_unknown");mode="ok";if(corrupt==="digest")await sql`UPDATE booking_email_deliveries SET frozen_payload=jsonb_set(frozen_payload,'{mail,to}','"changed@example.invalid"') WHERE id=${id}`;else await sql`UPDATE booking_email_deliveries SET frozen_payload=NULL WHERE id=${id}`;const n=calls.length;for(let i=0;i<2;i++)assertEquals((await attempt(id,"manual",true)).outcome,"needs_review");assertEquals(calls.length,n);}
  });
  await test("definite rejection is distinct and safely starts new key",async()=>{
   const id=await fresh();mode="reject";await attempt(id);mode="ok";const key=(await row(id)).provider_idempotency_key;assertEquals((await attempt(id,"manual")).outcome,"sent");assert(calls.at(-1)?.idempotencyKey!==key);
@@ -100,7 +100,7 @@ try {
   const n=calls.length;const handler=createRetryHandler(sb,{transport,authorize:async()=>new Response("denied",{status:403})});const r=await handler(new Request("http://localhost/retry",{method:"POST",body:JSON.stringify({action:"recover_stuck"})}));assertEquals(r.status,403);assertEquals(calls.length,n);assertEquals(await sql`SELECT to_jsonb(t) row FROM tickets t WHERE id=${ticket}`,financial);
  });
  await test("row/evidence/claim read-write errors fail closed without transport",async()=>{
-  for(const scenario of ["read","evidence","claim"]){const id=await fresh();if(scenario==="evidence"){mode="timeout";await attempt(id);mode="ok";}const n=calls.length;
+  for(const scenario of ["read","evidence","claim"]){const id=await fresh();if(scenario==="evidence"){mode="timeout";const timed=await attempt(id);assertEquals(timed.code,"transport_unknown");mode="ok";}const n=calls.length;
    const wrapped={from:(table:string)=>{const b=sb.from(table);if(scenario==="claim"&&table==="booking_email_deliveries"){b.update=()=>({eq(){return this;},select(){return this;},maybeSingle:async()=>({data:null,error:{message:"fake claim write"}})}) as any;}
    if((scenario==="read"&&table==="booking_email_deliveries")||(scenario==="evidence"&&table==="email_logs")){const original=b.select.bind(b);b.select=(...args:any[])=>{const q=original(...args);q.maybeSingle=async()=>({data:null,error:{message:"fake read"}});if(scenario==="evidence")q.then=(resolve:any)=>resolve({data:null,error:{message:"fake evidence read"}});return q;};}return b;}};
    assertEquals((await attemptDelivery(wrapped,id,transport,{mode:scenario==="evidence"?"manual":"auto",now:()=>clock})).outcome,"needs_review");assertEquals(calls.length,n);

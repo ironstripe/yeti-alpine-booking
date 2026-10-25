@@ -118,7 +118,7 @@ Deno.test("delivery: concurrent calls send only once", async () => {
   const { sb } = setup();
   await withResend(200, { id: "re_2" }, async (calls) => {
     const r = await Promise.all([attemptConfirmation(sb, "d1"), attemptConfirmation(sb, "d1")]);
-    eq(r.sort(), ["not_claimed", "sent"]);
+    eq(r.sort(), ["needs_review", "sent"]);
     eq(calls.length, 1);
   });
 });
