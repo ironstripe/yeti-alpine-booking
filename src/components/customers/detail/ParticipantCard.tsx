@@ -86,6 +86,7 @@ export function ParticipantCard({ participant, customerId }: ParticipantCardProp
     handleSubmit,
     formState: { errors },
     setValue,
+    setError,
     watch,
     reset,
   } = useForm<EditFormData>({
