@@ -203,7 +203,7 @@ export function Step4Summary({ onEditStep }: Step4SummaryProps) {
       toast.error("Der Serverpreis wird noch berechnet oder ist nicht verfügbar.");
       return;
     }
-    if ((discountPercent > 0 || ((serverQuoteActive || multiCart) && discountExplicit && discountPercent > 0)) && !discountReason.trim()) {
+    if ((discountPercent > 0 || ((serverQuoteActive || multiCart) && discountExplicit)) && !discountReason.trim()) {
       toast.error("Bitte gib einen Grund für den Rabatt an");
       return;
     }

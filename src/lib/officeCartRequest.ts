@@ -77,7 +77,7 @@ export function buildOfficeCart(
   };
 
   const override = discountOverrideFor(state);
-  if (override && override.percent > 0 && !override.reason) return { kind: "error", message: "Bitte gib einen Grund für den manuellen Rabatt an." };
+  if (override && !override.reason) return { kind: "error", message: "Bitte gib einen Grund für den manuellen Rabatt an." };
   const out: OfficeCart["items"] = [];
   let hasGroup = false;
 
