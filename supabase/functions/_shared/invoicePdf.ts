@@ -40,7 +40,7 @@ function reference(s: PaymentSnapshot) {
 }
 
 /** WinAnsi-safe: replace characters the standard fonts cannot encode. */
-const safe = (s: unknown) => String(s ?? "").replace(/[^\x20-\x7E\xC0-\xFF\u2013\u2014\u2018\u2019\u201C\u201D\u2022\u20AC]/g, "?");
+const safe = (s: unknown) => String(s ?? "").replace(/[^\x20-\x7E\xA0-\xFF\u2013\u2014\u2018\u2019\u201C\u201D\u2022\u20AC]/g, "?");
 
 interface Ctx { doc: PDFDocument; page: PDFPage; y: number; font: any; bold: any }
 
