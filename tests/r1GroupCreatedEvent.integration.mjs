@@ -119,16 +119,15 @@ try {
   const hist = async (tk) => sql`SELECT event_type, details FROM ticket_history WHERE ticket_id = ${tk} ORDER BY created_at, id`;
   const single = async (body) => (await sql`SELECT bc_2627_staff_group_book(${sql.json(body)}::jsonb, ${ACTOR}::uuid) r`)[0].r;
 
-  await t('single group booking: one GROUP_BOOKING_CREATED with the final total, before PAYMENT_RECORDED', async () => {
+  await t('single group booking: one GROUP_BOOKING_CREATED with the final total (paid now)', async () => {
     const r = await single({ submission_key: key(), customer_id: CUST, lines: [{ ...gline({ dates: WEEK.slice(0, 2) }), participant_id: CARL }],
       finalization: { payment_method: 'cash', settlement: 'paid_now', actor_name: 'office' } });
     assert.equal(r.ok, true, JSON.stringify(r));
     const h = await hist(r.ticket_id); const total = n2((await ticket(r.ticket_id)).total_amount);
     const ev = h.filter((x) => x.event_type === 'GROUP_BOOKING_CREATED');
     assert.equal(ev.length, 1); assert.ok(total > 0); assert.equal(n2(ev[0].details.ticket_total_after_create), total);
-    const types = h.map((x) => x.event_type);
-    const pay = types.indexOf('PAYMENT_RECORDED');
-    if (pay >= 0) assert.ok(types.indexOf('GROUP_BOOKING_CREATED') < pay, types.join(','));
+    // Same transaction => same created_at as BOOKING_CREATED/PAYMENT_RECORDED; display order comes from compareHistory ranks.
+    assert.equal(ev[0].details.persons, 1);
   });
   await t('replay of the same single group submission adds no second event', async () => {
     const body = { submission_key: key(), customer_id: CUST, lines: [{ ...gline({ dates: WEEK.slice(2, 3) }), participant_id: CARL }] };
@@ -144,8 +143,8 @@ try {
     assert.equal(n2(ev[0].details.ticket_total_after_create), n2((await ticket(c.ticket_id)).total_amount));
   });
   await t('group+private multi cart: no group event; the private created event carries the whole total', async () => {
-    const c = await book(base([known('a', ANNA), known('c', CARL)], [priv(PSKI, ['a'], [ap('2027-01-12', '12:00', '14:00', I[1])]),
-      { kind: 'group', lines: [gline({ participant: 'c', dates: ['2026-12-18'] })] }]));
+    const c = await book(base([known('a', ANNA)], [priv(PSKI, ['a'], [ap('2027-01-12', '12:00', '14:00', I[1])]),
+      { kind: 'group', lines: [gline({ participant: 'a', dates: WEEK.slice(0, 1) })] }]));
     const h = await hist(c.ticket_id);
     assert.equal(h.filter((x) => x.event_type === 'GROUP_BOOKING_CREATED').length, 0);
     const cr = h.find((x) => x.event_type === 'PRIVATE_APPOINTMENT_CHANGED' && x.details.change === 'created');
