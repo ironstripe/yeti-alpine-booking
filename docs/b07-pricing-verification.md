@@ -1,3 +1,59 @@
+# B07 L1 — move / period_update / B03a edit of tariff-priced lessons (checkpoint 4)
+
+Base: `fbf40eb`. Status: **implemented in code + pending SQL, tested only on a private local test database.** Nothing was installed, deployed or published; `PRODUCT_PRIVATE_TARIFFS_LIVE` stays OFF. B07a (atomic multi-item) and B07b (UI) are still open.
+
+## What changed
+- New `supabase/pending/pa_tariff_l1.sql`. It needs `pa_edit_booking.sql` and `product_private_tariff_rules.sql` installed first, and replaces `pa_apply_slot`, `pa_tariff_transition_guard`, `pa_edit_booking`, `pa_move_appointment` and `pa_period_update`. The old signatures stay as wrappers. New overloads take `p_ack jsonb`. New helpers: `pa_lock_days`, `pa_l1_requote`, `pa_l1_write_pricing`, `pa_l1_line_net`. All are service-role only.
+- `product_private_tariff_rules.sql`, edited in place (still uninstalled):
+  - `private_appointment_pricing` gains `priced_date/time_start/time_end`, `participant_ids`, `discount_reason` and `updated_at`;
+  - create writes them;
+  - `pa_private_day_context` gets a 3-arg form with `p_exclude`; the 2-arg form delegates to it.
+- **When a lesson is requoted:** only when its date/time changes (move or period change) or its participant set changes (edit).
+  - It uses the same `pa_price_request` (office channel) with the lesson's stored discount intent. A manual override, including explicit 0, is re-applied and replaces the automatic discount. Otherwise the automatic discount applies, with the same-person/same-day context: other valid bookings plus the other changed lessons' NEW state, overlapping intervals united, and the changed lessons' old state excluded.
+  - Teacher-only changes, notes, meeting point and unchanged saves never reprice and never touch the total.
+- **Acknowledgement:**
+  - Move and period change: if gross or discount changes, the server answers `quote_changed` with the quote (lines old → new, totals, `quote_digest`). The client asks once (`withPriceAck`, German confirm text) and re-sends `acknowledged_quote_digest`. Same-price moves need no acknowledgement.
+  - Edit: still needs `acknowledged_price` + `acknowledged_total`, plus `acknowledged_quote_digest` when tariff-priced lessons are requoted. The digest covers tariff revision, discount-rule revision and day context, so any change after the quote → `quote_changed`, nothing written.
+- **Total:** only the net delta of the changed lines is applied. Other lessons, other bookings, invoices and payments are never repriced. The history event (`moved` / `period_updated` / `edited`) carries a `pricing` record with before/after values plus old/new totals.
+- **Locks:** global order is teacher slot < (participant, date) day lock (same key as create) < ticket < appointment rows. Legacy (non-tariff) moves and edits now take the day locks too; their `pa_price` pricing is unchanged. Move and period update re-check participants and date under the lock; a change in between → `conflict` / `stale`.
+- **Guard:** still installed. A price, time or participant write on a tariff-priced lesson is accepted only if it matches the server-written pricing row, which only the service role can write. Raw table writes still fail with YT001.
+- **Protection:** past, completed and invoiced lessons are still refused (`pa_is_protected`).
+- **Edge function and client:**
+  - Edge contract: optional md5 `acknowledged_quote_digest` on move, period_update and edit. `p_ack` is sent only when present. If the server doesn't have L1 → 503 `unavailable`, nothing written.
+  - Client: `src/lib/privateMoveQuote.ts`, `withPriceAck` in `privateAppointmentsApi.ts`, digest passed in `buildEditRequest`.
+
+## Tests run (local private test database built from the production schema; synthetic data)
+- New `tests/paTariffL1.integration.mjs`, 17/17:
+  - grants;
+  - teacher-only move keeps everything;
+  - 10–12 → 12–14 refused without or with a wrong ack, nothing written; with ack: 150, pricing row and history before/after;
+  - same-price date move without ack;
+  - move onto Anna's other-booking day → 171 on the moved line only, the other booking byte-identical; moving away → 190, the other booking still unchanged;
+  - stale ack after a new same-day booking (→ 135 quoted) and after a tariff revision (→ 160) → `quote_changed`, nothing written;
+  - manual 0 override kept on move;
+  - period 2-day 10–12 → 12–14 with one ack → 300; then teacher-only via the 3-arg form → unchanged;
+  - edit add Ben → 230: refused without digest, ok with it; pricing participants updated;
+  - note-only and no-op edits keep the price;
+  - raw writes (price / time / participant insert / participant delete) → YT001;
+  - invoiced ticket → `protected`, byte-identical;
+  - legacy lesson move unchanged (`pa_price` 240, full recalc);
+  - concurrent create waits for an in-flight move onto the same person/day, then `quote_changed`;
+  - concurrent edit waits for an in-flight create, then `quote_changed` with a lower fresh quote;
+  - concurrent move A + edit B in the same ticket: no deadlock.
+- **Regressions:** b07CrossBookingDiscount 12/12, b07DiscountPricing 13/13, productPrivateTariffRules 13/13, paEditBooking 17/17, b11CreatedTotal 5/5, publicPrivateTariffProjection 12/12, paAssignLater 16/16.
+- **With L1 installed and a legacy create:** paEditBooking 17/17 and paAssignLater 16/16, both via temporary copies.
+- **Unit and contract tests:** bun `privateMoveQuote.test.ts` 5/5, `canonicalPrivateEdit.test.ts` 9/9; Deno contract schema tests 6/6; `deno check` on `private-appointments/index.ts` clean.
+- **Not run:** browser test of the confirm dialog, hosted backend, deployed function, `pa_tariff_l1_rollback.sql`, and the B04/B05/B06/B09 pending files together with L1 in one database.
+
+## Remaining limits (technical)
+- Sibling lessons of the same ticket are context only. Moving one lesson away can leave a sibling's earlier same-day discount in place (never retroactively changed; manual correction stays the existing workflow).
+- The move/period confirmation is a plain browser confirm with the server's numbers; B07b should replace it with the summary-style dialog.
+- Guests matched by name still get no day-context credit (stable ids only).
+- With the B07 SQL installed but the old client, creates fail (`invalid quote_revision`). Moves and edits from the old client still work and ask for the price acknowledgement: the old client sees `quote_changed` and cannot confirm, so nothing is saved. Coordinated release only; see `docs/b01-b11-install-manifest.md`.
+- Rollback restores need the production bodies re-created as `CREATE OR REPLACE` (the baseline file uses `CREATE`).
+
+---
+
 # B07-P3 — cross-booking same-participant/same-day discount (checkpoint 3)
 
 Base: `1f4e112` (HEAD at start). Final SHA is assigned by the platform after this turn; it is not available inside the turn.
@@ -24,7 +80,7 @@ B07 is **not done**: L1 move/edit resolver transition, B07a atomic multi-item an
 - Browser `b07PricingSummaryBrowser.py` (intercepted, 1280 + 390): 0 failures; create carries the shown digest; guest-only booking sends no participant ids and shows no note. **Not browser-tested:** a saved participant with real earlier lessons (covered only in SQL tests).
 
 ## Limits (technical, not business questions)
-- Advisory day locks serialize creates only. Legacy (non-tariff) `pa_move_appointment` / `pa_edit_booking` participant additions do not take the day lock; a concurrent legacy change can land between quote and commit of another booking without being serialized (it is still seen by any later quote). Tariff-priced appointments cannot be moved/re-personed at all (YT001 guard) until L1.
+- (Superseded by L1 above: moves/edits now take the same day locks; tariff-priced lessons are requoted instead of refused.)
 - Cancelling an earlier lesson after a discounted later booking committed does not reprice the later booking (decided: no retroactive mutation).
 - Guests matched by name are not credited (see Identity). If Office wants credit, the person must be selected as saved participant.
 - `attendance = 'absent'` on a booked lesson still counts (booked planning hours, existing semantics).
@@ -33,7 +89,7 @@ B07 is **not done**: L1 move/edit resolver transition, B07a atomic multi-item an
 Unchanged order (each step needs approval): install pending file → seed reviewed rules → deploy `private-appointments` + `product-private-tariff-rules` → switch ON + publish. Rollback file now also drops `pa_private_day_context` and the 5-arg `pa_price_request`; stored prices/discounts/history are never recalculated.
 
 ## Next handoff
-- L1: move/period_update/B03a edit through `pa_price_request` with day context + acknowledgement, then remove YT001 guard; those paths must take the same (participant, date) locks.
+- L1: done in checkpoint 4 (see top).
 - B07a: one service-only transaction for mixed cart items; call `pa_price_request` once over all proposed private slots with per-slot participant ids **plus** `pa_private_day_context` for all known ids/dates; same revision + digest binding and lock order (key → teacher slots → participant/day).
 - B07b: lift the multi-item gate only after B07a; one combined server quote.
 
@@ -133,7 +189,7 @@ Resolver `pa_product_quote` (single source): exact match wins; otherwise each ho
 - `deno check` of whole functions fails on a pre-existing local `@supabase/supabase-js/cors` resolution issue, unrelated to this change.
 
 ## Remaining limits / questions
-- L1 Move/period update/B03a edits still price via `pa_price` (global rates). Must be switched to the resolver before release so a moved new booking is not repriced by the old model.
+- L1: resolved by `pa_tariff_l1.sql` (checkpoint 4).
 - L2 Wizard summary still shows the client legacy calculation; the switch may only go ON once the summary displays the server quote (B07b).
 - Q1 Extra-person amount under the new model (per hour for hourly, per block for 10–12) — not decided; seed requires explicit values.
 - Q2 Price of a 14–16 double lesson — not confirmed; stays unavailable (rush hourly rule limited to 60 min).
@@ -144,7 +200,7 @@ Resolver `pa_product_quote` (single source): exact match wins; otherwise each ho
 1. Install `product_private_tariff_rules.sql` (requires 0007). From that moment old clients without `quote_revision` get a clear `invalid quote_revision` — so step 2 must be ready.
 2. Seed reviewed rules for every active private product; verify coverage query (no active private product without rules).
 3. Deploy `private-appointments` + `product-private-tariff-rules`.
-4. Resolve L1/L2, then set `PRODUCT_PRIVATE_TARIFFS_LIVE=true` and publish.
+4. Install `pa_tariff_l1.sql` in the same release, resolve L2 (B07b), then set `PRODUCT_PRIVATE_TARIFFS_LIVE=true` and publish.
 
 ## Rollback (consumer first, data preserved)
 Switch OFF + republish → redeploy previous `private-appointments` → re-run 0007 `pa_create_booking` block → run rollback file (drops functions only; rule tables kept as evidence). Bookings created meanwhile keep their stored prices; nothing is recalculated.
