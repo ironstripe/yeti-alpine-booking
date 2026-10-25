@@ -73,7 +73,7 @@ describe("B10 group per-lesson people", () => {
     expect(blocksWithPeople([{ participantId: "a", blocks: b([D1, D2]) }, { participantId: "b", blocks: [{ date: D1, startTime: "10:00", endTime: "12:00" }] }], D1))
       .toEqual([{ startTime: "10:00", endTime: "12:00", participantIds: ["a", "b"] }, { startTime: "14:00", endTime: "16:00", participantIds: ["a"] }]);
     state = base({ productType: "group", useParticipantSpecificBooking: true, cartItems: [{ id: "a", assignedParticipantIds: ["p1", "p2"] }],
-      participantBookings: { p1: { dates: [D1, D2], groupBlocks: b([D1, D2]) }, p2: { dates: [D1], groupBlocks: [{ date: D1, startTime: "10:00", endTime: "12:00" }] } } });
+      participantBookings: { p1: { dates: [D1, D2], lunchDays: [], groupBlocks: b([D1, D2]) }, p2: { dates: [D1], lunchDays: [], groupBlocks: [{ date: D1, startTime: "10:00", endTime: "12:00" }] } } });
     const out = summary();
     expect(out).toContain("10:00–12:00 · Other, Kept"); expect(out).toContain("14:00–16:00 · Other");
   });
