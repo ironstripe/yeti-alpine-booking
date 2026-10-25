@@ -42,7 +42,9 @@ async def main():
           const Refresh = await import("/@react-refresh"); Refresh.default.injectIntoGlobalHook(window); window.$RefreshReg$ = () => {}; window.$RefreshSig$ = () => t => t; window.__vite_plugin_react_preamble_installed__ = true;
           const {default: React} = await import('/node_modules/.vite/deps/react.js');
           const {default: {createRoot}} = await import('/node_modules/.vite/deps/react-dom_client.js');
-          const {QueryClient, QueryClientProvider} = await import('/node_modules/.vite/deps/@tanstack_react-query.js');
+          const src = await (await fetch('/src/hooks/useLunchProduct.ts')).text();
+          const rqUrl = src.match(/from\s+["']([^"']*@tanstack_react-query[^"']*)["']/)[1];
+          const {QueryClient, QueryClientProvider} = await import(rqUrl);
           const {useLunchProduct} = await import('/src/hooks/useLunchProduct.ts');
           function Probe() {
             const [ctx, setCtx] = React.useState({ productId: 'p26', dates: ['2026-12-21'] });
@@ -53,7 +55,6 @@ async def main():
           createRoot(document.getElementById('fixture')).render(React.createElement(QueryClientProvider, { client: new QueryClient() }, React.createElement(Probe)));
         }""")
         out_el = page.locator("#out")
-        await page.wait_for_timeout(1500); print("DBG", await page.evaluate("document.getElementById('out')?.textContent"), calls[:4])
         async def expect(v):
             await page.wait_for_function("v => document.getElementById('out')?.textContent === v", arg=v, timeout=5000)
         await expect("lunch-26:30"); print("26/27 course -> lunch-26")
