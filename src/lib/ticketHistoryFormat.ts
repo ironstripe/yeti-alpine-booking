@@ -86,7 +86,8 @@ function privateChange(d: Record<string, unknown>): string {
       return parts.join(" · ");
     }
     case "moved": {
-      const from = d.from as Record<string, unknown> | undefined, to = d.to as Record<string, unknown> | undefined;
+      const asObj = (v: unknown) => (v && typeof v === "object" ? (v as Record<string, unknown>) : undefined);
+      const from = asObj(d.from), to = asObj(d.to);
       const m = movedDiff(d);
       // Unknown/legacy payload shape: show what is stored, never guess a difference.
       if (!m) return `${slot(from)} → ${slot(to)}`;
