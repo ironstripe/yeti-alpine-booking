@@ -111,7 +111,7 @@ try {
   });
 
   await t('targeted PROPOSED script: seeds + activates exactly the two 26/27 products; old five and BC sources unchanged', async () => {
-    const res = psqlFile('supabase/pending/b07_private_2627_activation.PROPOSED.sql');
+    const res = psqlFile('drizzle/migrations/0028_b07_private_2627_activation.sql');
     assert.equal(res.status, 0, res.stderr);
     const act = await sql`SELECT id, is_active, private_tariff_activation_ok(id) ok FROM products WHERE id IN (${SKI}, ${SB}) ORDER BY id`;
     assert.deepEqual(act.map((r) => [r.is_active, r.ok]), [[true, true], [true, true]]);
@@ -121,7 +121,7 @@ try {
 
   await t('targeted script refuses a second run (no reseed), nothing changes', async () => {
     const rev = await sql`SELECT product_id, revision FROM product_private_tariff_revisions ORDER BY product_id`;
-    const res = psqlFile('supabase/pending/b07_private_2627_activation.PROPOSED.sql');
+    const res = psqlFile('drizzle/migrations/0028_b07_private_2627_activation.sql');
     assert.notEqual(res.status, 0); assert.match(res.stderr, /already has a tariff revision/);
     assert.deepEqual(await sql`SELECT product_id, revision FROM product_private_tariff_revisions ORDER BY product_id`, rev);
   });
