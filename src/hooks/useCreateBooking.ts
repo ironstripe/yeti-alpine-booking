@@ -4,12 +4,10 @@ import type { BookingWizardState } from "@/contexts/BookingWizardContext";
 import { createInitialComments } from "./useTicketComments";
 import { isImmediateMethod } from "@/lib/finance";
 import { logTicketEvent } from "@/lib/ticket-audit";
-import { buildEffectivePrivatePlan } from "@/lib/effectivePrivatePlan";
 import { checkoutPaymentDueDate } from "@/lib/checkoutDueDate";
-import { paCreate, paCreateQuote, type PaParticipant, type PaSlot } from "@/lib/privateAppointmentsApi";
+import { paCreate, type PaParticipant, type PaSlot } from "@/lib/privateAppointmentsApi";
 import { privateTariffsLive } from "@/lib/privateTariffRules";
 import { buildServerPrivateSlots, discountOverrideFor } from "@/lib/serverPrivateSlots";
-import { endOf, sortPlan, validatePlan } from "@/lib/privatePlan";
 import { buildStaffGroupLines, staffGroupHasLunch } from "@/lib/staffGroupPayload";
 import { fetchLunchProduct, lunchContextKey } from "@/hooks/useLunchProduct";
 import { createStaffGroupBooking } from "@/lib/staffGroupBookingApi";
@@ -358,12 +356,10 @@ export function useCreateBooking() {
           if (!state.productId) throw new Error("Bitte ein Privatstunden-Produkt wählen. Es wurde nichts gespeichert.");
           const override = discountOverrideFor(state);
           if (override && !override.reason) throw new Error("Bitte gib einen Grund für den manuellen Rabatt an");
-          const q = await paCreateQuote({
-            product_id: state.productId,
-            persons: participants.length,
-            appointments: appointments.map(({ date, time_start, time_end }) => ({ date, time_start, time_end })),
-            ...(override ? { discount_override: override } : {}),
-          });
+          // Bind to the revisions of the quote the office actually saw in the summary (never re-quote silently).
+          const shown = state.privateQuoteShown;
+          if (!shown) throw new Error("Der Serverpreis wurde noch nicht angezeigt. Bitte Zusammenfassung prüfen. Es wurde nichts gespeichert.");
+          const q = { revision: shown.revision, discount_rule_revision: shown.discountRuleRevision };
           const { discount_percent: _dp, discount_reason: _dr, ...rest } = payload as typeof payload & { discount_percent?: number; discount_reason?: string };
           created = await paCreate({
             submission_key: submissionKey, ...rest, product_id: state.productId,
