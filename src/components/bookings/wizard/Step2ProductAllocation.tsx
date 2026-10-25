@@ -1,6 +1,8 @@
 import { toast } from "sonner";
 import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { privateTariffsLive } from "@/lib/privateTariffRules";
+import { selectPrivateProduct, type PrivateProductRow } from "@/lib/privateProductSelect";
 import { format, parseISO, differenceInYears } from "date-fns";
 import { de } from "date-fns/locale";
 import {
@@ -383,27 +385,21 @@ export function Step2ProductAllocation() {
     return result;
   }, [state.productType, calculatedDuration, state.selectedParticipants, isUnusualSlot, allBeginnersOnly]);
 
-  // Find matching product
-  const selectedProduct = useMemo(() => {
-    if (state.productType === "private" && state.duration && state.sport) {
-      const durationMinutes = state.duration * 60;
-      const sportName = state.sport === "ski" ? "Ski" : "Snowboard";
-      return products.find(
-        (p) =>
-          p.type === "private" &&
-          p.duration_minutes === durationMinutes &&
-          p.name.includes(sportName)
-      );
-    }
-    return null;
-  }, [products, state.productType, state.duration, state.sport, state.selectedDates.length]);
+  // Find matching product (tariff path: one product per sport, never a duration/legacy fallback)
+  const tariffProducts = privateTariffsLive();
+  const privateChoice = useMemo(() => (state.productType === "private"
+    ? selectPrivateProduct(products as PrivateProductRow[], state.sport, state.duration, tariffProducts)
+    : null), [products, state.productType, state.duration, state.sport, tariffProducts]);
+  const selectedProduct = privateChoice?.kind === "product" ? privateChoice.product : null;
 
   // Update productId when product changes
   useEffect(() => {
     if (selectedProduct && selectedProduct.id !== state.productId) {
       setProductId(selectedProduct.id);
+    } else if (tariffProducts && privateChoice?.kind === "none" && privateChoice.reason !== "incomplete" && state.productId) {
+      setProductId(null);
     }
-  }, [selectedProduct, state.productId, setProductId]);
+  }, [selectedProduct, privateChoice, tariffProducts, state.productId, setProductId]);
 
   // B09: lunch product of the booked course's season + dates (same rule as the server; no fallback price)
   const { data: lunchProduct = null, isLoading: lunchLoading } = useLunchProduct({ productId: state.groupPlan?.server?.productId, dates: state.selectedDates });
