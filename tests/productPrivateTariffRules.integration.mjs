@@ -143,7 +143,7 @@ try {
     const q = await quote(A, appts, 2);
     const r = await create(A, appts, { participants: [{ participant_id: P1 }, { guest_key: 'guest-abcdefgh', first_name: 'Neu', birth_date: '2015-05-05' }],
       more: { quote_revision: q.revision } });
-    assert.equal(r.ok, undefined); assert.ok(r.ticket_id, JSON.stringify(r)); assert.equal(r.tariff_revision, 1);
+    assert.equal(r.ok, true); assert.ok(r.ticket_id, JSON.stringify(r)); assert.equal(r.tariff_revision, 1);
     aTicket = r.ticket_id;
     const rows = await sql`SELECT a.price, ti.unit_price, ti.instructor_id, ti.product_id, (SELECT count(*)::int FROM private_appointment_participants m WHERE m.appointment_id=a.id) n
       FROM private_appointments a JOIN ticket_items ti ON ti.appointment_id=a.id WHERE a.ticket_id=${aTicket} ORDER BY a.time_start`;
