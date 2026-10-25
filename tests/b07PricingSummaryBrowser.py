@@ -74,7 +74,7 @@ async def main():
                     return await route.fulfill(content_type="application/json", body=json.dumps({"ticket_id":"synthetic-ticket","ticket_number":"TEST-ONLY","appointment_ids":[],"total":342}))
                 if "/functions/v1/" in url:
                     return await route.fulfill(content_type="application/json", body=json.dumps({"success": False, "outcome": "not_requested"}))
-                if req.method not in ("GET", "HEAD", "OPTIONS"): writes.append(url); return await route.abort()
+                if req.method not in ("GET", "HEAD", "OPTIONS") and "/rest/v1/rpc/instructors_ops_list" not in url: writes.append(url); return await route.abort()
                 await route.fulfill(content_type="application/json", body="[]")
             await page.route("**/*", intercept)
             await page.goto("http://localhost:8080/checkout-fixture")
