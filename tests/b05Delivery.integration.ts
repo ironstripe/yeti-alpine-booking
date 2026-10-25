@@ -137,7 +137,7 @@ try {
   return{ticket:t.id,email:c.email};
  }
  await sql`GRANT ALL ON office_booking_confirmation_intents,private_appointments,private_appointment_participants,customer_participants,group_course_enrollments,group_course_instances TO service_role`;
- console.log("intent probe",await sb.from("office_booking_confirmation_intents").select("requested").limit(1));
+ for(let i=0;i<40;i++){await sql`NOTIFY pgrst,'reload schema'`;await new Promise(r=>setTimeout(r,250));const probe=await sb.from("office_booking_confirmation_intents").select("requested").limit(1);if(!probe.error)break;}
  await test("B05 ON/OFF/NULL recipient authoritative; explicit later send only",async()=>{
   for(const group of [false,true])for(const choice of [true,false])for(const email of ["saved@example.invalid",null]){
    const f=await fixture(choice,email,group),n=calls.length;const result=await invoke(f.ticket,"process");
