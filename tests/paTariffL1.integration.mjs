@@ -249,7 +249,7 @@ try {
 
   await t('invoiced ticket: move refused as protected, nothing written', async () => {
     const c = await book([slot('2026-12-29', '10:00', '12:00', I[1])], [CARL]);
-    await sql`INSERT INTO invoices(ticket_id, invoice_number, status, issued_at, total_amount) VALUES (${c.ticket_id}, ${'R-' + Date.now()}, 'sent', now(), 190)`;
+    await sql`INSERT INTO invoices(ticket_id, invoice_number, status, issued_at, subtotal, total, qr_reference, due_date) VALUES (${c.ticket_id}, ${'R-' + Date.now()}, 'sent', now(), 190, 190, 'QR-SYNTH', '2027-01-31')`;
     const before = await snap(c.ticket_id);
     const m = await move(c.appointment_ids[0], '2026-12-29', '12:00', '14:00', I[1]);
     assert.equal(m.error, 'protected'); assert.equal(await snap(c.ticket_id), before);
