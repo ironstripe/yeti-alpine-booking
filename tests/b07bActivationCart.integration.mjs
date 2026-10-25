@@ -195,6 +195,13 @@ try {
     assert.equal(r.error, 'quote_changed', JSON.stringify(r)); assert.deepEqual(await counts(), pre);
     assert.ok(r.quote?.quote_digest && r.quote.quote_digest !== q.quote.quote_digest);
   });
+  await t('rollback restores the 0004 guard (BC private activation blocked again) and drops B07b objects', async () => {
+    await sql`UPDATE products SET is_active = false WHERE id = ${SB}`;
+    const res = psqlFile('supabase/rollback/b07_private_activation_guard_rollback.sql'); assert.equal(res.status, 0, res.stderr);
+    await assert.rejects(activate(SB), /pricing release gate/);
+    assert.equal((await sql`SELECT to_regclass('public.private_tariff_required_coverage') r`)[0].r, null);
+    assert.equal((await sql`SELECT is_active FROM products WHERE id=${SKI}`)[0].is_active, true);
+  });
 } finally {
   console.log(results.join('\n'));
   console.log(`\n${passed} passed, ${results.filter((r) => r.startsWith('FAIL')).length} failed`);

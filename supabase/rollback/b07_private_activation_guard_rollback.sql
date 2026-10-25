@@ -29,5 +29,6 @@ BEGIN
   END IF;
   RETURN NEW;
 END;
-$function$;DROP FUNCTION IF EXISTS public.private_tariff_activation_ok(uuid);
+$function$;
+DROP FUNCTION IF EXISTS public.private_tariff_activation_ok(uuid);
 DROP TABLE IF EXISTS public.private_tariff_required_coverage;
